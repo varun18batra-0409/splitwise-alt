@@ -7,7 +7,6 @@ import { getAccount, getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney } from "@/lib/money-display";
 import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { Notice } from "@/components/Notice";
@@ -25,7 +24,6 @@ import { inviteMemberId } from "@/lib/invites";
 import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
 import { DateField } from "@/components/DateField";
-import { Amt } from "@/components/Amt";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -102,7 +100,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? <>gets <Amt minor={bal} currency={group.currency} /></> : bal < 0 ? <>owes <Amt minor={Math.abs(bal)} currency={group.currency} /></> : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>
@@ -226,7 +224,7 @@ export default async function PeoplePage({
                   </ConfirmButton>
                 )}
                 <p className="mt-2 text-xs text-gray-400" title={bal !== 0 ? money(bal) : undefined} data-exact={bal !== 0 ? money(bal) : undefined}>
-                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${overviewMoney(Math.abs(bal), group.currency)}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(Math.abs(bal))}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
                 </p>
               </form>
             ) : (

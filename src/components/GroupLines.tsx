@@ -3,7 +3,6 @@ import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney } from "@/lib/money-display";
 import { dayLabel } from "@/lib/activity";
 import { ChevronRight } from "@/components/icons";
 import type { loadOverview } from "@/lib/overview";
@@ -34,8 +33,8 @@ export function GroupRow({ g, closed, tz }: { g: Entry; closed?: boolean; tz: st
             {peopleCount(g.people)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
           </span>
         </span>
-        <span title={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} data-exact={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
-          {b > 0 ? `owed ${overviewMoney(b, g.group.currency)}` : b < 0 ? `owe ${overviewMoney(-b, g.group.currency)}` : "settled"}
+        <span title={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} data-exact={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} className={`shrink-0 whitespace-nowrap text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
+          {b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
         </span>
       </Link>
     </li>
@@ -68,14 +67,14 @@ export function GroupLine({ g, tz }: { g: Entry; tz: string }) {
               <>
                 You’re owed{" "}
                 <span title={exact} data-exact={exact} className="money whitespace-nowrap text-owed">
-                  {overviewMoney(b, g.group.currency)}
+                  {formatMoney(b, g.group.currency)}
                 </span>
               </>
             ) : b < 0 ? (
               <>
                 You owe{" "}
                 <span title={exact} data-exact={exact} className="money whitespace-nowrap text-owe">
-                  {overviewMoney(-b, g.group.currency)}
+                  {formatMoney(-b, g.group.currency)}
                 </span>
               </>
             ) : g.group.type === "home" ? (

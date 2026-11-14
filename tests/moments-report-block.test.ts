@@ -20,7 +20,9 @@ const { encodeSession, today } = await import("@/lib/session");
 const { resolveReportTarget, REPORT_KINDS } = await import("@/lib/reports");
 const { reportAction, blockAction } = await import("@/app/safety-actions");
 const { loadMomentViewer } = await import("@/lib/moments-access");
-const { listMoments } = await import("@/lib/moments-db");
+const { listMoments, removeMoment } = await import("@/lib/moments-db");
+const { deleteAccount } = await import("@/lib/auth");
+const { eraseGroups } = await import("@/lib/purge");
 
 process.env.MAIL_OUTBOX = "1";
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -138,5 +140,94 @@ describe("blocking the author of a moment", () => {
     // Everyone else is unaffected.
     await asAccount(T.asha);
     expect(await listMoments(await loadMomentViewer(g.id))).toHaveLength(2);
+  });
+});
+
+describe("what happens to a moment's open reports when it goes", () => {
+  async function reported(label: string) {
+    const author = await account(`au-${label}`);
+    const reporter = await account(`rp-${label}`);
+    const grp = await db.group.create({
+      data: {
+        name: `Report close ${label} ${stamp}`, inviteCode: `rc-${label}-${stamp}`, type: "trip",
+        members: { create: [{ name: "Author", accountId: author.id, claimedAt: new Date() }, { name: "Reporter", accountId: reporter.id, claimedAt: new Date() }] },
+      },
+      include: { members: true },
+    });
+    groupIds.push(grp.id);
+    const mk = (caption: string) => db.moment.create({ data: { groupId: grp.id, authorId: grp.members[0].id, authorAccountId: author.id, caption, data: new Uint8Array(), thumbData: new Uint8Array() } });
+    const mine = await mk("x");
+    const other = await mk("y");
+    const report = (targetId: string, status = "open", resolvedAt: Date | null = null) =>
+      db.report.create({ data: { reporterId: reporter.id, kind: "moment", targetId, targetAccountId: author.id, reason: "other", status, resolvedAt } });
+    const reload = (id: string) => db.report.findUniqueOrThrow({ where: { id } });
+    return { grp, author, reporter, mine, other, report, reload };
+  }
+
+  it("the author deleting their own moment leaves its open reports OPEN (the operator still sees them)", async () => {
+    const t = await reported("author");
+    const r = await t.report(t.mine.id);
+    expect(await removeMoment(t.mine.id)).toBe(true);
+    expect(await db.moment.count({ where: { id: t.mine.id } })).toBe(0);
+    expect(await t.reload(r.id)).toMatchObject({ status: "open", resolvedAt: null });
+  });
+
+  it("the operator's remove closes that moment's open reports (with a time), and only those", async () => {
+    const t = await reported("op");
+    const a = await t.report(t.mine.id);
+    const b = await t.report(t.mine.id);
+    const elsewhere = await t.report(t.other.id);
+    expect(await removeMoment(t.mine.id, { resolveReports: true })).toBe(true);
+    for (const id of [a.id, b.id]) {
+      const r = await t.reload(id);
+      expect(r.status).toBe("resolved");
+      expect(r.resolvedAt).not.toBeNull();
+    }
+    expect(await t.reload(elsewhere.id)).toMatchObject({ status: "open", resolvedAt: null });
+  });
+
+  it("the operator removing a moment the author already deleted still closes its reports", async () => {
+    const t = await reported("gone");
+    const r = await t.report(t.mine.id);
+    await removeMoment(t.mine.id); // the author's delete: report stays open
+    expect(await t.reload(r.id)).toMatchObject({ status: "open" });
+    expect(await removeMoment(t.mine.id, { resolveReports: true })).toBe(false); // already gone
+    expect(await t.reload(r.id)).toMatchObject({ status: "resolved" });
+    expect((await t.reload(r.id)).resolvedAt).not.toBeNull();
+  });
+
+  it("a report that was already resolved keeps its original time", async () => {
+    const t = await reported("old");
+    const before = new Date(2026, 0, 5);
+    const done = await t.report(t.mine.id, "resolved", before);
+    await removeMoment(t.mine.id, { resolveReports: true });
+    expect((await t.reload(done.id)).resolvedAt?.getTime()).toBe(before.getTime());
+  });
+
+  it("deleting the author's account leaves open reports on their moments OPEN", async () => {
+    const t = await reported("acct");
+    const a = await t.report(t.mine.id);
+    const b = await t.report(t.other.id);
+    await deleteAccount(t.author.id);
+    expect(await db.moment.count({ where: { authorAccountId: t.author.id } })).toBe(0);
+    expect(await t.reload(a.id)).toMatchObject({ status: "open", resolvedAt: null });
+    expect(await t.reload(b.id)).toMatchObject({ status: "open", resolvedAt: null });
+  });
+
+  it("erasing a deleted group closes the open reports on all its moments, and not other groups' reports", async () => {
+    const t = await reported("purge");
+    const keep = await reported("keep");
+    const a = await t.report(t.mine.id);
+    const b = await t.report(t.other.id);
+    const unrelated = await keep.report(keep.mine.id);
+    await db.group.update({ where: { id: t.grp.id }, data: { deletedAt: new Date(Date.now() - 40 * 86_400_000) } });
+    expect(await eraseGroups([t.grp.id])).toBe(1);
+    expect(await db.moment.count({ where: { groupId: t.grp.id } })).toBe(0);
+    for (const id of [a.id, b.id]) {
+      const r = await t.reload(id);
+      expect(r.status).toBe("resolved");
+      expect(r.resolvedAt).not.toBeNull();
+    }
+    expect(await t.reload(unrelated.id)).toMatchObject({ status: "open" });
   });
 });

@@ -117,6 +117,12 @@ function Faces({ line }: { line: TicketLine }) {
 
 // `action` is optional: on a group's own ticket the two lines carry no buttons (the one cream Settle up is below them).
 export type BothLineData = Omit<TicketLine, "action"> & { action?: TicketAction };
+// The amount on a "both sides" line shrinks with its length (like amountTier does for the one-sided ticket), so a lakh amount is never clipped.
+export function bothAmountSize(text: string): string {
+  const n = [...text].length;
+  return n <= 9 ? "text-[24px]" : n <= 11 ? "text-[21px]" : n <= 13 ? "text-[18px]" : "text-[16px]";
+}
+
 export function BothLine({ line }: { line: BothLineData }) {
   const owe = line.side === "owe";
   return (
@@ -135,7 +141,7 @@ export function BothLine({ line }: { line: BothLineData }) {
             </>
           )}
         </span>
-        <span className={`mt-0.5 block font-display text-[24px] font-medium leading-tight tracking-[-0.02em] lining-nums tabular-nums [overflow-wrap:normal] ${owe ? "text-owe" : "text-owed"}`} data-net-balance title={line.exact}>
+        <span className={`mt-0.5 block whitespace-nowrap font-display ${bothAmountSize(line.amount)} font-medium leading-tight tracking-[-0.02em] lining-nums tabular-nums [overflow-wrap:normal] ${owe ? "text-owe" : "text-owed"}`} data-net-balance title={line.exact}>
           {line.amount}
         </span>
       </Link>

@@ -3,7 +3,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
 import { setGroupClosed } from "@/app/actions";
-import { overviewMoney } from "@/lib/money-display";
+import { exactMoney } from "@/lib/money-display";
 import { coverFor } from "@/lib/covers";
 import { tripPhotoSrc } from "@/lib/places";
 import { ActionButton, Amount, BothLine, CREAM, Route, TicketShell, type BothLineData } from "@/components/HomeMoney";
@@ -18,11 +18,11 @@ export function GroupSummary({ v, sp, compact }: { v: GroupView; sp: Notices; co
   const { group, myId, net, money, eq, expenses } = v;
   const mine = net[myId] ?? 0;
 
-  // The ticket. The amounts are the same ones the page showed before (your balance, whole rupees from 1,000, the exact one on tap);
+  // The ticket. Amounts are shown exactly, paise included, the same figure Settle up shows (never rounded on a group screen);
   // only the sides are decided here (who you pay / who pays you).
   const sides = groupTicketSides({ mine, myId, transfers: v.transfers, nameOf: v.nameOf });
   const mark = groupMark(group.type);
-  const shown = (n: number) => overviewMoney(n, group.currency);
+  const shown = (n: number) => exactMoney(n, group.currency);
   const hasHistory = expenses.length > 0 || v.payments.length > 0;
   const settle = v.transfers.length > 0 && !group.closed && hasHistory;
   const settleHref = `/groups/${group.id}/settle`;

@@ -177,10 +177,13 @@ export async function saveMoment(o: {
 // ---------- Removing ----------
 // Author delete, admin remove and operator remove all end here: the files go on the to-delete list in the same step as the row.
 // Nothing is logged in the group's history (that stays money only). Returns false when it was already gone.
-export async function removeMoment(id: string): Promise<boolean> {
+// `resolveReports` is for the operator's remove (and nothing else): the moment's open reports are closed in the same step, even when
+// the moment is already gone. When the author deletes their own, the reports stay open so the operator still sees them.
+export async function removeMoment(id: string, opts: { resolveReports?: boolean } = {}): Promise<boolean> {
   const { queuePhotoDeletes, flushPhotoDeletes } = await import("./photo-store");
   const gone = await db.$transaction(async (tx) => {
     const m = await tx.moment.findUnique({ where: { id }, select: { blobKey: true, thumbKey: true } });
+    if (opts.resolveReports) await tx.report.updateMany({ where: { kind: "moment", targetId: id, status: "open" }, data: { status: "resolved", resolvedAt: new Date() } });
     if (!m) return false;
     await queuePhotoDeletes(tx, [m.blobKey, m.thumbKey]);
     await tx.momentReaction.deleteMany({ where: { momentId: id } });

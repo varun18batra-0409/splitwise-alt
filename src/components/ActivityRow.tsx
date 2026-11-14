@@ -2,7 +2,6 @@ import { neutralGameText } from "@/lib/game-words";
 import { getCategory } from "@/lib/categories";
 import { ExpenseGlyph } from "./ExpenseGlyph";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney } from "@/lib/money-display";
 import type { ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
 import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-words";
@@ -43,8 +42,8 @@ export function ActivityRow({
   delay?: number; // seconds, so a list's icons take turns
 }) {
   const money = (m: number) => formatMoney(m, currency);
-  // Rows show whole units from 1,000 up (display only); the exact amount rides along in title / data-exact, and the row opens the expense.
-  const short = (m: number) => overviewMoney(m, currency);
+  // Rows show the exact amount, paise included (the same figure as the expense and Settle up); never rounded.
+  const short = money;
 
   if (item.kind === "event") {
     return (
@@ -118,7 +117,7 @@ export function ActivityRow({
     const exact = o ? formatMoney(orig, o.currency) : money(base);
     return (
       <span className="whitespace-nowrap" title={exact} data-exact={exact}>
-        {o ? overviewMoney(orig, o.currency) : short(base)}
+        {exact}
       </span>
     );
   };
@@ -141,12 +140,14 @@ export function ActivityRow({
             {groupName && ` · ${groupName}`}
           </p>
         ) : (
-          // One line: the names take what is left and are cut with "…"; "paid THB 225" and the amount column never squeeze them to nothing.
+          // One line: the names take what is left and are cut first with "…"; "paid THB 225 · edited" can use two lines, so nothing runs under the amount column.
           <p className="mt-0.5 flex min-w-0 items-baseline gap-x-1 text-[13px] leading-snug text-fg/60">
-            <span className="min-w-0 truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
+            <span className="min-w-0 shrink-[4] truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
               {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}
             </span>{" "}
-            <span className="shrink-0 whitespace-nowrap">
+            {/* May take two lines (like the other rows), so a lakh-sized total stays readable; the amount itself never breaks, and this
+                can shrink, so it never runs under the amount on the right. The names give way first. */}
+            <span className="min-w-0 line-clamp-2 break-words" data-paid-line>
               {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
               {item.edited && " · edited"}
             </span>{" "}

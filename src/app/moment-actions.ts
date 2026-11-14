@@ -39,13 +39,22 @@ export async function reactMomentAction(f: FormData) {
   if (!isReaction(emoji)) redirect(back);
   if (!(await allow(`mreact:${viewer.memberId}`, 120, 3600))) redirect(back);
   const key = { momentId_memberId: { momentId: m.id, memberId: viewer.memberId } };
-  const had = await db.momentReaction.findUnique({ where: key });
-  if (had?.emoji === emoji) await db.momentReaction.deleteMany({ where: { momentId: m.id, memberId: viewer.memberId } });
-  else await db.momentReaction.upsert({ where: key, create: { momentId: m.id, memberId: viewer.memberId, emoji }, update: { emoji } });
-  redirect(back);
+  try {
+    const had = await db.momentReaction.findUnique({ where: key });
+    if (had?.emoji === emoji) await db.momentReaction.deleteMany({ where: { momentId: m.id, memberId: viewer.memberId } });
+    else await db.momentReaction.upsert({ where: key, create: { momentId: m.id, memberId: viewer.memberId, emoji }, update: { emoji } });
+  } catch (err) {
+    // A double tap: the other tap saved this person's reaction a moment ago (one per person per moment), so no error page.
+    // Retry once as a change to the emoji chosen here, so when the two taps were different emojis the last choice wins.
+    // Anything else is a real problem.
+    if ((err as { code?: string })?.code !== "P2002") throw err;
+    await db.momentReaction.updateMany({ where: { momentId: m.id, memberId: viewer.memberId }, data: { emoji } });
+  }
+  redirect(back); // outside the try: a redirect is thrown and must not be swallowed
 }
 
 // Operator only, from /stats/reports: remove a reported moment (photo files too) and mark its open reports as dealt with.
+// If the author already removed it, the reports are still closed.
 export async function removeReportedMomentAction(f: FormData) {
   const me = await getAccount();
   if (!isOwner(me)) redirect("/");
@@ -53,8 +62,7 @@ export async function removeReportedMomentAction(f: FormData) {
   if (!id) redirect("/stats/reports");
   const open = await db.report.findFirst({ where: { kind: "moment", targetId: id, status: "open" }, select: { id: true } });
   if (open) {
-    await removeMoment(id);
-    await db.report.updateMany({ where: { kind: "moment", targetId: id, status: "open" }, data: { status: "resolved", resolvedAt: new Date() } });
+    await removeMoment(id, { resolveReports: true }); // also closes its open reports, whether or not the moment is still there
   }
   redirect("/stats/reports");
 }

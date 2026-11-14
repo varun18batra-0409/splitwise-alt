@@ -7,6 +7,12 @@ import { formatMoney } from "./money";
 export { homeMoney };
 export const overviewMoney = homeMoney;
 
+// Group screens (balances, people, activity, group lists) show the EXACT amount, paise included, in the group's own
+// currency: the same text Settle up shows. Only Home, charts and the recap round. Same as formatMoney, named for intent.
+export function exactMoney(minor: number, currency = "INR"): string {
+  return formatMoney(minor, currency);
+}
+
 // The attributes that keep the exact amount beside a rounded one: a tooltip, a machine-readable value for tests,
 // and (when the element has no label of its own) the screen-reader text.
 export function exactAttrs(minor: number, currency = "INR"): { title: string; "data-exact": string } {
