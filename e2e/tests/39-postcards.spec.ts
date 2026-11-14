@@ -295,3 +295,32 @@ for (const size of [
     await check("Card");
   });
 }
+
+// Chips are never cut off mid-word, and on a tall phone the card sits close to the format switch (no big empty gap).
+test("Postcards: chip rows show every chip at 320 px, and the card sits close to the switch on a tall phone", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const isha = await signUp("Isha", testEmail("pc3-chips"));
+  const P = await (await contextFor(browser, isha)).newPage();
+  await P.setViewportSize({ width: 320, height: 640 });
+  await P.goto("/postcards/new");
+  await settled(P);
+  // The Fit row (Photo tool is open first): each chip is fully inside the row, or the row scrolls so it can be reached.
+  const fit = await P.locator('[role="group"][aria-label="Fit"] [data-chip-row]').evaluate((row) => {
+    const r = row.getBoundingClientRect();
+    const chips = [...row.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
+    return { scrolls: row.scrollWidth > row.clientWidth + 1, chips: chips.length, outside: chips.filter((c) => c.right > r.right + 1 || c.left < r.left - 1).length };
+  });
+  expect(fit.chips).toBe(3);
+  expect(fit.scrolls || fit.outside === 0, "Fit chips are fully visible or reachable").toBe(true);
+  expect(fit.outside, "Fit row wraps instead of clipping").toBe(0);
+
+  await P.setViewportSize({ width: 390, height: 844 });
+  await P.waitForTimeout(300);
+  const gap = await P.evaluate(() => {
+    const sw = document.querySelector('[role="group"][aria-label="Postcard format"]')!.getBoundingClientRect();
+    const card = document.querySelector("[data-composer-card]")!.getBoundingClientRect();
+    return { gap: card.top - sw.bottom, inner: (document.scrollingElement ?? document.documentElement).scrollHeight - window.innerHeight };
+  });
+  expect(gap.gap, `gap between the switch and the card is ${gap.gap}px`).toBeLessThan(120);
+  expect(gap.inner, "no page scroll").toBeLessThanOrEqual(0);
+});

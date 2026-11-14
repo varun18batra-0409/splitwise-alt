@@ -346,11 +346,12 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
         <div className="fixed inset-0 z-30 mx-auto flex max-w-md flex-col gap-2.5 bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] max-[359px]:px-4" data-composer data-step-now={tab}>
           <TopBar title={title} steps={steps} step={tab} onStep={goStep} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={error} />
           {tab === "front" && <FormatSwitch format={format} onChange={changeFormat} />}
-          <div className="flex min-h-0 flex-1 items-center justify-center [container-type:size]" data-composer-preview data-typing={typing ? "" : undefined}>
+          <div className="flex min-h-0 max-h-[calc((min(100vw,28rem)-2.5rem)*0.64+3rem)] flex-1 items-center justify-center [container-type:size]" data-composer-preview data-typing={typing ? "" : undefined}>
             {preview}
           </div>
           {panel}
           <ToolRow label={oneSide ? "Card tools" : tab === "back" ? "Note tools" : "Front tools"} tools={toolDefs} active={tool} onPick={pickTool} />
+          <div className="min-h-0 flex-1" aria-hidden />
           <div className={`flex flex-none items-center ${oneSide ? "justify-end" : "justify-between"}`}>
             {!oneSide && (
               <button type="button" onClick={flip} className="flex h-12 items-center gap-2 rounded-full border border-fg/25 px-[18px] text-[15px] font-semibold active:scale-[0.97] motion-reduce:transition-none">

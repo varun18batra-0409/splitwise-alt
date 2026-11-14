@@ -14,7 +14,7 @@ export const tile = (on: boolean) =>
 // A strip that scrolls sideways (long lists). Runs to the panel's edges.
 export function Strip({ children, className = "", ...rest }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`-mx-3.5 flex gap-2 overflow-x-auto px-3.5 py-1.5 [scrollbar-width:none] ${className}`} {...rest}>
+    <div className={`-mx-3.5 flex gap-2 overflow-x-auto py-1.5 pl-3.5 pr-10 [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] ${className}`} {...rest}>
       {children}
     </div>
   );

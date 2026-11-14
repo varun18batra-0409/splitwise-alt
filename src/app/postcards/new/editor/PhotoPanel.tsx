@@ -116,9 +116,9 @@ export function PhotoPanel({ format, front, own, onFront, onFile, fileRef, state
         </p>
       )}
       {format === "classic" ? (
-        <div className="mt-1.5 flex items-center gap-1.5" role="group" aria-label="Fit">
-          <span className="w-8 shrink-0 text-[12px] font-semibold text-fg/70">Fit</span>
-          <div className="flex min-w-0 gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none]">
+        <div className="mt-1.5 flex items-start gap-1.5" role="group" aria-label="Fit">
+          <span className="flex h-11 w-8 shrink-0 items-center text-[12px] font-semibold text-fg/70">Fit</span>
+          <div className="flex min-w-0 flex-wrap gap-1.5 py-0.5" data-chip-row>
             {FITS.map((f) => (
               <button key={f} type="button" aria-pressed={fit === f} data-fit-choice={f} onClick={() => onFit(f)} className={`${chip(fit === f)} !px-3`}>
                 {FIT_NAMES[f]}
@@ -127,9 +127,9 @@ export function PhotoPanel({ format, front, own, onFront, onFile, fileRef, state
           </div>
         </div>
       ) : (
-        <div className="mt-1.5 flex items-center gap-1.5" role="group" aria-label="Size">
-          <span className="w-8 shrink-0 text-[12px] font-semibold text-fg/70">Size</span>
-          <div className="flex min-w-0 gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none]">
+        <div className="mt-1.5 flex items-start gap-1.5" role="group" aria-label="Size">
+          <span className="flex h-11 w-8 shrink-0 items-center text-[12px] font-semibold text-fg/70">Size</span>
+          <div className="flex min-w-0 flex-wrap gap-1.5 py-0.5" data-chip-row>
             {PHOTO_SIZES.map((s) => (
               <button key={s} type="button" aria-pressed={size === s} data-size-choice={s} onClick={() => onSize(s)} className={`${chip(size === s)} !px-3`}>
                 {SIZE_NAMES[s]}

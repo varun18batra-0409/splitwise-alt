@@ -69,13 +69,15 @@ export function WordsPanel({ words, setWords, custom, setCustom, options, wordsA
       )}
       {words && (
         <>
-          <div className="flex items-center gap-1.5" data-words-place>
-            <span className="w-[72px] shrink-0 text-[12.5px] font-semibold text-fg/70">Sits at</span>
+          <div className="flex items-start gap-1.5" data-words-place>
+            <span className="flex h-11 w-[72px] shrink-0 items-center text-[12.5px] font-semibold text-fg/70">Sits at</span>
+            <div className="flex min-w-0 flex-wrap gap-1.5 py-0.5" data-chip-row>
             {PLACES.map((p) => (
               <button key={p.id} type="button" className={`${chip(wordsAt === p.id)} !px-3.5`} onClick={() => setWordsAt(p.id)} aria-pressed={wordsAt === p.id}>
                 {p.name}
               </button>
             ))}
+            </div>
           </div>
           <SliderRow label="Size" value={wordsSize}>
             <input type="range" min={60} max={150} step={5} value={wordsSize} onChange={(e) => setWordsSize(Number(e.target.value))} aria-label="Size of the words" className="h-1 min-w-0 flex-1 accent-[#F4F2EC]" data-words-size />
