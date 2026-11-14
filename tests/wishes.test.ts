@@ -336,6 +336,271 @@ describe("plan together", () => {
   });
 });
 
+describe("plan together: blocks, left friends, and 'not now'", () => {
+  const opts = (key?: string) => ({ origin: "https://loopin.test", key });
+  const k = () => `plan2-${stamp}-${++n}-bbbb`.slice(0, 40).padEnd(20, "b");
+  async function matched() {
+    const A = await account("Ada");
+    const B = await account("Bea");
+    await group([{ a: A }, { a: B }]);
+    await addWishes(A.id, ["JP"]);
+    await addWishes(B.id, ["JP"]);
+    await setShares(A.id, "JP", [B.id]);
+    await setShares(B.id, "JP", [A.id]);
+    return { A, B };
+  }
+
+  it("a block alone refuses: shares put back by hand after the block still can't plan, and unblocking (with those rows) works again", async () => {
+    const { A, B } = await matched();
+    expect((await matches(A.id)).length).toBe(1); // a real match before the block
+    await blockAccount(B.id, A.id);
+    await db.wishShare.createMany({ data: [{ ownerId: A.id, friendId: B.id, country: "JP" }, { ownerId: B.id, friendId: A.id, country: "JP" }] });
+    expect(await db.wishShare.count({ where: { OR: [{ ownerId: A.id }, { ownerId: B.id }] } })).toBe(2); // both rows exist; only the block stands in the way
+    const r = await planTogether(A, B.id, "JP", opts(k()));
+    expect(r.ok).toBe(false);
+    expect((await planTogether(B, A.id, "JP", opts(k()))).ok).toBe(false);
+    expect(await db.group.count({ where: { type: "trip", tripCountry: "JP", members: { some: { accountId: A.id } } } })).toBe(0);
+    await unblockAccount(B.id, A.id);
+    const ok = await planTogether(A, B.id, "JP", opts(k())); // proves the block was the only reason
+    if (ok.ok) groupIds.push(ok.groupId);
+    expect(ok.ok).toBe(true);
+  });
+
+  it("setShares leaves no row behind for someone blocked: nothing is created, and the count says 0 shared", async () => {
+    const { A, B } = await matched();
+    await db.wishShare.deleteMany({ where: { ownerId: A.id } });
+    await blockAccount(B.id, A.id);
+    const r = await setShares(A.id, "JP", [B.id]);
+    expect(r).toMatchObject({ ok: true, shared: 0 });
+    expect(await db.wishShare.count({ where: { ownerId: A.id } })).toBe(0);
+  });
+
+  it("findSharedTrip does not offer 'Open your Japan trip' for a trip the friend left", async () => {
+    const { A, B } = await matched();
+    const mk = async (bLeft: boolean) => {
+      const g = await db.group.create({
+        data: {
+          name: `Japan ${++n} ${stamp}`, type: "trip", tripCountry: "JP", inviteCode: `trip-${n}-${stamp}`,
+          members: { create: [{ name: "Ada", accountId: A.id, claimedAt: new Date() }, { name: "Bea", accountId: B.id, claimedAt: new Date(), leftAt: bLeft ? new Date() : null }] },
+        },
+      });
+      groupIds.push(g.id);
+      return g;
+    };
+    await mk(true);
+    expect(await findSharedTrip(A.id, B.id, "JP")).toBeNull(); // she left it
+    const live = await mk(false);
+    expect((await findSharedTrip(A.id, B.id, "JP"))?.groupId).toBe(live.id); // positive control
+  });
+
+  it("if the friend said Not now to a Japan trip from you in the last 30 days, no new trip: a calm message; after 30 days it goes ahead", async () => {
+    const { A, B } = await matched();
+    const first = await planTogether(A, B.id, "JP", opts(k()));
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    groupIds.push(first.groupId);
+    const inv = await db.invite.findFirstOrThrow({ where: { groupId: first.groupId } });
+    const bRow = await db.account.findUniqueOrThrow({ where: { id: B.id } });
+    expect((await declineInvitation(bRow, inv.token)).ok).toBe(true);
+    const again = await planTogether(A, B.id, "JP", opts(k()));
+    expect(again).toEqual({ ok: false, error: "Bea said not now to Japan. Try again later." });
+    expect(await db.group.count({ where: { type: "trip", tripCountry: "JP", members: { some: { accountId: A.id } } } })).toBe(1); // no second trip
+    await db.invite.update({ where: { id: inv.id }, data: { declinedAt: new Date(Date.now() - 31 * 86_400_000) } });
+    const later = await planTogether(A, B.id, "JP", opts(k()));
+    if (later.ok) groupIds.push(later.groupId);
+    expect(later.ok).toBe(true);
+  });
+});
+
+describe("someone who left is brought back by another member", () => {
+  // A and B are friends with a match; A leaves on their own; B adds A again.
+  async function leftThenReadded() {
+    const A = await account("Ada");
+    const B = await account("Bea");
+    await db.account.update({ where: { id: A.id }, data: { passportChoiceAt: new Date() } }); // A has said yes to showing a passport
+    const g = await group([{ a: A }, { a: B }]);
+    const a = g.members.find((m) => m.accountId === A.id)!.id;
+    const b = g.members.find((m) => m.accountId === B.id)!.id;
+    await addWishes(A.id, ["JP"]);
+    await addWishes(B.id, ["JP"]);
+    await setShares(A.id, "JP", [B.id]);
+    await setShares(B.id, "JP", [A.id]);
+    expect((await canSeePassport(B.id, A.id)).ok).toBe(true); // before: B can open A's passport
+    expect((await matches(B.id)).length).toBe(1);
+    expect((await setMemberLeft(g.id, a, a, true)).ok).toBe(true); // A leaves on their own (nothing owed)
+    return { A, B, g, a, b };
+  }
+
+  it("B re-adds A: A is pending, not a current member; B sees none of A's list, no match, no passport; A sees nothing of B's either", async () => {
+    const { A, B, g, a, b } = await leftThenReadded();
+    const r = await addRegistered(g.id, b, A.id, "https://loopin.test");
+    expect(r.ok).toBe(true);
+    const row = await db.member.findUniqueOrThrow({ where: { id: a } });
+    expect(row).toMatchObject({ leftAt: null, addedBy: b, seenAt: null }); // pending, the same as a fresh invitation
+    expect(await db.member.count({ where: { groupId: g.id, accountId: A.id } })).toBe(1); // same row: balances and history are untouched
+    expect(await currentFriends(B.id)).toEqual([]);
+    expect(await seen(B.id)).toEqual([]);
+    expect(await matches(B.id)).toEqual([]);
+    expect(await matches(A.id)).toEqual([]);
+    expect(await seen(A.id)).toEqual([]);
+    expect((await canSeePassport(B.id, A.id)).ok).toBe(false);
+    // They have a normal invitation waiting.
+    const invites = await loadInvitations(await db.account.findUniqueOrThrow({ where: { id: A.id } }));
+    expect(invites.some((i) => i.groupId === g.id)).toBe(true);
+    // The share rows are kept (paused), not deleted.
+    expect(await db.wishShare.count({ where: { OR: [{ ownerId: A.id }, { ownerId: B.id }] } })).toBe(2);
+  });
+
+  it("when A opens the group (seenAt set) everything works again", async () => {
+    const { A, B, g, a, b } = await leftThenReadded();
+    await addRegistered(g.id, b, A.id, "https://loopin.test");
+    await db.member.update({ where: { id: a }, data: { seenAt: new Date() } }); // what opening the group does
+    expect(await seen(B.id)).toEqual(["JP"]);
+    expect((await matches(B.id)).length).toBe(1);
+    expect((await canSeePassport(B.id, A.id)).ok).toBe(true);
+  });
+
+  it("'bring back' from People by another member is pending too; A rejoining themself is not", async () => {
+    const { A, B, g, a, b } = await leftThenReadded();
+    expect((await setMemberLeft(g.id, b, a, false)).ok).toBe(true);
+    expect(await db.member.findUniqueOrThrow({ where: { id: a } })).toMatchObject({ leftAt: null, addedBy: b, seenAt: null });
+    expect(await seen(B.id)).toEqual([]);
+    // Another round: A leaves again... (pending people can still leave) and rejoins themself.
+    await db.member.update({ where: { id: a }, data: { addedBy: "", seenAt: null, leftAt: new Date() } });
+    expect((await setMemberLeft(g.id, a, a, false)).ok).toBe(true);
+    expect(await db.member.findUniqueOrThrow({ where: { id: a } })).toMatchObject({ leftAt: null, addedBy: "" }); // unchanged: their own choice
+    expect(await seen(B.id)).toEqual(["JP"]);
+    void A;
+  });
+
+  it("the admin bringing back a REMOVED person: pending too (and the removal is cleared)", async () => {
+    const A = await account("Ada"); // looks after the group (first in)
+    const B = await account("Bea");
+    const g = await db.group.create({
+      data: {
+        name: `Wish group ${++n} ${stamp}`, inviteCode: `wish-${n}-${stamp}`,
+        members: { create: [{ name: "Ada", accountId: A.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) }, { name: "Bea", accountId: B.id, claimedAt: new Date() }] },
+      },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const a = g.members.find((m) => m.accountId === A.id)!.id;
+    const b = g.members.find((m) => m.accountId === B.id)!.id;
+    expect((await setMemberLeft(g.id, a, b, true)).ok).toBe(true); // removed
+    expect((await setMemberLeft(g.id, a, b, false)).ok).toBe(true); // brought back
+    expect(await db.member.findUniqueOrThrow({ where: { id: b } })).toMatchObject({ leftAt: null, removedAt: null, removedById: "", addedBy: a, seenAt: null });
+    expect(await currentFriends(A.id)).toEqual([]);
+  });
+});
+
+describe("sharing: paused friends and the row limit", () => {
+  it("mySharing lists a paused friend (now: false); saving the sheet does not delete the paused row; it shows again when they are back", async () => {
+    const A = await account("Ada");
+    const B = await account("Bea");
+    const C = await account("Cat");
+    const gb = await group([{ a: A }, { a: B }]);
+    await group([{ a: A }, { a: C }]);
+    await addWishes(A.id, ["JP"]);
+    expect((await setShares(A.id, "JP", [B.id, C.id])).shared).toBe(2);
+    await db.member.updateMany({ where: { groupId: gb.id, accountId: B.id }, data: { leftAt: new Date() } }); // Bea leaves the only group they share
+    const mineNow = await mySharing(A.id);
+    expect(mineNow.map((s) => [s.name, s.now]).sort()).toEqual([["Bea", false], ["Cat", true]]);
+    // A saves the sheet with only Cat ticked (Bea is not in the sheet any more): Bea's paused row stays.
+    expect((await setShares(A.id, "JP", [C.id])).ok).toBe(true);
+    expect(await db.wishShare.count({ where: { ownerId: A.id, friendId: B.id } })).toBe(1);
+    // ...but a current friend who is un-ticked does lose theirs.
+    expect((await setShares(A.id, "JP", [])).ok).toBe(true);
+    expect(await db.wishShare.count({ where: { ownerId: A.id, friendId: C.id } })).toBe(0);
+    expect(await db.wishShare.count({ where: { ownerId: A.id, friendId: B.id } })).toBe(1);
+    // Bea is back in the group: A's list shows to Bea again.
+    await addWishes(B.id, ["JP"]);
+    await db.member.updateMany({ where: { groupId: gb.id, accountId: B.id }, data: { leftAt: null } });
+    expect(await seen(B.id)).toEqual(["JP"]);
+  });
+
+  it("at SHARE_ROW_LIMIT a new share is refused with a calm message and no row", async () => {
+    const A = await account("Ada");
+    const B = await account("Bea");
+    await group([{ a: A }, { a: B }]);
+    await addWishes(A.id, ["JP"]);
+    const codes = COUNTRIES.map((c) => c.code).slice(0, 200);
+    const fillers = [];
+    for (let i = 0; i < SHARE_ROW_LIMIT / 200; i++) fillers.push(await account(`Fill${i}`));
+    await db.wishShare.createMany({ data: fillers.flatMap((f) => codes.map((country) => ({ ownerId: A.id, friendId: f.id, country }))) });
+    expect(await db.wishShare.count({ where: { ownerId: A.id } })).toBe(SHARE_ROW_LIMIT);
+    const r = await setShares(A.id, "JP", [B.id]);
+    expect(r).toEqual({ ok: false, shared: 0, error: "You’re sharing with a lot of people already." });
+    expect(await db.wishShare.count({ where: { ownerId: A.id, friendId: B.id } })).toBe(0);
+  });
+});
+
+describe("the actions: the owner is always the signed-in account", () => {
+  const go = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      return "";
+    } catch (e) {
+      const m = String((e as Error).message);
+      if (!m.startsWith("REDIRECT ")) throw e;
+      return m.slice("REDIRECT ".length);
+    }
+  };
+  const errorOf = (url: string) => new URL(url, "http://x").searchParams.get("error");
+  const form = (fields: Record<string, string | string[]>) => {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(fields)) for (const x of Array.isArray(v) ? v : [v]) f.append(k, x);
+    return f;
+  };
+  const signInAs = (a: { id: string; name: string; email: string }) => void (session.account = a);
+
+  it("forged owner fields are ignored: add, share and remove only ever change the signed-in account's own rows", async () => {
+    const A = await account("Ada");
+    const B = await account("Bea");
+    await group([{ a: A }, { a: B }]);
+    await addWishes(B.id, ["JP", "PE"]);
+    await setShares(B.id, "JP", [A.id]);
+    signInAs(A);
+    // Add
+    await go(() => addWishesAction(form({ country: ["IS"], accountId: B.id, ownerId: B.id, owner: B.id })));
+    expect(await mine(A.id)).toEqual(["IS"]);
+    expect(await mine(B.id)).toEqual(["JP", "PE"]);
+    // Share: the row is A's, to B; none are made in B's name.
+    await go(() => shareWishesAction(form({ scope: "IS", friend: [B.id], ownerId: B.id, accountId: B.id })));
+    expect(await db.wishShare.count({ where: { ownerId: A.id, friendId: B.id, country: "IS" } })).toBe(1);
+    expect(await db.wishShare.count({ where: { ownerId: B.id } })).toBe(1); // only B's own earlier row to A
+    // Remove: only A's list is touched, B's JP stays (and its share row).
+    await addWishes(A.id, ["JP"]);
+    await go(() => removeWishAction(form({ country: "JP", accountId: B.id, ownerId: B.id })));
+    expect(await mine(A.id)).toEqual(["IS"]);
+    expect(await mine(B.id)).toEqual(["JP", "PE"]);
+    expect(await db.wishShare.count({ where: { ownerId: B.id, country: "JP" } })).toBe(1);
+  });
+
+  it("nobody signed in is sent to sign in, and nothing is written", async () => {
+    session.account = null;
+    const url = await go(() => addWishesAction(form({ country: ["JP"] })));
+    expect(url).toContain("/signin");
+  });
+
+  it("sharing is limited to 30 changes an hour", async () => {
+    const A = await account("Ada");
+    const B = await account("Bea");
+    await group([{ a: A }, { a: B }]);
+    await addWishes(A.id, ["JP"]);
+    signInAs(A);
+    for (let i = 0; i < 30; i++) expect(errorOf(await go(() => shareWishesAction(form({ scope: "JP", friend: [B.id] }))))).toBeNull();
+    expect(errorOf(await go(() => shareWishesAction(form({ scope: "JP", friend: [B.id] }))))).toBe("You’ve changed sharing a lot just now. Try again in a bit.");
+  });
+
+  it("planning is limited to 5 a day (each tap counts, even a refused one)", async () => {
+    const A = await account("Ada");
+    const S = await account("Sam"); // not a friend: every try is refused, but still counted
+    signInAs(A);
+    for (let i = 0; i < 5; i++) expect(errorOf(await go(() => planTogetherAction(form({ country: "JP", friendId: S.id }))))).toBe("You can plan together once you both want to go and have shared it.");
+    expect(errorOf(await go(() => planTogetherAction(form({ country: "JP", friendId: S.id }))))).toBe("You’ve planned a few trips today. Try again tomorrow.");
+  });
+});
+
 describe("deleting an account, and download my data", () => {
   it("removes A's places and shares on both sides; B's list is untouched", async () => {
     const A = await account("Ada");
