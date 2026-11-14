@@ -66,7 +66,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await R.waitForURL(/\/pay\?/);
   await settled(R);
   await R.getByLabel("Amount (INR)").fill("12,50");
-  await expect(R.locator("[data-record-live]")).toHaveText("Will record ₹12.50 from you"); // how "12,50" was read (the button itself just says "Record payment")
+  await expect(R.locator("[data-record-live]")).toHaveText("Will record ₹12.50 from you"); // how "12,50" was read (the button itself says "Record ₹12.50")
   // Typed the way people type: click the box, select all, type 1082.50. The box holds exactly what was typed, and the button reads it.
   const payBox = R.getByLabel("Amount (INR)");
   await payBox.click();
@@ -74,7 +74,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await R.keyboard.type("1082.50");
   await expect(payBox).toHaveValue("1082.50");
   await expect(R.locator("[data-record-live]")).toHaveText("Will record ₹1,082.50 from you");
-  await expect(R.getByRole("button", { name: "Record payment" })).toBeVisible();
+  await expect(R.getByRole("button", { name: "Record ₹1,082.50", exact: true })).toBeVisible(); // the amount rides on the button as a last check
   await R.getByLabel("Amount (INR)").fill("3000");
   await R.getByRole("button", { name: /^Record / }).click();
   await R.waitForURL(/owes=/);

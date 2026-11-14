@@ -33,7 +33,7 @@ export default async function Collections() {
           </Link>
         </>
       ) : (
-        <CollectionsSection list={list} className="" />
+        <CollectionsSection list={list} className="" showToCheck />
       )}
     </>
   );

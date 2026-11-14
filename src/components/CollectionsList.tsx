@@ -16,7 +16,9 @@ export type CollectionRow = {
 // quiet line under Home's money card (never repeated here, and never green: that money has not arrived).
 // On Home it shows the first few with "See all"; on its own page (limit left out) it shows every one.
 // `total`: the real number of collections when `list` holds only the newest (Home loads 20): "See all N" says the real N.
-export function CollectionsSection({ list, limit, total, className = "mt-8" }: { list: CollectionRow[]; limit?: number; total?: number; className?: string }) {
+// `showToCheck`: the organiser's own page (/collect) adds a neutral grey "₹300 to check" when payments are reported but not yet checked.
+// Home leaves it off (its needs-you line covers it). Never green: that money has not arrived.
+export function CollectionsSection({ list, limit, total, className = "mt-8", showToCheck = false }: { list: CollectionRow[]; limit?: number; total?: number; className?: string; showToCheck?: boolean }) {
   const all = Math.max(total ?? 0, list.length);
   const shown = limit ? list.slice(0, limit) : list;
   return (
@@ -53,6 +55,11 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
                       </span>
                     ))}
                   </span>
+                  {showToCheck && p.reportedAmount > 0 && (
+                    <span className="shrink-0 whitespace-nowrap tabular-nums text-fg/60" data-to-check>
+                      {formatMoney(p.reportedAmount, c.currency)} to check
+                    </span>
+                  )}
                 </span>
               </Link>
             </li>

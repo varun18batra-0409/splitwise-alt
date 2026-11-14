@@ -10,6 +10,12 @@ export function recordButtonLabel(amountText: string, currency: string, payer: {
   return `Record ${formatMoney(minor, currency)} from ${payer.me ? "you" : payer.name}`;
 }
 
+// The button's own words: the amount alone ("Record ₹1,082.50"), no payer. Nothing usable typed: "Record payment".
+export function recordButtonText(amountText: string, currency: string): string {
+  const minor = parseAmount(amountText, currency);
+  return minor === null ? "Record payment" : `Record ${formatMoney(minor, currency)}`;
+}
+
 type Move = { from: string; to: string; amount: number };
 
 // What the "Payment recorded" view says. `payment` is the one just recorded; `left` is the group's payments still suggested afterwards.
