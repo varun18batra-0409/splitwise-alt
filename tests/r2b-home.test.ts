@@ -104,10 +104,10 @@ describe("2. the money pass photo", () => {
   it("money only in another kind of group (a dinner group): countries, not an interior", () => {
     expect(passPhoto({ ...base, groups: [flat("d", { type: "other" })] })?.source).toBe("visited");
   });
-  it("the page uses it and keeps the group covers only as the fallback", () => {
+  it("Home's money card has no photo any more (founder, 15 Nov evening), so the page no longer picks one", () => {
     const home = src("src/app/(home)/page.tsx");
-    expect(home).toContain("passPhoto(");
-    expect(home).toContain("groupStub");
+    expect(home).not.toContain("passPhoto(");
+    expect(home).not.toContain("groupStub");
   });
 });
 

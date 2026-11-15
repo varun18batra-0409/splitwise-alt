@@ -567,7 +567,7 @@ export default async function Home({
           {/* Automated stories on top, like Instagram: a row of circles. Nothing when there are none. */}
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
 
-          {/* Money (the mockup's compact "You owe" card: label, the exact amount, who and where, faces, ONE full-width cream button, no photo);
+          {/* Money (the mockup's short "You owe" card: label, the exact amount, who and where, faces, ONE full-width cream button, no photo);
               nothing sits under it: what needs you is in Updates behind the bell. */}
           <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} />
 
