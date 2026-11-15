@@ -13,7 +13,7 @@ import { BillScan, type ScannedBill } from "./BillScan";
 import { useRequestKey } from "./FreshKeyInput";
 import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
-import { expensePairs, payersJson, payersLabel } from "@/lib/payers";
+import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { MAX_ITEM_LINES, splitByItems } from "@/lib/item-split";
 import { chooseSplit, splitFields, type SplitAction } from "@/lib/split-draft";
@@ -22,7 +22,7 @@ import { dayKey, todayKey } from "@/lib/dates";
 import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
-import { currencySign, resultSentence, splitSubline, whoRowPhrase } from "@/lib/add-expense-sentence";
+import { resultSentence } from "@/lib/add-expense-sentence";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -112,8 +112,6 @@ export function AddExpenseForm({
 
   // 5–7: who paid, who it was for, how to split
   const [showPeople, setShowPeople] = useState(Boolean(initialItems?.length)); // editing a split by item: open on the items
-  // The sentence "Asha paid, split equally between all 4" opens the payer and split controls under it.
-  const [panel, setPanel] = useState(Boolean(initialItems?.length));
   const [paidById, setPaidById] = useState(initial?.paidById ?? myId);
   const [multiPay, setMultiPay] = useState(Boolean(initial?.multiPay));
   const [kind, setKind] = useState<"expense" | "refund">(initial?.kind ?? "expense");
@@ -150,8 +148,6 @@ export function AddExpenseForm({
   const [showOnly, setShowOnly] = useState(false);
   const [showFx, setShowFx] = useState(false); // currency details (rate, card fee, calculation)
   const [usingLast, setUsingLast] = useState(false); // the last split in this group was filled in
-  // The row ("Paid by" / "Split between") that opened the panel: "Done" gives focus back to it.
-  const openerRef = useRef<HTMLElement | null>(null);
   // "Same as last time" goes away as soon as anything changes the split from what was filled in.
   const splitSig = JSON.stringify([byItem, forMode, selected, onePersonId, splitType, percent]);
   const lastSig = useRef<string | null>(null);
@@ -407,17 +403,13 @@ export function AddExpenseForm({
     if (itemSplit && !itemSplit.ok) {
       setError(itemSplit.error);
       setShowPeople(true);
-      setPanel(true);
       return;
     }
     if (!preview.ok) {
       setError(preview.error);
       if (/person|amounts|percent|shares/i.test(preview.error)) {
         setShowPeople(true);
-        setPanel(true);
       }
-      // A payer error (also with several payers off) opens the payer controls.
-      if (/who paid|payers/i.test(preview.error)) setPanel(true);
       // A bad card fee opens the currency details, where the fee is.
       if (/card markup/i.test(preview.error)) setShowFx(true);
       if (errorNeedsMore(preview.error, multiPay)) setShowMore(true);
@@ -438,23 +430,9 @@ export function AddExpenseForm({
     });
   }
 
-  // The two rows (display only): who paid, and who it is split between. What is saved is unchanged.
+  // The result line under the form (display only; what is saved is unchanged).
   const money = (m: number) => `${foreign ? "≈ " : ""}${base(m)}`;
   const payersNow = preview.ok ? (preview.expense.payers.length > 1 ? preview.expense.payers : [{ memberId: preview.expense.paidById, amount: preview.expense.amount }]) : [];
-  const payerText = preview.ok ? (payersNow.length > 1 ? payersLabel(payersNow, who) : who(payersNow[0].memberId)) : multiPay ? "Several people" : who(paidById);
-  const payerFirst = preview.ok ? payersNow[0].memberId : paidById;
-  const shareAmounts = preview.ok ? preview.expense.shares.map((s) => s.amount) : [];
-  // "Equally · ฿450 each": in the expense's own currency (฿1,800 / 4), even when the saved group-currency shares differ by a paisa or
-  // carry a card fee. Shown only when the typed amount divides evenly; otherwise (same currency) the saved shares must all be equal.
-  const eachEqual = (() => {
-    if (!preview.ok || byItem || splitType !== "equal" || shareAmounts.length < 2) return null;
-    const n = participants.length;
-    const o = preview.expense.originalAmount;
-    if (foreign) return n > 1 && o % n === 0 ? orig(o / n) : null;
-    return shareAmounts.every((a) => a === shareAmounts[0]) ? base(shareAmounts[0]) : null;
-  })();
-  const whoText = whoRowPhrase(participants, myId, who);
-  const howText = splitSubline({ byItem, splitType, groupSplitOn, splitName, each: eachEqual });
   const resultParts = preview.ok
     ? resultSentence({
         payers: payersNow,
@@ -470,16 +448,22 @@ export function AddExpenseForm({
         showPaid: !foreign,
       })
     : [];
-  const paidLabel = kind === "refund" ? "Got the money" : "Paid by";
-  function openPanel(e: React.MouseEvent<HTMLElement>) {
-    openerRef.current = e.currentTarget;
-    setPanel(true);
-  }
-  function closePanel() {
-    setPanel(false);
-    const el = openerRef.current;
-    if (el) setTimeout(() => el.focus(), 0);
-  }
+  // The amount is the hero: big for short amounts, stepping down so a lakh-sized amount still fits a 320px phone.
+  const heroSize = amount.length <= 6 ? "text-[clamp(52px,17vw,72px)]" : amount.length <= 8 ? "text-[clamp(40px,13vw,56px)]" : "text-[clamp(30px,9.5vw,42px)]";
+  const forSummary =
+    forMode === "everyone" ? "everyone" : forMode === "one" ? who(onePersonId) : `${participants.length} ${participants.length === 1 ? "person" : "people"}`;
+  const splitSummary =
+    participants.length <= 1
+      ? "100% to them"
+      : byItem
+        ? "by item"
+        : splitType === "equal"
+          ? "split equally"
+          : splitType === "exact"
+            ? "custom amounts"
+            : splitType === "shares"
+              ? "by shares"
+              : "by percentage";
 
   return (
     // Saving is already safe to repeat (one request key per form, and the
@@ -498,15 +482,25 @@ export function AddExpenseForm({
         </div>
       )}
 
-      {/* 2 + 4. Amount (the hero), with the currency and the day as two small chips under it */}
+      {/* 2 + 4. Amount and currency: the currency pill above, the amount big in the middle, the day under it */}
       <div className="flex flex-col items-center pt-1 text-center" data-amount-hero>
-        <div className="flex w-full items-baseline justify-center gap-1.5 text-[clamp(34px,10vw,40px)] leading-[1.05]">
-          <span aria-hidden className="font-display text-[0.55em] font-semibold text-fg/55">
-            {currencySign(currency)}
-          </span>
-          {/* The input is exactly as wide as its text: a hidden copy of the text sets the width of the grid cell. */}
+        <button
+          type="button"
+          onClick={() => setShowCurrencies((s) => !s)}
+          aria-label={`Currency: ${cur.name}. Tap to change`}
+          aria-expanded={showCurrencies}
+          className="flex items-center gap-1.5 rounded-full bg-mist px-3 py-1.5 text-sm font-semibold active:scale-95"
+        >
+          {currency}
+          <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-fg/50">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        {/* The input is exactly as wide as its text: a hidden copy of the text sets the width of the grid cell.
+            The box holds the plain typed amount, so the browser never rewrites it under the cursor. */}
+        <div className={`mt-2 flex w-full justify-center leading-[1.05] ${heroSize}`}>
           <span className="inline-grid min-w-0 max-w-full">
-            <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center font-display font-semibold tracking-[-0.02em]">
+            <span aria-hidden className="money invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center">
               {amount || "0"}
             </span>
             <input
@@ -517,7 +511,7 @@ export function AddExpenseForm({
               autoComplete="off"
               aria-label="Amount"
               autoFocus={!initial?.name}
-              className="col-start-1 row-start-1 w-full min-w-0 bg-transparent px-0.5 text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
+              className="money col-start-1 row-start-1 w-full min-w-0 bg-transparent px-0.5 text-center text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
             />
           </span>
         </div>
@@ -527,58 +521,41 @@ export function AddExpenseForm({
             Read as {echo}
           </span>
         )}
-
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowCurrencies((s) => !s)}
-            aria-label={`Currency: ${cur.name}. Tap to change`}
-            aria-expanded={showCurrencies}
-            className="flex min-h-9 items-center gap-1.5 rounded-full border border-fg/15 bg-mist px-3.5 text-[13px] font-semibold active:scale-95"
-          >
-            {currency}
-            <svg aria-hidden width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="text-fg/55">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-          {/* When it was spent: optional, today unless changed. */}
-          {!showDate ? (
-            <button type="button" onClick={() => setShowDate(true)} className="flex min-h-9 items-center gap-1.5 rounded-full border border-fg/15 bg-mist px-3.5 text-[13px] font-semibold active:scale-95">
-              {date === today ? "Today" : date === yesterday ? "Yesterday" : niceDate(date)}
-              <span className="sr-only">. Change</span>
-              <svg aria-hidden width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="text-fg/55">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          ) : (
-            <div className="flex flex-wrap items-center justify-center gap-2" role="group" aria-label="When">
-              <Chip on={!pickingDate && date === today} onClick={() => { setPickingDate(false); setDate(today); }}>
-                Today
-              </Chip>
-              <Chip on={!pickingDate && date === yesterday} onClick={() => { setPickingDate(false); setDate(yesterday); }}>
-                Yesterday
-              </Chip>
-              {pickingDate ? (
-                <DateField
-                  value={date}
-                  max={today}
-                  onChange={(e) => setDate(e.target.value || today)}
-                  aria-label="Date of the expense"
-                  size="sm"
-                  inline
-                  required
-                />
-              ) : (
-                <Chip on={false} onClick={() => setPickingDate(true)}>
-                  <CalIcon /> Pick date
-                </Chip>
-              )}
-            </div>
-          )}
-        </div>
         {showCurrencies && (
-          <div className="mt-3 w-full text-left">
+          <div className="w-full text-left">
             <CurrencyPicker value={currency} recent={[baseCurrency, currency]} onPick={chooseCurrency} />
+          </div>
+        )}
+
+        {/* When it was spent: optional, today unless changed. */}
+        {!showDate ? (
+          <button type="button" onClick={() => setShowDate(true)} className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-sm font-medium text-fg/80 active:scale-95">
+            <CalIcon /> {date === today ? "Today" : date === yesterday ? "Yesterday" : niceDate(date)}
+            <span className="sr-only">. Change</span>
+          </button>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2" role="group" aria-label="When">
+            <Chip on={!pickingDate && date === today} onClick={() => { setPickingDate(false); setDate(today); }}>
+              Today
+            </Chip>
+            <Chip on={!pickingDate && date === yesterday} onClick={() => { setPickingDate(false); setDate(yesterday); }}>
+              Yesterday
+            </Chip>
+            {pickingDate ? (
+              <DateField
+                value={date}
+                max={today}
+                onChange={(e) => setDate(e.target.value || today)}
+                aria-label="Date of the expense"
+                size="sm"
+                inline
+                required
+              />
+            ) : (
+              <Chip on={false} onClick={() => setPickingDate(true)}>
+                <CalIcon /> Pick date
+              </Chip>
+            )}
           </div>
         )}
       </div>
@@ -775,55 +752,29 @@ export function AddExpenseForm({
         </section>
       )}
 
-      {/* 1. What was it? One 54px field: the category tile on the left, the faster ways in on the right. */}
-      <div>
-        <label htmlFor="expense-name" className="sr-only">
-          What was it?
-        </label>
-        <div className="flex h-[54px] items-center gap-1 rounded-[14px] border border-line bg-mist pl-2 pr-1 focus-within:border-fg/40 focus-within:ring-2 focus-within:ring-fg/10">
-          <button
-            type="button"
-            onClick={() => setShowCategories((v) => !v)}
-            aria-label={`Category: ${category.label}${pickedCategory ? "" : " (picked automatically)"}. Tap to change`}
-            aria-expanded={showCategories}
-            title={category.label}
-            className="flex h-11 w-10 shrink-0 items-center justify-center rounded-xl active:bg-fg/10"
-          >
-            <ExpenseGlyph title={name} category={category.id} size={28} className="rounded-[9px]!" />
-          </button>
-          <input
-            id="expense-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="What was it?"
-            autoComplete="off"
-            maxLength={80}
-            autoFocus={Boolean(initial?.name)}
-            className="h-full min-w-0 flex-1 bg-transparent px-1 text-base text-fg outline-none placeholder:text-fg/45"
-          />
-          {/* Faster entry: scan a bill, say it, or type it in one line. Each fills the form; nothing saves until Save. */}
-          {(!billRun || quickOk) && entryColumns > 0 && (
-            <div role="group" aria-label="Faster entry" className="flex shrink-0 items-center">
-              {!billRun && (
-                <EntryButton disabled={scanBusy} onClick={() => openBill.current?.()} label={existingReceiptId ? "Bill photo" : "Scan a bill"}>
-                  <path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2zM8 8h8M8 12h8M8 16h5" />
-                </EntryButton>
-              )}
-              {quickOk && (
-                <EntryButton onClick={() => openQuick.current?.(true)} label="Speak">
-                  <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />
-                </EntryButton>
-              )}
-              {quickOk && (
-                <EntryButton onClick={() => openQuick.current?.(false)} label="Type a line">
-                  <path d="M4 7h16M4 12h10M4 17h7" />
-                </EntryButton>
-              )}
-            </div>
+      {/* Faster entry: scan a bill, say it, or type it in one line. Each fills the form below; nothing saves until Save. */}
+      {(!billRun || quickOk) && (
+        <div data-faster-entry>
+          {entryColumns > 0 && <span className={labelClass}>Faster entry</span>}
+          {entryColumns > 0 && (
+          <div role="group" aria-label="Faster entry" className="grid gap-2" style={{ gridTemplateColumns: `repeat(${entryColumns}, minmax(0, 1fr))` }}>
+            {!billRun && (
+              <EntryButton disabled={scanBusy} onClick={() => openBill.current?.()} label={existingReceiptId ? "Bill photo" : "Scan a bill"}>
+                <path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2zM8 8h8M8 12h8M8 16h5" />
+              </EntryButton>
+            )}
+            {quickOk && (
+              <EntryButton onClick={() => openQuick.current?.(true)} label="Speak">
+                <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />
+              </EntryButton>
+            )}
+            {quickOk && (
+              <EntryButton onClick={() => openQuick.current?.(false)} label="Type a line">
+                <path d="M4 7h16M4 12h10M4 17h7" />
+              </EntryButton>
+            )}
+          </div>
           )}
-        </div>
-        {(!billRun || quickOk) && (
-          <div data-faster-entry className="mt-2 empty:hidden">
           {!billRun && (
             <div className="mt-1">
               <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} existingId={existingReceiptId} openRef={openBill} onBusy={setScanBusy} />
@@ -833,7 +784,6 @@ export function AddExpenseForm({
                   onClick={() => {
                     setByItem(true);
                     setShowPeople(true);
-                    setPanel(true);
                     setShowOnly(false);
                   }}
                   className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-owed"
@@ -880,8 +830,39 @@ export function AddExpenseForm({
               />
             </div>
           )}
-          </div>
-        )}
+        </div>
+      )}
+
+      {/* 1. Expense name, with its category as a small tag (used for group reports) */}
+      <div>
+        <label htmlFor="expense-name" className={labelClass}>
+          What was it?
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="expense-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Beach dinner"
+            autoComplete="off"
+            maxLength={80}
+            autoFocus={Boolean(initial?.name)}
+            className={inputClass}
+          />
+          <button
+            type="button"
+            onClick={() => setShowCategories((v) => !v)}
+            aria-label={`Category: ${category.label}${pickedCategory ? "" : " (picked automatically)"}. Tap to change`}
+            title={category.label}
+            className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-line px-2.5 active:bg-mist"
+          >
+            <ExpenseGlyph title={name} category={category.id} size={26} className="rounded-[8px]!" />
+            <span className="text-[11px] leading-none text-gray-500">
+              {category.short}
+              {!pickedCategory && name.trim() && <span className="text-gray-400"> · auto</span>}
+            </span>
+          </button>
+        </div>
         {typo && (
           <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
             <span className="min-w-0 truncate">
@@ -931,425 +912,370 @@ export function AddExpenseForm({
         )}
       </div>
 
+      {/* Who paid: right under the name, one tap to change. Several payers and Spin for it are under More. */}
+      {members.length > 1 && (
+        <div>
+          <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
+          {/* One scrolling row, with a fade at the right edge so a cut-off name reads as "more this way". With several payers the single choice is off. */}
+          <div className={`relative -mx-5 ${multiPay ? "opacity-40" : ""}`} data-payer-row aria-disabled={multiPay || undefined}>
+            <div className={`flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none] ${multiPay ? "pointer-events-none" : ""}`}>
+              {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
+                <Chip
+                  key={m.id}
+                  on={!multiPay && m.id === paidById}
+                  face={m.name}
+                  onClick={() => {
+                    setMultiPay(false);
+                    setPaidById(m.id);
+                  }}
+                >
+                  {who(m.id)}
+                </Chip>
+              ))}
+            </div>
+            <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent" />
+          </div>
+          {multiPay && (
+            <button type="button" onClick={() => setShowMore(true)} className="mt-1 min-h-11 text-left text-sm text-gray-500" data-multi-pay-note>
+              More than one person {kind === "refund" ? "got it" : "paid"}. Set the amounts under <span className="font-medium text-fg underline underline-offset-4">More</span>.
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Who paid and who it is split between: two rows in one card, then ONE quiet line with your result. */}
-      <div>
-      <section aria-label="Who paid and how it splits" data-sentence-card className="overflow-hidden rounded-[20px] border border-line bg-white">
-        <button
-          type="button"
-          data-row-paid
-          aria-label={`${paidLabel}: ${payerText}. Change`}
-          aria-expanded={panel}
-          aria-controls="split-panel"
-          onClick={openPanel}
-          className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left active:bg-fg/5"
-        >
-          <span className="w-[92px] shrink-0 text-[13px] text-fg/55">{paidLabel}</span>
-          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1f1f24] text-sm font-bold text-fg">
-            {nameOf(payerFirst).trim().charAt(0).toUpperCase()}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">{payerText}</span>
-          <span aria-hidden className="shrink-0 text-sm font-medium text-fg">Change</span>
-        </button>
-        <div aria-hidden className="mx-4 border-t border-line" />
-        <button
-          type="button"
-          data-row-split
-          aria-label={`Split between: ${whoText}, ${howText}. Change`}
-          aria-expanded={panel}
-          aria-controls="split-panel"
-          onClick={openPanel}
-          className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left active:bg-fg/5"
-        >
-          <span className="w-[92px] shrink-0 text-[13px] text-fg/55">Split between</span>
-          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1f1f24] text-fg/85">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="9" cy="8" r="3.2" />
-              <path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
-              <path d="M16 5.2a3 3 0 0 1 0 5.6M18 13.8c1.8.7 3 2.4 3 5.2" />
-            </svg>
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-base font-medium text-fg">{whoText}</span>
-            <span className="block truncate text-[13px] tabular-nums text-fg/55">{howText}</span>
-          </span>
-          <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/55">
-            <path d="m9 6 6 6-6 6" />
-          </svg>
-        </button>
-
-        {panel && (
-          <div id="split-panel" data-split-panel className="space-y-5 border-t border-line px-4 pb-3 pt-4">
-          {members.length > 1 && (
+      {/* How to split: equal for everyone (default), or differently */}
+      <section>
+        <span className={labelClass}>How to split?</span>
+        <div className="relative -mx-5" data-split-row>
+        <div className="flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none]">
+          {groupShares && (
+            <Chip
+              on={!byItem && !showPeople && !showOnly && groupSplitOn}
+              onClick={() => {
+                pickSplit({ kind: "group-split" });
+                setShowPeople(false);
+                setShowOnly(false);
+                setShares(groupShares);
+              }}
+            >
+              {splitName} <span className="opacity-60">{groupSplitLabel}</span>
+            </Chip>
+          )}
+          <Chip
+            on={!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
+            onClick={resetSplit}
+          >
+            Everyone equally
+          </Chip>
+          {members.length > 2 && (
+            <Chip
+              on={!byItem && (showOnly || (!showPeople && forMode === "selected" && splitType === "equal"))}
+              onClick={() => {
+                const wasSelected = forMode === "selected" && !byItem;
+                pickSplit({ kind: "only-some" });
+                setShowPeople(false);
+                setShowOnly(true);
+                if (!wasSelected) setSelected([]);
+              }}
+            >
+              Only some
+            </Chip>
+          )}
+          <Chip
+            on={showPeople || (!showOnly && !groupSplitOn && (forMode === "one" || splitType !== "equal"))}
+            onClick={() => {
+              setShowOnly(false);
+              setShowPeople(true);
+            }}
+          >
+            Custom
+          </Chip>
+        </div>
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent" />
+        </div>
+        {showOnly && !showPeople && (
+          <div className="mt-3">
+            <p className="mb-2 text-sm text-gray-500">Tap who it was for · split equally</p>
+            <div className="flex flex-wrap gap-2">
+              {members.map((m) => {
+                const on = forMode === "selected" && selected.includes(m.id);
+                return (
+                  <Chip
+                    key={m.id}
+                    on={on}
+                    onClick={() => {
+                      setByItem(false);
+                      setForMode("selected");
+                      setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]));
+                    }}
+                  >
+                    {on && "✓ "}
+                    {who(m.id)}
+                  </Chip>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {!showPeople && !showOnly && !groupSplitOn && (forMode !== "everyone" || splitType !== "equal") && (
+          <p className="mt-2 text-sm text-gray-500">
+            For <strong className="text-fg">{forSummary}</strong> · {splitSummary}
+            {usingLast && (
+              <>
+                {" "}
+                · <span className="text-gray-400">same as last time</span>{" "}
+                <button type="button" onClick={resetSplit} className="font-medium text-fg underline underline-offset-4">
+                  Reset
+                </button>
+              </>
+            )}
+          </p>
+        )}
+        {showPeople && (
+          <div className="mt-3 space-y-6 rounded-2xl border border-line px-4 pb-4 pt-4">
+            {byItem ? (
+              <p className="text-sm text-gray-500" data-item-note>Split by item: each line says who it’s for.</p>
+            ) : (
             <div>
-              <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
-              {/* With several payers the single choice is off. */}
-              <div className={multiPay ? "opacity-40" : ""} data-payer-row aria-disabled={multiPay || undefined}>
-                <div className={`flex flex-wrap gap-2 ${multiPay ? "pointer-events-none" : ""}`}>
-                  {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
-                    <Chip
-                      key={m.id}
-                      on={!multiPay && m.id === paidById}
-                      face={m.name}
-                      onClick={() => {
-                        setMultiPay(false);
-                        setPaidById(m.id);
-                      }}
-                    >
+              <span className={labelClass}>Who was it for?</span>
+              <Segmented
+                options={[
+                  { id: "everyone", label: "Everyone" },
+                  { id: "selected", label: "Selected" },
+                  { id: "one", label: "One person" },
+                ]}
+                value={forMode}
+                onChange={(v) => setForMode(v as ForMode)}
+              />
+              {forMode === "selected" && (
+                <ul className="mt-3 space-y-1">
+                  {members.map((m) => (
+                    <li key={m.id}>
+                      <label className="flex items-center gap-3 py-1.5">
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(m.id)}
+                          onChange={() =>
+                            setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]))
+                          }
+                          className="h-5 w-5"
+                        />
+                        {who(m.id)}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {forMode === "one" && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {members.map((m) => (
+                    <Chip key={m.id} on={m.id === onePersonId} onClick={() => setOnePersonId(m.id)}>
                       {who(m.id)}
                     </Chip>
                   ))}
                 </div>
-              </div>
-              {multiPay && (
-                <button type="button" onClick={() => setShowMore(true)} className="mt-1 min-h-11 text-left text-sm text-gray-500" data-multi-pay-note>
-                  More than one person {kind === "refund" ? "got it" : "paid"}. Set the amounts under <span className="font-medium text-fg underline underline-offset-4">More</span>.
-                </button>
               )}
             </div>
-          )}
-
-          <section>
-            <span className={labelClass}>How to split?</span>
-            <div data-split-row>
-            <div className="flex flex-wrap gap-2">
-              {groupShares && (
-                <Chip
-                  on={!byItem && !showPeople && !showOnly && groupSplitOn}
-                  onClick={() => {
-                    pickSplit({ kind: "group-split" });
-                    setShowPeople(false);
-                    setShowOnly(false);
-                    setShares(groupShares);
-                  }}
-                >
-                  {splitName} <span className="opacity-60">{groupSplitLabel}</span>
-                </Chip>
-              )}
-              <Chip
-                on={!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
-                onClick={resetSplit}
-              >
-                Everyone equally
-              </Chip>
-              {members.length > 2 && (
-                <Chip
-                  on={!byItem && (showOnly || (!showPeople && forMode === "selected" && splitType === "equal"))}
-                  onClick={() => {
-                    const wasSelected = forMode === "selected" && !byItem;
-                    pickSplit({ kind: "only-some" });
-                    setShowPeople(false);
-                    setShowOnly(true);
-                    if (!wasSelected) setSelected([]);
-                  }}
-                >
-                  Only some
-                </Chip>
-              )}
-              <Chip
-                on={showPeople || (!showOnly && !groupSplitOn && (forMode === "one" || splitType !== "equal"))}
-                onClick={() => {
-                  setShowOnly(false);
-                  setShowPeople(true);
-                }}
-              >
-                Custom
-              </Chip>
-            </div>
-            </div>
-            {showOnly && !showPeople && (
-              <div className="mt-3">
-                <p className="mb-2 text-sm text-gray-500">Tap who it was for · split equally</p>
-                <div className="flex flex-wrap gap-2">
-                  {members.map((m) => {
-                    const on = forMode === "selected" && selected.includes(m.id);
-                    return (
-                      <Chip
-                        key={m.id}
-                        on={on}
-                        onClick={() => {
-                          setByItem(false);
-                          setForMode("selected");
-                          setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]));
-                        }}
-                      >
-                        {on && "✓ "}
-                        {who(m.id)}
-                      </Chip>
-                    );
-                  })}
-                </div>
-              </div>
             )}
-            {showPeople && (
-              <div className="mt-3 space-y-6 rounded-2xl border border-line px-4 pb-4 pt-4">
-                {byItem ? (
-                  <p className="text-sm text-gray-500" data-item-note>Split by item: each line says who it’s for.</p>
-                ) : (
-                <div>
-                  <span className={labelClass}>Who was it for?</span>
-                  <Segmented
-                    options={[
-                      { id: "everyone", label: "Everyone" },
-                      { id: "selected", label: "Selected" },
-                      { id: "one", label: "One person" },
-                    ]}
-                    value={forMode}
-                    onChange={(v) => setForMode(v as ForMode)}
-                  />
-                  {forMode === "selected" && (
-                    <ul className="mt-3 space-y-1">
-                      {members.map((m) => (
-                        <li key={m.id}>
-                          <label className="flex items-center gap-3 py-1.5">
-                            <input
-                              type="checkbox"
-                              checked={selected.includes(m.id)}
-                              onChange={() =>
-                                setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]))
-                              }
-                              className="h-5 w-5"
-                            />
-                            {who(m.id)}
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {forMode === "one" && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {members.map((m) => (
-                        <Chip key={m.id} on={m.id === onePersonId} onClick={() => setOnePersonId(m.id)}>
-                          {who(m.id)}
-                        </Chip>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                )}
 
-                {participants.length > 1 ? (
-                  <div>
-                    <span className={labelClass}>How should it be split?</span>
-                    <Segmented
-                      options={[
-                        { id: "equal", label: "Equally" },
-                        { id: "exact", label: "Amounts" },
-                        { id: "percent", label: "%" },
-                        { id: "shares", label: "Shares" },
-                        { id: "items", label: "Items" },
-                      ]}
-                      value={byItem ? "items" : splitType}
-                      onChange={(v) => {
-                        pickSplit({ kind: "how", id: v as SplitType | "items" });
-                      }}
-                    />
-                    {byItem && (
-                      <div className="mt-3 space-y-2.5" data-item-split>
-                        {items.map((it, i) => {
-                          const set = (patch: Partial<typeof it>) => setItems((list) => list.map((x) => (x.k === it.k ? { ...x, ...patch } : x)));
-                          const all = memberIds.every((id) => it.people.includes(id));
-                          return (
-                            <div key={it.k} className="rounded-2xl border border-line px-3 pb-3 pt-1.5">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  value={it.name}
-                                  onChange={(e) => set({ name: e.target.value })}
-                                  placeholder={i === 0 ? "e.g. Pizza" : "Item"}
-                                  aria-label={`Item ${i + 1}`}
-                                  maxLength={40}
-                                  className="min-w-0 flex-1 bg-transparent py-2 outline-none"
-                                />
-                                <span className="flex w-28 shrink-0 items-center rounded-xl border border-line px-2.5 focus-within:border-accent">
-                                  <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
-                                  <input
-                                    inputMode="decimal"
-                                    placeholder="0"
-                                    value={it.amount}
-                                    onChange={(e) => set({ amount: e.target.value })}
-                                    aria-label={`Item ${i + 1} price`}
-                                    className="w-full bg-transparent py-2 text-right tabular-nums outline-none"
-                                  />
-                                </span>
-                                {items.length > 1 && (
-                                  <button
-                                    type="button"
-                                    aria-label={`Remove item ${i + 1}`}
-                                    onClick={() => setItems((list) => list.filter((x) => x.k !== it.k))}
-                                    className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-gray-400 active:bg-mist"
-                                  >
-                                    ×
-                                  </button>
-                                )}
-                              </div>
-                              <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label={`Who had item ${i + 1}`}>
-                                {members.length > 2 && (
-                                  <button
-                                    type="button"
-                                    aria-pressed={all}
-                                    onClick={() => set({ people: all ? [] : [...memberIds] })}
-                                    className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${all ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 text-fg/85"}`}
-                                  >
-                                    Everyone
-                                  </button>
-                                )}
-                                {members.map((m) => {
-                                  const on = it.people.includes(m.id);
-                                  return (
-                                    <button
-                                      key={m.id}
-                                      type="button"
-                                      aria-pressed={on}
-                                      onClick={() => set({ people: on ? it.people.filter((x) => x !== m.id) : [...it.people, m.id] })}
-                                      className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 text-fg/85"}`}
-                                    >
-                                      {who(m.id)}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {items.length < MAX_ITEM_LINES ? (
-                          <button
-                            type="button"
-                            onClick={() => setItems((list) => (list.length >= MAX_ITEM_LINES ? list : [...list, { k: Math.max(0, ...list.map((x) => x.k)) + 1, name: "", amount: "", people: [] }]))}
-                            className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg"
-                          >
-                            <span className="text-lg leading-none">＋</span> Add item
-                          </button>
-                        ) : (
-                          <p className="text-xs text-gray-500" data-item-limit>That&apos;s the most a bill can have ({MAX_ITEM_LINES} items). Put small things together as one line.</p>
-                        )}
-                        {itemSplit && (itemSplit.ok ? (
-                          <div className="rounded-2xl bg-mist px-4 py-3 text-sm" data-item-result>
-                            <p className="text-gray-500">
-                              Items {orig(itemSplit.itemsTotal)}
-                              {itemSplit.extra > 0 && ` · tax, service & tip ${orig(itemSplit.extra)}, shared by what each had`}
-                            </p>
-                            <ul className="mt-2 space-y-1">
-                              {memberIds.filter((id) => itemSplit.amounts[id]).map((id) => (
-                                <li key={id} className="flex justify-between">
-                                  <span>{who(id)}</span>
-                                  <span className="money tabular-nums font-semibold">{orig(itemSplit.amounts[id])}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : (
-                          (items.some((x) => x.amount.trim()) || amount.trim()) && <p className="text-sm text-gray-500" data-item-hint>{itemSplit.error}</p>
-                        ))}
-                      </div>
-                    )}
-                    {splitType === "shares" && (
-                      <ul className="mt-3 divide-y divide-line">
-                        {participants.map((id) => {
-                          const amt = shareOf(id);
-                          return (
-                            <li key={id} className="flex items-center gap-2 py-2">
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate">{who(id)}</span>
-                                {amt !== null && <span className="block text-xs text-gray-400">{base(amt)}</span>}
-                              </span>
-                              <button type="button" aria-label={`Fewer shares for ${who(id)}`} onClick={() => stepShare(id, -0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
-                                −
-                              </button>
-                              <input
-                                inputMode="decimal"
-                                aria-label={`${who(id)} shares`}
-                                value={shares[id] ?? "1"}
-                                onChange={(e) => setShares((prev) => ({ ...prev, [id]: e.target.value }))}
-                                className="w-14 bg-transparent py-2 text-center font-display text-lg outline-none"
-                              />
-                              <button type="button" aria-label={`More shares for ${who(id)}`} onClick={() => stepShare(id, 0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
-                                +
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                    {(splitType === "exact" || splitType === "percent") && (
-                      <ul className="mt-3 divide-y divide-gray-100">
-                        {participants.map((id) => (
-                          <li key={id} className="flex items-center gap-3 py-2">
-                            <span className="flex-1">{who(id)}</span>
-                            <span className="flex w-36 items-center rounded-xl border border-gray-200 px-3 focus-within:border-accent">
-                              {splitType === "exact" && <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>}
+            {participants.length > 1 ? (
+              <div>
+                <span className={labelClass}>How should it be split?</span>
+                <Segmented
+                  options={[
+                    { id: "equal", label: "Equally" },
+                    { id: "exact", label: "Amounts" },
+                    { id: "percent", label: "%" },
+                    { id: "shares", label: "Shares" },
+                    { id: "items", label: "Items" },
+                  ]}
+                  value={byItem ? "items" : splitType}
+                  onChange={(v) => {
+                    pickSplit({ kind: "how", id: v as SplitType | "items" });
+                  }}
+                />
+                {byItem && (
+                  <div className="mt-3 space-y-2.5" data-item-split>
+                    {items.map((it, i) => {
+                      const set = (patch: Partial<typeof it>) => setItems((list) => list.map((x) => (x.k === it.k ? { ...x, ...patch } : x)));
+                      const all = memberIds.every((id) => it.people.includes(id));
+                      return (
+                        <div key={it.k} className="rounded-2xl border border-line px-3 pb-3 pt-1.5">
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={it.name}
+                              onChange={(e) => set({ name: e.target.value })}
+                              placeholder={i === 0 ? "e.g. Pizza" : "Item"}
+                              aria-label={`Item ${i + 1}`}
+                              maxLength={40}
+                              className="min-w-0 flex-1 bg-transparent py-2 outline-none"
+                            />
+                            <span className="flex w-28 shrink-0 items-center rounded-xl border border-line px-2.5 focus-within:border-accent">
+                              <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
                               <input
                                 inputMode="decimal"
                                 placeholder="0"
-                                aria-label={`${who(id)} ${splitType === "exact" ? "amount" : "percentage"}`}
-                                value={(splitType === "exact" ? exact : percent)[id] ?? ""}
-                                onChange={(e) =>
-                                  (splitType === "exact" ? setExact : setPercent)((prev) => ({ ...prev, [id]: e.target.value }))
-                                }
-                                className="w-full bg-transparent py-2 text-right outline-none"
+                                value={it.amount}
+                                onChange={(e) => set({ amount: e.target.value })}
+                                aria-label={`Item ${i + 1} price`}
+                                className="w-full bg-transparent py-2 text-right tabular-nums outline-none"
                               />
-                              {splitType === "percent" && <span className="text-gray-400">%</span>}
                             </span>
-                          </li>
-                        ))}
-                      </ul>
+                            {items.length > 1 && (
+                              <button
+                                type="button"
+                                aria-label={`Remove item ${i + 1}`}
+                                onClick={() => setItems((list) => list.filter((x) => x.k !== it.k))}
+                                className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-gray-400 active:bg-mist"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label={`Who had item ${i + 1}`}>
+                            {members.length > 2 && (
+                              <button
+                                type="button"
+                                aria-pressed={all}
+                                onClick={() => set({ people: all ? [] : [...memberIds] })}
+                                className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${all ? "border-fg bg-fg text-canvas" : "border-line text-fg/75"}`}
+                              >
+                                Everyone
+                              </button>
+                            )}
+                            {members.map((m) => {
+                              const on = it.people.includes(m.id);
+                              return (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  aria-pressed={on}
+                                  onClick={() => set({ people: on ? it.people.filter((x) => x !== m.id) : [...it.people, m.id] })}
+                                  className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${on ? "border-fg bg-fg text-canvas" : "border-line text-fg/75"}`}
+                                >
+                                  {who(m.id)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {items.length < MAX_ITEM_LINES ? (
+                      <button
+                        type="button"
+                        onClick={() => setItems((list) => (list.length >= MAX_ITEM_LINES ? list : [...list, { k: Math.max(0, ...list.map((x) => x.k)) + 1, name: "", amount: "", people: [] }]))}
+                        className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg"
+                      >
+                        <span className="text-lg leading-none">＋</span> Add item
+                      </button>
+                    ) : (
+                      <p className="text-xs text-gray-500" data-item-limit>That&apos;s the most a bill can have ({MAX_ITEM_LINES} items). Put small things together as one line.</p>
                     )}
-                    {remaining && (
-                      <p className={`mt-2 text-sm ${remaining.state === "done" ? "text-accent-dark" : remaining.state === "over" ? "text-red-600" : "text-gray-500"}`}>
-                        {remaining.text}
-                      </p>
-                    )}
+                    {itemSplit && (itemSplit.ok ? (
+                      <div className="rounded-2xl bg-mist px-4 py-3 text-sm" data-item-result>
+                        <p className="text-gray-500">
+                          Items {orig(itemSplit.itemsTotal)}
+                          {itemSplit.extra > 0 && ` · tax, service & tip ${orig(itemSplit.extra)}, shared by what each had`}
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {memberIds.filter((id) => itemSplit.amounts[id]).map((id) => (
+                            <li key={id} className="flex justify-between">
+                              <span>{who(id)}</span>
+                              <span className="money tabular-nums font-semibold">{orig(itemSplit.amounts[id])}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      (items.some((x) => x.amount.trim()) || amount.trim()) && <p className="text-sm text-gray-500" data-item-hint>{itemSplit.error}</p>
+                    ))}
                   </div>
-                ) : (
-                  participants.length === 1 && (
-                    <p className="text-sm text-gray-500">The whole expense goes to {who(participants[0])}.</p>
-                  )
+                )}
+                {splitType === "shares" && (
+                  <ul className="mt-3 divide-y divide-line">
+                    {participants.map((id) => {
+                      const amt = shareOf(id);
+                      return (
+                        <li key={id} className="flex items-center gap-2 py-2">
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{who(id)}</span>
+                            {amt !== null && <span className="block text-xs text-gray-400">{base(amt)}</span>}
+                          </span>
+                          <button type="button" aria-label={`Fewer shares for ${who(id)}`} onClick={() => stepShare(id, -0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
+                            −
+                          </button>
+                          <input
+                            inputMode="decimal"
+                            aria-label={`${who(id)} shares`}
+                            value={shares[id] ?? "1"}
+                            onChange={(e) => setShares((prev) => ({ ...prev, [id]: e.target.value }))}
+                            className="w-14 bg-transparent py-2 text-center font-display text-lg outline-none"
+                          />
+                          <button type="button" aria-label={`More shares for ${who(id)}`} onClick={() => stepShare(id, 0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
+                            +
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {(splitType === "exact" || splitType === "percent") && (
+                  <ul className="mt-3 divide-y divide-gray-100">
+                    {participants.map((id) => (
+                      <li key={id} className="flex items-center gap-3 py-2">
+                        <span className="flex-1">{who(id)}</span>
+                        <span className="flex w-36 items-center rounded-xl border border-gray-200 px-3 focus-within:border-accent">
+                          {splitType === "exact" && <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>}
+                          <input
+                            inputMode="decimal"
+                            placeholder="0"
+                            aria-label={`${who(id)} ${splitType === "exact" ? "amount" : "percentage"}`}
+                            value={(splitType === "exact" ? exact : percent)[id] ?? ""}
+                            onChange={(e) =>
+                              (splitType === "exact" ? setExact : setPercent)((prev) => ({ ...prev, [id]: e.target.value }))
+                            }
+                            className="w-full bg-transparent py-2 text-right outline-none"
+                          />
+                          {splitType === "percent" && <span className="text-gray-400">%</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {remaining && (
+                  <p className={`mt-2 text-sm ${remaining.state === "done" ? "text-accent-dark" : remaining.state === "over" ? "text-red-600" : "text-gray-500"}`}>
+                    {remaining.text}
+                  </p>
                 )}
               </div>
+            ) : (
+              participants.length === 1 && (
+                <p className="text-sm text-gray-500">The whole expense goes to {who(participants[0])}.</p>
+              )
             )}
-          </section>
-            <button type="button" onClick={closePanel} className="min-h-11 text-sm font-medium text-fg underline underline-offset-4">
-              Done
-            </button>
           </div>
         )}
-
       </section>
-      {/* ONE quiet line: what happened and what it means for you, in money colour. */}
-      <div role="status" aria-live="polite" className="mt-3 text-center text-sm leading-snug" data-expense-result>
-        {preview.ok ? (
-          <p className="text-fg/75">
-            {resultParts.map((p, i) => (
-              <span key={i}>
-                {i > 0 && " "}
-                <span className={p.tone === "owe" ? "text-owe" : p.tone === "owed" ? "text-owed" : ""}>{p.text}</span>
-                {p.amount && <span className={`font-display text-[17px] font-semibold tabular-nums ${p.tone === "owe" ? "text-owe" : "text-owed"}`}> {p.amount}</span>}
-              </span>
-            ))}
-          </p>
-        ) : (
-          <p className="text-fg/55">The result shows once it adds up</p>
-        )}
-      </div>
-      {usingLast && !panel && (
-        <p className="mt-1 text-center text-[13px] text-fg/55">
-          Same as last time ·{" "}
-          <button type="button" onClick={resetSplit} className="font-medium text-fg underline underline-offset-4">
-            Reset
-          </button>
-        </p>
-      )}
-      </div>
+
       {/* More: the less common options, closed to keep the form short. */}
       <section aria-label="More" data-more>
         <button
           type="button"
           onClick={() => setShowMore((v) => !v)}
           aria-expanded={showMore}
-          className="mx-auto flex min-h-11 items-center gap-1.5 text-sm text-fg/75 active:text-fg"
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-semibold active:bg-mist"
         >
-          <span>{showMore ? "Hide notes and more" : `Notes, money back${members.length > 1 ? ", several payers" : ""}${members.length > 1 && kind === "expense" && spin ? ", spin" : ""}`}</span>
-          <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 transition-transform ${showMore ? "-rotate-90" : "rotate-0"}`}>
-            <path d="m9 6 6 6-6 6" />
+          <span>
+            {showMore ? "Hide notes and more" : "More"}
+            {!showMore && (
+              <span className="block text-xs font-normal text-fg/55">
+                {`Notes, money back${members.length > 1 ? ", several payers" : ""}${members.length > 1 && kind === "expense" && spin ? ", spin for it" : ""}`}
+              </span>
+            )}
+          </span>
+          <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-fg/50 transition-transform ${showMore ? "rotate-180" : ""}`}>
+            <path d="m6 9 6 6 6-6" />
           </svg>
         </button>
         {showMore && (
@@ -1454,6 +1380,23 @@ export function AddExpenseForm({
         )}
       </section>
 
+      {/* ONE quiet line: what happened and what it means for you, in money colour. */}
+      <div role="status" aria-live="polite" className="text-center text-sm leading-snug" data-expense-result>
+        {preview.ok ? (
+          <p className="text-fg/75">
+            {resultParts.map((p, i) => (
+              <span key={i}>
+                {i > 0 && " "}
+                <span className={p.tone === "owe" ? "text-owe" : p.tone === "owed" ? "text-owed" : ""}>{p.text}</span>
+                {p.amount && <span className={`font-display text-[17px] font-semibold tabular-nums ${p.tone === "owe" ? "text-owe" : "text-owed"}`}> {p.amount}</span>}
+              </span>
+            ))}
+          </p>
+        ) : (
+          <p className="text-fg/55">The result shows once it adds up</p>
+        )}
+      </div>
+
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       {dup && (
         <div role="status" className="rounded-[20px] border border-line bg-white px-4 py-3 text-sm">
@@ -1532,7 +1475,7 @@ function Segmented({
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          className={`nobreak rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] text-fg" : "text-fg/55"}`}
+          className={`nobreak rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
         >
           {o.label}
         </button>
@@ -1548,7 +1491,7 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
       onClick={onClick}
       aria-pressed={on}
       className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border text-sm transition-transform active:scale-95 ${face ? "py-1.5 pl-1.5 pr-4" : "px-4 py-2"} ${
-        on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 bg-mist font-medium text-fg/85"
+        on ? "border-fg bg-fg font-semibold text-canvas" : "border-line bg-mist font-medium text-fg/85"
       }`}
     >
       {face && (
@@ -1561,21 +1504,20 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
   );
 }
 
-// A small icon button inside the "What was it?" field (Scan a bill, Speak, Type a line).
-// The words are the aria-label, so a screen reader and the tests still find them by name.
+// One of the three equal buttons in the Faster entry row.
+// The icon sits above the label (two lines at most), so "Scan a bill" and "Type a line" fit a 320px phone.
 function EntryButton({ onClick, label, children, disabled }: { onClick: () => void; label: string; children: React.ReactNode; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      aria-label={label}
-      title={label}
-      className="flex h-11 w-9 items-center justify-center rounded-xl text-fg/75 transition-transform active:scale-90 active:text-fg disabled:opacity-60"
+      className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-line bg-mist px-1.5 py-2 text-center text-xs font-semibold leading-tight text-fg/90 transition-transform active:scale-95 disabled:opacity-60"
     >
-      <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
         {children}
       </svg>
+      <span className="line-clamp-2 max-w-full break-words">{label}</span>
     </button>
   );
 }

@@ -54,10 +54,9 @@ export async function joinGroup(page: Page, invite: string, groupPath: string) {
   await page.waitForURL(new RegExp(`${groupPath}$`));
 }
 
-// Add expense says "<Payer> paid, split equally between all 4": tapping a part of that sentence opens the payer and split controls.
+// Add expense shows "Who paid?" and "How to split?" as rows of chips, always on screen: nothing to open, just wait for them.
 export async function openSplit(page: Page) {
-  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-row-paid]").first().click();
-  await page.locator("[data-split-panel]").waitFor();
+  await page.locator("[data-split-row]").waitFor();
 }
 
 // Add an expense, paid by the person adding it, split "Everyone equally"

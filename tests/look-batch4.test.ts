@@ -11,7 +11,8 @@ describe("amount boxes are exactly as wide as their digits", () => {
       expect(s).toContain("inline-grid");
       expect(s).toContain("invisible col-start-1 row-start-1");
       expect(s).not.toMatch(/size=\{Math\.max\(2/);
-      expect(s).toContain("clamp(34px,10vw,40px)");
+      // Add expense keeps the big hero amount (stepping down for long amounts); the payment form keeps its smaller one.
+      expect(s).toContain(f.includes("AddExpenseForm") ? "clamp(52px,17vw,72px)" : "clamp(34px,10vw,40px)");
     });
   }
 });

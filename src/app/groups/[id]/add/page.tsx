@@ -6,7 +6,7 @@ import { getMyMemberId, privatePath } from "@/lib/identity";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { setGroupClosed } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
-import { AddHeader } from "./_components/AddHeader";
+import { SheetPage } from "@/components/SheetPage";
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 import { getTimeZone } from "@/lib/tz";
@@ -80,15 +80,14 @@ export default async function AddExpensePage({
     : billInitial;
 
   return (
-    <>
-      <AddHeader
-        title={`Add to ${group.name}`}
-        back={`/groups/${group.id}`}
-        cover={coverFor(group)}
-        photo={group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
-        uid={group.id}
-        letter={group.name}
-      />
+    <SheetPage
+      title={`Add to ${group.name}`}
+      back={`/groups/${group.id}`}
+      cover={coverFor(group)}
+      photo={group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
+      uid={group.id}
+      letter={group.name}
+    >
       {sp.again && source && (
         <Notice tone="success" className="-mt-2 mb-5">
           Saved {source.description} ({formatMoney(source.amount, group.currency)}). Add the next one.
@@ -114,7 +113,7 @@ export default async function AddExpensePage({
         spin={group.type !== "pot"}
         ai={aiReady()}
       />
-    </>
+    </SheetPage>
   );
 }
 
