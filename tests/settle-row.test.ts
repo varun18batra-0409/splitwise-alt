@@ -7,18 +7,18 @@ import { differentAmountHref } from "@/lib/money";
 const base: RowFacts = { iPay: false, iAmPaid: false, closed: false, iLeft: false, receiverCanConfirm: true, payApps: 0, myClaimWaiting: false, theirClaimWaiting: false };
 
 describe("a Settle up row", () => {
-  it("I pay someone on Loopin who has a payment app: Open payment app is the filled button, I've paid (recorded at once) the outlined one, plus the link", () => {
+  it("I pay someone on Loopin who has a payment app: Open payment app is the filled button, I've paid the outlined one, plus the link", () => {
     const p = planSettleRow({ ...base, iPay: true, payApps: 1 });
-    expect(p).toMatchObject({ main: "pay-app", action: "record", actionFilled: false, actionLabel: "I’ve paid", differentAmount: true, filledButtons: 1 });
+    expect(p).toMatchObject({ main: "pay-app", action: "claim", actionFilled: false, actionLabel: "I’ve paid", differentAmount: true, filledButtons: 1 });
   });
   it("UPI and PayPal both saved: still ONE filled button (the other is a small link)", () => {
     expect(planSettleRow({ ...base, iPay: true, payApps: 2 }).filledButtons).toBe(1);
   });
   it("I pay someone with no payment app: I've paid becomes the one filled button", () => {
     const p = planSettleRow({ ...base, iPay: true });
-    expect(p).toMatchObject({ main: null, action: "record", actionFilled: true, actionLabel: "I’ve paid", filledButtons: 1 });
+    expect(p).toMatchObject({ main: null, action: "claim", actionFilled: true, filledButtons: 1 });
   });
-  it("an I've paid made before 15 Nov that is still waiting: it says so, no second button, no link; the claim can be taken back", () => {
+  it("my I've paid is waiting: it says so, no second button, no link; the claim can be taken back", () => {
     const p = planSettleRow({ ...base, iPay: true, payApps: 1, myClaimWaiting: true });
     expect(p).toMatchObject({ action: null, status: "waiting", differentAmount: false });
   });
@@ -30,7 +30,7 @@ describe("a Settle up row", () => {
     const p = planSettleRow({ ...base, iAmPaid: true, theirClaimWaiting: true });
     expect(p).toMatchObject({ main: null, action: null, status: "their-claim", filledButtons: 0 });
   });
-  it("I pay someone who can't confirm (not on Loopin): the same button and words, and nobody to answer", () => {
+  it("I pay someone who can't confirm (not on Loopin): it counts straight away, with the same words", () => {
     const p = planSettleRow({ ...base, iPay: true, receiverCanConfirm: false });
     expect(p).toMatchObject({ action: "record", actionLabel: "I’ve paid", actionFilled: true });
   });

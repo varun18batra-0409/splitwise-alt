@@ -169,8 +169,8 @@ export function crossSettle(
   return { items, skippedGroups };
 }
 
-// The opener on the all-groups Settle screen. It records straight away in every group (as does a group's own "I’ve paid" since 15 Nov;
-// the person paid can tap "Not received"), under the words "Record payment" (I pay) and "Mark paid" (they pay me).
+// The opener on the all-groups Settle screen. Unlike a group's own "I’ve paid" (a claim the other person confirms),
+// this records straight away in every group, so it gets different words: "Record payment".
 export function crossActionLabel(net: number): "Mark paid" | "Record payment" {
   return net < 0 ? "Record payment" : "Mark paid";
 }

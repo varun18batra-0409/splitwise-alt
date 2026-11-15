@@ -3,12 +3,10 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, removedPaymentsBreak } from "./money-guard";
 
-// Payment tracking. A payment recorded by the payer ("I've paid", from 15 Nov 2026) or by anyone else for them ("Ravi paid Asha ₹300")
-// counts straight away, but Asha (when she is on Loopin) is told in Updates and can tap "Confirm received" or "Not received".
-// "Not received" is the reversal: it soft-deletes the payment (who did it is kept in deletedById), writes an activity line
-// "Asha said they didn’t receive ₹300 from Ravi" that the payer is notified of, and has its own Undo. It works until she
-// confirms, the group is closed, or something has moved since (the currency, or a person who has left).
-// (Claims made before 15 Nov that are still waiting are answered in payment-claims.ts, as before.)
+// Payment tracking (older payments only: new "I've paid" taps are claims, see payment-claims.ts). When someone other than the person paid records a payment
+// ("Ravi paid Asha ₹300"), it counts straight away (as before) but Asha is
+// asked: "Got it ✓" or "Not received". Not received takes it off the balances
+// (with undo), so nobody is out of pocket on someone's word.
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 
@@ -60,7 +58,7 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
       groupId: p.groupId,
       actorId: myMemberId!,
       kind: "payment_deleted",
-      text: `said they didn’t receive ${formatMoney(p.amount, p.group.currency)} from ${p.from.name}, so it’s off the balances`,
+      text: `hasn’t received ${formatMoney(p.amount, p.group.currency)} from ${p.from.name}, so it’s off the balances`,
       paymentId: p.id,
       undo: { type: "payment_restore", paymentId: p.id },
     });

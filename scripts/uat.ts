@@ -920,8 +920,8 @@ async function main() {
 
   // ===== 6. Settling up =====
   // Every payment row on Settle up has the same layout: one filled main button (Open payment app or Remind), one outlined action
-  // ("I've paid" / "Mark paid": recorded as a real payment at once; since 15 Nov the person paid is told and can tap Not received)
-  // and a "Paid a different amount?" link. There is no amount box on the row any more.
+  // ("I've paid" = a claim that counts after Confirm received, or direct "I've paid" / "They've paid me" / "Mark paid" where
+  // the other person can't confirm) and a "Paid a different amount?" link. There is no amount box on the row any more.
   // F1: the quiet closing actions and "Paid a different amount?" sit under a "More options" link: open the one inside `scope` first.
   const openSettleMore = async (scope: ReturnType<Page["locator"]>) => {
     const d = scope.locator("details[data-more-options]").first();
@@ -1037,7 +1037,7 @@ async function main() {
     void from; void to; void amt;
     return checkBalances(V, g);
   });
-  await step(V, "Settle", "“I’ve paid” counts straight away (15 Nov): the balances move at once, and Asha sees it in Alerts with a Not received button", async () => {
+  await step(V, "Settle", "“I’ve paid” is only a claim: balances don't move until Asha taps Confirm received", async () => {
     await go(V, `${g}/settle`);
     const mine = settleCards(V).filter({ has: V.locator("[data-i-paid]") });
     if (!(await mine.count())) return notRun("Varun pays nobody who has joined right now");
@@ -1046,17 +1046,22 @@ async function main() {
     assert(m, `can't read the row: ${t}`);
     if (m[1] !== "Asha") return notRun(`Varun pays ${m[1]}, who isn't one of the signed-in phones here`);
     const amt = minor(m[2]);
+    const before = await checkBalances(V, g);
     await mine.first().locator("[data-i-paid]").click();
-    await V.waitForURL(/paid=1/);
-    assert((await V.getByRole("heading", { name: "Waiting for Asha" }).count()) === 0, "“I’ve paid” still waits for Asha");
-    payments.push({ from: "Varun", to: "Asha", amount: amt, active: true, key: "claim" });
-    const after = await checkBalances(V, g); // the payment already counts
-    // Asha's Alerts: "Varun recorded paying you ₹…", with the Not received button (she can reverse it; not tapped here, so the later steps' balances hold).
+    await V.waitForURL(/claimed=1/);
+    await V.getByRole("heading", { name: "Waiting for Asha" }).waitFor();
+    await checkBalances(V, g); // the claim moved nothing
+    // Asha's Alerts lists it once, under "Needs you" (not again in Activity).
     await go(A, "/notifications");
-    const told = A.locator('[data-need="payment"]').filter({ hasText: /Varun recorded paying you/ }).first();
-    await told.waitFor();
-    assert((await told.getByRole("button", { name: "Not received" }).count()) === 1, "no Not received button on the line in Alerts");
-    return `after I’ve paid: ${after}`;
+    await A.locator('[data-need="claim"]').filter({ hasText: /Varun says they paid you/ }).waitFor();
+    assert((await A.getByText(/says they paid/).count()) === 1, "the claim shows up twice in Alerts");
+    await go(A, `${g}/settle`);
+    await A.locator("[data-waiting='Varun']").getByRole("button", { name: "Confirm received" }).click();
+    await A.waitForURL(/ok=1/);
+    payments.push({ from: "Varun", to: "Asha", amount: amt, active: true, key: "claim" });
+    await go(A, "/notifications");
+    assert((await A.locator('[data-need="claim"]').count()) === 0, "Needs you still lists the confirmed claim");
+    return `${before} → after Confirm: ${await checkBalances(V, g)}`;
   });
   // Record a payment: From and To are folded away until tapped (the To list starts open when nobody is picked yet).
   const pickFrom = async (page: Page, name: string) => {

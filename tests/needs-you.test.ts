@@ -7,7 +7,7 @@ import { loadNeedsYou, withoutRepeats } from "@/lib/needs-you";
 //
 // Cast: Asha (the viewer, looks after the Flat and runs a collection), Ravi, Meera.
 //   1 claim:    Ravi says he paid Asha ₹500 (waiting)
-//   1 payment:  Meera → Asha ₹300, recorded by Meera herself, counting already and waiting for Asha's answer (Confirm received / Not received)
+//   1 payment:  an older payment Meera → Asha ₹300 still waiting for Asha's Confirm received
 //   1 bill:     Electricity waits for Asha's amount (she is the payer)  [and Rent is recorded, so it's not listed]
 //   1 collect:  Zoya in Asha's collection says she paid ₹200
 //   2 invitations are counted (the page draws them) = total 6 with the four above.
@@ -64,9 +64,7 @@ describe("Needs you", () => {
     expect(n.total).toBe(6);
     const text = (k: string) => n.items.find((i) => i.kind === k)!.text;
     expect(text("claim")).toBe("Ravi says they paid you ₹500");
-    // Meera recorded her own payment (it counts already); the row carries its id for the Not received button.
-    expect(text("payment")).toBe("Meera recorded paying you ₹300");
-    expect(n.items.find((i) => i.kind === "payment")!.paymentId).toBeTruthy();
+    expect(text("payment")).toBe("Meera says they paid you ₹300");
     expect(text("bill")).toBe("Electricity is waiting for its amount");
     // This collection has no UPI ID or pay link saved, so nothing says the money came to Asha: neutral wording, "View".
     expect(text("collect")).toBe("Zoya says they paid ₹200 for Farewell gift");

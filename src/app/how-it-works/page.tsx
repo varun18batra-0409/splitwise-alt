@@ -253,7 +253,7 @@ export default async function HowItWorks() {
           The money card at the top of Home shows where you stand across all your groups: <strong>Coming back to you</strong> in green, <strong>You owe</strong> in orange,
           or <strong>Nobody owes anybody</strong>. Under it, the people the money is with, largest first. When you owe, the main button is <strong>Pay</strong> (the person you owe most);
           when you’re owed, it’s <strong>Remind</strong> (the person who owes you most, on WhatsApp).
-          If someone has recorded paying you, you’re told in Updates, where you can tap <strong>Not received</strong> if the money didn’t arrive.
+          If a payment is waiting for you to confirm, it shows as a line on the card.
         </p>
         <p>
           Not sure about a number? Tap <strong>Why?</strong> under any balance. You’ll see every expense and payment behind it, including card fees, and it always adds up exactly.
@@ -269,7 +269,7 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list that clears everything: “Just 3 payments”, say.</>,
-            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>Record payment</strong> (<strong>I’ve paid</strong> inside a group). It counts straight away: the balances move and the other person is told. If the money didn’t reach them, they tap <strong>Not received</strong> and it comes off again. Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
+            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>Mark paid</strong>. Until the other person taps <strong>Confirm received</strong>, it shows as “says they paid, to be confirmed” and the balances don’t move. (<strong>Not received</strong> leaves everything as it was.) Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
             <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link they can tap without signing in.</>,
             <>Owe the same friend in two groups? <strong>Settle up</strong> on Home combines them into one payment, and shows each group’s part before it records anything.</>,
           ]}

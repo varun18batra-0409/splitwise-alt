@@ -18,11 +18,12 @@ import { groupMark } from "@/lib/home/money-card";
 import { type StubCover } from "@/components/HomeMoney";
 import { firstName, InfoNote, OUTLINE_PILL, PayView } from "@/components/PayScreens";
 import { BackIcon, iconButtonClass } from "@/components/icons";
-import { BIG_CREAM, SettleCard, type MenuItem } from "@/components/SettleUp";
+import { SettleCard, type MenuItem } from "@/components/SettleUp";
+import { BIG_CREAM } from "@/lib/settle-ui";
 
 // Smart Settle across all your groups: one payment per person. Each person is a card (founder's design, 15 Nov): the exact amount, "View breakdown",
-// one big button and a ⋮ menu. "Record payment" opens a bottom sheet; confirming it records the payment in each group at once (settleAcrossGroups), and the
-// person paid, when they are on Loopin, is told in Updates and can tap "Not received". (The group's own Settle up keeps its own look.)
+// one big button and a ⋮ menu. "Record payment" opens a bottom sheet; confirming it records the payment in each group (settleAcrossGroups, exactly as the old
+// "Record in N groups" button did; people who can confirm are asked as before). (The group's own Settle up keeps its own look.)
 export default async function SettlePage({ searchParams }: { searchParams: Promise<{ settle?: string; pay?: string }> }) {
   const { settle: notice, pay } = await searchParams;
   const { all, common, settleItems, skippedLinks, othersPending } = await loadOverview(await getMemberships());
@@ -217,7 +218,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         </div>
       </header>
 
-      {notice === "done" && <Notice params={["settle"]} className="mb-3">Payment recorded. Balances updated, and anyone you paid on Loopin can tap Not received.</Notice>}
+      {notice === "done" && <Notice params={["settle"]} className="mb-3">Recorded in each group. Everyone’s notified.</Notice>}
       {notice === "changed" && <Notice params={["settle"]} className="mb-3">Balances just changed. Here’s the latest.</Notice>}
       {notice === "stale" && <Notice tone="error" params={["settle"]} className="mb-3">{STALE_KEY_ERROR}</Notice>}
       {notice === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}

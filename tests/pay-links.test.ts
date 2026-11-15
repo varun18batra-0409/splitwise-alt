@@ -75,7 +75,7 @@ describe("Payment tracking (real database)", () => {
     expect(gone.deletedById).toBe(asha.id);
     expect(await waitingForMe(g.id, asha.id)).toEqual([]);
     const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, kind: "payment_deleted" } });
-    expect(ev.text).toBe("said they didn’t receive ₹50 from Ravi, so it’s off the balances");
+    expect(ev.text).toBe("hasn’t received ₹50 from Ravi, so it’s off the balances");
     expect(JSON.parse(ev.undo)).toEqual({ type: "payment_restore", paymentId: p2.id });
   });
 

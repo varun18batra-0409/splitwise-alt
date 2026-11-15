@@ -64,8 +64,8 @@ const sections = (): { title: string; items: QA[] }[] => [
         a: "Settle up shows a short list, like “Just 3 payments”, that clears everything, even across all your groups at once. You pay each other however you like and tap Mark paid. Loopin only records payments; it never holds or moves money.",
       },
       {
-        q: "What happens when someone records paying me?",
-        a: "It counts straight away: the balances move at once and you’re told in Updates. If the money didn’t arrive, tap Not received and it comes off again, and they’re told. You can also tap Confirm received once you’ve seen it. (A payment reported from a Remind link is different: it waits until you tap Confirm received.)",
+        q: "What happens when someone says they paid me?",
+        a: "It shows as “says they paid, to be confirmed” and the balances don’t move. You’re asked to tap Confirm received or Not received, in Settle up and on your phone; Not received leaves everything as it was.",
       },
       {
         q: "Can someone tell me they paid without having Loopin?",

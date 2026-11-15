@@ -107,12 +107,10 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   const form = src("src/components/RecordPaymentForm.tsx");
   const pay = src("src/app/groups/[id]/pay/page.tsx");
   it("group Settle up keeps its actions and the fields they send", () => {
-    for (const s of ["confirmClaimAction", "declineClaimAction", "confirmPaymentAction", "rejectPaymentAction", "withdrawClaimAction", "markAllPaidAction", "recordCustomPayment", "settleEverything", "undoChange"]) expect(settle).toContain(s);
+    for (const s of ["claimPaidAction", "confirmClaimAction", "declineClaimAction", "confirmPaymentAction", "rejectPaymentAction", "withdrawClaimAction", "markAllPaidAction", "recordCustomPayment", "settleEverything", "undoChange"]) expect(settle).toContain(s);
     for (const s of ['name="groupId"', 'name="fromId"', 'name="toId"', 'name="amount"', 'name="back" value="settle"', 'name="claimId"', 'name="paymentId"', 'name="plan"', 'name="over" value="1"']) expect(settle).toContain(s);
     expect(settle).toContain("value={toInputAmount(t.amount, group.currency)}"); // the recorded amount is the exact suggested one
-    // "I've paid" records a payment at once (15 Nov): it is the same form as "Mark paid", not a claim.
-    expect(settle).not.toContain("claimPaidAction");
-    expect(settle).toContain('{...(t.from === myId ? { "data-i-paid": "" } : {})}');
+    expect(settle).toContain("value={t.amount}"); // the claim carries the exact suggested amount
   });
   it("group Settle up keeps the hooks the tests read", () => {
     for (const s of ["data-i-paid", "data-mark-paid", "data-remind", "data-claim-waiting", "data-claim-above", "data-claim-declined", "data-waiting", "\"data-claim\"", "data-over-warning", "data-settle-actions", 'data-more-options="settle"', 'aria-label="Did you get these?"', "data-transfer-row"]) expect(settle).toContain(s);

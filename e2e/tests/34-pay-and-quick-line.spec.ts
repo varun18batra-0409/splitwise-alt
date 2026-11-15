@@ -6,7 +6,7 @@ import { contextFor, createGroup, joinGroup, readBalances, settled } from "../he
 
 // Phase 7–8 (the free parts): Asha adds her UPI ID; Ravi types an expense in one
 // line; Ravi gets an Open payment app button with the amount filled in and
-// says "I've paid" (it counts straight away), and Asha, told in Updates, taps Not received (it comes off again).
+// says "I've paid" (a claim: nothing moves until Asha confirms), and Asha taps Confirm received.
 // Before that, a too-big amount on "Paid a different amount?" asks first and Cancel saves nothing.
 test("pay buttons, payment tracking and the quick line", async ({ browser }) => {
   const asha = await signUp("Asha", testEmail("pay-asha"));
@@ -85,26 +85,30 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await expect(R.locator("[data-over-warning]")).toHaveCount(0);
   expect(await payments()).toBe(0);
 
-  // Back on Settle up: "I've paid ₹500" counts straight away (15 Nov): a real payment, no waiting for Asha.
+  // Back on Settle up: "I've paid ₹500" is a claim. Ravi's ₹500 owed does not move.
   await R.goto(`${g.path}/settle`);
   await settled(R);
   await R.locator("[data-i-paid]").click();
-  await R.waitForURL(/paid=1/);
-  expect(await payments()).toBe(1);
-
-  // Asha is told in Updates, and can say Not received (the test browser accepts the "are you sure?"): it comes off again.
-  await A.goto("/notifications?tab=needs");
-  await settled(A);
-  const told = A.locator('[data-need="payment"]');
-  await expect(told).toContainText("Ravi recorded paying you ₹500");
-  await told.getByRole("button", { name: "Not received" }).click();
-  await A.waitForURL(/notgot=1/);
+  await R.waitForURL(/claimed=1/);
+  await expect(R.getByRole("heading", { name: "Waiting for Asha" })).toBeVisible();
   expect(await payments()).toBe(0);
   expect(await readBalances(R, g.path)).toMatchObject({ Asha: 50000, Ravi: -50000 });
-  // Ravi is told too: the line is in his activity.
-  await R.goto(`${g.path}?tab=activity`);
-  await settled(R);
-  await expect(R.getByText(/didn’t receive ₹500/).first()).toBeVisible();
+
+  // Asha is asked: did you get it? Confirm received.
+  await A.goto(`${g.path}/settle`);
+  await settled(A);
+  const ask = A.getByRole("region", { name: "Did you get these?" });
+  await expect(ask.locator("[data-waiting='Ravi']")).toContainText("Ravi says they paid you ₹500");
+  await ask.getByRole("button", { name: "Confirm received" }).click();
+  await A.waitForURL(/ok=1/);
+  // The question is gone once answered: checked on the plain Settle page (the ok=1 page is the "Payment recorded" screen, which never had it).
+  await A.goto(`${g.path}/settle`);
+  await settled(A);
+  await expect(A.getByRole("region", { name: "Did you get these?" })).toHaveCount(0);
+  expect(await payments()).toBe(1);
+  await A.goto(`${g.path}?tab=activity`);
+  await settled(A);
+  await expect(A.getByText(/Confirmed ✓/).first()).toBeVisible();
 
   await A.context().close();
   await R.context().close();
