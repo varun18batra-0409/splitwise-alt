@@ -76,7 +76,7 @@ export default async function PeoplePage({
   const viewer = await getAccount();
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
   // Who is looking, as canUndo wants them (the full member list). Someone who moved out themselves may undo it from here.
-  const undoViewer = { id: myId, isAdmin, members: group.members };
+  const undoViewer = { id: myId, isAdmin, closed: group.closed, members: group.members };
   const ownMove = leaver && !leaver.removed ? await ownMoveOut(group.id, undoViewer, new Date()) : null;
   const leaverChecks = leaver && !leaver.removed ? await leaverUndoChecks(group.id, undoViewer, new Date()) : null;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");

@@ -97,7 +97,8 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
   if (gone) return { ok: false, reason: "removed", adminName: removedBy(group, gone) };
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
-    if (mine.leftAt && (await ownMoveOut(group.id, await undoViewerFor(group.id, mine.id), new Date()))) {
+    // (Only while the move-out can really still be undone: if it can't, nothing is left to protect and the link rejoins as before.)
+    if (mine.leftAt && (await ownMoveOut(group.id, await undoViewerFor(group.id, mine.id), new Date()))?.check.ok) {
       return { ok: false, reason: "moved_out", groupId: group.id, memberId: mine.id };
     }
     // Only if they are still not removed (a removal landing a moment ago must not be undone by this write).

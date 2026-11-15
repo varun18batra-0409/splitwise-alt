@@ -272,7 +272,7 @@ export default async function AddPeoplePage({
         <p className="mt-3 text-xs text-gray-400">“Not on Loopin yet”: added by name. They can take over their name from the group link after signing up.</p>
       )}
 
-      {justDid && canUndo(justDid, group.events, new Date(), { id: myId, isAdmin: await isGroupAdmin(group.id, myId), members: group.members }).ok && (
+      {justDid && canUndo(justDid, group.events, new Date(), { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members }).ok && (
         <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`} groupId={group.id} eventId={justDid.id} back="people" redo={sp.undone === "1"} />
       )}
     </>

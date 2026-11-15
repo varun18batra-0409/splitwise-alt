@@ -8,7 +8,7 @@ import { saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInpu
 import { changeGroupCurrency } from "@/lib/group-changes";
 import { setMember } from "@/lib/people";
 import { parseUndo } from "@/lib/events";
-import { restoreCurrency, undoEvent } from "@/lib/undo";
+import { CLOSED_MOVE_OUT_TEXT, restoreCurrency, undoEvent } from "@/lib/undo";
 import { moveOut } from "@/lib/home/moving-db";
 import { GroupChanged, guardGroup, leaverBalanceBreaks, ledgerInTx } from "@/lib/money-guard";
 import { overpayLimit, overpayQuestion, recordPaymentCore } from "@/lib/pay-record";
@@ -682,7 +682,7 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     await db.group.update({ where: { id: g.id }, data: { closed: true } });
     const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, kind: "member_left" } });
     const r = await undoEvent(ev.id, g.ids.You);
-    expect(r).toEqual({ ok: false, error: "This group is closed. Reopen it to change expenses." });
+    expect(r).toEqual({ ok: false, error: CLOSED_MOVE_OUT_TEXT });
     expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.Rohan } })).leftAt).not.toBeNull();
     expect(await net(g.id)).toEqual(want);
   });

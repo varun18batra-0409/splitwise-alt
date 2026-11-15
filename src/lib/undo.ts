@@ -11,7 +11,7 @@ import { setMember } from "./people";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
 import { isGroupAdmin } from "./group-admin";
-import { undoMoveOut } from "./home/moving-db";
+import { MOVE_OUT_GONE_FOR_GOOD, MOVE_OUT_LEAVER_FIXABLE, moveOutUndoBlock, undoMoveOut } from "./home/moving-db";
 import { lateMoveText, lateRecreateText, lateRemovalText, putBackOpen } from "./put-back";
 import { DEFAULT_TIME_ZONE } from "./dates";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
@@ -64,6 +64,7 @@ export type CanUndo = { ok: true } | { ok: false; reason: string; blockedBy?: Ev
 export type UndoViewer = {
   id: string;
   isAdmin: boolean; // await isGroupAdmin(groupId, id)
+  closed: boolean; // the group is closed right now (most undos of money are refused in a closed group, as the server does)
   members: { id: string; name: string; accountId: string | null; leftAt: Date | null; removedAt: Date | null }[];
 };
 
@@ -95,7 +96,9 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
     const q = parseUndo(x.undo);
     if (q?.type === "member_set" && q.data.leftAt === null && q.moveOut?.money?.eventIds.includes(ev.id)) {
       const who = nameOf?.(q.memberId);
-      return { ok: false, reason: `This was part of ${who ? `${who}’s` : "a"} move-out. Undo the move-out instead.` };
+      const of = `${who ? `${who}’s` : "a"} move-out`;
+      // "Undo the move-out instead" only while the move-out itself can still be undone (not after a rejoin, an accepted invitation or a removal).
+      return { ok: false, reason: historyCheck(x, all, nameOf).ok ? `This was part of ${of}. Undo the move-out instead.` : `This was part of ${of}, so it can’t be undone on its own.` };
     }
   }
   const moveOut = payload.type === "member_set" && payload.data.leftAt === null ? payload.moveOut : undefined;
@@ -186,6 +189,14 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): stri
     if (holder && ev.actorId !== actorId) return `Only the person who made that change can undo it. You can add ${holder.name} again with Add people.`;
     if (holder && !putBackOpen(ev.createdAt, now)) return lateRecreateText(holder.name);
   }
+  // A closed group refuses these undos on the server (reopen it first), so the screen never offers them.
+  if (payload.type === "member_set" && payload.moveOut && payload.data.leftAt === null && viewer.closed) return CLOSED_MOVE_OUT_TEXT;
+  if (viewer.closed && (payload.type === "expense_delete" || payload.type === "expense_restore" || payload.type === "expense_revert")) return "This group is closed. Reopen it to change expenses.";
+  if (viewer.closed && (payload.type === "payment_delete" || payload.type === "payment_restore" || payload.type === "payments_set")) return "This group is closed. Reopen it to change payments.";
+  if (payload.type === "settle_all") {
+    if (!payload.apply && !viewer.closed) return "The group was reopened since, so this can’t be undone. Delete the payments one by one instead.";
+    if (payload.apply && viewer.closed) return "The group is already closed.";
+  }
   const adminOnly =
     payload.type === "currency_restore" ||
     ((payload.type === "members_remove" || payload.type === "members_restore") && ev.actorId !== actorId) ||
@@ -207,12 +218,14 @@ export function canUndo(ev: EventLike, all: EventLike[], now: Date, viewer: Undo
 // The viewer as the server sees them (for pages that don't already hold the member list).
 export async function undoViewerFor(groupId: string, memberId: string): Promise<UndoViewer> {
   const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, accountId: true, leftAt: true, removedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
-  return { id: memberId, isAdmin: await isGroupAdmin(groupId, memberId), members };
+  return { id: memberId, isAdmin: await isGroupAdmin(groupId, memberId), closed: await isClosed(groupId), members };
 }
 
 export const CLOSED_MOVE_OUT_TEXT = "The group is closed, so the move-out can’t be undone. Ask someone in the flat to reopen it.";
 // What someone who has left is told when the Undo of their own move-out is blocked: never who did what after they left.
-export const LEAVER_BLOCKED_TEXT = "Something the move-out changed was changed again since, so it can’t be undone. Ask someone in the flat to undo that change first.";
+export const LEAVER_BLOCKED_TEXT = MOVE_OUT_LEAVER_FIXABLE;
+// …and when nothing is left to fix (a currency change, a rejoin or other change to the person, a counted "I've paid").
+export const LEAVER_GONE_TEXT = MOVE_OUT_GONE_FOR_GOOD;
 // Sent to People when someone tries to rejoin plainly (join link, Rejoin button) while their move-out can still be undone.
 export const MOVED_OUT_REJOIN_TEXT = "You moved out with Loopin. Tap Undo my move-out to get your bills and deposit back, or Rejoin without undoing.";
 
@@ -234,13 +247,29 @@ export function pickOwnMoveOut<E extends EventLike>(events: E[], memberId: strin
   return cameBack ? null : found;
 }
 
+// For someone who has LEFT, a refusal never names anybody else or what they did: a later change to the bills gets one plain line
+// (fixable: someone in the flat undoes it), and anything that can't be fixed any more says so. The closed-group and old-move-out
+// texts name no one and stay as they are. Only for move-outs (a plain leave's refusals name nobody already).
+export function leaverFacing(ev: EventLike, c: Extract<CanUndo, { ok: false }>): string {
+  const p = parseUndo(ev.undo);
+  if (!c.blockedBy || p?.type !== "member_set" || !p.moveOut) return c.reason;
+  if (c.reason.startsWith("This person was changed again") || c.reason.startsWith("The group currency changed")) return LEAVER_GONE_TEXT;
+  return LEAVER_BLOCKED_TEXT;
+}
+
 // Would the server allow this person to undo this line of their own (their leave or move-out), against the FULL history?
 // (The leaver's own screens only hold the history trimmed to what they may see, which hides newer edits that don't touch them.)
-async function ownLeaveCheck(groupId: string, event: EventLike, viewer: UndoViewer, now: Date, closed: boolean): Promise<CanUndo> {
+// For a move-out this also asks the same read-only questions undoMoveOut asks before it writes (deposit, month bills, someone gone,
+// a counted "I've paid"…), so the button is only shown when the undo can go through. The reason is already safe to show them.
+async function ownLeaveCheck(groupId: string, event: EventLike, viewer: UndoViewer, now: Date): Promise<CanUndo> {
   const newer = await db.groupEvent.findMany({ where: { groupId, createdAt: { gte: event.createdAt } } });
   const check = canUndo(event, newer, now, viewer);
+  if (!check.ok) return { ok: false, reason: leaverFacing(event, check) };
   const p = parseUndo(event.undo);
-  if (check.ok && closed && p?.type === "member_set" && p.moveOut) return { ok: false, reason: CLOSED_MOVE_OUT_TEXT };
+  if (p?.type === "member_set" && p.moveOut && p.data.leftAt === null) {
+    const block = await moveOutUndoBlock(db, groupId, p.memberId, p.moveOut);
+    if (block) return { ok: false, reason: block.leaver };
+  }
   return check;
 }
 const isClosed = async (groupId: string) => Boolean((await db.group.findUnique({ where: { id: groupId }, select: { closed: true } }))?.closed);
@@ -257,7 +286,7 @@ export async function ownMoveOut(groupId: string, viewer: UndoViewer, now: Date)
   ]);
   const event = pickOwnMoveOut([...moves, ...rejoins], viewer.id);
   if (!event) return null;
-  return { event, check: await ownLeaveCheck(groupId, event, viewer, now, await isClosed(groupId)) };
+  return { event, check: await ownLeaveCheck(groupId, event, viewer, now) };
 }
 
 // For someone who has left: the Undo answer for each of their own leave / move-out lines, from the full history (what the server will do).
@@ -276,8 +305,7 @@ export async function leaverUndoChecks(groupId: string, viewer: UndoViewer, now:
     return p?.type === "member_set" && p.memberId === viewer.id && p.data.leftAt === null;
   });
   if (!mine.length) return out;
-  const closed = await isClosed(groupId);
-  for (const e of mine) out.set(e.id, await ownLeaveCheck(groupId, e, viewer, now, closed));
+  for (const e of mine) out.set(e.id, await ownLeaveCheck(groupId, e, viewer, now));
   return out;
 }
 
@@ -321,7 +349,8 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   if (!actorId || !group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can undo its changes." };
   // The same three rules the screens use (canUndo), in this order, so the messages stay the same:
   // who may use Undo at all, then whether anything newer stands in the way, then what only some people may do.
-  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), members: group.members };
+  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members };
+  const actorLeft = Boolean(group.members.find((m) => m.id === actorId)?.leftAt);
   const refused = viewerRefusal(ev, viewer);
   if (refused) return { ok: false, error: refused };
 
@@ -330,7 +359,8 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   const check = historyCheck(ev, group.events, (id) => group.members.find((m) => m.id === id)?.name);
   if (!check.ok) {
     const nameOf = (id: string) => (id === actorId ? "You" : group.members.find((m) => m.id === id)?.name);
-    return { ok: false, error: blockedMessage(check, { nameOf, tz }) };
+    // Someone who has left is never told who changed what after they left.
+    return { ok: false, error: actorLeft ? leaverFacing(ev, check) : blockedMessage(check, { nameOf, tz }) };
   }
   const payload = parseUndo(ev.undo)!;
   const no = actorRefusal(ev, viewer, now);

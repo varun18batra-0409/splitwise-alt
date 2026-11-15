@@ -658,7 +658,7 @@ describe("canUndo hides what the server would refuse (the same rules, given the 
   const ev = (undo: object, actorId: string, kind = "member_left") => ({ id: "e1", kind, undo: JSON.stringify(undo), undoneAt: null, expenseId: null, paymentId: null, createdAt: made, actorId });
   // The full member list: Sam (looks after the group), Ada (has an account), and a name with no account.
   const member = (id: string, accountId: string | null, leftAt: Date | null = null) => ({ id, name: id, accountId, leftAt, removedAt: null });
-  const viewer = (id: string, members: ReturnType<typeof member>[], isAdmin = false) => ({ id, isAdmin, members });
+  const viewer = (id: string, members: ReturnType<typeof member>[], isAdmin = false) => ({ id, isAdmin, closed: false, members });
   const removal = ev({ type: "member_set", memberId: "ada", data: { leftAt: null, removedAt: null, removedById: "" } }, "sam");
   const people = [member("sam", "acc-sam"), member("ada", "acc-ada", made), member("kit", null, made)];
   it("a removal: shown to whoever made it at 10 minutes, hidden after; a name with no account is never hidden; her own undo of her own leave is never hidden", () => {

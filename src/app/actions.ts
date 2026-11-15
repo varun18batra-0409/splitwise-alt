@@ -231,6 +231,11 @@ export async function answerInvitation(formData: FormData) {
   const join = formData.get("answer") === "join";
   if (join) {
     const r = await acceptInvitation(account, key);
+    // Their move-out can still be undone: People explains it, instead of quietly giving that up.
+    if (!r.ok && r.movedOut) {
+      await setMyMemberId(r.movedOut.groupId, r.movedOut.memberId);
+      redirect(`/groups/${r.movedOut.groupId}/people?error=${encodeURIComponent(r.error)}`);
+    }
     if (!r.ok) redirect(`/?error=${encodeURIComponent(r.error)}`);
     await setMyMemberId(r.groupId, r.memberId);
     redirect(`/groups/${r.groupId}`);
@@ -602,7 +607,7 @@ export async function setPersonLeft(formData: FormData) {
   }
   // Rejoining yourself after a move-out Loopin recorded (bills, deposit, square-up payments) would leave all of that as it is: the person is
   // pointed to "Undo my move-out" first. "Rejoin without undoing" (plain=1, behind a confirmation) is the deliberate way past it.
-  if (memberId === myId && formData.get("left") !== "1" && formData.get("plain") !== "1" && (await ownMoveOut(groupId, await undoViewerFor(groupId, myId), new Date()))) {
+  if (memberId === myId && formData.get("left") !== "1" && formData.get("plain") !== "1" && (await ownMoveOut(groupId, await undoViewerFor(groupId, myId), new Date()))?.check.ok) {
     backToPeople(groupId, { ok: false, error: MOVED_OUT_REJOIN_TEXT });
   }
   // You can always leave or rejoin yourself. Taking someone else out is for whoever looks after the group; any member can bring back

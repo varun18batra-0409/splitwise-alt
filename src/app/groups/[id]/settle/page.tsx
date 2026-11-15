@@ -68,7 +68,7 @@ export default async function GroupSettle({
   const undoEvents: Awaited<ReturnType<typeof eventsFrom>> = sp.did ? (data.leaver ? ((await loadGroup(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did)) : [];
   const justDid = sp.did ? undoEvents.find((e) => e.id === sp.did) : undefined;
   // (canUndo knows who may undo what: someone who left gets the bar only for their own move-out.)
-  const undoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), members: group.members };
+  const undoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members };
   const leaverChecks = data.leaver && !data.leaver.removed ? await leaverUndoChecks(group.id, undoViewer, new Date()) : null; // a leaver's own move-out: judged on the full history
   const showUndo = justDid && (leaverChecks?.get(justDid.id) ?? canUndo(justDid, undoEvents, new Date(), undoViewer)).ok;
 
