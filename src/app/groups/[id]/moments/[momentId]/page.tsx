@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import { canDeleteMoment, canReactToMoment, canReportMoment, loadMomentViewer } from "@/lib/moments-access";
 import { loadMomentCard } from "@/lib/moments-db";
+import { memoriesBack } from "@/lib/home/memories";
 import { MomentBig } from "../_components/MomentBig";
 
 export const metadata = { title: "Moment", robots: { index: false } };
@@ -10,9 +11,10 @@ export const dynamic = "force-dynamic";
 
 // One moment, full size, with its words, day and reactions. The "⋯" menu holds Delete (the author), Remove (whoever looks after the
 // group), and Report and Block. Anyone who may not see it gets "not found", the same as a moment that doesn't exist.
-export default async function MomentPage({ params, searchParams }: { params: Promise<{ id: string; momentId: string }>; searchParams: Promise<{ from?: string }> }) {
+export default async function MomentPage({ params, searchParams }: { params: Promise<{ id: string; momentId: string }>; searchParams: Promise<{ from?: string; g?: string }> }) {
   const { id, momentId } = await params;
-  const { from: cameFrom } = (await searchParams) ?? {};
+  const { from: cameFrom, g: filter } = (await searchParams) ?? {};
+  const away = memoriesBack(cameFrom, filter); // "/" from Home, "/memories" from the Memories page, else null
   const viewer = await loadMomentViewer(id);
   const card = await loadMomentCard(viewer, momentId);
   if (!viewer || !card) notFound();
@@ -21,8 +23,8 @@ export default async function MomentPage({ params, searchParams }: { params: Pro
   const here = `/groups/${id}/moments`;
   return (
     <div className="pb-16">
-      {/* Opened from Home's Memories row: Back goes home. Anything else about `from` is ignored. */}
-      <PageHeader title="Moment" back={cameFrom === "home" ? "/" : here} />
+      {/* Opened from Home's Memories row: Back goes home. From the Memories page: Back goes there (with its group filter). Anything else about `from` is ignored. */}
+      <PageHeader title="Moment" back={away ?? here} />
       <MomentBig
         card={card}
         place={group.name.replace(/\s+trip$/i, "").trim() || group.name}
@@ -31,7 +33,7 @@ export default async function MomentPage({ params, searchParams }: { params: Pro
         canReport={canReportMoment(viewer, card)}
         guest={viewer.accountId === null}
         back={`${here}/${card.id}`}
-        from={cameFrom === "home" ? "home" : "view"}
+        from={cameFrom === "home" ? "home" : cameFrom === "memories" ? "memories" : "view"}
         now={new Date()}
       />
     </div>

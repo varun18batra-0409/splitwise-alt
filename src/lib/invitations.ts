@@ -4,6 +4,7 @@ import { isGroupAdmin } from "./group-admin";
 import { blockedByMe } from "./blocks";
 import { copyPushTo, inviteMemberId } from "./invites";
 import { joinExisting, joinNew, NAME_NEEDED, type JoinFail, type JoinOk } from "./join";
+import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, undoViewerFor } from "./undo";
 
 // Invitations from the invitee's side: the Join / Not now cards on Home and Alerts and the
 // "Asha added you to this group" screen. Pure database work (no redirects) so it can be tested.
@@ -97,7 +98,7 @@ export async function invitationFor(account: Account | null, groupId: string): P
 
 class InviteClosed extends Error {}
 
-export type Answer = { ok: true; groupId: string; memberId: string } | { ok: false; error: string };
+export type Answer = { ok: true; groupId: string; memberId: string } | { ok: false; error: string; movedOut?: { groupId: string; memberId: string } };
 const GONE = "This invitation is no longer there.";
 const CLOSED = "This invitation is no longer open.";
 
@@ -124,6 +125,11 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
     // Their own row. Closing the invitation and clearing the left / removed mark happen in ONE step, each guarded on what was read:
     // if any part fails, nothing is changed. A removed person only comes back through an invitation the admin sent AFTER the removal.
     const wasOut = Boolean(row.leftAt || row.removedAt);
+    // Someone who moved out with Loopin and can still undo it is told about "Undo my move-out" first, not put back without it
+    // (only while that undo can really go through: otherwise nothing is left to protect).
+    if (row.leftAt && !row.removedAt && (await ownMoveOut(inv.groupId, await undoViewerFor(inv.groupId, row.id), new Date()))?.check.ok) {
+      return { ok: false, error: MOVED_OUT_REJOIN_TEXT, movedOut: { groupId: inv.groupId, memberId: row.id } };
+    }
     if (row.removedAt && (inv.acceptedAt || inv.createdAt.getTime() < row.removedAt.getTime() || !(await isGroupAdmin(inv.groupId, inv.invitedById)))) return { ok: false, error: CLOSED };
     try {
       await db.$transaction(async (tx) => {

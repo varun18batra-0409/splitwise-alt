@@ -6,6 +6,8 @@ import { after } from "next/server";
 import { displayRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
 import { formatMoney } from "@/lib/money";
+import { isGroupAdmin } from "@/lib/group-admin";
+import { leaverUndoChecks, type CanUndo, type UndoViewer } from "@/lib/undo";
 
 // Everything the group screen shows, worked out once and shared by its parts
 // (summary, Activity, Balances, Charts).
@@ -29,6 +31,8 @@ export type GroupView = Loaded & {
   eq: (minor: number) => string | null; // "≈ THB 908"
   expenseById: Map<string, GroupExpense>;
   eventById: Map<string, GroupEvent>;
+  leaverChecks: Map<string, CanUndo>; // for someone who has left: Undo of their own leave / move-out lines, judged on the FULL history (what the server does)
+  undoViewer: UndoViewer; // who is looking, as canUndo wants them (the full member list, not the leaver-scoped one)
 };
 
 export async function buildGroupView(data: Loaded, myId: string, tz: string): Promise<GroupView> {
@@ -50,6 +54,7 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
     return v === null ? null : `≈ ${formatMoney(v, secondary)}`;
   };
 
+  const undoViewer: UndoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members };
   return {
     ...data,
     tz,
@@ -65,5 +70,7 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
     eq,
     expenseById: new Map(group.expenses.map((e) => [e.id, e])),
     eventById: new Map(group.events.map((ev) => [ev.id, ev])),
+    undoViewer,
+    leaverChecks: data.leaver && !data.leaver.removed ? await leaverUndoChecks(group.id, undoViewer, new Date()) : new Map(),
   };
 }

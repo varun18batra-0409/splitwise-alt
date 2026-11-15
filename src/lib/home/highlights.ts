@@ -1,16 +1,14 @@
 import { climateFor, tripMonth, weatherWords } from "../climate";
-import { happeningsFor } from "../happenings";
 import type { TripPhase } from "../countdown";
 import type { Season } from "./banner";
-import type { CoverId } from "../covers";
 
-// The cards that slide by at the top of Home, picked for you: what's useful
-// right now comes first (the trip you're on, the next trip's weather and
-// what's on there, a trip just over, postcards waiting, a bill due), then your
-// month, a festival where you live, and a few always-good ones to fill in (the "Coming from another app?" card is gone: it lives on the new-user Home, How Loopin works and Import).
-// Between 4 and 7 cards; never a card with nothing to say.
+// The bottom of Home (founder, 15 Nov). Two things, both pure so tests can check them:
+// 1. "Before you go": ONE card for the soonest trip that has not started, with its usual weather (beforeYouGo).
+// 2. The sliding cards under it, now only the useful ones: new postcards waiting, a bill due soon, and your month in numbers (homeHighlights).
+// Plus the festival card for where you are (Diwali, Christmas, New Year, Eid…: seasonNow in banner.ts; founder, 15 Nov: keep it, region-specific).
+// No trip photos, passport or postcard fillers or "just back" cards any more. Nothing useful: no card, and no row.
 
-export type HighlightTone = "trip" | "sky" | "warm" | "teal" | "rose" | "night" | "paper";
+export type HighlightTone = "rose" | "teal";
 export type Highlight =
   | { id: string; kind: "month" }
   | {
@@ -22,16 +20,8 @@ export type Highlight =
       text: string;
       button: string;
       href: string;
-      photo?: string; // a place photo on the right
-      scene?: boolean; // the photo fills the whole card behind a dark wash (the passport and postcard photos)
-      // The object on top of that photo, as in the mockups: a passport with your own stamps (14), a postcard with a photo taped on (15).
-      keepsake?: { kind: "passport"; stamps: KeepsakeStamp[] } | { kind: "postcard"; photo?: string };
-      cover?: CoverId; // or one of Loopin's own pictures
-      art?: "sun" | "rain" | "cloud" | "snow" | "postcard" | "passport" | "switch" | "bill";
+      art: "postcard" | "bill" | "festive";
     };
-
-// A stamp on the Home passport card: one of your own countries abroad and the month you went ("" = ticked by hand).
-export type KeepsakeStamp = { code: string; country: string; when: string; byHand?: boolean };
 
 export type HighlightTrip = {
   id: string;
@@ -40,128 +30,27 @@ export type HighlightTrip = {
   start: string; // "2026-11-22"
   end?: string | null;
   stops: { city: string; country: string }[];
-  photo?: string;
-  photo2?: string; // a second photo of the place
-  todaySpent?: string; // "₹4,200" while on the trip
+  countryName?: string; // "Thailand", for the card's small heading; none known: the place
 };
 
 export type HighlightInput = {
-  trips: HighlightTrip[]; // coming up (within a year) or happening, soonest first
-  justBack: { id: string; name: string; endedDaysAgo: number; payments: number; photo?: string; abroad: boolean }[];
   hasMonth: boolean;
-  season: Season | null;
   postcardsNew: number;
   billsDue: { groupId: string; billId: string; name: string; group: string; inDays: number; amount: string }[];
-  passportCountries: number;
-  passportAbroad?: number; // of those, outside your home country
-  groups: number;
-  fahrenheit?: boolean;
-  // Trips whose usual weather is already said by the countdown on Home: no weather card for them (it would repeat).
-  skipWeather?: string[];
-  // Real photos for the passport and postcard cards (slots card-passport and card-postcards). None: the drawn art stays.
-  // stamps: your latest countries abroad (at most 2) for the passport; postcardPhoto: the photo taped on the postcard.
-  scenes?: { passport?: string; postcards?: string; stamps?: KeepsakeStamp[]; postcardPhoto?: string; nextTrip?: string };
-  max?: number;
+  // The festival or season card for this visitor's country and today's date (null: none now).
+  season?: Pick<Season, "id" | "eyebrow" | "title" | "text" | "button" | "href"> | null;
 };
 
 const when = (days: number) => (days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`);
 const place = (t: HighlightTrip) => t.stops.find((s) => s.city)?.city || t.name;
 
+// The sliding cards: postcards first, then a bill due in the next few days, then the festival card, then the month. Between 0 and 4; never a card with nothing to say.
 export function homeHighlights(x: HighlightInput): Highlight[] {
-  const max = Math.min(7, Math.max(4, x.max ?? 7));
   const out: Highlight[] = [];
-  const add = (h: Highlight | null | false | undefined) => {
-    if (h && out.length < max && !out.some((o) => o.id === h.id)) out.push(h);
-  };
 
-  // 1. The trip you're on: today there, and a postcard from it.
-  for (const t of x.trips.filter((t) => t.phase.kind === "today" || t.phase.kind === "during").slice(0, 2)) {
-        const where = place(t);
-    add({
-      id: `on-${t.id}`,
-      kind: "card",
-      tone: "trip",
-      eyebrow: `In ${where} now`,
-      title: t.todaySpent ? `${t.todaySpent} spent today` : "Wish they were here?",
-      text: t.todaySpent ? "Send a postcard from here: your photo, a stamp and a wax seal." : "Turn today’s photo into a postcard, with a stamp and a wax seal.",
-      button: "Send a postcard",
-      href: `/postcards/new?group=${t.id}`,
-      photo: t.photo,
-    });
-  }
-
-  // 2. The next trips: the usual weather on those dates, and what's on there.
-  const coming = x.trips.filter((t) => t.phase.kind === "before" && t.phase.days <= 60).slice(0, 2);
-  for (const [i, t] of coming.entries()) {
-    if (t.phase.kind !== "before") continue;
-    const stop = t.stops[0];
-    const c = stop ? climateFor(stop.city, stop.country, tripMonth(t.start, t.end)) : null;
-    const where = place(t);
-    if (c && !x.skipWeather?.includes(t.id)) {
-      const w = weatherWords(c, x.fahrenheit);
-      add({
-        id: `weather-${t.id}`,
-        kind: "card",
-        tone: "sky",
-        eyebrow: `${where} ${when(t.phase.days)}`,
-        title: w.temps,
-        text: `${w.sky} ${w.tip}`,
-        button: "Open the trip",
-        href: `/groups/${t.id}`,
-        photo: t.photo,
-        art: w.icon as "sun" | "rain" | "cloud" | "snow",
-      });
-    }
-    const on = happeningsFor(t.stops, t.start, t.end, 1)[0];
-    if (on)
-      add({
-        id: `on-there-${t.id}`,
-        kind: "card",
-        tone: "night",
-        eyebrow: `While you’re in ${where}`,
-        title: on.name,
-        text: on.line,
-        button: "Open the trip",
-        href: `/groups/${t.id}`,
-        photo: c ? t.photo2 ?? t.photo : t.photo,
-      });
-    if (i === 0 && !c && !on) {
-      // A trip we know nothing about the weather of still gets a nudge to plan.
-      add({ id: `plan-${t.id}`, kind: "card", tone: "trip", eyebrow: where, title: "Who’s booking what?", text: "Add the stays and tickets as they’re booked, so nobody pays twice.", button: "Open the trip", href: `/groups/${t.id}`, photo: t.photo });
-    }
-  }
-
-  // 3. A trip just over: square up, then the new stamp.
-  for (const b of x.justBack.slice(0, 1)) {
-    if (b.payments > 0)
-      add({
-        id: `back-${b.id}`,
-        kind: "card",
-        tone: "warm",
-        eyebrow: b.endedDaysAgo <= 1 ? `${b.name} is over` : `Back from ${b.name}`,
-        title: b.payments === 1 ? "One payment squares it" : `${b.payments} payments square it`,
-        text: "Settle now, while everyone still remembers the trip fondly.",
-        button: "Settle up",
-        href: `/groups/${b.id}?tab=balances`,
-        photo: b.photo,
-      });
-    else
-      add({
-        id: `stamp-${b.id}`,
-        kind: "card",
-        tone: "paper",
-        eyebrow: `Back from ${b.name}`,
-        title: b.abroad ? "A new stamp in your passport" : "Another one for the passport",
-        text: "Your trip passport stamped itself. Flip through it, or send a postcard to the crew.",
-        button: "Open your passport",
-        href: "/passport",
-        art: "passport",
-      });
-  }
-
-  // 4. Postcards waiting for you.
+  // 1. Postcards waiting for you.
   if (x.postcardsNew > 0)
-    add({
+    out.push({
       id: "postcards",
       kind: "card",
       tone: "rose",
@@ -173,10 +62,10 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       art: "postcard",
     });
 
-  // 5. A bill due in the next few days.
+  // 2. A bill due in the next few days.
   const bill = [...x.billsDue].filter((b) => b.inDays >= 0 && b.inDays <= 5).sort((a, b) => a.inDays - b.inDays)[0];
   if (bill)
-    add({
+    out.push({
       id: `bill-${bill.billId}`,
       kind: "card",
       tone: "teal",
@@ -188,59 +77,46 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       art: "bill",
     });
 
-  // 6. Your month in numbers.
-  if (x.hasMonth) add({ id: "month", kind: "month" });
-
-  // 7. A festival or holiday where you live.
+  // 3. The festival or season coming up where you are (drawn art, never a trip photo).
   if (x.season)
-    add({ id: `season-${x.season.id}`, kind: "card", tone: "night", eyebrow: x.season.eyebrow, title: x.season.title, text: x.season.text, button: x.season.button, href: x.season.href, cover: x.season.cover });
+    out.push({ id: `season-${x.season.id}`, kind: "card", tone: "rose", eyebrow: x.season.eyebrow, title: x.season.title, text: x.season.text, button: x.season.button, href: x.season.href, art: "festive" });
 
-  // Always-good ones, to make up at least four.
-  const fillers: Highlight[] = [
-    {
-      id: "fill-postcard",
-      kind: "card",
-      tone: "rose",
-      eyebrow: "Postcards",
-      title: "Send a postcard",
-      text: "A trip photo, a real-looking stamp and a wax seal. In Loopin or on WhatsApp.",
-      button: "Write one",
-      href: "/postcards/new",
-      art: "postcard",
-    },
-    {
-      id: "fill-passport",
-      kind: "card",
-      tone: "paper",
-      eyebrow: "Your trip passport",
-      title: x.passportCountries > 1 ? `${x.passportCountries} countries and counting` : "Where have you been?",
-      text:
-        x.passportCountries > 1
-          ? `${x.passportAbroad !== undefined && x.passportAbroad < x.passportCountries ? `${x.passportAbroad} abroad, plus home. ` : ""}Flip through your stamps, or see where friends who share theirs have been.`
-          : "Tick the countries you’ve been to and get your stamps.",
-      button: "Open your passport",
-      href: "/passport",
-      art: "passport",
-    },
-    ...(x.trips.length === 0
-      ? [{ id: "fill-trip", kind: "card" as const, tone: "trip" as const, eyebrow: "Nothing booked yet", title: "Where to next?", text: "Start a trip group now. The countdown, the stories and the split come with it.", button: "Plan a trip", href: "/groups/new?type=trip", cover: "beach" as CoverId }]
-      : []),
-    // A group-type tip (not an ad): flats, couples and game nights each have their own way of sharing.
-    { id: "fill-group", kind: "card", tone: "paper", eyebrow: "Not just trips", title: "A group for every kind of sharing", text: "Flatmates with bills, a couple with its own split, a game night, a dinner. Each gets the setup that suits it.", button: "Make a group", href: "/groups/new", art: "bill" },
-  ];
-  for (const f of fillers) {
-    if (out.length >= 4) break;
-    add(f);
+  // 4. Your month in numbers.
+  if (x.hasMonth) out.push({ id: "month", kind: "month" });
+
+  return out;
+}
+
+// "Before you go": the soonest trip that has not started (phase "before", earliest start, no day limit), with its usual weather on those dates.
+// A trip that is under way is skipped; so is one whose climate we don't know (the next is tried). None left: null, and Home shows no section.
+export type BeforeYouGo = {
+  id: string; // the trip's group id
+  eyebrow: string; // "THAILAND · SEASONAL WEATHER"
+  title: string; // "Usually 31° by day, 22° at night"
+  text: string; // "Typically dry and sunny. Pack sunscreen, sunglasses and a water bottle."
+  href: string;
+  button: string;
+  icon: "sun" | "rain" | "cloud" | "snow";
+};
+
+// "Dry and sunny." reads "Typically dry and sunny."; the rainy lines already say what to expect and stay as they are.
+const typically = (sky: string) => sky.replace(/^Dry and/, "Typically dry and").replace(/^Mostly dry/, "Typically dry");
+export function beforeYouGo(trips: HighlightTrip[], fahrenheit = false): BeforeYouGo | null {
+  const upcoming = trips.filter((t) => t.phase.kind === "before" && t.start).sort((a, b) => a.start.localeCompare(b.start));
+  for (const t of upcoming) {
+    const stop = t.stops[0];
+    const c = stop ? climateFor(stop.city, stop.country, tripMonth(t.start, t.end)) : null;
+    if (!c) continue;
+    const w = weatherWords(c, fahrenheit);
+    return {
+      id: t.id,
+      eyebrow: `${t.countryName || place(t)} · SEASONAL WEATHER`.toUpperCase(),
+      title: w.temps,
+      text: `${typically(w.sky)} ${w.tip}`,
+      href: `/groups/${t.id}`,
+      button: "Open the trip",
+      icon: w.icon as BeforeYouGo["icon"],
+    };
   }
-  // The passport and postcard cards: a real photo with the keepsake on top (a dark wash keeps the words readable); otherwise the drawn art.
-  return out.map((h) => {
-    if (h.kind !== "card" || h.photo) return h;
-    // "Where to next?": a real place photo (a country on your Want to go list, else a travel photo), never the drawn palm.
-    if (h.id === "fill-trip" && x.scenes?.nextTrip) return { ...h, photo: x.scenes.nextTrip };
-    if (h.art === "postcard" && x.scenes?.postcards)
-      return { ...h, photo: x.scenes.postcards, scene: true, keepsake: { kind: "postcard" as const, photo: x.scenes.postcardPhoto } };
-    if (h.art === "passport" && x.scenes?.passport)
-      return { ...h, photo: x.scenes.passport, scene: true, keepsake: { kind: "passport" as const, stamps: (x.scenes.stamps ?? []).slice(0, 2) } };
-    return h;
-  });
+  return null;
 }

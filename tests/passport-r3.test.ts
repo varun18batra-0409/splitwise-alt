@@ -103,7 +103,8 @@ describe("R3: country photos", () => {
     for (const c of "TH ID AE SG MV VN LK JP GB NP US GR BT CH FR IN".split(" ")) expect(COUNTRY_SLOT[c]).toBeTruthy();
     expect(COUNTRY_SLOT.FR).toBe("cover-paris");
     expect(COUNTRY_SLOT.IN).toBe("cover-taj");
-    expect(Object.keys(COUNTRY_SLOT)).toHaveLength(16 + 48); // 16 reused + 48 country-xx slots = 64
+    expect(Object.keys(COUNTRY_SLOT)).toHaveLength(16 + 48 + 59); // 16 reused + 48 country-xx slots + 59 more popular destinations (15 Nov) = 123
+    for (const c of "BA ET VA KW".split(" ")) expect(COUNTRY_SLOT[c]).toBe(`country-${c.toLowerCase()}`);
   });
   it("a 'been there' card never gets a mood photo (beach, friends…): its own country's photo, or none", () => {
     const hand = { kind: "hand" as const, groupName: "Italy", place: "", title: "Italy", cities: [] as string[], code: "IT", countryName: "Italy" };

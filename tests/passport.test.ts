@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COUNTRIES, countryOf, searchCountries, tripStops } from "@/lib/geo";
 import { readFileSync } from "node:fs";
-import { buildPassport, parseHandPlaces, stampDay, stampPages, wentOnTrip } from "@/lib/passport";
+import { buildPassport, parseHandPlaces, passportZone, stampDay, stampPages, undatedFacts, undatedTripDay, wentOnTrip } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
@@ -225,34 +225,85 @@ describe("R1 item 13: badges show only earned ones plus the next one", () => {
 // Someone who left a trip's group before its first day didn't go on it: no stamp, on Home or in the passport (one rule, passport.ts).
 describe("who went on a trip, and which day its stamp is", () => {
   it("wentOnTrip: only leaving BEFORE the start day means they didn't go (start 2026-03-10)", () => {
-    expect(wentOnTrip("2026-03-10", null)).toBe(true);
-    expect(wentOnTrip("2026-03-10", new Date("2026-03-09T23:59:59Z"))).toBe(false);
-    expect(wentOnTrip("2026-03-10", new Date("2026-03-10T00:00:00Z"))).toBe(true);
-    expect(wentOnTrip("2026-03-10", new Date("2026-03-20T12:00:00Z"))).toBe(true);
-    expect(wentOnTrip("", new Date("2026-03-01T12:00:00Z"))).toBe(true);
+    expect(wentOnTrip("2026-03-10", null, "UTC")).toBe(true);
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-09T23:59:59Z"), "UTC")).toBe(false);
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-10T00:00:00Z"), "UTC")).toBe(true);
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-20T12:00:00Z"), "UTC")).toBe(true);
+    expect(wentOnTrip("", new Date("2026-03-01T12:00:00Z"), "UTC")).toBe(true);
+  });
+  it("wentOnTrip reads the day they left in their own time zone (hand-worked: India is UTC+5:30)", () => {
+    // 20:30 UTC on 9 March is 02:00 on 10 March in India: that is the start day, so they went.
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-09T20:30:00Z"), "Asia/Kolkata")).toBe(true);
+    // 18:29:59 UTC is 23:59:59 on 9 March in India: the day before, so they didn't.
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-09T18:29:59Z"), "Asia/Kolkata")).toBe(false);
+    // Midday UTC on 9 March is still 9 March in every zone from UTC-12 to UTC+11 (zones at +12 and beyond are already on the 10th).
+    for (const tz of ["UTC", "Asia/Kolkata", "America/New_York", "Europe/London", "Asia/Tokyo", "Australia/Sydney"]) {
+      expect(wentOnTrip("2026-03-10", new Date("2026-03-09T12:00:00Z"), tz)).toBe(false);
+    }
+  });
+  it("passportZone: the owner's own zone, the default when it is empty or not a real zone", () => {
+    expect(passportZone({ timeZone: "Europe/London" })).toBe("Europe/London");
+    expect(passportZone({ timeZone: "" })).toBe("Asia/Kolkata");
+    expect(passportZone({ timeZone: "Not/AZone" })).toBe("Asia/Kolkata");
+    expect(passportZone(null)).toBe("Asia/Kolkata");
   });
 
-  const trip = { type: "trip", deletedAt: null as Date | null, tripStart: "2026-10-01", expenseCount: 0, lastActivity: new Date("2026-10-05T08:00:00Z"), leftAt: null as Date | null };
+  const trip = { type: "trip", deletedAt: null as Date | null, tripStart: "2026-10-01", leftAt: null as Date | null, undated: null as { count: number; day: string } | null };
   it("stampDay (today 2026-11-15): dated trips are stamped on their start day", () => {
-    expect(stampDay(trip, "2026-11-15")).toBe("2026-10-01");
-    expect(stampDay({ ...trip, tripStart: "2026-12-01" }, "2026-11-15")).toBeNull(); // not started yet
-    expect(stampDay({ ...trip, leftAt: new Date("2026-09-30T10:00:00Z") }, "2026-11-15")).toBeNull(); // left the day before it began
-    expect(stampDay({ ...trip, leftAt: new Date("2026-10-01T10:00:00Z") }, "2026-11-15")).toBe("2026-10-01");
+    expect(stampDay(trip, "2026-11-15", "UTC")).toBe("2026-10-01");
+    expect(stampDay({ ...trip, tripStart: "2026-12-01" }, "2026-11-15", "UTC")).toBeNull(); // not started yet
+    expect(stampDay({ ...trip, leftAt: new Date("2026-09-30T10:00:00Z") }, "2026-11-15", "UTC")).toBeNull(); // left the day before it began
+    expect(stampDay({ ...trip, leftAt: new Date("2026-10-01T10:00:00Z") }, "2026-11-15", "UTC")).toBe("2026-10-01");
   });
-  it("stampDay: a trip without dates is stamped on its last activity day, once something was spent", () => {
-    const undated = { ...trip, tripStart: "", expenseCount: 3 };
-    // No real start day, so leaving earlier than the last activity doesn't lose the stamp.
-    expect(stampDay({ ...undated, leftAt: new Date("2026-10-01T12:00:00Z") }, "2026-11-15")).toBe("2026-10-05");
-    expect(stampDay({ ...undated, leftAt: new Date("2026-10-06T12:00:00Z") }, "2026-11-15")).toBe("2026-10-05");
-    expect(stampDay({ ...undated, expenseCount: 0 }, "2026-11-15")).toBeNull();
+  it("stampDay: a trip without dates is stamped on the day of its latest spending the person may see, once there is some", () => {
+    const undated = { ...trip, tripStart: "", undated: { count: 3, day: "2026-10-05" } };
+    // No real start day, so leaving earlier than the spending doesn't lose the stamp.
+    expect(stampDay({ ...undated, leftAt: new Date("2026-10-01T12:00:00Z") }, "2026-11-15", "UTC")).toBe("2026-10-05");
+    expect(stampDay({ ...undated, leftAt: new Date("2026-10-06T12:00:00Z") }, "2026-11-15", "UTC")).toBe("2026-10-05");
+    expect(stampDay({ ...undated, undated: null }, "2026-11-15", "UTC")).toBeNull();
+    expect(stampDay({ ...undated, undated: { count: 0, day: "2026-10-05" } }, "2026-11-15", "UTC")).toBeNull();
+  });
+
+  // Undated trips: what a person may see decides the stamp (hand-worked). Ada left 5 Oct 2024 12:00 UTC.
+  //   Lunch: added 1 Oct 08:00 UTC, dated 1 Oct, paid by Ada, Ada + Bea in it.   Taxi: added 8 Oct 09:00 UTC, dated 8 Oct, only Bea.
+  describe("undatedFacts", () => {
+    const at = (iso: string) => new Date(iso);
+    const row = (o: Partial<Parameters<typeof undatedFacts>[0][number]> & { id: string; createdAt: Date; paidById: string; shares: { memberId: string }[] }) => ({ spentAt: null as Date | null, deletedAt: null as Date | null, kind: "expense", ...o });
+    const lunch = row({ id: "lunch", createdAt: at("2024-10-01T08:00:00Z"), spentAt: at("2024-10-01T12:00:00Z"), paidById: "ada", shares: [{ memberId: "ada" }, { memberId: "bea" }] });
+    const taxi = row({ id: "taxi", createdAt: at("2024-10-08T09:00:00Z"), spentAt: at("2024-10-08T12:00:00Z"), paidById: "bea", shares: [{ memberId: "bea" }] });
+    const ada = { id: "ada", leftAt: at("2024-10-05T12:00:00Z") };
+    const bea = { id: "bea", leftAt: null };
+    it("Ada sees only Lunch; Bea sees both and the latest is Taxi", () => {
+      expect(undatedFacts([lunch, taxi], ada, "Asia/Kolkata")).toEqual({ count: 1, day: "2024-10-01" });
+      expect(undatedFacts([lunch, taxi], bea, "Asia/Kolkata")).toEqual({ count: 2, day: "2024-10-08" });
+    });
+    it("only Taxi exists: nothing Ada may see, so no stamp", () => {
+      expect(undatedFacts([taxi], ada, "Asia/Kolkata")).toBeNull();
+    });
+    it("a card-game result and a deleted expense don't count", () => {
+      expect(undatedFacts([row({ ...taxi, id: "pot", kind: "pot" })], bea, "UTC")).toBeNull();
+      expect(undatedFacts([row({ ...taxi, id: "gone", deletedAt: at("2024-10-09T00:00:00Z") })], bea, "UTC")).toBeNull();
+    });
+    it("spending added after she left but with her in it counts", () => {
+      const dinner = row({ id: "dinner", createdAt: at("2024-10-09T10:00:00Z"), paidById: "bea", shares: [{ memberId: "bea" }, { memberId: "ada" }] });
+      expect(undatedFacts([lunch, taxi, dinner], ada, "Asia/Kolkata")).toEqual({ count: 2, day: "2024-10-09" });
+    });
+    it("no chosen date: the day it was added, in the owner's time zone (1 Oct 20:00 UTC is 2 Oct in India, 1 Oct in London)", () => {
+      const late = row({ id: "late", createdAt: at("2024-10-01T20:00:00Z"), paidById: "bea", shares: [{ memberId: "bea" }] });
+      expect(undatedFacts([late], bea, "Asia/Kolkata")?.day).toBe("2024-10-02");
+      expect(undatedFacts([late], bea, "Europe/London")?.day).toBe("2024-10-01");
+      expect(undatedTripDay({ spentAt: null, createdAt: at("2024-10-01T20:00:00Z") }, "Asia/Kolkata")).toBe("2024-10-02");
+      // A chosen day is that day for everyone.
+      expect(undatedTripDay({ spentAt: at("2024-10-01T12:00:00Z"), createdAt: at("2024-10-03T00:00:00Z") }, "Pacific/Auckland")).toBe("2024-10-01");
+    });
   });
   it("stampDay: a deleted group or one that is not a trip has none", () => {
-    expect(stampDay({ ...trip, deletedAt: new Date("2026-11-01T00:00:00Z") }, "2026-11-15")).toBeNull();
-    expect(stampDay({ ...trip, type: "home" }, "2026-11-15")).toBeNull();
+    expect(stampDay({ ...trip, deletedAt: new Date("2026-11-01T00:00:00Z") }, "2026-11-15", "UTC")).toBeNull();
+    expect(stampDay({ ...trip, type: "home" }, "2026-11-15", "UTC")).toBeNull();
   });
-  it("Home uses stampDay (not its own copy of the rule)", () => {
+  it("Home has no copy of the stamp rule (it no longer draws a passport card; stampDay lives in src/lib/passport.ts)", () => {
     const src = readFileSync("src/app/(home)/page.tsx", "utf8");
-    expect(src).toContain("stampDay(");
     expect(src).not.toContain("const wentOn");
+    expect(src).not.toContain("keepsakeStamps");
   });
 });

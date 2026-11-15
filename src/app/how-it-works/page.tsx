@@ -301,7 +301,7 @@ export default async function HowItWorks() {
             <><strong>Moving out or in.</strong> Loopin works out their share for the days they stayed, who takes over their deposit, and the final payments.</>,
           ]}
         />
-        <Screen src="/guide/flat-month.webp" alt="A flat's This month screen: your share, what you're owed, and the bills coming up" caption="A flat’s “This month”: bills coming up, one tap to enter electricity" />
+        <Screen src="/guide/flat-month.webp" alt="A flat's This month screen: your share, what you're owed, and the bills coming up" caption="A flat’s “This month”: your share, what you’re owed, and bills, shopping, budget and deposit" />
         <p>Reminders (the day before a bill, and on your settle-up day) are off until you switch them on in the group’s settings.</p>
       </Section>
 
@@ -316,7 +316,7 @@ export default async function HowItWorks() {
           share, with one tap to even out. Saving for something? Start a <strong>goal</strong> and each tap “I set money aside”. The money stays
           in your own accounts.
         </p>
-        <Screen src="/guide/couple-month.webp" alt="A couple's This month screen: spent together, you're ahead, and a savings goal" caption="A couple’s month: who’s ahead, where it went, the Bali fund" />
+        <Screen src="/guide/couple-month.webp" alt="A couple's This month screen: spent together this month, and who's ahead" caption="A couple’s month: spent together, and who’s ahead" />
       </Section>
 
       <div id="pot" className="scroll-mt-4" />
@@ -347,7 +347,7 @@ export default async function HowItWorks() {
         </p>
         <Screens
           a={{ src: "/guide/story-trip.webp", alt: "A trip story: a photo of the beach with a quirky caption", caption: "A trip coming up" }}
-          b={{ src: "/guide/story-pot.webp", alt: "A game night story: everyone's result as bars", caption: "Last night’s game" }}
+          b={{ src: "/guide/story-pot.webp", alt: "A game night story: who came out ahead", caption: "Last night’s game" }}
         />
       </Section>
 

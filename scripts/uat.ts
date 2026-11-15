@@ -474,10 +474,9 @@ async function fillExpense(page: Page, o: AddOpts) {
     await page.getByPlaceholder(/Rahul paid the tip/).fill(o.notes);
   }
 }
-// Add expense has two rows (Paid by, Split between): tapping either opens the payer and split controls under it.
+// Add expense shows "Who paid?" and "How to split?" as rows of chips, always on screen: nothing to open, just wait for them.
 async function openSplit(page: Page) {
-  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-row-paid]").first().click();
-  await page.locator("[data-split-panel]").waitFor();
+  await page.locator("[data-split-row]").waitFor();
 }
 // Add expense keeps notes, several payers and Spin for it under "More" (closed unless the expense already uses them).
 async function openMore(page: Page) {
@@ -1160,18 +1159,27 @@ async function main() {
   });
   await step(V, "Across groups", "Settle screen nets them into ONE payment: Asha pays Varun ₹200", async () => {
     await go(V, "/settle");
-    const card = V.locator("main li").filter({ hasText: "Asha" }).filter({ hasText: "UAT Flat" }).first();
+    // The new look (15 Nov): a summary card, then one card per person under TO PAY / TO RECEIVE (Varun is owed here).
+    assert(await V.locator("[data-settle-summary]").count(), "no summary card on the all-groups Settle up");
+    const card = V.locator("[data-settle-card='Asha']");
     const t = (await card.innerText()).replace(/\s+/g, " ");
-    assert(/Asha pays you/.test(t) && /₹200/.test(t), `card says: ${t}`);
-    assert(/1 payment instead of 2/.test(t), "doesn't say 1 payment instead of 2");
-    // Here a payment is recorded at once (unlike a group's own “I’ve paid” claim), so it never says “I’ve paid”.
-    assert((await V.locator("main summary", { hasText: "I’ve paid" }).count()) === 0, "the all-groups Settle screen says “I’ve paid”");
-    // "Mark paid" (Varun is owed) opens a preview of each group's part and the total; only "Record in 2 groups" saves.
-    await card.locator("summary", { hasText: "Mark paid" }).click();
+    assert(/₹200/.test(t), `card says: ${t}`);
+    assert(/UAT Flat/.test(t) && /UAT Dinner club/.test(t), `the card doesn't name both groups: ${t}`);
+    // "View breakdown" opens in place with each group's part and the total.
+    await card.locator("[data-breakdown-toggle]").click();
     const lines = (await card.locator("[data-cross-lines]").innerText()).replace(/\s+/g, " ");
-    assert(/UAT Flat: Asha pays you ₹500/.test(lines) && /UAT Dinner club: you pay Asha ₹300/.test(lines), `preview lines: ${lines}`);
-    assert(/Together: Asha pays you ₹200/.test(await card.locator("[data-cross-total]").innerText()), "preview total isn't Asha pays you ₹200");
-    await card.getByRole("button", { name: "Record in 2 groups" }).click();
+    assert(/UAT Flat: Asha pays you ₹500/.test(lines) && /UAT Dinner club: you pay Asha ₹300/.test(lines), `breakdown lines: ${lines}`);
+    assert(/Together: Asha pays you ₹200/.test(await card.locator("[data-cross-total]").innerText()), "breakdown total isn't Asha pays you ₹200");
+    assert(/1 payment instead of 2/.test((await card.innerText()).replace(/\s+/g, " ")), "doesn't say 1 payment instead of 2");
+    // A payment is recorded at once here, so it never says “I’ve paid”.
+    assert((await V.locator("main").getByText("I’ve paid").count()) === 0, "the all-groups Settle screen says “I’ve paid”");
+    // "Mark received" (Varun is owed) is in the ⋮ menu and opens the sheet; only confirming it saves anything.
+    await card.locator("[data-settle-menu]").click();
+    await card.getByRole("menuitem", { name: "Mark received" }).click();
+    const sheet = V.locator("[data-record-sheet]");
+    await sheet.waitFor();
+    assert(/Mark received/.test(await sheet.innerText()) && /No money will be transferred/.test(await sheet.innerText()), "the sheet doesn't say what it records");
+    await sheet.locator("[data-record-confirm]").click();
     await V.waitForURL(/settle=done/);
     const b2 = await shownBalances(V, g2);
     const b3 = await shownBalances(V, g3);
@@ -1218,7 +1226,7 @@ async function main() {
   });
   await step(V, "Couples", "“Our split 55 / 45” is chosen by default: ₹1,000 lunch → Asha owes ₹450", async () => {
     await go(V, `${gc}/add`);
-    await openSplit(V); // the split choices sit behind the "Paid by / Split between" rows
+    await openSplit(V); // the Who paid? and How to split? chips are on screen
     const chip = V.getByRole("button", { name: /Our split/ });
     assert((await chip.getAttribute("aria-pressed")) === "true", "Our split isn't selected by default");
     await V.locator("#expense-name").fill("Lunch");
@@ -1245,7 +1253,7 @@ async function main() {
   });
   await step(V, "Couples", "Money back: Asha got ₹200 back, shared 55 / 45 → Asha owes ₹960", async () => {
     await go(V, `${gc}/add`);
-    await V.locator("[data-more] > button").click(); // Money back sits under "Notes, money back…" (no switch at the top)
+    await V.locator("[data-more] > button").click(); // Money back sits under More (no switch at the top)
     await V.getByRole("switch", { name: "Money back" }).click();
     await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
@@ -1326,7 +1334,7 @@ async function main() {
     await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on the money card (label, the exact amount once, “To N people · Group” line, faces, ONE cream button, the photo on the right; no tint, no route or plane, no “Add expense”), nothing under it (what needs you is in Updates behind the bell), then Your groups and the bottom bar, which keeps its “+”", async () => {
+  await step(V, "Home", "Home opens on the money card (label, the exact amount once, “To N people · Group” line, faces, ONE full-width cream button, no photo; no tint, no route or plane, no “Add expense”), nothing under it (what needs you is in Updates behind the bell), then Your groups and the bottom bar, which keeps its “+”", async () => {
     await go(V, "/");
     const money = V.getByRole("region", { name: "Your money" });
     await money.locator("[data-net-balance]").first().waitFor();
@@ -1354,7 +1362,7 @@ async function main() {
       assert(/^(You owe|You’re owed)\b/.test(text), `the card should start with its label: ${text}`);
       assert(tone === "owe" ? /^You owe\b/.test(text) : /^You’re owed\b/.test(text), `the label doesn't match the ${tone} card: ${text}`);
       assert(/\b(To|From) (\d+ people|\S+)( · .+?)?( |$)/.test(text), `the card has no "To N people · Group" line: ${text}`);
-      assert((await money.locator("[data-card-photo]").count()) === 1, "the card has no photo on the right");
+      assert((await money.locator("[data-card-photo], img").count()) === 0, "the money card still has a photo");
       const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
       assert(/[₹$€£]\s?\d/.test(amount), `the amount is "${amount}"`);
       assert(text.split(amount).length === 2, `the amount "${amount}" is repeated on the card: ${text}`);
@@ -1379,7 +1387,7 @@ async function main() {
       assert(keys === "pay,remind", `both-ways buttons: ${keys}`);
       assert((await money.locator("[data-ticket-line]").count()) === 2, "both ways should be two lines");
       assert(/^Review & settle$/.test(labels.find((_, i) => keys.split(",")[i] === "pay")?.trim() ?? "") && /^Remind\b/.test(labels.find((_, i) => keys.split(",")[i] === "remind")?.trim() ?? ""), `both-ways button words: ${labels.join("|")}`);
-      assert((await money.locator("[data-card-photo]").count()) === 2, "both ways should be two cards, each with its photo");
+      assert((await money.locator("[data-card-photo], img").count()) === 0, "the both-ways cards still have a photo");
       assert((await money.locator("[data-route-from]").count()) === 0, "Home's cards still have a route");
       assert((await money.locator("[data-money-action][data-emphasis='bright']").count()) === 1, "both-ways card should have one bright button");
     }
@@ -1549,7 +1557,7 @@ async function main() {
     }
     assert((await V.getByText(/^(Recently deleted|Hide recently deleted)/).count()) === 0, "Recently deleted is still on Home");
   });
-  await step(V, "Home", "On the narrowest phone (320×640, also 360 and 390) the money card has no sideways scroll: nothing is cut off, the amount always shows whole, the photo takes the right side, the buttons keep their words inside, and the card has no tint", async () => {
+  await step(V, "Home", "On the narrowest phone (320×640, also 360 and 390) the money card has no sideways scroll: nothing is cut off, the amount always shows whole, there is no photo (founder, 15 Nov evening: short card), the buttons keep their words inside, and the card has no tint", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 320, height: 640 });
     await go(V, "/");
@@ -1575,8 +1583,7 @@ async function main() {
       })) as string[];
       assert(over.length === 0, `at ${w}px these spill out of the money card: ${over.join(", ")}`);
       assert((await V.evaluate("document.documentElement.scrollWidth <= window.innerWidth")) as boolean, `Home scrolls sideways at ${w}px`);
-      const share = await card.locator("[data-card-photo]").first().evaluate((el) => el.getBoundingClientRect().width / (el.closest("section")?.getBoundingClientRect().width || 1));
-      assert(share >= 0.38 && share <= 0.48, `at ${w}px the photo takes ${Math.round(share * 100)}% of the card (should be about 44%)`);
+      assert((await card.locator("[data-card-photo], img").count()) === 0, `at ${w}px the money card still has a photo`);
       const amounts = await card.locator("[data-net-balance]").allInnerTexts();
       assert(amounts.every((t) => /[\d]/.test(t) || /All square/.test(t)) && amounts.every((t) => !t.includes("…")), `at ${w}px an amount is cut: ${amounts.join(" | ")}`);
       const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
@@ -1602,11 +1609,13 @@ async function main() {
     // Story labels: one line, at most 10 characters.
     for (const t of await V.locator("[data-story-label]").allInnerTexts()) assert([...t.trim()].length <= 10, `a story label is too long: ${t}`);
   });
-  await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
+  await step(V, "Home", "The sliding cards at the bottom (under “Before you go”): only postcards waiting, a bill due soon, the festival card for where you are and the month, so 0 to 4 of them, no two the same, each with words and a button that goes somewhere, no trip photos; none: no row", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');
     const n = await slides.count();
-    assert(n >= 4 && n <= 7, `${n} cards`);
+    assert(n <= 4, `${n} cards`);
+    assert((await V.locator('[aria-roledescription="slide"] img').count()) === 0, "a sliding card still has a photo");
+    for (const t of await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) assert(!/Wish they were here|spent today|payments? squares? it|stamp in your passport|Who’s booking what|While you’re in|countries and counting|Where to next/.test(t), `an old trip or filler card is back: ${t}`);
     assert((await V.locator('[aria-roledescription="slide"]').filter({ hasText: "Coming from another app" }).count()) === 0, "the switching card is back on Home");
     const texts = await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.replace(/\s+/g, " ").trim()));
     assert(new Set(texts).size === texts.length, `the same card twice: ${texts.join(" / ")}`);
@@ -2334,6 +2343,8 @@ async function main() {
     // And sees the group only up to the day they left: the banner, and no This month / Bills / List tabs.
     await go(A, gh);
     await A.locator("[data-left-banner]").waitFor();
+    // Her own move-out (marked by someone else) is hers to undo: the banner says so and carries the Undo or the reason it can't be done.
+    assert((await A.locator("[data-left-banner] [data-own-move-out]").count()) === 1, "the person who moved out has no Undo my move-out on her banner");
     for (const t of ["This month", "Bills", "List"]) assert((await A.getByRole("link", { name: t, exact: true }).count()) === 0, `a person who moved out sees the ${t} tab`);
     // On Settle up she gets no Close group / Mark all paid section (the server would refuse it).
     await go(A, `${gh}/settle`);
@@ -3222,6 +3233,26 @@ async function main() {
     assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
     assert(await card.locator("img").count(), "no picture on the countdown card");
     assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the card doesn't say 10 days");
+    // Share sits under the polaroid (44px tall, inside the card); no names line; the quiet "12 December · 6 people" line with its dashed curve and pin.
+    const share = card.getByRole("button", { name: "Share" });
+    const shareBox = (await share.boundingBox())!;
+    const polaroidBox = (await card.locator("img").first().boundingBox())!;
+    assert(shareBox.height >= 44, `the Share button is ${Math.round(shareBox.height)}px tall`);
+    assert(shareBox.y >= polaroidBox.y + polaroidBox.height - 12, "the Share button is not under the polaroid");
+    assert(!/(^|\n)with /.test(await card.innerText()), "the card still has the names line");
+    const meta = ((await card.locator("[data-trip-meta]").innerText()) ?? "").replace(/\s+/g, " ").trim();
+    assert(/^\d{1,2} [A-Z][a-z]+( \d{4})? · \d+ (people|person)$/.test(meta), `the meta line says “${meta}”`);
+    assert((await card.locator("[data-trip-meta] svg").count()) === 1, "the meta line has no dashed curve and pin");
+    // Before you go: ONE card for the soonest trip that has not started, with its usual weather and no photo; a link into the trip.
+    const before = V.locator("[data-before-you-go]");
+    if (await before.count()) {
+      assert((await before.count()) === 1, "Before you go should be one card");
+      await before.getByRole("heading", { name: "Before you go" }).waitFor();
+      assert(/ · SEASONAL WEATHER$/.test((await before.locator("[data-before-eyebrow]").innerText()).trim()), "the Before you go heading line is wrong");
+      assert(/^Usually \d+° by day, \d+° at night$/.test((await before.locator("[data-before-title]").innerText()).trim()), "the Before you go temperatures are wrong");
+      assert((await before.locator("img").count()) === 0, "Before you go has a photo");
+      assert(/^\/groups\//.test((await before.locator("[data-before-open]").getAttribute("href")) ?? ""), "Open the trip goes elsewhere");
+    }
   });
 
   await step(V, "Countdown", "A second trip in 30 days: Coming up is ONE section with two countdown cards, the soonest first; no “Also:” line, no separate cards", async () => {
@@ -3259,31 +3290,15 @@ async function main() {
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 
-  await step(V, "Add", "Add expense is tidy: the amount, the day under it, one What was it? field with Scan a bill · Speak · Type a line inside it, then two rows for who paid and the split; notes, several payers and Spin sit under a closed More link; the result for you is one quiet line under the card", async () => {
+  await step(V, "Add", "Add expense is tidy: the currency pill, the amount and the day under it, one Faster entry row (Scan a bill · Speak · Type a line), then What was it?, Who paid and the split; notes, money back, several payers and Spin sit under a closed More; the result for you is one quiet line above Save", async () => {
     await go(V, `${g}/add`);
     await V.getByLabel("Amount", { exact: true }).fill("1200");
     await V.locator("#expense-name").fill("Beach dinner");
     const row = V.getByRole("group", { name: "Faster entry" });
-    const names = await row.getByRole("button").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-    assert(names.join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), `the Faster entry icons aren't Scan a bill · Speak · Type a line: ${names.join("|")}`);
+    assert((await row.getByRole("button").allTextContents()).map((t) => t.trim()).join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), "the Faster entry row isn't Scan a bill · Speak · Type a line");
     const y = async (loc: ReturnType<Page["locator"]>) => (await loc.first().boundingBox())!.y;
-    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(V.locator("#expense-name")), await y(V.locator("[data-sentence-card]"))];
+    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(row), await y(V.locator("#expense-name")), await y(V.getByText("Who paid?")), await y(V.getByText("How to split?"))];
     assert(order.every((v, i) => i === 0 || v > order[i - 1]), `the form order is off: ${order.map(Math.round).join(", ")}`);
-    // The icons sit inside the same field as the name.
-    const inField = await row.evaluate((el) => Boolean(el.parentElement?.querySelector("#expense-name")));
-    assert(inField, "the Faster entry icons aren't inside the What was it? field");
-    // Two rows say who paid and who it is split between; tapping one opens the real controls under it.
-    const rows = (await V.locator("[data-sentence-card]").innerText()).replace(/\s+/g, " ");
-    assert(/^Paid by .*You.* Change Split between .+/.test(rows), `the two rows read: ${rows}`);
-    assert((await V.locator("[data-payer-row]").count()) === 0, "the payer chips show before a row is tapped");
-    const paidRow = V.locator("[data-row-paid]");
-    await paidRow.click();
-    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "tapping the row didn't open Who paid / How to split");
-    assert((await paidRow.getAttribute("aria-expanded")) === "true", "the row doesn't say it is expanded");
-    await V.getByRole("button", { name: "Done", exact: true }).click();
-    // Focus moves back once the panel has closed (the next tick), so wait briefly for it.
-    const back = await V.waitForFunction(() => Boolean(document.activeElement?.hasAttribute("data-row-paid")), undefined, { timeout: 2000 }).then(() => true, () => false);
-    assert(back, "Done didn't give focus back to the row");
     const result = (await V.locator("[data-expense-result]").innerText()).replace(/\s+/g, " ");
     assert(/You (paid|get back|owe)|Just you|Nobody owes|square/.test(result), `the result for you reads: ${result}`);
     assert((await V.locator("[data-fx-card]").count()) === 0, "the foreign-currency line shows on an expense in the group's own currency");
@@ -3292,8 +3307,10 @@ async function main() {
     assert((await V.getByPlaceholder(/Rahul paid the tip/).count()) === 0, "notes are showing while More is closed");
     await more.click();
     await V.getByPlaceholder(/Rahul paid the tip/).waitFor();
+    await V.getByRole("switch", { name: "Money back" }).waitFor();
     await V.getByRole("switch", { name: /More than one person paid/ }).waitFor();
     await V.getByRole("button", { name: /Spin for it/ }).waitFor();
+    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "Who paid / How to split chips aren't each one scrolling row");
   });
   await step(V, "Add", "Editing an expense that has notes opens More by itself, so nothing is hidden", async () => {
     const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, deletedAt: null, NOT: { notes: "" } }, orderBy: { createdAt: "desc" } });
@@ -3456,7 +3473,7 @@ async function main() {
     await set.waitFor({ timeout: 8000 });
     const who = ((await set.textContent()) ?? "").replace(/^Set | as payer$/g, "").replace(/^yourself$/, "You");
     await set.click();
-    await openSplit(V); // the payer chips sit behind the "Paid by" row
+    await openSplit(V); // the Who paid? chips are on screen
     await V.getByRole("button", { name: who, exact: true, pressed: true }).waitFor();
   });
 
@@ -3606,7 +3623,7 @@ async function main() {
   });
   await step(V, "Money", "Money back bigger than a share: Meera gets ₹600 back for the minibus, shared by all 12 (₹50 each)", async () => {
     await go(V, `${tw.path}/add`);
-    await V.locator("[data-more] > button").click(); // Money back sits under "Notes, money back…" (no switch at the top)
+    await V.locator("[data-more] > button").click(); // Money back sits under More (no switch at the top)
     await V.getByRole("switch", { name: "Money back" }).click();
     await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Meera$/ }).first().click();
@@ -4012,7 +4029,24 @@ async function main() {
     for (const p of pages) {
       await go(V, p);
       const over = await V.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      if (over > 1) wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
+      if (over > 1) {
+        // Name what sticks out, so a failure says where to look (the deepest elements past the right edge).
+        const culprits = await V.evaluate(() => {
+          const W = window.innerWidth;
+          const out: string[] = [];
+          document.querySelectorAll("body *").forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 || r.right <= W + 1) return;
+            if ([...el.children].some((c) => c.getBoundingClientRect().right > W + 1)) return; // only the innermost
+            const hooks = [...el.attributes].filter((a) => a.name.startsWith("data-")).map((a) => a.name).join(" ");
+            const up = [...Array(4)].reduce<Element | null>((e) => e?.parentElement ?? null, el);
+            const upHooks = up ? [...up.attributes].filter((a) => a.name.startsWith("data-")).map((a) => a.name).join(" ") : "";
+            out.push(`<${el.tagName.toLowerCase()} ${hooks}> right ${Math.round(r.right)} "${(el.textContent ?? "").trim().slice(0, 40)}" in [${upHooks}]`);
+          });
+          return out.slice(0, 4);
+        });
+        wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px: ${culprits.join(" | ")})`);
+      }
     }
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
     return `${pages.length} screens at ${P.context.viewport?.width ?? "?"} px wide`;
@@ -4164,17 +4198,40 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     await A.locator("[data-memories-row] [data-memory]").first().waitFor();
     assert((await A.locator("[data-story='moment']").count()) === 0, "a moment is in the story circles (moments are Memories only)");
     assert(/from UAT Mom/.test((await A.locator("[data-memories-row] [data-memory]").first().getAttribute("aria-label")) ?? ""), "the memory isn’t labelled with its group");
-    // Collapsed (the founder's 15 Nov mockup) it is the newest moment as one tilted polaroid with its caption, beside "Little moments, shared
-    // together."; "See all" opens it in place into a grid with every caption and group name, and "Show less" folds it back.
-    assert((await A.locator("[data-memories-collapsed] [data-memory-lead]").count()) === 1, "the folded Memories doesn't show one polaroid in front");
-    assert(/Little moments, shared together/.test(await A.locator("[data-memories-line]").innerText()), "the folded Memories has no line beside the polaroid");
-    await A.locator("[data-memories-toggle]").click();
-    await A.locator("[data-memories-grid] [data-memory-group]").first().waitFor();
-    assert(/UAT Mom/.test(await A.locator("[data-memories-grid] [data-memory-group]").first().innerText()), "the opened Memories don’t name the group");
-    await A.locator("[data-memories-toggle]").click();
-    await A.locator("[data-memories-collapsed]").waitFor();
+    // One fixed layout (the founder's 15 Nov mockup): the newest moment as one tilted polaroid with its caption, beside "Little moments, shared
+    // together.". It never expands. Under it, "View <group> memories →" opens that group's Memories tab; "See all" (only with 2+ memories)
+    // opens the Memories page.
+    assert((await A.locator("[data-memories-collapsed] [data-memory-lead]").count()) === 1, "Memories doesn't show one polaroid in front");
+    assert(/Little moments, shared together/.test(await A.locator("[data-memories-line]").innerText()), "Memories has no line beside the polaroid");
+    assert((await A.locator("[data-memories-toggle], [data-memories-grid]").count()) === 0, "Memories still has the old expand toggle or grid");
+    const groupLink = A.locator("[data-memories-group-link]");
+    assert(/^View .+ memories →$/.test((await groupLink.innerText()).trim()), `the group link reads “${await groupLink.innerText()}”`);
+    assert(/UAT Mom/.test(await groupLink.innerText()), "the group link doesn't name the group");
+    assert(((await groupLink.boundingBox())?.height ?? 0) >= 44, "the group link is under 44px tall");
+    await groupLink.click();
+    await A.waitForURL(/\/groups\/[^/?]+\?tab=memories/);
+    await A.locator("[data-memories]").waitFor();
+    await go(A, "/");
+    // "See all" only when there is more than the one memory shown; it opens /memories with All groups lit.
+    if ((await db.moment.count({ where: { groupId: momentsGroup.split("/").pop()! } })) > 1) {
+      await A.locator("[data-memories-see-all]").click();
+      await A.waitForURL(/\/memories$/);
+      await A.locator("[data-memories-card]").first().waitFor();
+      assert((await A.locator("[data-memories-filter='all'][aria-current='true']").count()) === 1, "All groups isn't lit on the Memories page");
+      assert(/UAT Mom/.test(await A.locator("[data-memories-card] [data-memory-group]").first().innerText()), "a Memories card doesn't name its group");
+      await go(A, "/");
+    } else {
+      assert((await A.locator("[data-memories-see-all]").count()) === 0, "See all shows with only one memory");
+    }
     await addMomentThroughTheForm(A, "Worth the early alarm.", "");
     momentTwo = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "Worth the early alarm." } })).id;
+    // Now Asha has two memories: Home's "See all" shows and opens the Memories page (All groups lit, newest first: her new one leads).
+    await go(A, "/");
+    await A.locator("[data-memories-see-all]").click();
+    await A.waitForURL(/\/memories$/);
+    await A.locator("[data-memories-card]").first().waitFor();
+    assert((await A.locator("[data-memories-filter='all'][aria-current='true']").count()) === 1, "All groups isn't lit on the Memories page");
+    assert(/Worth the early alarm/.test(await A.locator("[data-memories-card] [data-memory-caption]").first().innerText()), "the Memories page doesn't lead with the newest moment");
     await go(A, `${momentsGroup}/moments/${momentOne}`);
     await A.locator("[data-reactions] summary[aria-label='React']").click();
     await A.getByRole("button", { name: "React 😂", exact: true }).click();

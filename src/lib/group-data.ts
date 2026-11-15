@@ -4,7 +4,7 @@ import { netBalances } from "./balances";
 import { pairwiseDebtCount, smartSettle } from "./settle";
 import { payerIds, spentAmount } from "./payers";
 import { canRestoreGroup } from "./group-admin";
-import { hideLaterNotes, leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
+import { hideLaterNotes, isAboutMeLeaving, leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
 import { leaverEvents, readableWhere, touchedAfter } from "./left-view-db";
 import { netBalancesDb, settleDataDb } from "./balances-db";
 import type { Prisma } from "@prisma/client";
@@ -47,7 +47,7 @@ export async function loadGroup(id: string, opts: { events?: boolean; viewer?: s
       expenses: scoped.expenses,
       payments: scoped.payments,
       // Changes made after they left show only what happened to their own share.
-      events: opts.events === false ? [] : scoped.events.slice(0, 500).map((ev) => (ev.createdAt.getTime() > cut.leftAt.getTime() ? { ...ev, details: ownShareDetails(ev.details, me.name) } : ev)),
+      events: opts.events === false ? [] : scoped.events.slice(0, 500).map((ev) => (ev.createdAt.getTime() > cut.leftAt.getTime() && !isAboutMeLeaving(ev, me.id) ? { ...ev, details: ownShareDetails(ev.details, me.name) } : ev)),
     },
     expenses: active(scoped.expenses),
     payments: active(scoped.payments),
@@ -94,7 +94,7 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
       ...group,
       expenses: scoped.expenses,
       payments: scoped.payments,
-      events: opts.events === false ? [] : scoped.events.slice(0, 500).map((ev) => (ev.createdAt.getTime() > cut.leftAt.getTime() ? { ...ev, details: ownShareDetails(ev.details, me.name) } : ev)),
+      events: opts.events === false ? [] : scoped.events.slice(0, 500).map((ev) => (ev.createdAt.getTime() > cut.leftAt.getTime() && !isAboutMeLeaving(ev, me.id) ? { ...ev, details: ownShareDetails(ev.details, me.name) } : ev)),
     },
     expenses: active(scoped.expenses),
     payments: active(scoped.payments),

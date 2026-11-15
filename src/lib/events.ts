@@ -192,6 +192,16 @@ export type MoveOutUndo = {
     receiverBefore: { amount: number; status: string };
     receiverAfter: { amount: number; status: string };
   };
+  // What the move-out did to the money, so the undo can take all of it back (add-only: missing = recorded before full undo existed).
+  money?: {
+    currency: string;
+    // Each bill the leaver's share was cut from: the shares as they were (`before`) and as the move-out left them (`after`).
+    shares: { expenseId: string; amount: number; splitType: string; forMode: string; before: { memberId: string; amount: number }[]; after: { memberId: string; amount: number }[] }[];
+    // The square-up payments the move-out recorded.
+    payments: { id: string; fromId: string; toId: string; amount: number }[];
+    // The move-out's own Activity lines (bill changes, the daily charge, the square-up payments): they don't count as "changed again since".
+    eventIds: string[];
+  };
 };
 
 export type OtherMoney = {

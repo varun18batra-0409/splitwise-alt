@@ -97,13 +97,27 @@ await shot("22-settle-everything", `${g}/settle`, async (p) => {
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
-  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.locator("[data-more] > button").click(); // More: notes, several payers, spin
   await p.getByRole("button", { name: /Today.*Change/ }).first().click();
   await p.waitForTimeout(300);
 });
 await shot("28-settle", "/settle");
+// All-groups Settle up, 15 Nov design: a breakdown opened in place, and the Record payment sheet (Priya has a UPI ID in this seed, so
+// her card's sheet shows "Pay with UPI" above the confirm button; with nobody to pay, the first card's sheet is shown).
+const openBreakdown = async (p: Page) => {
+  await p.locator("[data-breakdown-toggle]").first().click();
+  await p.waitForTimeout(300);
+};
+const openRecordSheet = async (p: Page) => {
+  const priya = p.locator("[data-settle-card='Priya']:has([data-record-open])");
+  const card = (await priya.count()) ? priya.first() : p.locator("[data-settle-card]:has([data-record-open])").first();
+  await card.locator("[data-record-open]").click();
+  await p.locator("[data-record-sheet]").waitFor();
+  await p.waitForTimeout(300);
+};
+await shot("28b-settle-breakdown", "/settle", openBreakdown);
+await shot("28c-settle-record-sheet", "/settle", openRecordSheet, false);
 await shot("35-how-it-works", "/how-it-works", async (p) => {
   // Scroll through once so every photo and app screen has loaded, as it would for a reader.
   const h = await p.evaluate(() => document.body.scrollHeight);
@@ -133,12 +147,13 @@ for (const w of [320] as const) {
   if (desktop) break;
   await page.setViewportSize({ width: w, height: 640 });
   await shot(`n${w}-S1-settle-pass`, "/settle");
+  await shot(`n${w}-S1-settle-breakdown`, "/settle", openBreakdown);
+  await shot(`n${w}-S1-settle-sheet`, "/settle", openRecordSheet, false);
   await shot(`n${w}-S2-group-settle-pass`, `${g}/settle`);
   await page.setViewportSize(screen);
 }
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
-  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Only some/ }).click();
   await p.getByRole("button", { name: /Ravi/ }).last().click();
   await p.waitForTimeout(300);
@@ -169,7 +184,6 @@ await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.getByLabel("Amount", { exact: true }).fill("3000");
   await p.locator("[data-more] > button").click();
   await p.getByRole("switch", { name: /More than one person paid/ }).click();
-  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: "Shares", exact: true }).click();
 });
@@ -283,18 +297,18 @@ if (!desktop && !hosted) {
   };
   const problems: string[] = [];
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
-  // (Each may end in one letter: the group's letter drawn under the photo, which the card's text includes but nobody sees.)
+  // (The card has no photo any more, so no stray letter ends the text.)
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle( \S)?$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir( \S)?$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people( \S)?$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people$/ }],
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir( \S)? You owe ₹4,200 To Asha( · .+?)? Review & settle( \S)?$/ }],
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir You owe ₹4,200 To Asha( · .+?)? Review & settle$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)( \S)?$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -353,13 +367,21 @@ await shot("68-home-first-screen", "/", async (p) => {
 if (wide) await page.setViewportSize(wide);
 // The whole Home at 390 (greeting, stories, money card, Coming up, groups, memories, latest, the month card).
 await shot("69-home-full", "/");
-// The Home cards, each one (paused, then picked by its dot), at 390 and on the narrowest phone (320).
+// "Before you go" and the sliding cards under it (postcards waiting, a bill due, the month; the demo may have only one or none), at 390 and
+// on the narrowest phone (320). Each card is picked by its dot when there are dots.
 for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
   if (w) await page.setViewportSize({ width: w, height: 640 });
-  for (const n of [1, 2, 3, 4]) {
+  await shot(`${prefix}-home-before-you-go`, "/", async (p) => {
+    await p.locator("[data-before-you-go]").first().scrollIntoViewIfNeeded();
+    await p.waitForTimeout(300);
+  }, false);
+  for (const n of [1, 2, 3]) {
     await shot(`${prefix}-home-card-${n}`, "/", async (p) => {
-      await p.getByRole("button", { name: /Pause the highlights/ }).click();
-      await p.getByRole("button", { name: new RegExp(`^Show ${n} of`) }).click();
+      const pause = p.getByRole("button", { name: /Pause the highlights/ });
+      if (await pause.count()) await pause.click();
+      const dot = p.getByRole("button", { name: new RegExp(`^Show ${n} of`) });
+      if (await dot.count()) await dot.click();
+      await p.locator("[data-highlight], [data-month-card]").first().scrollIntoViewIfNeeded();
       await p.waitForTimeout(900);
     }, false);
   }
@@ -1008,15 +1030,16 @@ if (!hosted) {
       await p.locator("[data-reactions] summary[aria-label='React']").click();
     }, true],
     ["home-story-circles", "/", undefined, false],
-    // Moments are Memories only: the strip collapsed (small polaroids), then opened in place (two columns with captions).
+    // Moments are Memories only: Home's one polaroid (fixed layout), then the Memories page, then the same page filtered to one group.
     ["home-memories-collapsed", "/", async (p) => {
       await p.locator("[data-memories-row]").waitFor({ timeout: 10_000 });
       await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
     }, false],
-    ["home-memories-expanded", "/", async (p) => {
-      await p.locator("[data-memories-toggle]").click();
-      await p.locator("[data-memories-grid]").waitFor();
-      await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
+    ["memories-page", "/memories", async (p) => {
+      await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
+    }, false],
+    ["memories-page-filtered", `/memories?g=${thai.id}`, async (p) => {
+      await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
     }, false],
   ]);
   // As the author, the "⋯" menu has Delete; as someone else it has Report and Block.
@@ -1102,8 +1125,8 @@ if (!hosted) {
     { name: "G5-trip-recap", path: `${gt}?tab=charts` },
     { name: "G6-trip-memories-after", path: `/groups/${over.id}?tab=memories` },
   ]);
-  // Home's Memories (right after the story circles): the small strip, then opened in place into two columns, at 390 and the narrowest
-  // phone (320), then one tapped open:
+  // Home's Memories (right after the story circles): the one fixed polaroid, then the Memories page (all groups, then filtered to one), at 390 and the
+  // narrowest phone (320), then one tapped open:
   // the moment big, Back going home. The same Home with no moments is 01-home / 69-home-full (no Memories row at all).
   await gshots(varu, [
     {
@@ -1117,14 +1140,24 @@ if (!hosted) {
       },
     },
     {
-      name: "H2a-home-memories-expanded",
-      path: "/",
+      name: "H2a-memories-page",
+      path: "/memories",
       widths: [390, 320],
       full: false,
       prepare: async (p) => {
-        await p.locator("[data-memories-toggle]").click();
-        await p.locator("[data-memories-grid]").waitFor({ timeout: 10_000 });
-        await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
+        await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
+      },
+    },
+    {
+      name: "H2a2-memories-page-filtered",
+      path: "/memories",
+      widths: [390, 320],
+      full: false,
+      prepare: async (p) => {
+        // The first group chip after "All groups" (the page is server-rendered: a tap is a new page).
+        await p.locator("[data-memories-filter]:not([data-memories-filter='all'])").first().click();
+        await p.waitForURL(/\/memories\?g=/, { timeout: 15_000 });
+        await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
       },
     },
     {
@@ -1377,9 +1410,17 @@ if (!hosted && !desktop && !ios) {
       ["GD-trip-report", `${t}/report`],
       ["GD-wrapped-total", `${t}/wrapped`, wrappedAt("total")],
       ["GD-wrapped-receipt", `${t}/wrapped`, wrappedAt("splurge")],
+      // Turn pages until the first page of stamps is the one on screen (the map and badges come first).
       ["GD-passport-stamps", "/passport?book=1", book(async (p) => {
-        await p.getByRole("button", { name: "Next page" }).click();
-        await p.waitForTimeout(700);
+        const onScreen = async () => {
+          const b = await p.locator("[data-stamp-page]").first().boundingBox();
+          return Boolean(b && b.x >= 0 && b.x + b.width <= (p.viewportSize()?.width ?? 390) + 1);
+        };
+        for (let k = 0; k < 6 && !(await onScreen()); k++) {
+          await p.getByRole("button", { name: "Next page" }).click();
+          await p.waitForTimeout(700);
+        }
+        if (!(await onScreen())) throw new Error("no page of stamps came on screen");
       })],
       ["GD-friends-passports", "/passport/friends"],
       ["GD-story-pot", "/", async (p) => {

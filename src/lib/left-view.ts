@@ -22,9 +22,21 @@ export function leaverCut(m: { leftAt: Date | null; removedAt?: Date | null }): 
 
 type ExpenseRow = { id: string; createdAt: Date; paidById: string; amount?: number; payers?: string | null; shares: { memberId: string }[] };
 type PaymentRow = { id: string; createdAt: Date; fromId: string; toId: string };
-type EventRow = { id: string; createdAt: Date; touches?: string | null; expenseId: string | null; paymentId: string | null };
+type EventRow = { id: string; createdAt: Date; touches?: string | null; expenseId: string | null; paymentId: string | null; kind?: string; undo?: string | null };
 
 const touchesOf = (e: { touches?: string | null }): string[] => (e.touches ? e.touches.split(",").filter(Boolean) : []);
+
+// "Left the group" or "came back" lines about this very person (their own move-out, or a rejoin): theirs to see even after the cut-off,
+// because the Undo of their own move-out hangs on that line. (Read from the saved undo text here so this file stays free of server code.)
+export function isAboutMeLeaving(ev: { kind?: string; undo?: string | null }, me: string): boolean {
+  if (ev.kind !== "member_left" && ev.kind !== "member_rejoined") return false;
+  try {
+    const p = JSON.parse(ev.undo ?? "");
+    return Boolean(p) && p.type === "member_set" && p.memberId === me;
+  } catch {
+    return false;
+  }
+}
 
 export const expenseInvolves = (e: ExpenseRow, me: string): boolean => e.shares.some((s) => s.memberId === me) || payerIds({ paidById: e.paidById, payers: e.payers }).includes(me);
 export const paymentInvolves = (p: PaymentRow, me: string): boolean => p.fromId === me || p.toId === me;
@@ -51,6 +63,7 @@ export function scopeForLeaver<E extends ExpenseRow, P extends PaymentRow, V ext
     payments: data.payments.filter((p) => p.createdAt.getTime() <= upTo || paymentInvolves(p, me) || touchedPayment.has(p.id)),
     events: data.events.filter((ev) => {
       if (ev.createdAt.getTime() <= upTo) return true;
+      if (isAboutMeLeaving(ev, me)) return true;
       const t = touchesOf(ev);
       if (t.includes(me)) return true;
       // Written before changes recorded who they touched: shown if the expense or payment is about them now.

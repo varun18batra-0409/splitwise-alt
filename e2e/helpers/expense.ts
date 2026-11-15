@@ -33,7 +33,7 @@ export async function fillExpense(page: Page, x: ExpenseInput) {
     await openMore(page);
     await page.getByRole("switch", { name: "Money back" }).click();
   }
-  await openSplit(page); // the Paid by and Split between rows open the payer and split controls
+  await openSplit(page); // the Who paid? and How to split? chips are on screen
   if (x.payers) {
     await page.locator("#expense-name").fill(x.name);
     await page.getByLabel("Amount", { exact: true }).fill(x.amount);

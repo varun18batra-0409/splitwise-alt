@@ -26,16 +26,15 @@ import { coverFor, coverOf } from "@/lib/covers";
 import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
-import { homeHighlights } from "@/lib/home/highlights";
-import { parseHandPlaces, stampDay } from "@/lib/passport";
-import { undatedTripFacts } from "@/lib/passport-db";
+import { beforeYouGo, homeHighlights } from "@/lib/home/highlights";
+import { BeforeYouGo } from "@/components/BeforeYouGo";
 import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
-import { leaverOf } from "@/lib/left-view-db";
 import { gameVisible, stillIn } from "@/lib/left-view";
-import { accountHoldersOf, canUndo } from "@/lib/undo";
+import { canUndo } from "@/lib/undo";
+import { isGroupAdmin } from "@/lib/group-admin";
 import { UndoBar } from "@/components/UndoBar";
 import { BellButton } from "@/components/BellButton";
 import { countMyCollections, myCollections, progress } from "@/lib/collect";
@@ -48,15 +47,12 @@ import { MoneyCard, type StubCover, type TripPassView } from "@/components/HomeM
 import { greetingWord } from "@/lib/home/owe-card";
 import { PassStack } from "@/components/PassStack";
 import { TripCountdown } from "@/components/TripCountdown";
-import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type InvolvedGroup } from "@/lib/home/money-card";
+import { homeTicket, mixedDirections, moneyMode, moneyPeople, type InvolvedGroup } from "@/lib/home/money-card";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadHomeMemories } from "@/lib/moments-db";
 import { MemoryPolaroids } from "@/components/MemoryPolaroids";
 import { comingUp } from "@/lib/home/coming-up";
-import { passPhoto, type PassGroup } from "@/lib/home/pass-photo";
-import { countryPhoto } from "@/lib/country-photos";
-import { loadMyWishes } from "@/lib/wishes-db";
 import { photoSet, placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
 import { unreadPostcards } from "@/lib/blocks";
@@ -106,24 +102,25 @@ export default async function Home({
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
   const now = new Date();
   const today = todayKey(now, tz);
-  const [rows, memories, wishes] = await Promise.all([
+  const [rows, memories] = await Promise.all([
     loadHomeRows(all, { tz, now, today }),
     // The newest moments this person may see: the Memories polaroids under the story circles.
     loadHomeMemories(memberships),
-    // Want to go: the stub's picture when nothing else fits.
-    account ? loadMyWishes(account.id) : Promise.resolve([] as string[]),
   ]);
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
-  if (did && didGroup && memberships[didGroup] && !(await leaverOf(memberships[didGroup]))) {
+  // (A person who moved out sees it too: their own Undo of a move-out is theirs to use. canUndo decides who may undo what.)
+  const grp = didGroup ? all.find((x) => x.group.id === didGroup) : undefined;
+  if (did && didGroup && memberships[didGroup] && grp) {
+    const myId = memberships[didGroup];
     const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
-    const grp = all.find((x) => x.group.id === didGroup);
-    if (ev && canUndo(ev, events, new Date(), accountHoldersOf(grp?.group.members ?? []), memberships[didGroup]).ok) {
-      const actor = ev.actorId === memberships[didGroup] ? "You" : grp?.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
-      undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
+    const viewer = { id: myId, isAdmin: await isGroupAdmin(didGroup, myId), closed: grp.group.closed, members: grp.group.members };
+    if (ev && canUndo(ev, events, new Date(), viewer).ok) {
+      const actor = ev.actorId === myId ? "You" : grp.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
+      undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)} · ${grp.group.name}`, groupId: didGroup, eventId: ev.id };
     }
   }
 
@@ -177,7 +174,7 @@ export default async function Home({
   const peopleGroups = open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers }));
   const owePeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owe", common, toCommon);
   const owedPeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owed", common, toCommon);
-  // The groups the money runs through, for the stub's picture: how much is with you in each (in the common currency; a group with no
+  // The groups the money runs through: how much is with you in each (in the common currency; a group with no
   // saved rate counts 0 and only wins when nothing else is there).
   const involved: InvolvedGroup[] = open
     .filter((g) => !g.leaver && g.transfers.some((t) => t.from === g.myId || t.to === g.myId))
@@ -373,91 +370,11 @@ export default async function Home({
     balance: g.myBalance,
   }));
   const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
-  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
-  // The stub's picture(s), as a fallback: the group with the most money (two when it spans groups), else your newest group. Same cover as its polaroid.
+  // A trip pass's picture: the group's own cover, the same as its polaroid.
   const stubCover = (id: string): StubCover | null => {
     const c = groupCards.find((x) => x.id === id);
     return c ? { id: c.id, cover: c.cover, photo: c.photo, name: c.name } : null;
   };
-  const stubIds = ticket.kind === "square" || (ticket.kind === "neutral" && involved.length === 0) ? byActivity.slice(0, 1).map((g) => g.group.id) : rankGroups(involved).slice(0, 2).map((g) => g.id);
-  const groupStub = stubIds.map(stubCover).filter((c): c is StubCover => Boolean(c));
-  // The money pass's picture (src/lib/home/pass-photo.ts): a different photo of the trip where you owe most; a home interior for flat or
-  // couple money; else a country you've been to, one you want to go to, or a good travel photo. Never a polaroid's own photo.
-  const common3 = (g: (typeof open)[number], n: number) => (g.group.currency === common ? n : (toCommon(n, g.group.currency) ?? 0));
-  const passGroups: PassGroup[] = open
-    .filter((g) => !g.leaver)
-    .map((g) => {
-      const mine = g.transfers.filter((t) => t.from === g.myId || t.to === g.myId);
-      const placeOfGroup = g.group.type === "trip" ? placePhotos(g.group.name, g.group.tripPlace) : [];
-      return {
-        id: g.group.id,
-        type: g.group.type,
-        iOwe: mine.some((t) => t.from === g.myId),
-        isOwed: mine.some((t) => t.to === g.myId),
-        owe: mine.filter((t) => t.from === g.myId).reduce((sum, t) => sum + common3(g, t.amount), 0),
-        owed: mine.filter((t) => t.to === g.myId).reduce((sum, t) => sum + common3(g, t.amount), 0),
-        spend: common3(g, g.spent),
-        photos: placeOfGroup,
-        cover: tripPhotoSrc(g.group),
-      };
-    })
-    .filter((g) => g.iOwe || g.isOwed);
-  // Countries you've been to, newest first: trips that have started, then ones ticked by hand (newest last in the list); home last.
-  // The day a trip's stamp is dated, or null when it has none yet (one rule, shared with the passport: src/lib/passport.ts).
-  // An undated trip you left: Home's own count and last-activity cover only what a leaver may see, the passport's cover the whole group.
-  // So for those (and only those) the passport's numbers are read, and both screens agree.
-  const leftUndated = all.filter((g) => g.leaver && g.group.type === "trip" && !g.group.tripStart && !g.group.deletedAt).map((g) => g.group.id);
-  const undatedFacts = await undatedTripFacts(leftUndated);
-  const stampOf = (g: (typeof all)[number]) => {
-    const f = undatedFacts.get(g.group.id);
-    return stampDay(
-      {
-        type: g.group.type,
-        deletedAt: g.group.deletedAt,
-        tripStart: g.group.tripStart,
-        expenseCount: f ? f.expenseCount : g.expenseCount,
-        lastActivity: f ? new Date(`${f.day}T00:00:00.000Z`) : g.lastActivity,
-        leftAt: g.leaver?.leftAt ?? null,
-      },
-      today,
-    );
-  };
-  const visitedCodes = [
-    ...all
-      .filter((g) => g.group.tripStart && stampOf(g) !== null)
-      .sort((a, b) => b.group.tripStart.localeCompare(a.group.tripStart))
-      .flatMap((g) => stopsOf(g).map((st) => st.country || homeCountry)),
-    ...(account ? parseHandPlaces(account.places).map((pl) => pl.c).reverse() : []),
-  ];
-  const visitedNewest = [...new Set(visitedCodes.filter((c) => c !== homeCountry)), ...(visitedCodes.includes(homeCountry) ? [homeCountry] : [])];
-  const avoidPhotos = groupCards.flatMap((c) => (c.photo ? [c.photo] : []));
-  const photoFor = (side: "owe" | "owed" | null): StubCover[] => {
-    const p = passPhoto({
-      side,
-      groups: passGroups,
-      avoid: avoidPhotos,
-      interiors: [...photoSet("home"), ...photoSet("cover-home")],
-      visited: visitedNewest,
-      want: [...wishes].reverse(),
-      general: ["cover-beach", "cover-city", "cover-mountains", "cover-lake", "hero", "sunset"].flatMap((slot) => photoSet(slot)),
-      countryPhoto: (code) => countryPhoto(code),
-    });
-    return p ? [{ id: `pass-${p.source}-${side ?? "all"}`, cover: { kind: "plain" }, photo: p.src, name: "Loopin" }] : [];
-  };
-  const stub = photoFor(ticket.kind === "one" ? ticket.line.side : null).length ? photoFor(ticket.kind === "one" ? ticket.line.side : null) : groupStub;
-  // Each pass of a both-ways stack has the picture for its own side; no photo to pick: the picture of the groups its money runs through.
-  const sideStub = (ids: string[]) =>
-    rankGroups(involved.filter((g) => ids.includes(g.id)))
-      .slice(0, 2)
-      .map((g) => stubCover(g.id))
-      .filter((c): c is StubCover => Boolean(c));
-  const sideStubs =
-    ticket.kind === "both"
-      ? {
-          owe: photoFor("owe").length ? photoFor("owe") : sideStub(ticket.lines.find((l) => l.side === "owe")?.groupIds ?? []),
-          owed: photoFor("owed").length ? photoFor("owed") : sideStub(ticket.lines.find((l) => l.side === "owed")?.groupIds ?? []),
-        }
-      : undefined;
   // Coming up: one boarding pass per upcoming trip (trips only, earliest first, at most three); a trip that is on says "Day 2 of 5" on its pass.
   // A finished trip leaves. The weather is the trip's usual weather when we know it, as one small pill.
   const passes: TripPassView[] = comingUp(
@@ -488,70 +405,31 @@ export default async function Home({
     }
   }
 
-  // The sliding cards (4 to 7), picked for what's useful right now. Nothing here repeats what is already on Home: the Coming up passes say
-  // their trips' usual weather, so that is left out below. A bill due within 3 days and new postcards have no line on Home, so they get their cards here.
-  const season = seasonNow(new Date(), tz, region.country);
+  // The bottom of Home: "Before you go" (the soonest trip that has not started, with its usual weather) and the sliding cards under it
+  // (new postcards, a bill due within 5 days, your month). No trip photos; see src/lib/home/highlights.ts.
   // A group they left shows no bills.
   const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
-  // The same count as the passport: countries with a stamp or a tick (home only if it has one).
-  const passportSet = new Set(
-    [
-      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
-      ...all
-        .filter((g) => stampOf(g) !== null)
-        .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
-    ].filter(Boolean),
-  );
-  // The Home passport card's stamps, the same places the passport counts: trips that have started (or, with no dates, have spending),
-  // newest first, skipping a trip you left before it began; then countries ticked by hand. Abroad only, one stamp each, at most 2.
-  const keepsakeStamps = [
-    ...all
-      .flatMap((g) => {
-        const when = stampOf(g);
-        return when === null ? [] : [{ g, when }];
-      })
-      .sort((a, b) => b.when.localeCompare(a.when))
-      .flatMap(({ g, when }) => stopsOf(g).filter((st) => st.country).map((st) => ({ code: st.country.toUpperCase(), when, byHand: false }))),
-    ...(account ? parseHandPlaces(account.places).map((pl) => ({ code: pl.c.toUpperCase(), when: "", byHand: true })).reverse() : []),
-  ]
-    .filter((st) => st.code !== homeCountry)
-    .filter((st, i, list) => list.findIndex((o) => o.code === st.code) === i)
-    .slice(0, 2)
-    .flatMap((st) => {
-      const c = countryOf(st.code);
-      return c ? [{ code: c.code, country: c.name, when: st.when, ...(st.byHand ? { byHand: true } : {}) }] : [];
-    });
-  const highlights = homeHighlights({
-    trips: trips.map((t) => {
-      const ph = placePhotos(t.g.group.name, t.g.group.tripPlace, 2);
+  const fahrenheit = usesFahrenheit(region.country);
+  const beforeCard = beforeYouGo(
+    trips.map((t) => {
+      const stops = stopsOf(t.g);
       return {
         id: t.g.group.id,
         name: placeOf(t.g.group.name),
         phase: t.phase,
         start: t.g.group.tripStart,
         end: t.g.group.tripEnd || null,
-        stops: stopsOf(t.g),
-        photo: ph[0],
-        photo2: ph[1],
-        todaySpent: t.phase.kind === "before" ? undefined : todayIn(t.g).spent || undefined,
+        stops,
+        countryName: stops[0]?.country ? countryOf(stops[0].country)?.name : undefined,
       };
     }),
-    justBack: live
-      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenseCount > 0)
-      .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
-      .filter(({ ended }) => ended >= 1 && ended <= 14)
-      .sort((a, b) => a.ended - b.ended)
-      .map(({ g, ended }) => ({
-        id: g.group.id,
-        name: placeOf(g.group.name),
-        endedDaysAgo: ended,
-        payments: g.transfers.length,
-        photo: placePhotos(g.group.name, g.group.tripPlace, 1)[0],
-        abroad: stopsOf(g).some((s) => s.country && s.country !== homeCountry),
-      })),
+    fahrenheit,
+  );
+  const highlights = homeHighlights({
     hasMonth: Boolean(month),
-    season,
-    // New postcards and a bill due soon have no line of their own on Home any more, so the sliding cards bring them up.
+    // The festival or season coming up in this visitor's country (Christmas, New Year, Diwali, Eid…).
+    season: seasonNow(new Date(), tz, region.country),
+    // New postcards and a bill due soon have no line of their own on Home, so the sliding cards bring them up.
     postcardsNew,
     billsDue: billRows.flatMap((b) => {
       const due = nextDueDay(b, new Date());
@@ -560,16 +438,6 @@ export default async function Home({
       const inDays = daysBetween(today, due);
       return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays, amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
     }),
-    passportCountries: passportSet.size,
-    // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
-    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
-    groups: open.length,
-    fahrenheit: usesFahrenheit(region.country),
-    // The Coming up passes already say their trips' usual weather.
-    // The Coming up cards don't show the weather, so a trip's usual weather may have its own card here.
-    skipWeather: [],
-    // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
-    scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0], stamps: keepsakeStamps, postcardPhoto: photoSet("card-postcard-photo")[0], nextTrip: [...wishes].reverse().map((c) => countryPhoto(c)).find(Boolean) ?? photoSet("cover-beach")[0] },
   });
 
   // First visit: show what Loopin does instead of an empty screen.
@@ -701,9 +569,9 @@ export default async function Home({
           {/* Automated stories on top, like Instagram: a row of circles. Nothing when there are none. */}
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
 
-          {/* Money (the mockup's "You owe" card: label, the exact amount, who and where, faces, ONE cream button, the trip's photo on the right);
+          {/* Money (the mockup's short "You owe" card: label, the exact amount, who and where, faces, ONE full-width cream button, no photo);
               nothing sits under it: what needs you is in Updates behind the bell. */}
-          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} sideStubs={sideStubs} />
+          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} />
 
           {/* Coming up: the countdown card for each trip that is next (the trip's polaroid, "12 days to go", everyone going, Share),
               earliest first, swiped sideways. Founder, 15 Nov: this card, not the mockup's. */}
@@ -715,7 +583,7 @@ export default async function Home({
               <PassStack label="Upcoming trips" attrs={{ "data-coming-up-stack": "" }}>
                 {passes.map((p) => {
                   const t = trips.find((x) => x.g.group.id === p.id)!;
-                  return <TripCountdown key={p.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(p.id) ?? 0} />;
+                  return <TripCountdown key={p.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(p.id) ?? 0} today={today} />;
                 })}
               </PassStack>
             </section>
@@ -783,56 +651,61 @@ export default async function Home({
             </Link>
           )}
 
-          <div className="mt-8">
-            {/* The sliding cards, picked for you: the trip you're on, a trip just over, a bill a few days off, your month, a festival where
-                you live, your passport and postcards. Swipe, tap a dot, or pause; they glide by themselves unless animations are off. */}
-            <HomeBanner>
-              {highlights.map((h) =>
-                h.kind === "month" ? (
-                  month && (
-                    <div key="month" className="flex flex-1 flex-col">
-                      <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-12 pt-5" data-month-card>
-                        {/* The month's name, large and faint behind the numbers. */}
-                        <span aria-hidden className="pointer-events-none absolute -right-2 top-1 select-none font-display text-[120px] font-semibold leading-none text-white/[0.06]">
-                          {month.name.slice(0, 3)}
-                        </span>
-                        <p className="relative text-[13px] text-fg/65">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
-                        <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                        <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
-                          {/* No "₹0 your share": a zero is left out. */}
-                          {month.share !== 0 && (
+          {/* Before you go: ONE card for the soonest trip that has not started, with its usual weather. No such trip: no section. */}
+          {beforeCard && <BeforeYouGo card={beforeCard} />}
+
+          {/* The sliding cards, only the useful ones: postcards waiting, a bill due soon, your month. None: no row at all. Swipe, tap a dot,
+              or pause; they glide by themselves unless animations are off. */}
+          {highlights.length > 0 && (
+            <div className="mt-8">
+              <HomeBanner>
+                {highlights.map((h) =>
+                  h.kind === "month" ? (
+                    month && (
+                      <div key="month" className="flex flex-1 flex-col">
+                        <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-12 pt-5" data-month-card>
+                          {/* The month's name, large and faint behind the numbers. */}
+                          <span aria-hidden className="pointer-events-none absolute -right-2 top-1 select-none font-display text-[120px] font-semibold leading-none text-white/[0.06]">
+                            {month.name.slice(0, 3)}
+                          </span>
+                          <p className="relative text-[13px] text-fg/65">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
+                          <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
+                          <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
+                            {/* No "₹0 your share": a zero is left out. */}
+                            {month.share !== 0 && (
+                              <p className="shrink-0">
+                                <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
+                                  {month.converted ? "≈ " : ""}
+                                  {homeMoney(month.share, month.currency)}
+                                </span>
+                                <span className="block whitespace-nowrap text-xs text-fg/65">your share</span>
+                              </p>
+                            )}
                             <p className="shrink-0">
-                              <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
-                                {month.converted ? "≈ " : ""}
-                                {homeMoney(month.share, month.currency)}
-                              </span>
-                              <span className="block whitespace-nowrap text-xs text-fg/65">your share</span>
+                              <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
+                              <span className="block whitespace-nowrap text-xs text-fg/65">{month.count === 1 ? "expense" : "expenses"}</span>
                             </p>
-                          )}
-                          <p className="shrink-0">
-                            <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
-                            <span className="block whitespace-nowrap text-xs text-fg/65">{month.count === 1 ? "expense" : "expenses"}</span>
-                          </p>
-                          {month.top && (
-                            // Whole words only: a long category wraps between words, never inside one.
-                            <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
-                              <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
-                              <span className="block text-xs text-fg/65">most spent on</span>
-                            </p>
-                          )}
+                            {month.top && (
+                              // Whole words only: a long category wraps between words, never inside one.
+                              <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
+                                <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
+                                <span className="block text-xs text-fg/65">most spent on</span>
+                              </p>
+                            )}
+                          </div>
+                          <Link href={`/search?m=${month.month}`} className={`relative mt-auto ${bannerButton}`}>
+                            See {month.name}
+                          </Link>
                         </div>
-                        <Link href={`/search?m=${month.month}`} className={`relative mt-auto ${bannerButton}`}>
-                          See {month.name}
-                        </Link>
                       </div>
-                    </div>
-                  )
-                ) : (
-                  <HighlightCard key={h.id} h={h} />
-                ),
-              )}
-            </HomeBanner>
-          </div>
+                    )
+                  ) : (
+                    <HighlightCard key={h.id} h={h} />
+                  ),
+                )}
+              </HomeBanner>
+            </div>
+          )}
 
           {/* No tagline on Home (founder, 15 Nov): "Everyone’s in. Everything adds up." stays on the opening screen, the app's
               description, shared trip pictures and How Loopin works. */}

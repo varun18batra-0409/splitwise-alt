@@ -7,7 +7,8 @@ import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
 import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
-import { accountHoldersOf, canUndo } from "@/lib/undo";
+import { canUndo, ownMoveOut } from "@/lib/undo";
+import { passportZone } from "@/lib/passport";
 import { UndoBar } from "@/components/UndoBar";
 import { buildGroupView, type GroupEvent } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
@@ -179,7 +180,9 @@ export default async function GroupPage({
     undoEvents = leaver ? ((await loadGroupView(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did);
   }
   const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
-  const showUndo = justDid && canUndo(justDid, undoEvents, new Date(), accountHoldersOf(group.members), myId).ok;
+  const showUndo = justDid && (v.leaverChecks.get(justDid.id) ?? canUndo(justDid, undoEvents, new Date(), v.undoViewer)).ok;
+  // Someone who moved out themselves (not removed) can undo it from here: the line and whether the server would allow it right now.
+  const ownMove = leaver && !leaver.removed ? await ownMoveOut(group.id, v.undoViewer, new Date()) : null;
 
   // "Our moments" (trip groups only): the small strip on Overview, and the whole list on Memories, as far as this person may see them.
   const momentViewer = group.type === "trip" ? await loadMomentViewer(group.id, myId) : null;
@@ -189,7 +192,7 @@ export default async function GroupPage({
       ? await (async () => {
           const homeCountry = (account?.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
           const [cards, postcards] = await Promise.all([momentViewer ? listMoments(momentViewer) : Promise.resolve([]), account ? loadGroupPostcards(account.id, group.id) : Promise.resolve([])]);
-          const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: group.members.length }, homeCountry, today, leaver?.leftAt ?? null) : null;
+          const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: group.members.length }, homeCountry, today, leaver?.leftAt ?? null, passportZone(account)) : null;
           return { cards, postcards, stamp };
         })()
       : null;
@@ -199,8 +202,13 @@ export default async function GroupPage({
   return (
     <>
       <GroupHeader v={v} switchTo={switchTo} />
-      <LeftBanner v={v} />
+      <LeftBanner v={v} ownMoveOut={ownMove} />
       <GroupNotices sp={sp} />
+      {sp.undone === "1" && !showUndo && (
+        <Notice tone="success" params={["undone"]} className="mb-5 text-sm">
+          Undone.
+        </Notice>
+      )}
       <ClosedBanner v={v} />
       {/* Card nights keep their ticket above their tabs; trips and other groups show it on the Overview only; flats show it on This month. */}
       {pot && <MoneyTicket v={v} facts={facts} />}

@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { blockedEitherWay } from "./blocks";
-import { buildPassport, type PassportTrip } from "./passport";
+import { buildPassport, wentOnTrip, type PassportTrip } from "./passport";
 import { beenCards, type BeenCardData } from "./passport-cards";
-import { dayKey } from "./dates";
+import { DEFAULT_TIME_ZONE, dayKey } from "./dates";
 import { tripDays } from "./moments-text";
 
 // The Memories tab of a group: its moments by day, the trip's passport stamp, and the postcards you sent or got from this group.
@@ -49,9 +49,10 @@ export function tripStampCard(
   home: string,
   today: string,
   leftAt: Date | null = null,
+  tz: string = DEFAULT_TIME_ZONE, // the viewer's own time zone: the day they left is read in it (same rule as the passport)
 ): TripStamp | null {
   if (!group.tripStart) return null;
-  if (leftAt && leftAt.toISOString().slice(0, 10) < group.tripStart) return null;
+  if (!wentOnTrip(group.tripStart, leftAt, tz)) return null;
   const trip: PassportTrip = { groupId: group.id, name: group.name, start: group.tripStart, end: group.tripEnd, place: group.tripPlace, country: group.tripCountry, people: group.memberCount };
   const passport = buildPassport([trip], [], home, today);
   // No moments count is handed in on purpose: this is the Memories tab, so the button stays "Relive trip".

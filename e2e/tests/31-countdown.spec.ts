@@ -36,6 +36,13 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   const card = page.locator("[data-trip-pass]");
   await expect(card).toHaveAttribute("data-countdown", "12");
   await expect(card.locator("[data-countdown-big]")).toContainText("12");
+  // The quiet line: the start day and the head count, no names line; Share sits under the polaroid and is at least 44px tall.
+  await expect(card.locator("[data-trip-meta]")).toHaveText(/^\d{1,2} [A-Z][a-z]+( \d{4})? · 1 person$/);
+  await expect(card).not.toContainText(/\bwith [A-Z]/);
+  const share = await card.getByRole("button", { name: "Share" }).boundingBox();
+  const polaroid = await card.getByRole("link", { name: /^Open / }).first().boundingBox(); // the polaroid (a drawn cover when the trip has no photo)
+  expect(share!.height).toBeGreaterThanOrEqual(44);
+  expect(share!.y).toBeGreaterThan(polaroid!.y + polaroid!.height - 12);
 
   // Share: WhatsApp, everyone in the trip (in Loopin), more apps.
   await card.getByRole("button", { name: "Share" }).click();

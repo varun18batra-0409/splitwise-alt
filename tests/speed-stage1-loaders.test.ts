@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { eventsFrom, loadGroup, loadGroupView, loadMyGroups, loadMyGroupsLean } from "@/lib/group-data";
-import { canUndo } from "@/lib/undo";
+import { historyCheck } from "@/lib/undo";
 
 // Speed fixes 2 and 4: the group screens skip the history (events) when they don't show it, and read
 // fewer columns. Every balance, Smart Settle plan, leaver view and Undo answer must be exactly what the
@@ -117,8 +117,8 @@ describe("fix 2: leaving the history out changes nothing else", () => {
     const answers: boolean[] = [];
     for (const e of w.events) {
       const from = await eventsFrom(w.gid, e.id);
-      const a = canUndo(full.find((x) => x.id === e.id)!, full);
-      const b = canUndo(from.find((x) => x.id === e.id)!, from);
+      const a = historyCheck(full.find((x) => x.id === e.id)!, full);
+      const b = historyCheck(from.find((x) => x.id === e.id)!, from);
       expect(b).toEqual(a);
       answers.push(a.ok);
     }

@@ -10,12 +10,15 @@ import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
 import { monthsBetween, payerFor } from "./bills";
 import type { Transfer } from "../settle";
-import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "../money-guard";
+import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks } from "../money-guard";
 import { lateMoveText, putBackOpen } from "../put-back";
+import type { Prisma } from "@prisma/client";
 
 // Moving out, the deposit — database side.
 
 type Fail = { ok: false; error: string };
+
+export const CURRENCY_SINCE = "The group currency changed after the move-out, so it can’t be undone.";
 
 async function loadFlat(groupId: string) {
   return db.group.findUnique({
@@ -163,7 +166,7 @@ export async function moveOut(
   input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string },
   now = new Date(),
   opts: { afterRead?: () => Promise<void> } = {}, // tests only: runs after the reads, before the write begins
-): Promise<{ ok: true; payments: Transfer[] } | Fail> {
+): Promise<{ ok: true; payments: Transfer[]; eventId?: string } | Fail> {
   const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "", input.addDaily ? "daily" : "");
   const ks = await keyState(input.requestKey, fp);
   if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
@@ -190,8 +193,9 @@ export async function moveOut(
 
   const netBefore = netBalances(flat.members.map((m) => m.id), flat.expenses, flat.payments);
   await opts.afterRead?.();
+  let eventId: string;
   try {
-    await db.$transaction(async (tx) => {
+    eventId = await db.$transaction(async (tx) => {
       // First: the flat must still be in the currency the amounts were worked out in, and the person doing it still in it.
       await guardGroup(tx, groupId, { currency: flat.currency, actorId, allowClosed: true });
       // The square-up payments were worked out from these balances: if anything moved since (an expense or payment that
@@ -211,13 +215,19 @@ export async function moveOut(
         const sharesOf = (xs: { memberId: string; amount: number }[]) => xs.map((x) => `${x.memberId}:${x.amount}`).sort().join("|");
         if (!now2 || now2.deletedAt || now2.amount !== r.e.amount || sharesOf(now2.shares) !== sharesOf(r.e.shares)) throw new Error("BILLS_CHANGED");
       }
+      // What this move-out did to the money, kept on the move-out's line so Undo can take all of it back (see undoMoveOut).
+      const undoInfo: MoveOutUndo = { bills: [] };
+      const moneyInfo: NonNullable<MoveOutUndo["money"]> = { currency: flat.currency, shares: [], payments: [], eventIds: [] };
+      const plainShares = (xs: { memberId: string; amount: number }[]) => xs.map((x) => ({ memberId: x.memberId, amount: x.amount }));
       // 1. Bills: their share only for the days they stayed (none for later months).
       for (const r of p.resplit) {
-        // Undoing the move-out puts the shares back and leaves the bill's item lines as they are.
+        // Undoing the move-out puts the shares back exactly as they were (saved in `money` on the move-out's line) and leaves the bill's item lines as they are.
+        // (This line's own "undo" is never offered: it belongs to the move-out and is marked undone with it.)
         const items = await tx.expenseItem.findMany({ where: { expenseId: r.e.id }, orderBy: [{ position: "asc" }, { id: "asc" }] });
         await tx.expenseShare.deleteMany({ where: { expenseId: r.e.id } });
         await tx.expense.update({ where: { id: r.e.id }, data: { splitType: "exact", forMode: "selected", editedAt: new Date(), shares: { create: r.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })) } } });
-        await logEvent(tx, {
+        moneyInfo.shares.push({ expenseId: r.e.id, amount: r.e.amount, splitType: r.e.splitType, forMode: r.e.forMode, before: plainShares(r.e.shares), after: plainShares(r.shares) });
+        const changedId = await logEvent(tx, {
           groupId,
           actorId,
           kind: "expense_edited",
@@ -227,10 +237,10 @@ export async function moveOut(
           undo: { type: "expense_revert", expenseId: r.e.id, before: expenseState({ ...r.e, items }) },
           touches: touchedByExpense(r.e, { ...r.e, shares: r.shares }),
         });
+        moneyInfo.eventIds.push(changedId);
       }
       // 1b. Their share of this month's daily bills, for the days they were there: an expense with only them
       // in it, written down on the bill so the month-end bill takes it off. The month must still be open.
-      const undoInfo: MoveOutUndo = { bills: [] };
       for (const c of charges) {
         const run = await tx.billRun.findUnique({ where: { billId_period: { billId: c.bill.id, period: c.period } }, select: { status: true } });
         if (run && run.status !== "waiting") throw new Error("BILLS_CHANGED");
@@ -257,7 +267,7 @@ export async function moveOut(
         const fresh = await tx.bill.findUnique({ where: { id: c.bill.id }, select: { prepaid: true } });
         await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(fresh?.prepaid ?? "{}", c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
         (undoInfo.prepaid ??= []).push({ billId: c.bill.id, period: c.period, expenseId: made.id });
-        await logEvent(tx, {
+        const chargeEventId = await logEvent(tx, {
           groupId,
           actorId,
           kind: "expense_added",
@@ -265,11 +275,13 @@ export async function moveOut(
           details: [`Paid by ${name(c.payerId)}`, `Moved out ${niceDate(input.lastDay)}; the rest of the month is shared by the others`],
           expenseId: made.id,
         });
+        moneyInfo.eventIds.push(chargeEventId);
       }
       // 2. Square up.
       for (const t of p.payments) {
         const pay = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
-        await logEvent(tx, {
+        moneyInfo.payments.push({ id: pay.id, fromId: t.from, toId: t.to, amount: t.amount });
+        const payEventId = await logEvent(tx, {
           groupId,
           actorId,
           kind: "payment_recorded",
@@ -277,6 +289,7 @@ export async function moveOut(
           paymentId: pay.id,
           undo: { type: "payment_delete", paymentId: pay.id },
         });
+        moneyInfo.eventIds.push(payEventId);
       }
       // 3. Their deposit: handed to whoever moves in, or kept on record until the lease ends.
       const dep = flat.deposit?.shares.find((s) => s.memberId === leaver.id && s.status === "held");
@@ -328,7 +341,8 @@ export async function moveOut(
         }
       }
       // 5. Moved out (set at the start, when it was claimed).
-      await logEvent(tx, {
+      undoInfo.money = moneyInfo;
+      return logEvent(tx, {
         groupId,
         actorId,
         kind: "member_left",
@@ -352,7 +366,7 @@ export async function moveOut(
     if (msg.includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };
     throw err;
   }
-  return { ok: true, payments: p.payments };
+  return { ok: true, payments: p.payments, eventId };
 }
 
 // The deposit: who put in what. Never part of balances.
@@ -447,10 +461,101 @@ export async function returnDepositFor(groupId: string, actorId: string, deducti
   return { ok: true };
 }
 
-// Undo a move-out: they're back in the flat, and the bills they paid or took
-// turns on, and the deposit they handed over, go back as they were. A bill
-// changed since keeps its newer settings; a deposit changed since (returned,
-// handed on) blocks the undo, so money is never put in two places.
+// Why a move-out can't be undone right now, read from the database without writing anything (null = nothing in the way).
+// `text` is what people in the flat are told; `leaver` is what the person who moved out is told: it never names anyone else.
+// undoMoveOut asks this inside its transaction before any write (and throws to roll back); the screens ask it with `db`, so the
+// Undo my move-out button is only shown when these checks pass. Keep every check exactly as strict as the money it protects.
+export type MoveOutBlock = { text: string; leaver: string };
+export const MOVE_OUT_LEAVER_FIXABLE = "Something the move-out changed was changed again since, so it can’t be undone. Ask someone in the flat to undo that change first.";
+export const MOVE_OUT_GONE_FOR_GOOD = "This move-out can’t be undone any more.";
+
+type Client = Prisma.TransactionClient;
+
+async function checkMoveOut(client: Client, groupId: string, memberId: string, info: MoveOutUndo) {
+  const touched = new Set<string>();
+  const described = new Map<string, string>();
+  const stop = (text: string, leaver = MOVE_OUT_LEAVER_FIXABLE): { block: MoveOutBlock; touched: Set<string>; described: Map<string, string> } => ({ block: { text, leaver }, touched, described });
+  const mo = info.money;
+  const g = await client.group.findUnique({ where: { id: groupId }, select: { currency: true } });
+  if (mo && g && g.currency !== mo.currency) return stop(CURRENCY_SINCE, MOVE_OUT_GONE_FOR_GOOD);
+  if (mo) {
+    const sig = (xs: { memberId: string; amount: number }[]) => xs.map((x) => `${x.memberId}:${x.amount}`).sort().join("|");
+    // Everything the move-out changed must still be exactly as it left it.
+    for (const x of mo.shares) {
+      const e = await client.expense.findUnique({ where: { id: x.expenseId }, select: { description: true, amount: true, deletedAt: true, shares: { select: { memberId: true, amount: true } } } });
+      if (!e || e.deletedAt || e.amount !== x.amount || sig(e.shares) !== sig(x.after)) return stop(`${e?.description ?? "A bill"} was changed after the move-out, so this can’t be undone. Ask someone in the flat to undo that change first.`);
+      described.set(x.expenseId, e.description);
+      const was = new Map(x.after.map((a) => [a.memberId, a.amount]));
+      const will = new Map(x.before.map((b) => [b.memberId, b.amount]));
+      for (const id of new Set([...was.keys(), ...will.keys()])) if ((was.get(id) ?? 0) !== (will.get(id) ?? 0)) touched.add(id);
+    }
+    for (const x of mo.payments) {
+      const pay = await client.payment.findUnique({ where: { id: x.id }, select: { fromId: true, toId: true, amount: true, deletedAt: true } });
+      if (!pay || pay.deletedAt || pay.fromId !== x.fromId || pay.toId !== x.toId || pay.amount !== x.amount) return stop("The square-up payment was changed after the move-out, so this can’t be undone. Ask someone in the flat to undo that change first.");
+      touched.add(x.fromId);
+      touched.add(x.toId);
+    }
+    // A payment someone said they made ("I've paid") was counted in the square-up: taking it off would count that money twice.
+    if (mo.payments.length && (await client.paymentClaim.count({ where: { paymentId: { in: mo.payments.map((x) => x.id) }, status: "covered" } })) > 0) {
+      return stop("A payment someone said they made (“I’ve paid”) was counted in the move-out’s square-up, so it can’t be undone.", MOVE_OUT_GONE_FOR_GOOD);
+    }
+  }
+  // The daily charges come off too: the person who paid them, and the leaver, change.
+  const chargeIds = (info.prepaid ?? []).map((x) => x.expenseId);
+  if (chargeIds.length) {
+    for (const c of await client.expense.findMany({ where: { id: { in: chargeIds }, groupId, deletedAt: null }, select: { paidById: true } })) {
+      touched.add(c.paidById);
+      touched.add(memberId);
+    }
+  }
+  // Someone who has left since must not have their balance moved by this: they left square, and only they can come back to change it.
+  if (mo) {
+    const gone = await leaverBalanceBreaks(client, groupId, [...touched].filter((id) => id !== memberId), (l) => ({
+      expenses: l.expenses.filter((e) => !chargeIds.includes(e.id)).map((e) => {
+        const x = mo.shares.find((y) => y.expenseId === e.id);
+        return x ? { ...e, shares: x.before } : e;
+      }),
+      payments: l.payments.filter((p) => !mo.payments.some((x) => x.id === p.id)),
+    }));
+    if (gone.length) return stop(`${gone[0]} has left the group since, so the move-out can’t be undone. Ask ${gone[0]} to rejoin first.`);
+  }
+  if (info.deposit) {
+    const d = info.deposit;
+    const leaverShare = await client.depositShare.findUnique({ where: { id: d.leaverShareId } });
+    const receiver = await client.depositShare.findUnique({ where: { id: d.receiverShareId } });
+    if (
+      !leaverShare || leaverShare.status !== "transferred" ||
+      !receiver || receiver.memberId !== leaverShare.toMemberId || receiver.amount !== d.receiverAfter.amount || receiver.status !== d.receiverAfter.status
+    ) return stop("The deposit changed since the move-out (returned or handed on), so this can’t be undone. Change the deposit back first.");
+  }
+  // The daily-bill shares charged at move-out come off again, unless that month's bill was added since
+  // (it was worked out without them: edit it by hand instead).
+  for (const x of info.prepaid ?? []) {
+    const run = await client.billRun.findUnique({ where: { billId_period: { billId: x.billId, period: x.period } }, select: { status: true } });
+    if (run && run.status !== "waiting") {
+      const bill = (await client.bill.findUnique({ where: { id: x.billId }, select: { name: true } }))?.name ?? "The bill";
+      return { block: { text: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.`, leaver: MOVE_OUT_LEAVER_FIXABLE }, touched, described };
+    }
+  }
+  return { block: null as MoveOutBlock | null, touched, described };
+}
+
+export async function moveOutUndoBlock(client: Client, groupId: string, memberId: string, info: MoveOutUndo): Promise<MoveOutBlock | null> {
+  return (await checkMoveOut(client, groupId, memberId, info)).block;
+}
+
+class MoveOutBlocked extends Error {
+  constructor(public block: MoveOutBlock) {
+    super(block.text);
+  }
+}
+
+// Undo a move-out: they're back in the flat, and everything the move-out did goes back as it was: the bills they paid or took
+// turns on, the deposit they handed over, their share of the bills (each back to the exact shares it had), the square-up payments
+// (taken off) and the daily charge. A bill's settings changed since keep their newer settings; a deposit, a bill share or a
+// square-up payment changed since (returned, handed on, edited, deleted) blocks the undo, so money is never put in two places.
+// Everything is one transaction: a refused undo changes nothing (every refusal below throws, which rolls it all back).
+// A move-out saved before `money` was kept that did move money is refused earlier (historyCheck in undo.ts).
 export async function undoMoveOut(groupId: string, actorId: string, memberId: string, info: MoveOutUndo, mark?: UndoMark, opts: { recordedBy?: string; recordedAt?: Date; now?: Date } = {}): Promise<{ ok: true; eventId: string } | Fail> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
@@ -465,29 +570,30 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
   }
   // The admin removed them since: they don't undo their way back in.
   if (m.removedAt) return { ok: false, error: `${m.name} was removed from the group, so the move-out can’t be undone.` };
+  // The amounts were saved in one currency: after a currency change they can't be put back.
+  if (info.money && group.currency !== info.money.currency) return { ok: false, error: group.members.find((x) => x.id === actorId)?.leftAt ? MOVE_OUT_GONE_FOR_GOOD : CURRENCY_SINCE };
+  const money = (n: number) => formatMoney(n, group.currency);
+  const nameOf = (id: string) => group.members.find((x) => x.id === id)?.name ?? "Someone";
   try {
     const eventId = await db.$transaction(async (tx) => {
       // First: the flat is open, in the same currency, and this person still in it (a closed flat is changed by reopening it first).
       // (Someone undoing their OWN move-out has, of course, left: the check that the person acting is still in the flat is for everyone else.)
       await guardGroup(tx, groupId, { currency: group.currency, ...(actorId === memberId ? {} : { actorId }) });
       await markUndone(tx, mark); // this undo is marked in the same transaction as the reversal
+      const at = new Date();
+      const mo = info.money;
+      // Everything that could stand in the way, read first (before any write): a refusal throws and rolls the whole undo back.
+      const { block, touched, described } = await checkMoveOut(tx, groupId, memberId, info);
+      if (block) throw new MoveOutBlocked(block);
       if (info.deposit) {
         const d = info.deposit;
-        const leaverShare = await tx.depositShare.findUnique({ where: { id: d.leaverShareId } });
-        const receiver = await tx.depositShare.findUnique({ where: { id: d.receiverShareId } });
-        if (
-          !leaverShare || leaverShare.status !== "transferred" ||
-          !receiver || receiver.memberId !== leaverShare.toMemberId || receiver.amount !== d.receiverAfter.amount || receiver.status !== d.receiverAfter.status
-        ) throw new Error("DEPOSIT_CHANGED");
+        const leaverShare = (await tx.depositShare.findUnique({ where: { id: d.leaverShareId } }))!;
+        const receiver = (await tx.depositShare.findUnique({ where: { id: d.receiverShareId } }))!;
         await tx.depositShare.update({ where: { id: leaverShare.id }, data: { status: "held", toMemberId: "", updatedAt: new Date() } });
         if (d.created) await tx.depositShare.delete({ where: { id: receiver.id } });
         else await tx.depositShare.update({ where: { id: receiver.id }, data: { amount: d.receiverBefore.amount, status: d.receiverBefore.status, updatedAt: new Date() } });
       }
-      // The daily-bill shares charged at move-out come off again, unless that month's bill was added since
-      // (it was worked out without them: edit it by hand instead).
       for (const x of info.prepaid ?? []) {
-        const run = await tx.billRun.findUnique({ where: { billId_period: { billId: x.billId, period: x.period } }, select: { status: true } });
-        if (run && run.status !== "waiting") throw new Error(`MONTH_ADDED:${(await tx.bill.findUnique({ where: { id: x.billId }, select: { name: true } }))?.name ?? "The bill"}`);
         await tx.expense.updateMany({ where: { id: x.expenseId, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actorId } });
         const fresh = await tx.bill.findUnique({ where: { id: x.billId }, select: { prepaid: true } });
         if (fresh) await tx.bill.update({ where: { id: x.billId }, data: { prepaid: removePrepaid(fresh.prepaid, x.period, x.expenseId) } });
@@ -504,6 +610,21 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
       }
       const back = await tx.member.updateMany({ where: { id: memberId, leftAt: { not: null }, removedAt: null }, data: { leftAt: null } });
       if (back.count !== 1) throw new Error("ALREADY_BACK");
+      // Their share of each bill goes back exactly as it was (and the bill's split type with it); the square-up payments come off;
+      // the move-out's own lines in Activity are marked undone with it.
+      const lines: string[] = [];
+      if (mo) {
+        for (const x of mo.shares) {
+          await tx.expenseShare.deleteMany({ where: { expenseId: x.expenseId } });
+          await tx.expense.update({ where: { id: x.expenseId }, data: { splitType: x.splitType, forMode: x.forMode, editedAt: at, shares: { create: x.before.map((b) => ({ memberId: b.memberId, amount: b.amount })) } } });
+          const mine = (xs: { memberId: string; amount: number }[]) => xs.find((y) => y.memberId === memberId)?.amount ?? 0;
+          lines.push(`${m.name}’s share: ${money(mine(x.after))} → ${money(mine(x.before))} (${described.get(x.expenseId) ?? "a bill"}, move-out undone)`);
+        }
+        await tx.payment.updateMany({ where: { id: { in: mo.payments.map((x) => x.id) }, deletedAt: null }, data: { deletedAt: at, deletedById: actorId } });
+        for (const x of mo.payments) lines.push(`Taken off: ${nameOf(x.fromId)} paid ${nameOf(x.toId)} ${money(x.amount)}`);
+        if (mo.payments.length) lines.push("If any of these payments really happened, record it again.");
+        await tx.groupEvent.updateMany({ where: { id: { in: mo.eventIds }, undoneAt: null }, data: { undoneAt: at, undoneById: actorId } });
+      }
       return logEvent(tx, {
         groupId,
         actorId,
@@ -514,7 +635,9 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
           ...(kept ? [`${kept} bill${kept === 1 ? "" : "s"} changed since kept the newer settings`] : []),
           ...(info.deposit ? ["Their deposit is back with them"] : []),
           ...((info.prepaid ?? []).length ? ["Their share of the daily bills was taken off again"] : []),
+          ...lines,
         ],
+        touches: [...touched, memberId],
         // No redo from here: moving out again hands over bills and the deposit,
         // which only the move-out screen does properly.
       });
@@ -522,16 +645,10 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
     return { ok: true, eventId };
   } catch (err) {
     const msg = String((err as Error)?.message ?? err);
-    const at = msg.indexOf("MONTH_ADDED:");
-    if (at >= 0) {
-      const bill = msg.slice(at + "MONTH_ADDED:".length).split("\n")[0].trim();
-      return { ok: false, error: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.` };
-    }
+    // Whoever has left (the person undoing their own move-out) is never told who did what, or who left, after them.
+    if (err instanceof MoveOutBlocked) return { ok: false, error: group.members.find((x) => x.id === actorId)?.leftAt ? err.block.leaver : err.block.text };
     if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "This group is closed. Reopen it to change expenses." : groupChangedText(err) };
     if (msg.includes("ALREADY_BACK")) return { ok: false, error: `${m.name} is already back in the flat.` };
-    if (msg.includes("DEPOSIT_CHANGED")) {
-      return { ok: false, error: "The deposit changed since the move-out (returned or handed on), so this can’t be undone. Change the deposit back first." };
-    }
     throw err;
   }
 }

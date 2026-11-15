@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { buildStories } from "@/lib/home/stories";
 import { storyLines } from "@/lib/home/story-lines";
 import { TAG_LINES } from "@/lib/home/photo-tags";
+import { tripMetaLine } from "@/lib/countdown";
 import { buttonLabel, cardLabel, greetingWord, homeAmountTier, sideLine } from "@/lib/home/owe-card";
 
 // The founder's Home brief (15 Nov), read as text and through the pure story builder: the tagline is back, the playful stories are back
@@ -109,7 +110,7 @@ describe("stories are playful again (from before a9fe48ee) and moments are not s
   });
 });
 
-describe("Memories: one tilted polaroid and a quiet line, opening in place", () => {
+describe("Memories: one tilted polaroid and a quiet line, a group link, and See all to the Memories page", () => {
   const ui = src("src/components/MemoryPolaroids.tsx");
   it("collapsed is the newest moment as a tilted polaroid (caption in handwriting, group under it) with up to two behind it, and the line 'Little moments, shared together.' with a swoosh; 'See all' opens the grid", () => {
     expect(ui).toContain("data-memories-collapsed");
@@ -120,17 +121,22 @@ describe("Memories: one tilted polaroid and a quiet line, opening in place", () 
     expect(ui).toContain("data-memory-lead");
     expect(ui).toContain("Little moments, shared together.");
     expect(ui).toContain("data-swoosh");
-    expect(ui).toContain('"Show less" : "See all"');
-    expect(ui).toContain("grid grid-cols-2");
+    // "See all" is a link to /memories, only when there is more than the one memory shown; the group name is its own link.
+    expect(ui).toContain('href="/memories"');
+    expect(ui).toContain("hasMoreMemories(memories.length)");
+    expect(ui).toContain("data-memories-see-all");
+    expect(ui).toContain("data-memories-group-link");
+    expect(ui).toContain("groupMemoriesHref(first.groupId)");
+    expect(ui).toContain("memories →");
+    expect(ui).not.toContain("grid grid-cols-2");
     expect(ui).toContain("data-memory-caption");
     expect(ui).toContain("data-memory-group");
     expect(ui).toContain("href={first.href}");
-    expect(ui).toContain("href={m.href}");
     expect(ui).toContain("if (memories.length === 0) return null;");
   });
 });
 
-describe("the money card is the mockup's: label, exact amount, who and where, faces, ONE cream pill, the photo on the right", () => {
+describe("the money card is the mockup's: compact, no photo: label, exact amount, who and where, faces, ONE full-width cream pill", () => {
   const hm = src("src/components/HomeMoney.tsx");
   const line = (o: Partial<Parameters<typeof sideLine>[0]>) => ({ side: "owe" as const, count: 2, name: "2 people", groupNames: ["Thailand Trip"], ...o });
   it("the words: 'To 2 people · Thailand Trip', 'To Asha · Thailand trip', 'From 3 people · 2 groups', no group name: just who", () => {
@@ -156,10 +162,20 @@ describe("the money card is the mockup's: label, exact amount, who and where, fa
     expect(homeAmountTier("₹6,17,283.94")).toBe("m"); // 12
     expect(homeAmountTier("₹12,34,567.88")).toBe("m"); // 13
   });
-  it("one rounded card (22px) with a photo on the right and a curved edge; the data hooks stay; the compact boarding pass is not on Home", () => {
+  it("one dark rounded card (22px), all left-aligned, with NO photo (no clip-path ellipse, no letter fallback, no stub props); the data hooks stay; the compact boarding pass is not on Home", () => {
     expect(hm).toContain("rounded-[22px]");
-    expect(hm).toContain("clip-path:ellipse(");
-    expect(hm).toContain("data-card-photo");
+    const money = hm.slice(hm.indexOf("// ---- Home's money card"), hm.indexOf('// "Coming up": the trips that are next'));
+    expect(money).toContain("bg-[#16161a]");
+    expect(money).toContain("shadow-[inset_0_0_0_1px_#26262c]");
+    for (const gone of ["clip-path", "data-card-photo", "CoverBox", "StubCover", "<Image", "sideStubs", "stub="]) expect(money, gone).not.toContain(gone);
+    const page = src("src/app/(home)/page.tsx");
+    expect(page).not.toContain("sideStubs");
+    expect(page).not.toContain("stub={stub}");
+    expect(page).not.toContain("photoFor(");
+    // The full-width pill, on every card of the stack too.
+    expect(money).toContain("${bright ? CREAM : OUTLINE} w-full");
+    // The boarding-pass pieces stay for Settle up.
+    for (const keep of ["export function TicketShell", "export function PassRoute", "export function PassFields"]) expect(hm).toContain(keep);
     for (const h of ["data-balance-card", "data-money-mode", "data-tone", "data-ticket", "data-net-balance", "data-money-people", "data-money-action", "data-ticket-line", "data-settled-stamp", "data-square-add"]) expect(hm).toContain(h);
     // The need line is gone from Home: no line under the card, and Home passes no `need` to it.
     expect(hm).not.toContain("data-need-line");
@@ -174,6 +190,35 @@ describe("the money card is the mockup's: label, exact amount, who and where, fa
     expect(hm).toContain('Your money</p>');
     expect(hm).toContain("Add an expense");
     expect(src("src/app/(home)/page.tsx")).not.toContain("compact");
+  });
+});
+
+describe("Coming up: the quiet line under the quip", () => {
+  it("'12 December · 6 people': day and full month, no year this year, the year when it is another; '1 person'; undated: just the people", () => {
+    expect(tripMetaLine("2026-12-12", 6, "2026-11-15")).toBe("12 December · 6 people");
+    expect(tripMetaLine("2026-12-02", 1, "2026-11-15")).toBe("2 December · 1 person");
+    expect(tripMetaLine("2027-01-05", 3, "2026-11-15")).toBe("5 January 2027 · 3 people");
+    expect(tripMetaLine("", 6, "2026-11-15")).toBe("6 people");
+    expect(tripMetaLine(null, 1, "2026-11-15")).toBe("1 person");
+    expect(tripMetaLine("2026-12-12", 0, "2026-11-15")).toBe("12 December");
+    expect(tripMetaLine("not a date", 2, "2026-11-15")).toBe("2 people");
+  });
+  it("Share is under the polaroid (44px tall), the names line is gone, the new line has data-trip-meta, a dashed curve and a map pin, and the hooks stay", () => {
+    const c = src("src/components/TripCountdown.tsx");
+    expect(c).not.toContain("withWho");
+    expect(c).not.toContain("with {");
+    expect(c).toContain("data-trip-meta");
+    expect(c).toContain("tripMetaLine(group.tripStart, people.length");
+    expect(c).toContain("strokeDasharray");
+    expect(c).toContain("<circle"); // the pin's dot
+    // Share moved: it is in the left column right after the polaroid link, not in the count column.
+    expect(c.indexOf("<ShareCountdown")).toBeLessThan(c.indexOf("{/* The perforation"));
+    expect(c.match(/<ShareCountdown/g)).toHaveLength(1);
+    expect(c).toContain("h-11 w-[112px]");
+    expect(c).toContain("min-[380px]:w-[134px]");
+    expect(c).toContain("data-trip-pass={group.id}");
+    expect(c).toContain("trip countdown");
+    expect(src("src/app/(home)/page.tsx")).toContain("today={today}");
   });
 });
 

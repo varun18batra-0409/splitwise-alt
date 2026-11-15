@@ -301,7 +301,7 @@ describe("loadPassport counts only trips you really joined", () => {
     const pending = await tripGroup("LpPending", { account: me, added: true, seen: false });
     const opened = await tripGroup("LpOpened", { account: me, added: true, seen: true });
     const left = await tripGroup("LpLeft", { account: me, left: true }); // left after the trip: still counts
-    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
     const th = p.index.find((c) => c.code === "TH");
     expect(th?.trips).toBe(2); // opened + left; the never-opened one is not counted
     expect(pending.id).not.toBe(opened.id);
@@ -332,11 +332,11 @@ describe("loadPassport counts only trips you really joined", () => {
     };
     const inG = await mk("In", false);
     const outG = await mk("Out", true);
-    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
     expect(p.extras[inG.id]).toEqual({ names: ["Kim"] }); // not Pat (never opened it), not Rob (removed), not me
     expect(p.extras[outG.id]).toBeUndefined(); // removed from this one: no faces at all
     // A friend's view never gets faces.
-    const f = await loadPassport({ id: me.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01", { forFriend: true });
+    const f = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01", { forFriend: true });
     expect(f.extras).toEqual({});
   });
   it("a trip you left before it began is no stamp (and a later trip still is): Thailand left 20 Feb before a 1 Mar start, Japan never left", async () => {
@@ -353,44 +353,66 @@ describe("loadPassport counts only trips you really joined", () => {
     };
     await mk("TH", "2024-03-01", "Bangkok", "TH", new Date("2024-02-20T12:00:00Z"));
     await mk("JP", "2024-05-01", "Tokyo", "JP", null);
-    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
     expect(p.index.map((c) => c.code)).toEqual(["JP"]);
-    const g = { type: "trip", deletedAt: null, expenseCount: 0, lastActivity: new Date("2024-06-01T00:00:00Z") };
-    expect(stampDay({ ...g, tripStart: "2024-03-01", leftAt: new Date("2024-02-20T12:00:00Z") }, "2025-01-01")).toBeNull();
-    expect(stampDay({ ...g, tripStart: "2024-05-01", leftAt: null }, "2025-01-01")).toBe("2024-05-01");
+    const g = { type: "trip", deletedAt: null, undated: null };
+    expect(stampDay({ ...g, tripStart: "2024-03-01", leftAt: new Date("2024-02-20T12:00:00Z") }, "2025-01-01", "UTC")).toBeNull();
+    expect(stampDay({ ...g, tripStart: "2024-05-01", leftAt: null }, "2025-01-01", "UTC")).toBe("2024-05-01");
   });
-  it("an undated trip: Ada spends 1 Oct, leaves 5 Oct, Bea adds an expense 8 Oct: Ada still gets the Thailand stamp (no start day to miss)", async () => {
-    const ada = await account("UdAda");
-    const bea = await account("UdBea");
+  // An undated trip with two expenses (hand-worked): Lunch added 1 Oct 2024 08:00 UTC, dated 1 Oct, paid by Ada, Ada and Bea in it;
+  // Taxi added 8 Oct 2024 09:00 UTC, dated 8 Oct, only Bea in it. Ada left on 5 Oct 12:00 UTC.
+  //   Ada sees only what was added up to the day she left, or has her in it: Lunch (1 row, 1 Oct).
+  //   Bea sees both rows; the latest by when it was added is Taxi: 8 Oct.
+  const undatedTrip = async (label: string, ada: { id: string }, bea: { id: string }) => {
     const g = await db.group.create({
       data: {
-        name: `UdTH ${stamp}`, type: "trip", inviteCode: `ud-th-${stamp}`, tripStart: "", tripEnd: "", tripPlace: "Bangkok", tripCountry: "TH",
+        name: `${label} ${stamp}`, type: "trip", inviteCode: `${label}-${stamp}`, tripStart: "", tripEnd: "", tripPlace: "Bangkok", tripCountry: "TH",
         members: {
           create: [
-            { name: "UdAda", accountId: ada.id, claimedAt: new Date(), addedBy: "", seenAt: null, leftAt: new Date("2024-10-05T12:00:00Z") },
-            { name: "UdBea", accountId: bea.id, claimedAt: new Date(), addedBy: "", seenAt: null },
+            { name: `${label}Ada`, accountId: ada.id, claimedAt: new Date(), addedBy: "", seenAt: null, leftAt: new Date("2024-10-05T12:00:00Z") },
+            { name: `${label}Bea`, accountId: bea.id, claimedAt: new Date(), addedBy: "", seenAt: null },
           ],
         },
       },
       include: { members: true },
     });
     groupIds.push(g.id);
-    const [A, B] = [g.members.find((m) => m.name === "UdAda")!.id, g.members.find((m) => m.name === "UdBea")!.id];
-    const spend = (description: string, paidById: string, day: string) =>
+    const A = g.members.find((m) => m.name === `${label}Ada`)!.id;
+    const B = g.members.find((m) => m.name === `${label}Bea`)!.id;
+    const spend = (description: string, paidById: string, day: string, addedAt: string, people: string[]) =>
       db.expense.create({
         data: {
-          groupId: g.id, description, amount: 1000, paidById, createdById: paidById, splitType: "equal", forMode: "everyone", spentAt: new Date(`${day}T12:00:00Z`),
+          groupId: g.id, description, amount: 1000, paidById, createdById: paidById, splitType: "equal", forMode: "everyone", spentAt: new Date(`${day}T12:00:00Z`), createdAt: new Date(addedAt),
           originalAmount: 1000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 1000,
-          shares: { create: [{ memberId: A, amount: 500 }, { memberId: B, amount: 500 }] },
+          shares: { create: people.map((memberId) => ({ memberId, amount: 1000 / people.length })) },
         },
       });
-    await spend("Lunch", A, "2024-10-01");
-    await spend("Taxi", B, "2024-10-08");
-    const p = await loadPassport({ id: ada.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01");
-    expect(p.index.map((c) => c.code)).toContain("TH");
-    expect(stampDay({ type: "trip", deletedAt: null, tripStart: "", expenseCount: 2, lastActivity: new Date("2024-10-08T12:00:00Z"), leftAt: new Date("2024-10-05T12:00:00Z") }, "2025-01-01")).toBe("2024-10-08");
+    await spend("Lunch", A, "2024-10-01", "2024-10-01T08:00:00Z", [A, B]);
+    await spend("Taxi", B, "2024-10-08", "2024-10-08T09:00:00Z", [B]);
+    return { g, A, B };
+  };
+  const stampOf = (p: Awaited<ReturnType<typeof loadPassport>>, groupId: string) => p.trips.find((t) => t.groupId === groupId)?.start;
+
+  it("an undated trip: Ada (left 5 Oct) is stamped 1 Oct from Lunch, her friend view says the same, Bea (still in) is stamped 8 Oct", async () => {
+    const ada = await account("UdAda");
+    const bea = await account("UdBea");
+    const { g, A, B } = await undatedTrip("UdTH", ada, bea);
+    const mine = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    expect(mine.index.map((c) => c.code)).toContain("TH");
+    expect(stampOf(mine, g.id)).toBe("2024-10-01");
+    const friend = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01", { forFriend: true });
+    expect(stampOf(friend, g.id)).toBe("2024-10-01");
+    const beas = await loadPassport({ id: bea.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    expect(stampOf(beas, g.id)).toBe("2024-10-08");
+    // The passport reads these facts (undatedTripFacts) and stamps the same days.
+    const facts = await undatedTripFacts([{ groupId: g.id, me: { id: A, leftAt: new Date("2024-10-05T12:00:00Z") } }], "Asia/Kolkata");
+    expect(facts.get(g.id)).toEqual({ count: 1, day: "2024-10-01" });
+    const beaFacts = await undatedTripFacts([{ groupId: g.id, me: { id: B, leftAt: null } }], "Asia/Kolkata");
+    expect(beaFacts.get(g.id)).toEqual({ count: 2, day: "2024-10-08" });
+    expect(stampDay({ type: "trip", deletedAt: null, tripStart: "", undated: facts.get(g.id) ?? null, leftAt: new Date("2024-10-05T12:00:00Z") }, "2025-01-01", "Asia/Kolkata")).toBe("2024-10-01");
+    // (Home no longer draws a passport card, so it no longer reads these facts itself: the passport is the one place that does.)
   });
-  it("Home and the passport agree for an undated trip a leaver left with nothing spent by her: Home feeds stampDay the passport's group-wide count and day", async () => {
+  it("an undated trip where the leaver was in nothing: only Taxi (Bea alone, added after Ada left) exists, so Ada has no stamp and no TH in her index", async () => {
     const ada = await account("UhAda");
     const bea = await account("UhBea");
     const g = await db.group.create({
@@ -406,23 +428,50 @@ describe("loadPassport counts only trips you really joined", () => {
       include: { members: true },
     });
     groupIds.push(g.id);
-    const B = g.members.find((m) => m.name === "UhBea")!.id;
-    // Bea spends 1000 on 8 Oct 2024 (shares only hers): Ada saw and spent nothing.
+    const [A, B] = [g.members.find((m) => m.name === "UhAda")!.id, g.members.find((m) => m.name === "UhBea")!.id];
     await db.expense.create({
       data: {
-        groupId: g.id, description: "Taxi", amount: 1000, paidById: B, createdById: B, splitType: "equal", forMode: "everyone", spentAt: new Date("2024-10-08T12:00:00Z"),
+        groupId: g.id, description: "Taxi", amount: 1000, paidById: B, createdById: B, splitType: "equal", forMode: "everyone", spentAt: new Date("2024-10-08T12:00:00Z"), createdAt: new Date("2024-10-08T09:00:00Z"),
         originalAmount: 1000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 1000, shares: { create: [{ memberId: B, amount: 1000 }] },
       },
     });
-    const p = await loadPassport({ id: ada.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01");
-    expect(p.index.map((c) => c.code)).toContain("TH");
-    const facts = (await undatedTripFacts([g.id])).get(g.id)!;
-    expect(facts).toEqual({ expenseCount: 1, day: "2024-10-08" });
-    // Home's own count for a leaver who can see nothing is 0: no stamp. With the passport's facts, the same stamp the passport has.
-    const base = { type: "trip", deletedAt: null, tripStart: "", leftAt: new Date("2024-10-05T12:00:00Z") };
-    expect(stampDay({ ...base, expenseCount: 0, lastActivity: new Date("2024-10-01T00:00:00Z") }, "2025-01-01")).toBeNull();
-    expect(stampDay({ ...base, expenseCount: facts.expenseCount, lastActivity: new Date(`${facts.day}T00:00:00.000Z`) }, "2025-01-01")).toBe("2024-10-08");
-    // Home really uses it.
-    expect(readFileSync("src/app/(home)/page.tsx", "utf8")).toContain("undatedTripFacts(");
+    const p = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    expect(p.index.map((c) => c.code)).not.toContain("TH");
+    const facts = (await undatedTripFacts([{ groupId: g.id, me: { id: A, leftAt: new Date("2024-10-05T12:00:00Z") } }], "Asia/Kolkata")).get(g.id);
+    expect(facts).toBeNull();
+    expect(stampDay({ type: "trip", deletedAt: null, tripStart: "", undated: facts ?? null, leftAt: new Date("2024-10-05T12:00:00Z") }, "2025-01-01", "Asia/Kolkata")).toBeNull();
+  });
+  it("Fix 4: a trip you are still in, one expense dated 1 Oct, a payment 20 Oct, a game result 22 Oct and a deleted expense 25 Oct: Home's facts and the passport both say 1 Oct", async () => {
+    const me = await account("FxMe");
+    const pal = await account("FxPal");
+    const g = await db.group.create({
+      data: {
+        name: `FxTH ${stamp}`, type: "trip", inviteCode: `fx-th-${stamp}`, tripStart: "", tripEnd: "", tripPlace: "Bangkok", tripCountry: "TH",
+        members: {
+          create: [
+            { name: "FxMe", accountId: me.id, claimedAt: new Date(), addedBy: "", seenAt: null },
+            { name: "FxPal", accountId: pal.id, claimedAt: new Date(), addedBy: "", seenAt: null },
+          ],
+        },
+      },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const [M, P] = [g.members.find((m) => m.name === "FxMe")!.id, g.members.find((m) => m.name === "FxPal")!.id];
+    const exp = (description: string, day: string, extra: { kind?: string; deletedAt?: Date } = {}) =>
+      db.expense.create({
+        data: {
+          groupId: g.id, description, amount: 1000, paidById: M, createdById: M, splitType: "equal", forMode: "everyone", spentAt: new Date(`${day}T12:00:00Z`), createdAt: new Date(`${day}T08:00:00Z`), ...extra,
+          originalAmount: 1000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 1000, shares: { create: [{ memberId: M, amount: 500 }, { memberId: P, amount: 500 }] },
+        },
+      });
+    await exp("Dinner", "2024-10-01");
+    await db.payment.create({ data: { groupId: g.id, fromId: P, toId: M, amount: 500, createdById: P, createdAt: new Date("2024-10-20T08:00:00Z") } });
+    await exp("Game result", "2024-10-22", { kind: "pot" });
+    await exp("Deleted", "2024-10-25", { deletedAt: new Date("2024-10-26T08:00:00Z") });
+    const facts = (await undatedTripFacts([{ groupId: g.id, me: { id: M, leftAt: null } }], "Asia/Kolkata")).get(g.id);
+    expect(facts).toEqual({ count: 1, day: "2024-10-01" });
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    expect(stampOf(p, g.id)).toBe("2024-10-01");
   });
 });
