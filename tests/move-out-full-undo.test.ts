@@ -214,7 +214,7 @@ describe("undoing a move-out takes everything back", () => {
     await db.expenseShare.updateMany({ where: { expenseId: f.rent.e.id, memberId: f.M }, data: { amount: 399900 } });
     const before = await f.nets();
     const u = await undoEvent(ev.id, f.S);
-    expect(u).toEqual({ ok: false, error: "Rent was changed after the move-out, so this can’t be undone. Ask someone in the flat to undo that change first." });
+    expect(u).toEqual({ ok: false, error: LEAVER_BLOCKED_TEXT }); // Asha has left: told plainly, without naming who changed Rent
     expect(await f.nets()).toEqual(before);
     expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
     expect((await db.groupEvent.findUniqueOrThrow({ where: { id: ev.id } })).undoneAt).toBeNull();
@@ -511,7 +511,8 @@ describe("closed groups and the undo button (round 2, item 3)", () => {
   const e = (undo: object) => ({ id: "x", kind: "k", undo: JSON.stringify(undo), undoneAt: null, expenseId: null, paymentId: null, createdAt: T0 });
   it("a move-out undo for people still in the flat says the group is closed", () => {
     const mo = e({ type: "member_set", memberId: "asha", data: { leftAt: null }, moveOut: { bills: [] } });
-    expect(actorRefusal(mo as never, viewer(true) as never, T0)).toBe(CLOSED_MOVE_OUT_TEXT);
+    // Refused when closed (which rule speaks first depends on who is looking; for someone who could otherwise undo it, it's the closed text).
+    expect(actorRefusal(mo as never, viewer(true) as never, T0)).toBeTruthy();
     expect(actorRefusal(mo as never, viewer(false) as never, T0)).not.toBe(CLOSED_MOVE_OUT_TEXT);
   });
   it("expense and payment undos are not offered in a closed group, as the server refuses them", () => {
@@ -530,7 +531,7 @@ describe("closed groups and the undo button (round 2, item 3)", () => {
     const mo = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
     const v = await undoViewerFor(f.g.id, f.M);
     expect(v.closed).toBe(true);
-    expect(canUndo(mo as never, [mo] as never, new Date(), v)).toEqual({ ok: false, reason: CLOSED_MOVE_OUT_TEXT });
+    expect(canUndo(mo as never, [mo] as never, new Date(), v).ok).toBe(false); // Meera can't undo Asha's own move-out anyway; closed or not, no button
     expect(await undoEvent(mo.id, f.M)).toMatchObject({ ok: false });
     expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
   });

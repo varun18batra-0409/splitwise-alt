@@ -1,3 +1,4 @@
+import { LEAVER_BLOCKED_TEXT, LEAVER_GONE_TEXT } from "@/lib/undo";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 // Someone WITH AN ACCOUNT who left (or was removed) is never put back by another member. They are sent an ordinary invitation for
@@ -861,7 +862,8 @@ describe("undoing a move-out with other spending in between, and a refused undo 
     expect((await setMemberLeft(f.g.id, f.M, f.M, true)).ok).toBe(true); // Meera is at 0, so she may go
     const before = await snap(f);
     const r = await undoEvent(f.ev.id, f.S);
-    expect(r).toEqual({ ok: false, error: "Meera has left the group since, so the move-out can’t be undone. Ask Meera to rejoin first." });
+    // Asha has left, so she is told plainly without naming Meera or what Meera did (the reason itself is checked for people in the flat).
+    expect(r).toEqual({ ok: false, error: LEAVER_BLOCKED_TEXT });
     await untouched(f, before);
   });
 
@@ -871,7 +873,7 @@ describe("undoing a move-out with other spending in between, and a refused undo 
     await db.paymentClaim.create({ data: { groupId: f.g.id, fromId: f.S, toId: f.R, amount: 6000, status: "covered", slot: `cl-${stamp}-${n}`, paymentId: pay.id } });
     const before = await snap(f);
     const r = await undoEvent(f.ev.id, f.S);
-    expect(r).toEqual({ ok: false, error: "A payment someone said they made (“I’ve paid”) was counted in the move-out’s square-up, so it can’t be undone." });
+    expect(r).toEqual({ ok: false, error: LEAVER_GONE_TEXT }); // a covered claim can never be taken back, and Asha (who left) is told so plainly
     await untouched(f, before);
   });
 
