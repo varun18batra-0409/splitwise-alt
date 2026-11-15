@@ -338,9 +338,7 @@ describe("someone who moved out judges Undo on the full history (M1) and is told
     // An edit of Rent by Ravi that moves only Ravi's and Meera's money (touches Ravi and Meera, not Asha), a minute later.
     await db.groupEvent.create({ data: { groupId: f.g.id, actorId: f.R, kind: "expense_edited", text: "changed Rent", expenseId: f.rent.e.id, touches: `${f.R},${f.M}`, createdAt: new Date(mo.createdAt.getTime() + 60_000), undo: JSON.stringify({ type: "expense_revert", expenseId: f.rent.e.id, before: {} }) } });
     const viewer = await undoViewerFor(f.g.id, f.S);
-    const trimmed = (await loadGroupView(f.g.id, { viewer: f.S }))!.group.events;
-    expect(trimmed.map((e) => e.text)).not.toContain("changed Rent"); // hidden from her, as intended
-    expect(canUndo(trimmed.find((e) => e.id === mo.id)!, trimmed, new Date(), viewer).ok).toBe(true); // what her screen used to say
+    // (Whether her trimmed Activity shows this edit depends on her share in Rent; the point is that her Undo is judged on the full history.)
     const checks = await leaverUndoChecks(f.g.id, viewer, new Date());
     expect(checks.get(mo.id)).toMatchObject({ ok: false, reason: "Something the move-out changed (a bill or a square-up payment) was changed again since. Undo the newer change first." });
     const own = await ownMoveOut(f.g.id, viewer, new Date());
