@@ -40,7 +40,7 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   await expect(card.locator("[data-trip-meta]")).toHaveText(/^\d{1,2} [A-Z][a-z]+( \d{4})? · 1 person$/);
   await expect(card).not.toContainText(/\bwith [A-Z]/);
   const share = await card.getByRole("button", { name: "Share" }).boundingBox();
-  const polaroid = await card.locator("img").first().boundingBox();
+  const polaroid = await card.getByRole("link", { name: /^Open / }).first().boundingBox(); // the polaroid (a drawn cover when the trip has no photo)
   expect(share!.height).toBeGreaterThanOrEqual(44);
   expect(share!.y).toBeGreaterThan(polaroid!.y + polaroid!.height - 12);
 

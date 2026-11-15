@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
+import { openMore } from "../helpers/expense";
 import { addEqualExpense, allowTestCopy, contextFor, createGroup, joinGroup, openEdit, openSplit, settled } from "../helpers/app";
 
 // A lakh-sized amount on a 320 × 640 phone: nothing scrolls sideways, nothing is clipped, and the amount is always fully visible.
@@ -96,7 +97,7 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   // Edit the big expense once (add a note): the row now says "paid ₹12,34,567.88 · edited". Both the full amount and "edited" stay
   // visible (two lines allowed), nothing runs under the amount column, nothing scrolls sideways.
   await openEdit(page, g1.path, "Villa");
-  await page.getByRole("button", { name: /^Notes/ }).click();
+  await openMore(page); // Notes sit under "More" (Add expense from before the mockups)
   await page.getByPlaceholder("e.g. Rahul paid the tip separately").fill("Booked by phone");
   await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();
