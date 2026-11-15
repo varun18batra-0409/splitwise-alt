@@ -1005,15 +1005,16 @@ if (!hosted) {
       await p.locator("[data-reactions] summary[aria-label='React']").click();
     }, true],
     ["home-story-circles", "/", undefined, false],
-    // Moments are Memories only: the strip collapsed (small polaroids), then opened in place (two columns with captions).
+    // Moments are Memories only: Home's one polaroid (fixed layout), then the Memories page, then the same page filtered to one group.
     ["home-memories-collapsed", "/", async (p) => {
       await p.locator("[data-memories-row]").waitFor({ timeout: 10_000 });
       await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
     }, false],
-    ["home-memories-expanded", "/", async (p) => {
-      await p.locator("[data-memories-toggle]").click();
-      await p.locator("[data-memories-grid]").waitFor();
-      await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
+    ["memories-page", "/memories", async (p) => {
+      await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
+    }, false],
+    ["memories-page-filtered", `/memories?g=${thai.id}`, async (p) => {
+      await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
     }, false],
   ]);
   // As the author, the "⋯" menu has Delete; as someone else it has Report and Block.
@@ -1099,8 +1100,8 @@ if (!hosted) {
     { name: "G5-trip-recap", path: `${gt}?tab=charts` },
     { name: "G6-trip-memories-after", path: `/groups/${over.id}?tab=memories` },
   ]);
-  // Home's Memories (right after the story circles): the small strip, then opened in place into two columns, at 390 and the narrowest
-  // phone (320), then one tapped open:
+  // Home's Memories (right after the story circles): the one fixed polaroid, then the Memories page (all groups, then filtered to one), at 390 and the
+  // narrowest phone (320), then one tapped open:
   // the moment big, Back going home. The same Home with no moments is 01-home / 69-home-full (no Memories row at all).
   await gshots(varu, [
     {
@@ -1114,14 +1115,24 @@ if (!hosted) {
       },
     },
     {
-      name: "H2a-home-memories-expanded",
-      path: "/",
+      name: "H2a-memories-page",
+      path: "/memories",
       widths: [390, 320],
       full: false,
       prepare: async (p) => {
-        await p.locator("[data-memories-toggle]").click();
-        await p.locator("[data-memories-grid]").waitFor({ timeout: 10_000 });
-        await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
+        await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
+      },
+    },
+    {
+      name: "H2a2-memories-page-filtered",
+      path: "/memories",
+      widths: [390, 320],
+      full: false,
+      prepare: async (p) => {
+        // The first group chip after "All groups" (the page is server-rendered: a tap is a new page).
+        await p.locator("[data-memories-filter]:not([data-memories-filter='all'])").first().click();
+        await p.waitForURL(/\/memories\?g=/, { timeout: 15_000 });
+        await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
       },
     },
     {

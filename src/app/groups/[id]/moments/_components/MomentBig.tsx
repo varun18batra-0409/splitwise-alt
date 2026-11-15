@@ -26,7 +26,7 @@ export function MomentBig({
   guest: boolean;
   back: string;
   link?: string; // the photo opens the viewer (on the list); on the viewer itself there is none
-  from: "list" | "view" | "home";
+  from: "list" | "view" | "home" | "memories";
   now: Date;
 }) {
   const ratio = card.width > 0 && card.height > 0 ? `${card.width} / ${card.height}` : "4 / 3";

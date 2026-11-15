@@ -265,19 +265,23 @@ describe("4. Memories on Home: square polaroids, only moments canSeeMoment allow
     const db = src("src/lib/moments-db.ts");
     expect(db.slice(db.indexOf("export async function loadHomeMemories"))).toContain("momentsWhere(viewer)");
     const ui = src("src/components/MemoryPolaroids.tsx");
-    expect(ui).toContain("aspect-square");
+    expect(ui).toContain("aspect-[5/4]"); // the front card's fixed shape
     expect(ui).toContain("font-hand");
-    // Collapsed: the newest moment as one polaroid beside a quiet line; expanded in place: a two-column grid; a toggle between them.
-    expect(ui).toContain('"use client"');
+    expect(src("src/app/memories/page.tsx")).toContain("aspect-square"); // the page's cards are square
+    // One fixed layout: the newest moment as one polaroid beside a quiet line. No expanding, no toggle, no grid.
+    expect(ui).not.toContain('"use client"');
+    expect(ui).not.toContain("useState");
     expect(ui).toContain("data-memories-collapsed");
     expect(ui).toContain("Little moments, shared together.");
     expect(ui).toContain("data-swoosh");
-    expect(ui).toContain("grid-cols-2");
-    expect(ui).toContain("data-memories-toggle");
-    expect(ui).toContain("aria-expanded={all}");
+    expect(ui).not.toContain("grid-cols-2");
+    expect(ui).not.toContain("data-memories-toggle");
+    expect(ui).not.toContain("data-memories-grid");
+    expect(ui).not.toContain("aria-expanded");
   });
-  it("the moment viewer sends Back home only for from=home", () => {
+  it("the moment viewer sends Back home for from=home and to /memories for from=memories (nothing else is trusted)", () => {
     const page = src("src/app/groups/[id]/moments/[momentId]/page.tsx");
-    expect(page).toContain('cameFrom === "home" ? "/" : here');
+    expect(page).toContain("memoriesBack(cameFrom, filter)");
+    expect(page).toContain("back={away ?? here}");
   });
 });

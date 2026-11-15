@@ -109,7 +109,7 @@ describe("stories are playful again (from before a9fe48ee) and moments are not s
   });
 });
 
-describe("Memories: one tilted polaroid and a quiet line, opening in place", () => {
+describe("Memories: one tilted polaroid and a quiet line, a group link, and See all to the Memories page", () => {
   const ui = src("src/components/MemoryPolaroids.tsx");
   it("collapsed is the newest moment as a tilted polaroid (caption in handwriting, group under it) with up to two behind it, and the line 'Little moments, shared together.' with a swoosh; 'See all' opens the grid", () => {
     expect(ui).toContain("data-memories-collapsed");
@@ -120,12 +120,17 @@ describe("Memories: one tilted polaroid and a quiet line, opening in place", () 
     expect(ui).toContain("data-memory-lead");
     expect(ui).toContain("Little moments, shared together.");
     expect(ui).toContain("data-swoosh");
-    expect(ui).toContain('"Show less" : "See all"');
-    expect(ui).toContain("grid grid-cols-2");
+    // "See all" is a link to /memories, only when there is more than the one memory shown; the group name is its own link.
+    expect(ui).toContain('href="/memories"');
+    expect(ui).toContain("hasMoreMemories(memories.length)");
+    expect(ui).toContain("data-memories-see-all");
+    expect(ui).toContain("data-memories-group-link");
+    expect(ui).toContain("groupMemoriesHref(first.groupId)");
+    expect(ui).toContain("memories →");
+    expect(ui).not.toContain("grid grid-cols-2");
     expect(ui).toContain("data-memory-caption");
     expect(ui).toContain("data-memory-group");
     expect(ui).toContain("href={first.href}");
-    expect(ui).toContain("href={m.href}");
     expect(ui).toContain("if (memories.length === 0) return null;");
   });
 });

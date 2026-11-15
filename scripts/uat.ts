@@ -4151,17 +4151,40 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     await A.locator("[data-memories-row] [data-memory]").first().waitFor();
     assert((await A.locator("[data-story='moment']").count()) === 0, "a moment is in the story circles (moments are Memories only)");
     assert(/from UAT Mom/.test((await A.locator("[data-memories-row] [data-memory]").first().getAttribute("aria-label")) ?? ""), "the memory isn’t labelled with its group");
-    // Collapsed (the founder's 15 Nov mockup) it is the newest moment as one tilted polaroid with its caption, beside "Little moments, shared
-    // together."; "See all" opens it in place into a grid with every caption and group name, and "Show less" folds it back.
-    assert((await A.locator("[data-memories-collapsed] [data-memory-lead]").count()) === 1, "the folded Memories doesn't show one polaroid in front");
-    assert(/Little moments, shared together/.test(await A.locator("[data-memories-line]").innerText()), "the folded Memories has no line beside the polaroid");
-    await A.locator("[data-memories-toggle]").click();
-    await A.locator("[data-memories-grid] [data-memory-group]").first().waitFor();
-    assert(/UAT Mom/.test(await A.locator("[data-memories-grid] [data-memory-group]").first().innerText()), "the opened Memories don’t name the group");
-    await A.locator("[data-memories-toggle]").click();
-    await A.locator("[data-memories-collapsed]").waitFor();
+    // One fixed layout (the founder's 15 Nov mockup): the newest moment as one tilted polaroid with its caption, beside "Little moments, shared
+    // together.". It never expands. Under it, "View <group> memories →" opens that group's Memories tab; "See all" (only with 2+ memories)
+    // opens the Memories page.
+    assert((await A.locator("[data-memories-collapsed] [data-memory-lead]").count()) === 1, "Memories doesn't show one polaroid in front");
+    assert(/Little moments, shared together/.test(await A.locator("[data-memories-line]").innerText()), "Memories has no line beside the polaroid");
+    assert((await A.locator("[data-memories-toggle], [data-memories-grid]").count()) === 0, "Memories still has the old expand toggle or grid");
+    const groupLink = A.locator("[data-memories-group-link]");
+    assert(/^View .+ memories →$/.test((await groupLink.innerText()).trim()), `the group link reads “${await groupLink.innerText()}”`);
+    assert(/UAT Mom/.test(await groupLink.innerText()), "the group link doesn't name the group");
+    assert(((await groupLink.boundingBox())?.height ?? 0) >= 44, "the group link is under 44px tall");
+    await groupLink.click();
+    await A.waitForURL(/\/groups\/[^/?]+\?tab=memories/);
+    await A.locator("[data-memories]").waitFor();
+    await go(A, "/");
+    // "See all" only when there is more than the one memory shown; it opens /memories with All groups lit.
+    if ((await db.moment.count({ where: { groupId: momentsGroup.split("/").pop()! } })) > 1) {
+      await A.locator("[data-memories-see-all]").click();
+      await A.waitForURL(/\/memories$/);
+      await A.locator("[data-memories-card]").first().waitFor();
+      assert((await A.locator("[data-memories-filter='all'][aria-current='true']").count()) === 1, "All groups isn't lit on the Memories page");
+      assert(/UAT Mom/.test(await A.locator("[data-memories-card] [data-memory-group]").first().innerText()), "a Memories card doesn't name its group");
+      await go(A, "/");
+    } else {
+      assert((await A.locator("[data-memories-see-all]").count()) === 0, "See all shows with only one memory");
+    }
     await addMomentThroughTheForm(A, "Worth the early alarm.", "");
     momentTwo = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "Worth the early alarm." } })).id;
+    // Now Asha has two memories: Home's "See all" shows and opens the Memories page (All groups lit, newest first: her new one leads).
+    await go(A, "/");
+    await A.locator("[data-memories-see-all]").click();
+    await A.waitForURL(/\/memories$/);
+    await A.locator("[data-memories-card]").first().waitFor();
+    assert((await A.locator("[data-memories-filter='all'][aria-current='true']").count()) === 1, "All groups isn't lit on the Memories page");
+    assert(/Worth the early alarm/.test(await A.locator("[data-memories-card] [data-memory-caption]").first().innerText()), "the Memories page doesn't lead with the newest moment");
     await go(A, `${momentsGroup}/moments/${momentOne}`);
     await A.locator("[data-reactions] summary[aria-label='React']").click();
     await A.getByRole("button", { name: "React 😂", exact: true }).click();
