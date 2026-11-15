@@ -15,7 +15,8 @@ import { eventsFrom, loadGroup, loadGroupSettle } from "@/lib/group-data";
 import { formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { applySettleMin } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
-import { accountHoldersOf, canUndo } from "@/lib/undo";
+import { canUndo } from "@/lib/undo";
+import { isGroupAdmin } from "@/lib/group-admin";
 import { recordCustomPayment, settleEverything, undoChange } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { DifferentAmountLink, differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
@@ -66,8 +67,8 @@ export default async function GroupSettle({
   // (someone who left keeps the full, scoped history).
   const undoEvents: Awaited<ReturnType<typeof eventsFrom>> = sp.did ? (data.leaver ? ((await loadGroup(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did)) : [];
   const justDid = sp.did ? undoEvents.find((e) => e.id === sp.did) : undefined;
-  // (Someone who left can answer "Confirm received" / "Not received" but can't undo it, so no Undo bar for them.)
-  const showUndo = justDid && !group.members.find((m) => m.id === myId)?.leftAt && canUndo(justDid, undoEvents, new Date(), accountHoldersOf(group.members), myId).ok;
+  // (canUndo knows who may undo what: someone who left gets the bar only for their own move-out.)
+  const showUndo = justDid && canUndo(justDid, undoEvents, new Date(), { id: myId, isAdmin: await isGroupAdmin(group.id, myId), members: group.members }).ok;
 
   // How each person here likes to be paid (from their You page), my own account,
   // payments others recorded to me that wait for my "Confirm received" (older ones that already count),

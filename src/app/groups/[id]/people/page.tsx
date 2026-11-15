@@ -5,7 +5,9 @@ import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
 import { getAccount, getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { accountHoldersOf, canUndo } from "@/lib/undo";
+import { blockedMessage, canUndo, ownMoveOut } from "@/lib/undo";
+import { UNDO_MOVE_OUT_EXPLAINER, UndoMoveOutButton } from "../_components/LeftBanner";
+import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
 import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
@@ -74,6 +76,10 @@ export default async function PeoplePage({
   // Report / Block on someone who is on Loopin (needs your own account).
   const viewer = await getAccount();
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
+  // Who is looking, as canUndo wants them (the full member list). Someone who moved out themselves may undo it from here.
+  const undoViewer = { id: myId, isAdmin, members: group.members };
+  const ownMove = leaver && !leaver.removed ? await ownMoveOut(group.id, undoViewer, new Date()) : null;
+  const tz = ownMove ? await getTimeZone() : "";
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const small = "rounded-full border border-line px-4 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
 
@@ -188,13 +194,40 @@ export default async function PeoplePage({
               )
             ) : m.leftAt ? (
               <div className="space-y-4">
-                <form action={setPersonLeft}>
-                  {hidden}
-                  <input type="hidden" name="left" value="0" />
-                  <button type="submit" className={small}>
-                    {me ? "Rejoin the group" : m.accountId ? `Invite ${m.name} back` : `Bring ${m.name} back`}
-                  </button>
-                </form>
+                {me && ownMove ? (
+                  <div data-own-move-out>
+                    {ownMove.check.ok ? (
+                      <>
+                        <p className="text-sm text-gray-500">{UNDO_MOVE_OUT_EXPLAINER}</p>
+                        <UndoMoveOutButton groupId={group.id} eventId={ownMove.event.id} back="people" />
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500" data-own-move-out-blocked>
+                        {blockedMessage(ownMove.check, { nameOf, tz })}
+                      </p>
+                    )}
+                    {/* Rejoining without undoing keeps the deposit, bills and payments as the move-out left them, so it asks first. */}
+                    <form action={setPersonLeft} className="mt-4">
+                      {hidden}
+                      <input type="hidden" name="left" value="0" />
+                      <input type="hidden" name="plain" value="1" />
+                      <ConfirmButton
+                        message="Rejoin without undoing your move-out? Your deposit, bills and square-up payments stay as the move-out left them, and the move-out can’t be undone after this."
+                        className="rounded-full px-1 py-2 text-xs font-medium text-gray-500 underline underline-offset-4"
+                      >
+                        Rejoin without undoing
+                      </ConfirmButton>
+                    </form>
+                  </div>
+                ) : (
+                  <form action={setPersonLeft}>
+                    {hidden}
+                    <input type="hidden" name="left" value="0" />
+                    <button type="submit" className={small}>
+                      {me ? "Rejoin the group" : m.accountId ? `Invite ${m.name} back` : `Bring ${m.name} back`}
+                    </button>
+                  </form>
+                )}
                 {/* Someone who left on their own can still be taken out by whoever looks after the group (then they can't rejoin by themselves). */}
                 {isAdmin && !me && (
                   <form action={removePerson} data-remove-left>
@@ -309,7 +342,7 @@ export default async function PeoplePage({
         </section>
       )}
 
-      {justDid && canUndo(justDid, group.events, new Date(), accountHoldersOf(group.members), myId).ok && (
+      {justDid && canUndo(justDid, group.events, new Date(), undoViewer).ok && (
         <UndoBar
           key={justDid.id}
           text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`}

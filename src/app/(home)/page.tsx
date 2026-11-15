@@ -27,15 +27,15 @@ import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { homeHighlights } from "@/lib/home/highlights";
-import { parseHandPlaces, stampDay } from "@/lib/passport";
+import { parseHandPlaces, passportZone, stampDay } from "@/lib/passport";
 import { undatedTripFacts } from "@/lib/passport-db";
 import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
-import { leaverOf } from "@/lib/left-view-db";
 import { gameVisible, stillIn } from "@/lib/left-view";
-import { accountHoldersOf, canUndo } from "@/lib/undo";
+import { canUndo } from "@/lib/undo";
+import { isGroupAdmin } from "@/lib/group-admin";
 import { UndoBar } from "@/components/UndoBar";
 import { BellButton } from "@/components/BellButton";
 import { countMyCollections, myCollections, progress } from "@/lib/collect";
@@ -116,14 +116,17 @@ export default async function Home({
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
-  if (did && didGroup && memberships[didGroup] && !(await leaverOf(memberships[didGroup]))) {
+  // (A person who moved out sees it too: their own Undo of a move-out is theirs to use. canUndo decides who may undo what.)
+  const grp = didGroup ? all.find((x) => x.group.id === didGroup) : undefined;
+  if (did && didGroup && memberships[didGroup] && grp) {
+    const myId = memberships[didGroup];
     const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
-    const grp = all.find((x) => x.group.id === didGroup);
-    if (ev && canUndo(ev, events, new Date(), accountHoldersOf(grp?.group.members ?? []), memberships[didGroup]).ok) {
-      const actor = ev.actorId === memberships[didGroup] ? "You" : grp?.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
-      undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
+    const viewer = { id: myId, isAdmin: await isGroupAdmin(didGroup, myId), members: grp.group.members };
+    if (ev && canUndo(ev, events, new Date(), viewer).ok) {
+      const actor = ev.actorId === myId ? "You" : grp.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
+      undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)} · ${grp.group.name}`, groupId: didGroup, eventId: ev.id };
     }
   }
 
@@ -404,24 +407,19 @@ export default async function Home({
     .filter((g) => g.iOwe || g.isOwed);
   // Countries you've been to, newest first: trips that have started, then ones ticked by hand (newest last in the list); home last.
   // The day a trip's stamp is dated, or null when it has none yet (one rule, shared with the passport: src/lib/passport.ts).
-  // An undated trip you left: Home's own count and last-activity cover only what a leaver may see, the passport's cover the whole group.
-  // So for those (and only those) the passport's numbers are read, and both screens agree.
-  const leftUndated = all.filter((g) => g.leaver && g.group.type === "trip" && !g.group.tripStart && !g.group.deletedAt).map((g) => g.group.id);
-  const undatedFacts = await undatedTripFacts(leftUndated);
-  const stampOf = (g: (typeof all)[number]) => {
-    const f = undatedFacts.get(g.group.id);
-    return stampDay(
-      {
-        type: g.group.type,
-        deletedAt: g.group.deletedAt,
-        tripStart: g.group.tripStart,
-        expenseCount: f ? f.expenseCount : g.expenseCount,
-        lastActivity: f ? new Date(`${f.day}T00:00:00.000Z`) : g.lastActivity,
-        leftAt: g.leaver?.leftAt ?? null,
-      },
+  // An undated trip (still in or left) is stamped from the spending you may see (src/lib/passport-db.ts undatedTripFacts), the same
+  // numbers the passport reads, so both screens agree. Payments, game results and deleted rows don't count.
+  const stampTz = passportZone(account);
+  const undatedFacts = await undatedTripFacts(
+    all.filter((g) => g.group.type === "trip" && !g.group.tripStart && !g.group.deletedAt).map((g) => ({ groupId: g.group.id, me: { id: g.myId, leftAt: g.leaver?.leftAt ?? null } })),
+    stampTz,
+  );
+  const stampOf = (g: (typeof all)[number]) =>
+    stampDay(
+      { type: g.group.type, deletedAt: g.group.deletedAt, tripStart: g.group.tripStart, undated: undatedFacts.get(g.group.id) ?? null, leftAt: g.leaver?.leftAt ?? null },
       today,
+      stampTz,
     );
-  };
   const visitedCodes = [
     ...all
       .filter((g) => g.group.tripStart && stampOf(g) !== null)

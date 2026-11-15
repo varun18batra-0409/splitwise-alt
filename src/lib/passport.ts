@@ -1,6 +1,8 @@
 import { countryOf, tripStops } from "./geo";
 import { tripEmoji } from "./countdown";
 import { continentOf } from "./continents";
+import { DEFAULT_TIME_ZONE, dayKey, isTimeZone } from "./dates";
+import { expenseInvolves, leaverCut } from "./left-view";
 
 // Your trip passport, like a real one: every Loopin trip leaves its own stamp
 // (a city stamp for a trip in your home country, a round country stamp for a
@@ -49,27 +51,59 @@ export function parseHandPlaces(json: string): HandPlace[] {
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-// Did this person go on the trip? Someone who left the group before the trip's first day didn't. (No start day, or never left: they did.)
-export const wentOnTrip = (start: string, leftAt: Date | null) => !leftAt || !start || leftAt.toISOString().slice(0, 10) >= start;
+// The time zone a passport's dates are read in: the owner's own (the default when it isn't a real zone).
+export const passportZone = (a?: { timeZone?: string } | null): string => (a?.timeZone && isTimeZone(a.timeZone) ? a.timeZone : DEFAULT_TIME_ZONE);
+
+// Did this person go on the trip? Someone who left the group before the trip's first day (in their own time zone) didn't.
+// (No start day, or never left: they did.)
+export const wentOnTrip = (start: string, leftAt: Date | null, tz: string): boolean => !leftAt || !start || dayKey(leftAt, tz) >= start;
 
 // The day an undated trip happened: around its latest (non-game) spending, not when the group was made (a flight booked months
-// early isn't a stamp yet). The one rule the passport and Home both use.
-export function undatedTripDay(latest: { spentAt: Date | null; createdAt: Date } | null | undefined, groupCreatedAt: Date): string {
-  return (latest ? latest.spentAt ?? latest.createdAt : groupCreatedAt).toISOString().slice(0, 10);
+// early isn't a stamp yet). The one rule the passport and Home both use. Spending with a chosen day is that day for everyone;
+// otherwise the day it was added, in the owner's time zone.
+export function undatedTripDay(latest: { spentAt: Date | null; createdAt: Date }, tz: string): string {
+  return dayKey(latest.spentAt ?? latest.createdAt, tz);
+}
+
+export type SpendingRow = {
+  createdAt: Date;
+  spentAt: Date | null;
+  deletedAt: Date | null;
+  kind: string;
+  id?: string;
+  paidById: string;
+  payers?: string | null;
+  shares: { memberId: string }[];
+};
+
+// What an undated trip's stamp rests on: the spending this person may see (not deleted, not a card-game result, and, for someone who
+// left, added on or before the day they left or with them in it), how many rows there are and the day of the latest. Null when none.
+// Pure: the database version (passport-db.ts) asks the same question with a count and a findFirst.
+export function undatedFacts(
+  rows: SpendingRow[],
+  me: { id: string; leftAt: Date | null; removedAt?: Date | null },
+  tz: string,
+): { count: number; day: string } | null {
+  const cut = leaverCut(me);
+  const kept = rows.filter(
+    (r) => !r.deletedAt && r.kind !== "pot" && (!cut || r.createdAt.getTime() <= cut.leftAt.getTime() || expenseInvolves({ id: r.id ?? "", createdAt: r.createdAt, paidById: r.paidById, payers: r.payers, shares: r.shares }, me.id)),
+  );
+  if (!kept.length) return null;
+  const latest = [...kept].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (b.id ?? "").localeCompare(a.id ?? ""))[0];
+  return { count: kept.length, day: undatedTripDay(latest, tz) };
 }
 
 // The day a group's stamp is dated, or null when it earns none: not a trip, deleted, not started yet (or, with no dates, nothing
-// spent yet), or this person left before the trip began. A trip with dates is stamped on its start day; one without, on the day of its
-// latest activity. Pure, and the one rule Home and the passport both use.
+// spent yet), or this person left before the trip began. A trip with dates is stamped on its start day; one without, on the day of
+// its latest spending (`undated`, from undatedFacts). Pure, and the one rule Home and the passport both use.
 export function stampDay(
-  g: { type: string; deletedAt: Date | null; tripStart: string; expenseCount: number; lastActivity: Date; leftAt: Date | null },
+  g: { type: string; deletedAt: Date | null; tripStart: string; leftAt: Date | null; undated: { count: number; day: string } | null },
   today: string,
+  tz: string,
 ): string | null {
   if (g.type !== "trip" || g.deletedAt) return null;
-  if (g.tripStart ? g.tripStart > today : g.expenseCount <= 0) return null;
-  const day = g.tripStart || g.lastActivity.toISOString().slice(0, 10);
-  // Leaving before the first day only means something when the trip has a real start day; anyone in an undated trip gets the stamp.
-  return g.tripStart && !wentOnTrip(g.tripStart, g.leftAt) ? null : day;
+  if (g.tripStart) return g.tripStart > today || !wentOnTrip(g.tripStart, g.leftAt, tz) ? null : g.tripStart;
+  return g.undated?.count ? g.undated.day : null;
 }
 
 export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: string, today: string) {

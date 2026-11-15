@@ -2333,6 +2333,8 @@ async function main() {
     // And sees the group only up to the day they left: the banner, and no This month / Bills / List tabs.
     await go(A, gh);
     await A.locator("[data-left-banner]").waitFor();
+    // Her own move-out (marked by someone else) is hers to undo: the banner says so and carries the Undo or the reason it can't be done.
+    assert((await A.locator("[data-left-banner] [data-own-move-out]").count()) === 1, "the person who moved out has no Undo my move-out on her banner");
     for (const t of ["This month", "Bills", "List"]) assert((await A.getByRole("link", { name: t, exact: true }).count()) === 0, `a person who moved out sees the ${t} tab`);
     // On Settle up she gets no Close group / Mark all paid section (the server would refuse it).
     await go(A, `${gh}/settle`);

@@ -40,7 +40,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
     roster.map(async (m): Promise<Person> => {
       const mine = m.id === myId;
       if (!m.accountId) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true, passportChoiceAt: true } });
+      const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, timeZone: true, passportShare: true, passportChoiceAt: true } });
       if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
       if (!mine && !passportShared(a)) return { m, mine, state: a.passportShare === "private" ? "private" : "unshared", codes: [], cities: 0 };
       const p = await loadPassport(a, "", today, { forFriend: !mine });

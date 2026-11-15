@@ -59,6 +59,11 @@ describe("the trip's passport stamp", () => {
     expect(tripStampCard(thailand, "IN", "2026-11-14", new Date("2026-05-01T00:00:00Z"))).toBeNull();
     expect(tripStampCard(thailand, "IN", "2026-11-14", new Date("2026-05-07T00:00:00Z"))?.countryName).toBe("Thailand");
   });
+  it("the day they left is read in their own time zone (hand-worked: 20:00 UTC on 4 May is 01:30 on 5 May in India, still 4 May in London)", () => {
+    const left = new Date("2026-05-04T20:00:00Z");
+    expect(tripStampCard(thailand, "IN", "2026-11-14", left, "Asia/Kolkata")?.countryName).toBe("Thailand");
+    expect(tripStampCard(thailand, "IN", "2026-11-14", left, "UTC")).toBeNull();
+  });
 });
 
 describe("whose postcards show (pure)", () => {

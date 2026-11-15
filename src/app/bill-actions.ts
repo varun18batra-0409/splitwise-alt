@@ -158,7 +158,8 @@ export async function moveOutAction(formData: FormData) {
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   });
   if (!r.ok) redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(r.error)}`);
-  redirect(`/groups/${groupId}?tab=activity`);
+  // `did`: the move-out's own line, so the person who moved out (or whoever marked them) gets the Undo bar.
+  redirect(`/groups/${groupId}?tab=activity${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
 export async function saveDeposit(formData: FormData) {

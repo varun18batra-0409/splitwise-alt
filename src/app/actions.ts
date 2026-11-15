@@ -15,7 +15,7 @@ import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercen
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
-import { removeMembers, undoEvent } from "@/lib/undo";
+import { ownMoveOut, removeMembers, undoEvent, undoViewerFor } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
@@ -594,6 +594,11 @@ export async function setPersonLeft(formData: FormData) {
       const r = await addRegistered(groupId, myId, row.accountId, origin, { later: (job) => after(job) });
       redirect(`/groups/${groupId}/people${r.ok ? "?invitedBack=1" : `?error=${encodeURIComponent(r.error)}`}`);
     }
+  }
+  // Rejoining yourself after a move-out Loopin recorded (bills, deposit, square-up payments) would leave all of that as it is: the person is
+  // pointed to "Undo my move-out" first. "Rejoin without undoing" (plain=1, behind a confirmation) is the deliberate way past it.
+  if (memberId === myId && formData.get("left") !== "1" && formData.get("plain") !== "1" && (await ownMoveOut(groupId, await undoViewerFor(groupId, myId), new Date()))) {
+    backToPeople(groupId, { ok: false, error: "You moved out with Loopin. Tap Undo my move-out to get your bills and deposit back, or Rejoin without undoing." });
   }
   // You can always leave or rejoin yourself. Taking someone else out is for whoever looks after the group; any member can bring back
   // someone who left on their own (only a person the admin removed needs the admin: setMemberLeft checks that).

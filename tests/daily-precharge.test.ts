@@ -150,7 +150,7 @@ describe("moving out with a daily bill, end to end", () => {
     expect(p.paymentsWithDaily).toEqual([{ from: f.ravi, to: f.asha, amount: 20800 }]);
 
     const r = await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("one") }, now);
-    expect(r).toEqual({ ok: true, payments: [{ from: f.ravi, to: f.asha, amount: 20800 }] });
+    expect(r).toMatchObject({ ok: true, payments: [{ from: f.ravi, to: f.asha, amount: 20800 }] });
 
     const pre = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: { contains: "Ravi" } }, include: { shares: true } });
     expect(pre.description).toBe("Milk · 1–14 Nov (Ravi’s share)");
@@ -184,7 +184,7 @@ describe("moving out with a daily bill, end to end", () => {
     const f = await flat("two", { rate: 3000, split: group, weights: [100, 100, 200] });
     const now = new Date("2026-11-10T06:00:00Z");
     const r = await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-10", addDaily: true, requestKey: key("two") }, now);
-    expect(r).toEqual({ ok: true, payments: [{ from: f.ravi, to: f.asha, amount: 7500 }] });
+    expect(r).toMatchObject({ ok: true, payments: [{ from: f.ravi, to: f.asha, amount: 7500 }] });
     await runBillsForGroup(f.groupId, monthEnd);
     const milk = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" }, include: { shares: true } });
     expect(milk.amount).toBe(82500);
@@ -198,7 +198,7 @@ describe("moving out with a daily bill, end to end", () => {
     const f = await flat("three", { rate: 5000, split: equal });
     const now = new Date("2026-11-10T06:00:00Z");
     const r = await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-10", addDaily: true, requestKey: key("three") }, now);
-    expect(r).toEqual({ ok: true, payments: [{ from: f.ravi, to: f.asha, amount: 16666 }] });
+    expect(r).toMatchObject({ ok: true, payments: [{ from: f.ravi, to: f.asha, amount: 16666 }] });
     await runBillsForGroup(f.groupId, monthEnd);
     const milk = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" }, include: { shares: true } });
     expect(milk.amount).toBe(133334);
@@ -211,7 +211,7 @@ describe("moving out with a daily bill, end to end", () => {
     const f = await flat("off", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
     const now = new Date("2026-11-14T06:00:00Z");
     const r = await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", requestKey: key("off") }, now);
-    expect(r).toEqual({ ok: true, payments: [] });
+    expect(r).toMatchObject({ ok: true, payments: [] });
     expect(JSON.parse((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).prepaid)).toEqual({});
     await runBillsForGroup(f.groupId, monthEnd);
     const milk = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" }, include: { shares: true } });
@@ -421,7 +421,7 @@ describe("the move-out preview names the same payee as the real move-out", () =>
     expect(guess.paymentsWithDaily).toEqual([{ from: f.ravi, to: f.asha, amount: 20800 }]);
 
     const r = await moveOut(f.groupId, f.meera, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("heir") }, now);
-    expect(r).toEqual({ ok: true, payments: p.paymentsWithDaily });
+    expect(r).toMatchObject({ ok: true, payments: p.paymentsWithDaily });
     const pre = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: { contains: "share" } } });
     expect(pre.paidById).toBe(f.meera);
   });

@@ -33,7 +33,7 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
   const owners = await Promise.all(
     friends.map(async (f) => {
       const { db } = await import("@/lib/db");
-      const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true, passportChoiceAt: true } });
+      const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, timeZone: true, passportShare: true, passportChoiceAt: true } });
       if (!a || !passportShared(a)) return { ...f, private: true, unshared: Boolean(a) && a!.passportShare !== "private", countries: [] as string[], stats: null };
       const p = await loadPassport(a, "", today, { forFriend: true });
       return { ...f, private: false, unshared: false, countries: p.index.map((r) => r.code), stats: p.stats };

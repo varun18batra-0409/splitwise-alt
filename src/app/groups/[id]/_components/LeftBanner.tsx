@@ -3,18 +3,55 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { parseDetails } from "@/lib/events";
 import { COPY_DAYS } from "@/lib/left-view";
+import { blockedMessage, type CanUndo } from "@/lib/undo";
+import { undoChange } from "@/app/actions";
 import type { GroupView } from "./view";
+
+// The person's own move-out (from ownMoveOut in undo.ts): the line, and whether the server would let them undo it now.
+export type OwnMoveOut = { event: { id: string }; check: CanUndo };
+
+// What undoing a move-out gives back, in plain words (shown above the button on the group page and on People).
+export const UNDO_MOVE_OUT_EXPLAINER =
+  "Everything goes back to how it was before you moved out: your share of the bills, your deposit and the square-up payments. If you really paid any of those, record it again afterwards.";
+
+// "Undo my move-out": posts to the same undo as everything else; `back` says which page to return to.
+export function UndoMoveOutButton({ groupId, eventId, back }: { groupId: string; eventId: string; back: string }) {
+  return (
+    <form action={undoChange} className="mt-3" data-undo-move-out>
+      <input type="hidden" name="groupId" value={groupId} />
+      <input type="hidden" name="eventId" value={eventId} />
+      <input type="hidden" name="back" value={back} />
+      <button type="submit" className="pop min-h-11 bg-fg px-5 text-sm font-semibold text-canvas">
+        Undo my move-out
+      </button>
+    </form>
+  );
+}
 
 // What someone who left (or was removed) sees at the top of the group: the day it stopped, and what
 // has moved their own share since. The rest of the page is the group as it was up to that day.
-export function LeftBanner({ v }: { v: GroupView }) {
+export function LeftBanner({ v, ownMoveOut = null }: { v: GroupView; ownMoveOut?: OwnMoveOut | null }) {
   const { leaver, tz } = v;
   if (!leaver) return null;
   const day = niceDate(dayKey(leaver.leftAt, tz));
   return (
     <div className="mb-5 rounded-2xl bg-mist px-4 py-3" data-left-banner>
-      <p className="font-semibold">{leaver.removed ? `You were removed on ${day}` : `You left on ${day}`}</p>
+      <p className="font-semibold">{leaver.removed ? `You were removed on ${day}` : ownMoveOut ? `You moved out on ${day}` : `You left on ${day}`}</p>
       <p className="mt-0.5 text-sm text-gray-500">You see the group up to that day, plus any later change to your own share.</p>
+      {ownMoveOut && (
+        <div className="mt-3" data-own-move-out>
+          {ownMoveOut.check.ok ? (
+            <>
+              <p className="text-sm text-gray-500">{UNDO_MOVE_OUT_EXPLAINER}</p>
+              <UndoMoveOutButton groupId={v.group.id} eventId={ownMoveOut.event.id} back="group" />
+            </>
+          ) : (
+            <p className="text-sm text-gray-500" data-own-move-out-blocked>
+              {blockedMessage(ownMoveOut.check, { nameOf: v.nameOf, tz })}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

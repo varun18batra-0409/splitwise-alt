@@ -30,7 +30,7 @@ const { undoMoveOut, moveOut, saveDepositFor } = await import("@/lib/home/moving
 const { netBalances } = await import("@/lib/balances");
 const { canSeePassport } = await import("@/lib/passport-db");
 const { addWishes, setShares, sharedWithMe, matches, currentFriends } = await import("@/lib/wishes-db");
-const { lateMoveText, lateRemovalText } = await import("@/lib/put-back");
+const { lateMoveText, lateRecreateText, lateRemovalText } = await import("@/lib/put-back");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const origin = "https://loopin.test";
@@ -45,6 +45,7 @@ async function account(name: string) {
 }
 
 afterAll(async () => {
+  await db.paymentClaim.deleteMany({ where: { groupId: { in: groupIds } } });
   await db.wishShare.deleteMany({ where: { OR: [{ ownerId: { in: accountIds } }, { friendId: { in: accountIds } }] } });
   await db.wishPlace.deleteMany({ where: { accountId: { in: accountIds } } });
   await db.invite.deleteMany({ where: { groupId: { in: groupIds } } });
@@ -450,9 +451,10 @@ describe("a move-out, undone by the person themself", () => {
     const shares = await db.depositShare.findMany({ where: { deposit: { groupId: g.id } } });
     expect(shares.find((x) => x.memberId === A)).toMatchObject({ amount: 3000000, status: "held", toMemberId: "" }); // deposit back with her
     expect(shares.find((x) => x.memberId === B)).toBeUndefined();
-    // The undo itself moves no money: balances are exactly what the move-out left. (The square-up payment is its own line in Activity and stays
-    // until someone deletes it there; this undo restores the person, their bills and their deposit.)
-    expect(await netsNow()).toEqual(afterMove);
+    // The undo takes the square-up payment off too (hand-worked: Ada paid Bea 3000, now deleted), so the balances are exactly what they were before the
+    // move-out: Ada -3000, Bea +6000, Asha -3000 (sum 0).
+    expect(await netsNow()).toEqual(before);
+    expect(Object.values(await netsNow()).reduce((a, b) => a + b, 0)).toBe(0);
   });
 });
 
@@ -640,10 +642,10 @@ describe("undo after the admin changed, and undo of an undo of 'joined'", () => 
     const { w, eventId } = await joinedAndUndone();
     await age(eventId, 9);
     // Not the person who did it: refused with the "only the person who made it" words (no earlier guard answers first); nobody is re-created.
-    expect(await undoEvent(eventId, w.B)).toEqual({ ok: false, error: "Only the person who made that change can undo it. You can invite Cy back from People." });
+    expect(await undoEvent(eventId, w.B)).toEqual({ ok: false, error: "Only the person who made that change can undo it. You can add Cy again with Add people." });
     expect(await db.member.count({ where: { groupId: w.g.id, accountId: w.cy.id } })).toBe(0);
     await age(eventId, 11);
-    expect(await undoEvent(eventId, w.S)).toEqual({ ok: false, error: lateRemovalText("Cy") });
+    expect(await undoEvent(eventId, w.S)).toEqual({ ok: false, error: lateRecreateText("Cy") });
     expect(await db.member.count({ where: { groupId: w.g.id, accountId: w.cy.id } })).toBe(0);
     await age(eventId, 9);
     expect((await undoEvent(eventId, w.S)).ok).toBe(true);
@@ -651,30 +653,39 @@ describe("undo after the admin changed, and undo of an undo of 'joined'", () => 
   });
 });
 
-describe("canUndo hides a late put-back of someone with an account", () => {
+describe("canUndo hides what the server would refuse (the same rules, given the viewer)", () => {
   const made = new Date("2026-11-15T10:00:00.000Z");
-  const ev = (undo: object, actorId: string) => ({ id: "e1", kind: "member_left", undo: JSON.stringify(undo), undoneAt: null, expenseId: null, paymentId: null, createdAt: made, actorId });
+  const ev = (undo: object, actorId: string, kind = "member_left") => ({ id: "e1", kind, undo: JSON.stringify(undo), undoneAt: null, expenseId: null, paymentId: null, createdAt: made, actorId });
+  // The full member list: Sam (looks after the group), Ada (has an account), and a name with no account.
+  const member = (id: string, accountId: string | null, leftAt: Date | null = null) => ({ id, name: id, accountId, leftAt, removedAt: null });
+  const viewer = (id: string, members: ReturnType<typeof member>[], isAdmin = false) => ({ id, isAdmin, members });
   const removal = ev({ type: "member_set", memberId: "ada", data: { leftAt: null, removedAt: null, removedById: "" } }, "sam");
-  const holders = new Set(["ada"]);
-  it("a removal: shown at 10 minutes, hidden after; a name with no account is never hidden; her own undo of her own leave is never hidden", () => {
-    expect(canUndo(removal, [removal], new Date("2026-11-15T10:10:00.000Z"), holders).ok).toBe(true);
-    expect(canUndo(removal, [removal], new Date("2026-11-15T10:10:00.001Z"), holders).ok).toBe(false);
-    expect(canUndo(removal, [removal], new Date("2026-11-15T12:00:00.000Z"), new Set()).ok).toBe(true);
+  const people = [member("sam", "acc-sam"), member("ada", "acc-ada", made), member("kit", null, made)];
+  it("a removal: shown to whoever made it at 10 minutes, hidden after; a name with no account is never hidden; her own undo of her own leave is never hidden", () => {
+    const sam = viewer("sam", people, true);
+    expect(canUndo(removal, [removal], new Date("2026-11-15T10:10:00.000Z"), sam).ok).toBe(true);
+    expect(canUndo(removal, [removal], new Date("2026-11-15T10:10:00.001Z"), sam).ok).toBe(false);
+    const kitRemoval = ev({ type: "member_set", memberId: "kit", data: { leftAt: null, removedAt: null, removedById: "" } }, "sam");
+    expect(canUndo(kitRemoval, [kitRemoval], new Date("2026-11-15T12:00:00.000Z"), sam).ok).toBe(true);
     const own = ev({ type: "member_set", memberId: "ada", data: { leftAt: null } }, "ada");
-    expect(canUndo(own, [own], new Date("2026-11-15T12:00:00.000Z"), holders).ok).toBe(true);
+    expect(canUndo(own, [own], new Date("2026-11-15T12:00:00.000Z"), viewer("ada", people)).ok).toBe(true);
   });
-  it("Ravi records Asha's move-out: 11 minutes later Undo is shown to Asha herself, hidden for Meera", () => {
+  it("Ravi records Asha's move-out: 11 minutes later Undo is shown to Asha herself, hidden for Meera and for Ravi; at 5 minutes Ravi sees it, Meera does not", () => {
     const moveOut = ev({ type: "member_set", memberId: "asha", data: { leftAt: null } }, "ravi");
+    const all = [member("meera", "acc-m"), member("ravi", "acc-r"), member("asha", "acc-a", made)];
     const late = new Date("2026-11-15T10:11:00.000Z");
-    const all = new Set(["meera", "ravi", "asha"]);
-    expect(canUndo(moveOut, [moveOut], late, all, "asha").ok).toBe(true);
-    expect(canUndo(moveOut, [moveOut], late, all, "meera").ok).toBe(false);
-    expect(canUndo(moveOut, [moveOut], new Date("2026-11-15T10:05:00.000Z"), all, "meera").ok).toBe(true);
+    const soon = new Date("2026-11-15T10:05:00.000Z");
+    expect(canUndo(moveOut, [moveOut], late, viewer("asha", all)).ok).toBe(true);
+    expect(canUndo(moveOut, [moveOut], late, viewer("meera", all, true)).ok).toBe(false);
+    expect(canUndo(moveOut, [moveOut], soon, viewer("meera", all, true)).ok).toBe(false); // she did not record it
+    expect(canUndo(moveOut, [moveOut], soon, viewer("ravi", all)).ok).toBe(true);
+    expect(canUndo(moveOut, [moveOut], late, viewer("ravi", all)).ok).toBe(false);
   });
-  it("a member restore that brings back an account holder: same 10 minutes", () => {
-    const restore = ev({ type: "members_restore", members: [{ id: "cy", name: "Cy", phone: "", createdAt: made.toISOString(), accountId: "acc" }] }, "sam");
-    expect(canUndo(restore, [restore], new Date("2026-11-15T10:09:00.000Z"), holders).ok).toBe(true);
-    expect(canUndo(restore, [restore], new Date("2026-11-15T10:11:00.000Z"), holders).ok).toBe(false);
+  it("a member restore that brings back an account holder: same 10 minutes, for whoever made it", () => {
+    const restore = ev({ type: "members_restore", members: [{ id: "cy", name: "Cy", phone: "", createdAt: made.toISOString(), accountId: "acc" }] }, "sam", "members_removed");
+    const sam = viewer("sam", people, true);
+    expect(canUndo(restore, [restore], new Date("2026-11-15T10:09:00.000Z"), sam).ok).toBe(true);
+    expect(canUndo(restore, [restore], new Date("2026-11-15T10:11:00.000Z"), sam).ok).toBe(false);
   });
 });
 
@@ -683,9 +694,8 @@ describe("canUndo hides a late put-back of someone with an account", () => {
 //   Milk 6000 a day, paid by Meera, split equally; Asha's last day is 10 Nov: 10 x 6000 / 3 = 20000, charged now (paid by Meera, Asha's share only)
 //                                                    -> Ravi +6000, Asha -23000, Meera +17000
 //   Square-up: Asha pays Ravi 6000 and Meera 17000   -> all 0. Wi-Fi (paid by Asha) goes to Ravi; her 3000000 deposit goes to Meera.
-//   Undo of the move-out: milk charge gone, bills and deposit back; the two square-up payments stay (their own lines in Activity)
-//                                                    -> Ravi 0, Asha -3000 + 6000 + 17000 = +20000, Meera -3000 - 17000 = -20000.
-//   Deleting those two payments afterwards           -> Ravi +6000, Asha -3000, Meera -3000.
+//   Undo of the move-out: milk charge gone, bills and deposit back, and the two square-up payments are taken off too
+//                                                    -> Ravi +6000, Asha -3000, Meera -3000 (the starting balances; sum 0).
 async function flatMove() {
   const [meeraAcc, raviAcc, ashaAcc] = [await account("Meera"), await account("Ravi"), await account("Asha")];
   const g = await db.group.create({
@@ -747,13 +757,16 @@ describe("undoing a move-out is open for 10 minutes, to whoever recorded it", ()
     const bill = await db.bill.findUniqueOrThrow({ where: { id: f.milk.id } });
     expect(JSON.parse(bill.prepaid)).toEqual({});
     const after = await f.netsNow();
-    expect(after).toEqual({ [f.R]: 0, [f.S]: 20000, [f.M]: -20000 });
+    expect(after).toEqual({ [f.R]: 6000, [f.S]: -3000, [f.M]: -3000 });
     expect(Object.values(after).reduce((a, b) => a + b, 0)).toBe(0);
-    // The two square-up payments stay until someone deletes them in Activity.
+    // The two square-up payments came off with it: both lines are marked undone, both payments are deleted, and undoing them again is refused.
     const pays = await db.groupEvent.findMany({ where: { groupId: f.g.id, kind: "payment_recorded" } });
     expect(pays).toHaveLength(2);
-    for (const p of pays) expect((await undoEvent(p.id, f.R)).ok).toBe(true);
-    expect(await f.netsNow()).toEqual({ [f.R]: 6000, [f.S]: -3000, [f.M]: -3000 });
+    for (const p of pays) {
+      expect(p.undoneAt).not.toBeNull();
+      expect((await db.payment.findUniqueOrThrow({ where: { id: p.paymentId! } })).deletedAt).not.toBeNull();
+      expect(await undoEvent(p.id, f.R)).toEqual({ ok: false, error: "This change was already undone." });
+    }
   });
 
   it("Ravi tries 11 minutes later: refused with the calm message, nothing moves, the change is not marked undone", async () => {
@@ -773,7 +786,7 @@ describe("undoing a move-out is open for 10 minutes, to whoever recorded it", ()
     await age(f.ev.id, 11);
     expect((await undoEvent(f.ev.id, f.S)).ok).toBe(true);
     expect((await row(f.S)).leftAt).toBeNull();
-    expect(await f.netsNow()).toEqual({ [f.R]: 0, [f.S]: 20000, [f.M]: -20000 });
+    expect(await f.netsNow()).toEqual({ [f.R]: 6000, [f.S]: -3000, [f.M]: -3000 });
   });
 
   it("Meera, who did not record it, is refused even within 10 minutes (and she looks after the flat); nothing changes", async () => {
@@ -792,5 +805,85 @@ describe("undoing a move-out is open for 10 minutes, to whoever recorded it", ()
     // Someone who did not record it gets the older message, however fresh it is.
     const other = await undoMoveOut(f.g.id, f.M, f.S, { bills: [] } as never, undefined, { recordedBy: f.R, recordedAt: new Date() });
     expect(other).toEqual({ ok: false, error: "Only Asha can undo moving out. You can invite them back from People." });
+  });
+});
+
+// Undo of a move-out takes everything back, and a refused undo changes nothing (hand-worked from flatMove above, amounts in paise).
+//   After the move-out everyone is 0. Meera then adds Snacks 3000, 1500 each for Meera and Ravi: Meera +1500, Ravi -1500.
+//   Asha undoes the move-out: the milk charge (Asha owed 20000, Meera was credited it) and both payments (Asha paid Ravi 6000, Meera 17000) come off:
+//     Ravi +6000 - 1500 = +4500, Asha -3000, Meera -3000 + 1500 = -1500   (sum 0)
+//   Settling from there: Asha pays Ravi 3000, Meera pays Ravi 1500 -> everyone 0.
+describe("undoing a move-out with other spending in between, and a refused undo that changes nothing", () => {
+  it("Asha undoes it after Meera added Snacks: Ravi +4500, Asha -3000, Meera -1500; settling that leaves everyone at 0", async () => {
+    const f = await flatMove();
+    await db.expense.create({
+      data: {
+        groupId: f.g.id, description: "Snacks", amount: 3000, paidById: f.M, createdById: f.M, splitType: "equal", forMode: "selected",
+        originalAmount: 3000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 3000,
+        shares: { create: [{ memberId: f.M, amount: 1500 }, { memberId: f.R, amount: 1500 }] },
+      },
+    });
+    expect((await undoEvent(f.ev.id, f.S)).ok).toBe(true);
+    const after = await f.netsNow();
+    expect(after).toEqual({ [f.R]: 4500, [f.S]: -3000, [f.M]: -1500 });
+    expect(Object.values(after).reduce((a, b) => a + b, 0)).toBe(0);
+    await db.payment.create({ data: { groupId: f.g.id, fromId: f.S, toId: f.R, amount: 3000, createdById: f.S } });
+    await db.payment.create({ data: { groupId: f.g.id, fromId: f.M, toId: f.R, amount: 1500, createdById: f.M } });
+    expect(await f.netsNow()).toEqual({ [f.R]: 0, [f.S]: 0, [f.M]: 0 });
+  });
+
+  type F = Awaited<ReturnType<typeof flatMove>>;
+  // Everything the move-out touched, as it stands: if a refused undo changes any of it, this differs.
+  const snap = async (f: F) => ({
+    nets: await f.netsNow(),
+    expenses: await db.expense.findMany({ where: { groupId: f.g.id }, orderBy: { id: "asc" }, select: { id: true, amount: true, deletedAt: true, shares: { select: { memberId: true, amount: true }, orderBy: { memberId: "asc" } } } }),
+    payments: await db.payment.findMany({ where: { groupId: f.g.id }, orderBy: { id: "asc" }, select: { id: true, amount: true, deletedAt: true } }),
+    deposit: await db.depositShare.findMany({ where: { deposit: { groupId: f.g.id } }, orderBy: { id: "asc" }, select: { memberId: true, amount: true, status: true, toMemberId: true } }),
+    bills: await db.bill.findMany({ where: { groupId: f.g.id }, orderBy: { id: "asc" }, select: { id: true, payer: true, rotation: true, split: true, prepaid: true } }),
+    members: await db.member.findMany({ where: { groupId: f.g.id }, orderBy: { id: "asc" }, select: { id: true, leftAt: true } }),
+    events: await db.groupEvent.findMany({ where: { groupId: f.g.id }, orderBy: { id: "asc" }, select: { id: true, undoneAt: true, undo: true } }),
+  });
+  const untouched = async (f: F, before: Awaited<ReturnType<typeof snap>>) => {
+    expect(await snap(f)).toEqual(before);
+    expect(await f.netsNow()).toEqual({ [f.R]: 0, [f.S]: 0, [f.M]: 0 });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: f.charge.id } })).deletedAt).toBeNull(); // milk charge still live
+    const pays = await db.payment.findMany({ where: { groupId: f.g.id } });
+    expect(pays).toHaveLength(2);
+    expect(pays.every((x) => x.deletedAt === null)).toBe(true); // both payments still live
+    expect(await f.depositOf(f.M)).toMatchObject({ amount: 3000000, status: "held" }); // deposit still with Meera
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.wifi.id } })).payer).toBe(f.R); // Wi-Fi still Ravi's
+    expect((await row(f.S)).leftAt).not.toBeNull(); // Asha still moved out
+    expect(await db.groupEvent.count({ where: { groupId: f.g.id, undoneAt: { not: null } } })).toBe(0); // the move-out and its lines: none marked undone
+  };
+
+  it("Meera left (at 0) after the move-out: Asha's undo would move Meera's balance, so it is refused and nothing changes", async () => {
+    const f = await flatMove();
+    expect((await setMemberLeft(f.g.id, f.M, f.M, true)).ok).toBe(true); // Meera is at 0, so she may go
+    const before = await snap(f);
+    const r = await undoEvent(f.ev.id, f.S);
+    expect(r).toEqual({ ok: false, error: "Meera has left the group since, so the move-out can’t be undone. Ask Meera to rejoin first." });
+    await untouched(f, before);
+  });
+
+  it("a payment someone said they made ('I've paid') was counted in the square-up: refused, nothing changes", async () => {
+    const f = await flatMove();
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.g.id, fromId: f.S, toId: f.R } });
+    await db.paymentClaim.create({ data: { groupId: f.g.id, fromId: f.S, toId: f.R, amount: 6000, status: "covered", slot: `cl-${stamp}-${n}`, paymentId: pay.id } });
+    const before = await snap(f);
+    const r = await undoEvent(f.ev.id, f.S);
+    expect(r).toEqual({ ok: false, error: "A payment someone said they made (“I’ve paid”) was counted in the move-out’s square-up, so it can’t be undone." });
+    await untouched(f, before);
+  });
+
+  it("an old-style move-out (saved without 'money') that moved money is refused with the calm words, nothing changes", async () => {
+    const f = await flatMove();
+    const saved = JSON.parse(f.ev.undo);
+    expect(saved.moveOut.money).toBeDefined();
+    delete saved.moveOut.money;
+    await db.groupEvent.update({ where: { id: f.ev.id }, data: { undo: JSON.stringify(saved) } });
+    const before = await snap(f);
+    const r = await undoEvent(f.ev.id, f.S);
+    expect(r).toEqual({ ok: false, error: "This move-out was saved before Undo could also take back the square-up payments and bill shares, so it can’t be undone. You can rejoin from People, then fix the payments in Activity." });
+    await untouched(f, before);
   });
 });

@@ -459,10 +459,11 @@ describe("8: a leaver can answer a claim but is not offered an Undo they can't u
     expect(await payCount(w.gid)).toBe(1);
   });
 
-  it("the Settle up page shows the Undo bar only to people still in the group", async () => {
+  it("the Settle up page asks canUndo (with the viewer) whether to show the Undo bar: someone who left gets it only for their own move-out", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(`${__dirname}/../src/app/groups/[id]/settle/page.tsx`, "utf8");
-    expect(src).toMatch(/const showUndo = justDid && !group\.members\.find\(\(m\) => m\.id === myId\)\?\.leftAt && canUndo/);
+    expect(src).toMatch(/const showUndo = justDid && canUndo\(justDid, undoEvents, new Date\(\), \{ id: myId, isAdmin: await isGroupAdmin\(group\.id, myId\), members: group\.members \}\)\.ok;/);
+    expect(src).not.toMatch(/\?\.leftAt && canUndo/);
   });
 });
 

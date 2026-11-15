@@ -6,6 +6,8 @@ import { after } from "next/server";
 import { displayRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
 import { formatMoney } from "@/lib/money";
+import { isGroupAdmin } from "@/lib/group-admin";
+import type { UndoViewer } from "@/lib/undo";
 
 // Everything the group screen shows, worked out once and shared by its parts
 // (summary, Activity, Balances, Charts).
@@ -29,6 +31,7 @@ export type GroupView = Loaded & {
   eq: (minor: number) => string | null; // "≈ THB 908"
   expenseById: Map<string, GroupExpense>;
   eventById: Map<string, GroupEvent>;
+  undoViewer: UndoViewer; // who is looking, as canUndo wants them (the full member list, not the leaver-scoped one)
 };
 
 export async function buildGroupView(data: Loaded, myId: string, tz: string): Promise<GroupView> {
@@ -65,5 +68,6 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
     eq,
     expenseById: new Map(group.expenses.map((e) => [e.id, e])),
     eventById: new Map(group.events.map((ev) => [ev.id, ev])),
+    undoViewer: { id: myId, isAdmin: await isGroupAdmin(group.id, myId), members: group.members },
   };
 }

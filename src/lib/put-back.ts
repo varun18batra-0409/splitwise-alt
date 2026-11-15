@@ -9,4 +9,7 @@ export const putBackOpen = (madeAt: Date, now: Date = new Date()) => now.getTime
 
 export const lateRemovalText = (name: string) => `Undo only lasts ${PUT_BACK_MINUTES} minutes. To bring ${name} back, invite them from People.`;
 
-export const lateMoveText = (name: string) => `Undo only lasts ${PUT_BACK_MINUTES} minutes. ${name} can still undo it, or you can invite them back from People.`;
+export const lateMoveText = (name: string) => `Undo only lasts ${PUT_BACK_MINUTES} minutes. ${name} can still undo it themselves: they’ll see “Undo my move-out” in People.`;
+
+// Someone deleted from the group (a "members_restore" undo): there is no account row to invite, so they are added again.
+export const lateRecreateText = (name: string) => `Undo only lasts ${PUT_BACK_MINUTES} minutes. To have ${name} back, add them again with Add people.`;
