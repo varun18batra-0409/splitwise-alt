@@ -45,14 +45,15 @@ const SIGN: Record<string, string> = {
   bill_added: "🧾",
   bill_changed: "🧾",
 };
-export function pushPayload(e: { groupId: string; groupName: string; actorName: string; text: string; eventId: string; kind?: string }) {
+// `direct`: a pair. The title is the other person's name (the caller passes it as groupName) and it opens their page.
+export function pushPayload(e: { groupId: string; groupName: string; actorName: string; text: string; eventId: string; kind?: string; direct?: boolean }) {
   const body = `${e.actorName} ${neutralGameText(e.text)}`;
   const sign = e.kind ? SIGN[e.kind] ?? "⚙️" : "";
   return {
     title: sign ? `${sign} ${e.groupName}` : e.groupName,
     body: body.length > 140 ? `${body.slice(0, 139)}…` : body,
     // A payment opens Settle up, where the person paid can tap "Got it ✓".
-    url: e.kind === "payment_recorded" ? `/groups/${e.groupId}/settle` : `/groups/${e.groupId}?tab=activity`,
+    url: e.direct ? `/people/${e.groupId}` : e.kind === "payment_recorded" ? `/groups/${e.groupId}/settle` : `/groups/${e.groupId}?tab=activity`,
     tag: e.eventId,
   };
 }
@@ -76,10 +77,12 @@ async function bigOne(groupId: string, expenseId: string): Promise<boolean> {
 // Send one change to everyone else in the group. Never throws.
 export async function sendEventPush(eventId: string): Promise<number> {
   try {
-    const ev = await db.groupEvent.findUnique({ where: { id: eventId }, include: { group: { select: { id: true, name: true } } } });
+    const ev = await db.groupEvent.findUnique({ where: { id: eventId }, include: { group: { select: { id: true, name: true, type: true } } } });
     if (!ev) return 0;
     // "Ravi says he paid" is told to the person paid only (see payment-claims.ts), not the whole group.
     if (ev.kind === "payment_claimed") return 0;
+    // A pair taking the currency of its first expense isn't news: the expense itself is what the other person is told about.
+    if (ev.group.type === "direct" && ev.kind === "currency_changed") return 0;
     // Everyone else still in the group whose settings want this kind of change —
     // never the phone that made the change (even if it's someone else here too).
     const [all, own] = await Promise.all([
@@ -100,12 +103,14 @@ export async function sendEventPush(eventId: string): Promise<number> {
     const subs = all.filter((s) => !actorPhones.has(s.endpoint) && !(s.member.accountId && blockers.has(s.member.accountId)) && bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, wantsPush(parseNotify(s.member.notify), ev.kind)));
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
-    const base = pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: neutralGameText(ev.text), eventId, kind: ev.kind });
+    const direct = ev.group.type === "direct";
+    // In a pair the other person is the one who acted, so their name is the title.
+    const base = pushPayload({ groupId: ev.group.id, groupName: direct ? actor?.name ?? "Someone" : ev.group.name, actorName: actor?.name ?? "Someone", text: neutralGameText(ev.text), eventId, kind: ev.kind, direct });
     // A much bigger expense than this group usually has: say so, so people check it.
     if (ev.kind === "expense_added" && ev.expenseId && (await bigOne(ev.groupId, ev.expenseId))) {
-      base.title = `💰 Big one in ${ev.group.name}`;
+      base.title = direct ? `💰 Big one from ${actor?.name ?? "someone"}` : `💰 Big one in ${ev.group.name}`;
       base.body = `${base.body} · worth a look`.slice(0, 140);
-      base.url = `/groups/${ev.group.id}/expenses/${ev.expenseId}`;
+      base.url = direct ? `/people/${ev.group.id}` : `/groups/${ev.group.id}/expenses/${ev.expenseId}`;
     }
     const payload = JSON.stringify(base);
     const keys = await vapidKeys();

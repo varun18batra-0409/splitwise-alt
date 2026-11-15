@@ -373,6 +373,7 @@ export async function moveOut(
 export async function saveDepositFor(groupId: string, actorId: string, input: { heldBy: string; amounts: Record<string, string> }): Promise<{ ok: true } | Fail> {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (flat.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const rows: { memberId: string; amount: number }[] = [];
   for (const [memberId, raw] of Object.entries(input.amounts)) {

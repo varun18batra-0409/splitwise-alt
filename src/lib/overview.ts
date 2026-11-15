@@ -4,6 +4,8 @@ import { crossSettle } from "./cross-settle";
 import { convertAmount } from "./conversion";
 import { after } from "next/server";
 import { displayRate } from "./rate-cache";
+import { homeIncludesDirect, isDirect } from "./direct";
+import { directEntries, hasHistory } from "./direct-db";
 
 // Everything the home screen and the Settle screen need about all my groups:
 // totals, net balance (in one currency when rates are known) and Smart Settle
@@ -11,29 +13,41 @@ import { displayRate } from "./rate-cache";
 // The balances come from the database's own sums (balances-db.ts) and no group's expenses are loaded: nothing here
 // needs them. Every number is the one loadMyGroups would give.
 export async function loadOverview(memberships: Record<string, string>) {
-  const all = await loadMyGroupsLight(memberships);
+  // Pairs (expenses with one person, no group) are loaded with the groups and split off at once: `all`, `open` and `closed` stay
+  // ordinary groups only, so Home's stories, Your groups, the Groups list, Smart Settle across groups and everything built on them
+  // never see a pair. A pair is never netted against a group: it only ever adds its own amount, in its own currency.
+  const everything = await loadMyGroupsLight(memberships, { includeDirect: true });
+  const all = everything.filter((g) => !isDirect(g.group));
+  const directAll = directEntries(everything.filter((g) => isDirect(g.group))); // every pair, empty ones too (the picker needs them)
+  const direct = directAll.filter(hasHistory); // pairs with any history (Settle and Home)
   const open = all.filter((g) => !g.group.closed);
   const closed = all.filter((g) => g.group.closed);
+  // Home's big total counts pairs only while the switch is on (undecided; off by default). Settle always shows them in their own section.
+  const counted = homeIncludesDirect() ? direct : [];
 
-  // Totals per currency across open groups (groups can use different currencies).
+  // Totals per currency across open groups (groups can use different currencies), plus pairs when counted.
   const totals = new Map<string, { owed: number; owe: number }>();
-  for (const g of open) {
-    const t = totals.get(g.group.currency) ?? { owed: 0, owe: 0 };
-    if (g.myBalance > 0) t.owed += g.myBalance;
-    if (g.myBalance < 0) t.owe += -g.myBalance;
-    totals.set(g.group.currency, t);
+  const lines: { currency: string; b: number }[] = [...open.map((g) => ({ currency: g.group.currency, b: g.myBalance })), ...counted.map((p) => ({ currency: p.currency, b: p.net }))];
+  for (const l of lines) {
+    const t = totals.get(l.currency) ?? { owed: 0, owe: 0 };
+    if (l.b > 0) t.owed += l.b;
+    if (l.b < 0) t.owe += -l.b;
+    totals.set(l.currency, t);
   }
   const owedLines = [...totals].filter(([, t]) => t.owed > 0).map(([c, t]) => formatMoney(t.owed, c));
   const oweLines = [...totals].filter(([, t]) => t.owe > 0).map(([c, t]) => formatMoney(t.owe, c));
 
-  // The most used group currency is the "common" one.
+  // The most used group currency is the "common" one. Ordinary groups decide it; pairs only when there are no groups at all.
   const currencyCount = new Map<string, number>();
   for (const g of open) currencyCount.set(g.group.currency, (currencyCount.get(g.group.currency) ?? 0) + 1);
-  const common = [...currencyCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? all[0]?.group.currency ?? "INR";
+  const pairCurrencyCount = new Map<string, number>();
+  for (const p of direct) pairCurrencyCount.set(p.currency, (pairCurrencyCount.get(p.currency) ?? 0) + 1);
+  const common =
+    [...currencyCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? all[0]?.group.currency ?? (all.length ? undefined : [...pairCurrencyCount].sort((a, b) => b[1] - a[1])[0]?.[0]) ?? "INR";
   // Saved rates only (never waits for the internet); stale ones refresh after the screen is sent.
   const rates = new Map<string, string | null>(
     await Promise.all(
-      [...new Set(all.map((g) => g.group.currency))]
+      [...new Set([...all.map((g) => g.group.currency), ...direct.map((p) => p.currency)])]
         .filter((cur) => cur !== common)
         .map(async (cur) => {
           const r = await displayRate(cur, common, after);
@@ -53,14 +67,14 @@ export async function loadOverview(memberships: Record<string, string>) {
   const netCommon = ((): { value: number; converted: boolean } | null => {
     let value = 0;
     let converted = false;
-    for (const g of open) {
-      const b = g.myBalance;
-      if (g.group.currency === common || b === 0) {
-        value += g.group.currency === common ? b : 0;
+    for (const l of lines) {
+      const b = l.b;
+      if (l.currency === common || b === 0) {
+        value += l.currency === common ? b : 0;
         continue;
       }
-      const rate = rates.get(g.group.currency);
-      const c = rate ? convertAmount(Math.abs(b), g.group.currency, common, rate) : null;
+      const rate = rates.get(l.currency);
+      const c = rate ? convertAmount(Math.abs(b), l.currency, common, rate) : null;
       if (c === null) return null;
       value += Math.sign(b) * c;
       converted = true;
@@ -94,5 +108,5 @@ export async function loadOverview(memberships: Record<string, string>) {
   // Groups where other people still need to settle with each other.
   const othersPending = all.filter((g) => g.transfers.some((t) => t.from !== g.myId && t.to !== g.myId));
 
-  return { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, skippedLinks, othersPending, toCommon };
+  return { all, open, closed, direct, directAll, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, skippedLinks, othersPending, toCommon };
 }

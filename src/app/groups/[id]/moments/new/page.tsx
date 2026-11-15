@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import { newRequestKey } from "@/lib/once";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 // goes back to the list, and anyone else gets "not found". (The upload is checked again on the server.)
 export default async function NewMomentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const viewer = await loadMomentViewer(id);
   if (!canOpenMoments(viewer) || viewer.groupType !== "trip") notFound();
   if (viewer.accountId === null) redirect(`/signin?${new URLSearchParams({ back: `/groups/${id}/moments/new` })}`);

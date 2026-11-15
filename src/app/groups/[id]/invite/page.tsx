@@ -1,4 +1,5 @@
 import { neutralGameText } from "@/lib/game-words";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
@@ -64,6 +65,7 @@ export default async function AddPeoplePage({
   searchParams: Promise<{ new?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string; back?: string }>;
 }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
   const group = await db.group.findUnique({
     where: { id },

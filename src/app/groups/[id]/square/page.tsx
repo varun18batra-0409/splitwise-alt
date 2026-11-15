@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import Link from "@/components/Link";
 import { loadGroup } from "@/lib/group-data";
 import { getMyMemberId, privatePath } from "@/lib/identity";
@@ -14,6 +15,7 @@ import { Confetti } from "@/components/Confetti";
 // "All square": nobody owes anybody. A moment worth sharing, not just a zero.
 export default async function SquarePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ amounts?: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const hide = (await searchParams).amounts === "0";
   const data = await loadGroup(id, { events: false, viewer: await getMyMemberId(id) });
   if (!data) notFound();

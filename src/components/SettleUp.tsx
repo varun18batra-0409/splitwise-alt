@@ -68,6 +68,8 @@ export function SettleCard({
   sheet,
   action,
   fields,
+  href,
+  caption,
 }: {
   id: string;
   name: string;
@@ -80,6 +82,8 @@ export function SettleCard({
   sheet: SheetSpec;
   action: ServerAction; // settleAcrossGroups
   fields: React.ReactNode; // its hidden inputs (the parts, and a fresh request key)
+  href?: string; // when given, the name and picture open this page (a person you share expenses with directly)
+  caption?: string; // one plain line under the amount, e.g. "Rohan owes you"
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -119,11 +123,23 @@ export function SettleCard({
     <li id={id} className="scroll-mt-6" data-settle-card={name} data-transfer-row="">
       <div className="rounded-[22px] border border-line bg-white p-4">
         <div className="flex items-start gap-3">
-          <Initial name={name} />
-          <div className="min-w-0 flex-1 pt-0.5">
-            <p className="truncate font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
-            <p className="mt-0.5 truncate text-[14px] text-fg/60">{groupLine}</p>
-          </div>
+          {href ? (
+            <Link href={href} className="flex min-h-11 min-w-0 flex-1 items-start gap-3 active:opacity-80" data-settle-person>
+              <Initial name={name} />
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="truncate font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
+                <p className="mt-0.5 truncate text-[14px] text-fg/60">{groupLine}</p>
+              </div>
+            </Link>
+          ) : (
+            <>
+              <Initial name={name} />
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="truncate font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
+                <p className="mt-0.5 truncate text-[14px] text-fg/60">{groupLine}</p>
+              </div>
+            </>
+          )}
           <div ref={menuBox} className="relative -mr-2 -mt-2 shrink-0">
             <button
               ref={menuBtn}
@@ -173,6 +189,7 @@ export function SettleCard({
         <p className={`money mt-3 whitespace-nowrap font-display font-semibold leading-none tracking-[-0.02em] lining-nums tabular-nums ${amountSize(amount)} ${TONE[tone]}`} data-settle-amount>
           {amount}
         </p>
+        {caption && <p className="mt-1.5 text-[14.5px] leading-snug text-fg/70" data-settle-caption>{caption}</p>}
 
         <details className="group mt-3" data-breakdown>
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-[14.5px] text-fg underline underline-offset-4 [&::-webkit-details-marker]:hidden" data-breakdown-toggle>

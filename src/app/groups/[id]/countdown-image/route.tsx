@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { isDirectGroup } from "@/lib/direct-db";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
@@ -16,6 +17,7 @@ const size = { width: 1080, height: 1920 };
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (await isDirectGroup(id)) return new Response("Not found", { status: 404 }); // a pair has no pictures to share
   const myId = await getMyMemberId(id);
   const group = myId ? await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } }) : null;
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });

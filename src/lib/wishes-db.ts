@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { NOT_DIRECT } from "./direct"; // a pair of two people is not "sharing a group"
 import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
 import { JOINED } from "./membership";
 import { cleanNames } from "./names";
@@ -20,7 +21,7 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 // The people you are in a group with right now (on Loopin, joined), without anyone blocked either way round.
 // Stricter than passportFriends (which still counts people who left) and like loopinFriends plus "not removed".
 export async function currentFriends(accountId: string): Promise<{ id: string; name: string }[]> {
-  const mine = await db.member.findMany({ where: { accountId, ...NOW, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
+  const mine = await db.member.findMany({ where: { accountId, ...NOW, group: { ...NOT_DIRECT, deletedAt: null } }, select: { groupId: true }, take: 500 });
   if (!mine.length) return [];
   const others = await db.member.findMany({
     where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null }, ...NOW },
@@ -43,7 +44,7 @@ export async function areCurrentFriends(a: string, b: string): Promise<boolean> 
   if (!a || !b || a === b) return false;
   if (await isBlockedEitherWay(a, b)) return false;
   const row = await db.member.findFirst({
-    where: { accountId: b, ...NOW, group: { deletedAt: null, members: { some: { accountId: a, ...NOW } } } },
+    where: { accountId: b, ...NOW, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: a, ...NOW } } } },
     select: { id: true },
   });
   return Boolean(row);

@@ -14,6 +14,7 @@ type Result = { ok: true } | { ok: false; error: string };
 export async function saveBudgetsFor(groupId: string, actorId: string, amounts: Record<string, string>): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change budgets." };
   const set: { category: string; amount: number }[] = [];
   const clear: string[] = [];

@@ -36,7 +36,7 @@ export default async function AddExpensePage({
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
-  if (group.closed) {
+  if (group.closed && group.type !== "direct") {
     return (
       <>
         <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
@@ -79,12 +79,16 @@ export default async function AddExpensePage({
     ? initialFromExpense(source, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz, today: todayKey(new Date(), tz) }, sp.again ? "again" : "repeat")
     : billInitial;
 
+  // An expense with one person: named for them, back to their page, a plain cover (no place photo), nothing to spin for.
+  const other = group.type === "direct" ? group.members.find((m) => m.id !== myId) : undefined;
+  const pair = other ? { otherId: other.id, otherName: other.name } : undefined;
+
   return (
     <SheetPage
-      title={`Add to ${group.name}`}
-      back={`/groups/${group.id}`}
-      cover={coverFor(group)}
-      photo={group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
+      title={pair ? `Add expense with ${pair.otherName}` : `Add to ${group.name}`}
+      back={pair ? `/people/${group.id}` : `/groups/${group.id}`}
+      cover={pair ? { kind: "plain" } : coverFor(group)}
+      photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
       uid={group.id}
       letter={group.name}
     >
@@ -110,7 +114,8 @@ export default async function AddExpensePage({
         tz={tz}
         weights={Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight]))}
         splitName={splitNameFor(group.type)}
-        spin={group.type !== "pot"}
+        spin={!pair && group.type !== "pot"}
+        pair={pair}
         ai={aiReady()}
       />
     </SheetPage>

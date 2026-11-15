@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { TrophyIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
@@ -33,6 +34,7 @@ type SP = { did?: string; undone?: string; allpaid?: string; paid?: string; rena
 
 export default async function GamePage({ params, searchParams }: { params: Promise<{ id: string; gameId: string }>; searchParams: Promise<SP> }) {
   const { id, gameId } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();

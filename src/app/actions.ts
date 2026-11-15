@@ -19,6 +19,7 @@ import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, removeMembers, undoEvent, undoViewer
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
+import { prepareDirectSave } from "@/lib/direct-db";
 import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
@@ -138,8 +139,10 @@ function readColumnMap(json: string): import("@/lib/import-formats").ColumnMap |
 // ---------- Adding people (never by just typing a name) ----------
 
 async function memberContext(groupId: string) {
-  const group = await db.group.findUnique({ where: { id: groupId }, select: { id: true, inviteCode: true, deletedAt: true } });
+  const group = await db.group.findUnique({ where: { id: groupId }, select: { id: true, inviteCode: true, deletedAt: true, type: true } });
   if (!group || group.deletedAt) redirect("/");
+  // Nobody is added to, or invited into, a pair of two people.
+  if (group.type === "direct") redirect(`/people/${group.id}`);
   const myId = await getMyMemberId(group.id);
   const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: group.id } }) : null;
   if (!me) redirect("/private");
@@ -258,6 +261,15 @@ export async function addExpense(
   input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
+  // A pair (expenses with one person): refused when either has blocked the other; an empty pair may take the currency of its first expense.
+  // (Done before the rate lookup below, which reads the pair's currency.)
+  const kind = await db.group.findUnique({ where: { id: input.groupId }, select: { type: true } });
+  const isPair = kind?.type === "direct";
+  if (isPair) {
+    const mine = await getMyMemberId(input.groupId);
+    const refused = mine ? await prepareDirectSave(input.groupId, mine, input.currency, Boolean(input.expenseId)) : null;
+    if (refused) return { error: refused };
+  }
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
   if (g && input.currency !== g.currency && input.rateMode === "auto") await getRate(input.currency, g.currency).catch(() => null);
@@ -276,6 +288,7 @@ export async function addExpense(
   after(() => checkBudgets(input.groupId).catch(() => []));
   // "Save & add another": straight back to a fresh form with the same people and split.
   if (input.again && !input.expenseId) redirect(`/groups/${input.groupId}/add?again=${result.id}`);
+  if (isPair) redirect(`/people/${input.groupId}${result.eventId ? `?did=${result.eventId}` : ""}`);
   redirect(`/groups/${input.groupId}?tab=activity${result.eventId ? `&did=${result.eventId}` : ""}`);
 }
 
@@ -480,6 +493,7 @@ export async function setGroupClosed(formData: FormData) {
   const closed = formData.get("closed") === "1";
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) redirect("/"); // a deleted group is not closed or reopened
+  if (group.type === "direct") redirect(`/people/${group.id}`); // a pair is never closed or reopened
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?error=${encodeURIComponent(LEFT_ERROR)}`);
@@ -512,6 +526,10 @@ export async function settleAcrossGroups(formData: FormData) {
   }
   const { settleAcrossCore } = await import("@/lib/cross-settle-db");
   const r = await settleAcrossCore(parts, await getMemberships(), cleanKey(formData.get("rid")));
+  // The person's own page asks to come back to it ("people:<pairId>"); only a pair id from the parts themselves is accepted.
+  const back = String(formData.get("back") ?? "");
+  const backId = /^people:([A-Za-z0-9_-]{6,40})$/.exec(back)?.[1];
+  if (backId && parts.some((p) => p.groupId === backId)) redirect(`/people/${backId}?settle=${r}`);
   redirect(`/settle?settle=${r}`);
 }
 
@@ -764,6 +782,7 @@ export async function deleteGroup(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) redirect("/");
+  if (group.type === "direct") redirect(`/people/${group.id}`); // no delete for a pair in this version (blocking is the safety valve)
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (!(await isGroupAdmin(group.id, myId))) redirect(`/groups/${group.id}/settings?error=admin`);

@@ -253,6 +253,46 @@ if (!desktop && !hosted) {
   if (other && was) await db.member.update({ where: { id: other.id }, data: { name: was } }).catch(() => undefined);
   await page.setViewportSize(screen);
 }
+// Expenses with one person (no group), at 390 and 320 wide: the choice, the picker, Add expense with them, the person's page, and Settle.
+// A throwaway account with a name-only person who owes it ₹600. Local database only.
+if (!desktop && !hosted) {
+  const { db } = await import("../src/lib/db");
+  const { ensureLocalPair } = await import("../src/lib/direct-db");
+  const me = await db.account.create({ data: { email: `shots-direct-${Date.now()}@uat.loopin.test`, name: "Asha" } });
+  const pair = await ensureLocalPair({ id: me.id }, "Rohan", { currency: "INR", myName: "Asha" });
+  if (pair.ok) {
+    await db.expense.create({
+      data: {
+        groupId: pair.groupId, description: "Lunch", splitType: "equal", amount: 120000, originalAmount: 120000, convertedAmount: 120000,
+        originalCurrency: "INR", baseCurrency: "INR", paidById: pair.myId, createdById: pair.myId,
+        shares: { create: [{ memberId: pair.myId, amount: 60000 }, { memberId: pair.otherId, amount: 60000 }] },
+      },
+    });
+    const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+    await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: me.id, v: 0 }), url: base }]);
+    const p = await c.newPage();
+    for (const w of [390, 320] as const) {
+      await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+      for (const [n, path] of [
+        ["choice", "/add"],
+        ["picker", "/add/person"],
+        ["add", `/groups/${pair.groupId}/add`],
+        ["person", `/people/${pair.groupId}`],
+        ["settle", "/settle"],
+      ] as const) {
+        try {
+          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await p.waitForTimeout(500);
+          await p.screenshot({ path: `${out}/direct${w}-${n}.png`, fullPage: true });
+          console.log(`  ✓ direct${w}-${n}`);
+        } catch (e) {
+          console.log(`  ✗ direct${w}-${n}`, String(e).split("\n")[0]);
+        }
+      }
+    }
+    await c.close();
+  }
+}
 // Home's money card in every state (phones only). The demo data only shows one of them, so this puts the viewer's money into each
 // state in turn, takes Home at 390, 360 and 320, then puts everything back. How:
 //   - the viewer's live expenses and payments in the three open groups (trip, flat, couple) are soft-deleted (deletedAt set), so every

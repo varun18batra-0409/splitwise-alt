@@ -66,6 +66,7 @@ export async function setTripDates(groupId: string, actorId: string, start: stri
   const c = opts?.tx ?? db;
   const g = await c.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!g || g.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (g.type === "direct") return { ok: false, error: "This is just between two people, so it has no settings to change." };
   if (!g.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
   if (await hasLeft(groupId, actorId, c)) return { ok: false, error: LEFT_ERROR };
   const r = cleanTripDates(start, end, today);
@@ -107,6 +108,7 @@ export async function updateSharing(
   const c = opts?.tx ?? db;
   const group = await c.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has no settings to change." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change this." };
   if (await hasLeft(groupId, actorId, c)) return { ok: false, error: LEFT_ERROR };
   const type: GroupType = isGroupType(input.type) ? input.type : (group.type as GroupType);

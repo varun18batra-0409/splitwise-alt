@@ -10,7 +10,7 @@ export const metadata = { title: "Your data", robots: { index: false } };
 // You, Export your data: one spreadsheet of everything, and (signed in) deleting your sign-in.
 export default async function YourDataPage() {
   const account = await getAccount();
-  const groups = await loadMyGroups(await getMemberships());
+  const groups = await loadMyGroups(await getMemberships(), { includeDirect: true });
   return (
     <>
       <PageHeader title="Your data" back="/account" />

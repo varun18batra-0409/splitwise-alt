@@ -7,6 +7,7 @@ import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
 import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { canUndo, ownMoveOut } from "@/lib/undo";
 import { passportZone } from "@/lib/passport";
 import { UndoBar } from "@/components/UndoBar";
@@ -78,6 +79,8 @@ export default async function GroupPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
+  // A pair of two people has no group page: its person page (which also decides who may see it), keeping the same query.
+  await bounceIfDirect(id, sp);
 
   // Who you are here, then the ledger, the time zone and the switcher list all
   // at once (each is a trip to the database; one after another they add up).

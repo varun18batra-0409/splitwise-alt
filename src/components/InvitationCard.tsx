@@ -2,12 +2,40 @@ import { answerInvitation } from "@/app/actions";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
 import type { Invitation } from "@/lib/invitations";
+import { Initial } from "@/components/SettleUp";
 
 export const kindWord = (type: string) => (type === "trip" ? "Trip" : type === "home" ? "Home" : type === "couple" ? "Couple" : type === "pot" ? "Game night" : "Group");
 
 // "Asha added you to Goa trip": Join or Not now. Shown on Home and in Alerts. The group isn't
 // in your groups until you tap Join; Not now just hides the card.
 export function InvitationCard({ inv }: { inv: Invitation }) {
+  // Someone shared expenses with you directly (a pair, not a group): their name, no people count and no cover picture.
+  if (inv.type === "direct") {
+    return (
+      <section aria-label={`${inv.byName} shared expenses with you`} className="vault overflow-hidden rounded-[26px]" data-invitation data-invitation-direct>
+        <form action={answerInvitation} className="space-y-3.5 px-[18px] pb-[18px] pt-[18px]">
+          <input type="hidden" name="key" value={inv.key} />
+          <div className="flex items-center gap-3">
+            <Initial name={inv.byName} />
+            <div className="min-w-0">
+              <p className="font-display text-[24px] font-semibold leading-tight tracking-tight" data-invitation-name>
+                {inv.byName} shared expenses with you
+              </p>
+              <p className="mt-0.5 text-sm text-fg/65">Direct · only the two of you</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button type="submit" name="answer" value="join" className="pop h-12 bg-fg text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]">
+              Join
+            </button>
+            <button type="submit" name="answer" value="later" className="h-12 rounded-full border border-fg/20 text-[15px] font-semibold text-fg transition-transform active:scale-[0.97]">
+              Not now
+            </button>
+          </div>
+        </form>
+      </section>
+    );
+  }
   return (
     <section aria-label={`Invitation to ${inv.groupName}`} className="vault overflow-hidden rounded-[26px]" data-invitation>
       <div className="relative h-[132px] overflow-hidden" aria-hidden>

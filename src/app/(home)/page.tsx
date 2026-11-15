@@ -47,7 +47,8 @@ import { MoneyCard, type StubCover, type TripPassView } from "@/components/HomeM
 import { greetingWord } from "@/lib/home/owe-card";
 import { PassStack } from "@/components/PassStack";
 import { TripCountdown } from "@/components/TripCountdown";
-import { homeTicket, mixedDirections, moneyMode, moneyPeople, type InvolvedGroup } from "@/lib/home/money-card";
+import { homeTicket, mixedDirections, moneyMode, moneyPeople, pairPeopleGroup, type InvolvedGroup } from "@/lib/home/money-card";
+import { homeIncludesDirect } from "@/lib/direct";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadHomeMemories } from "@/lib/moments-db";
@@ -98,7 +99,7 @@ export default async function Home({
     // Postcards that arrived and are unread (none from people you blocked, none still sealed).
     getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
   ]);
-  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
+  const { all, direct, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
   const now = new Date();
   const today = todayKey(now, tz);
@@ -171,7 +172,11 @@ export default async function Home({
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
   // Who the money is with, each side on its own: the same transfers Settle up uses, largest first. Money both ways stays as two lines
   // on the ticket (never netted together), so both sides are worked out whenever anything is open.
-  const peopleGroups = open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers }));
+  // People you share expenses with directly join the list only while Home's total counts them (HOME_INCLUDES_DIRECT); each stays a separate entry.
+  const peopleGroups = [
+    ...open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
+    ...(homeIncludesDirect() ? overview.direct.map(pairPeopleGroup) : []),
+  ];
   const owePeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owe", common, toCommon);
   const owedPeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owed", common, toCommon);
   // The groups the money runs through: how much is with you in each (in the common currency; a group with no
@@ -442,7 +447,9 @@ export default async function Home({
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} momentPhoto={photoSet("card-postcard-photo")[0]} />;
+  // Someone with only people they share expenses with directly (no group) still gets Home, Settle and their people, whatever the switch says.
+  const hasAny = all.length > 0 || direct.length > 0;
+  if (!hasAny && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} momentPhoto={photoSet("card-postcard-photo")[0]} />;
 
   return (
     <>
@@ -476,7 +483,7 @@ export default async function Home({
       <header className="mb-4 flex items-start justify-between">
         <div className="min-w-0">
           <p className="font-display text-[28px] font-semibold leading-none tracking-tight">loopin</p>
-          {all.length > 0 && (
+          {hasAny && (
             <p className="mt-2 text-[17px] leading-tight text-fg/75" data-greeting>
               {greetingWord(new Date(), tz)}
             </p>
@@ -486,9 +493,9 @@ export default async function Home({
       </header>
 
       {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
-      {all.length === 0 && invitationsBlock}
+      {!hasAny && invitationsBlock}
 
-      {all.length === 0 ? (
+      {!hasAny ? (
         <>
           {/* Start screen: nothing here yet. Two photos and a receipt, the promise, then the ways in. */}
           <section aria-label="Start" className="text-fg" data-start-card>

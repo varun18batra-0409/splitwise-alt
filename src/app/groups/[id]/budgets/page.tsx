@@ -1,4 +1,5 @@
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
@@ -12,6 +13,7 @@ import { leaverOf } from "@/lib/left-view-db";
 // Monthly budgets: an amount per category (blank = no budget).
 export default async function BudgetsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const { error } = await searchParams;
   const group = await db.group.findUnique({ where: { id }, include: { budgets: true, members: { select: { id: true } } } });
   if (!group || group.deletedAt) notFound();

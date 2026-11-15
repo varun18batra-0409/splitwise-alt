@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
@@ -25,6 +26,7 @@ export default async function BillPage({
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const { id, billId } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
   const group = await db.group.findUnique({
     where: { id },

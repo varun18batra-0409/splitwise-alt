@@ -4,6 +4,7 @@ import { isGroupAdmin } from "./group-admin";
 import { blockedByMe } from "./blocks";
 import { copyPushTo, inviteMemberId } from "./invites";
 import { joinExisting, joinNew, NAME_NEEDED, type JoinFail, type JoinOk } from "./join";
+import { claimDirectInvite } from "./direct-db";
 import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, undoViewerFor } from "./undo";
 
 // Invitations from the invitee's side: the Join / Not now cards on Home and Alerts and the
@@ -110,10 +111,16 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
     await db.member.updateMany({ where: { id: m.id, seenAt: null, leftAt: null, removedAt: null }, data: { seenAt: new Date() } });
     return { ok: true, groupId: m.groupId, memberId: m.id };
   }
-  const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email }, include: { group: { select: { id: true, inviteCode: true, deletedAt: true } } } }) : null;
+  const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email }, include: { group: { select: { id: true, inviteCode: true, deletedAt: true, type: true } } } }) : null;
   if (!inv || inv.group.deletedAt) return { ok: false, error: GONE };
   // Closed on purpose (Not now, cancelled by the person who sent it, or replaced by an invitation to another address).
   if (inv.declinedAt && !inv.acceptedAt) return { ok: false, error: CLOSED };
+  // Someone shared expenses with you directly: the name row becomes you (and the pair's key becomes the two of you) in one step.
+  // If you two already share a pair, nothing merges: the invitation is closed with a clear message. Never falls back to joining as someone new.
+  if (inv.group.type === "direct") {
+    if (inv.acceptedAt) return { ok: false, error: CLOSED };
+    return claimDirectInvite(account, { id: inv.id, groupId: inv.groupId, memberId: inviteMemberId(inv), invitedById: inv.invitedById });
+  }
   const code = inv.group.inviteCode;
   const memberId = inviteMemberId(inv);
   // The invitation is for one row. If that row is gone (undone) or was removed, there is nothing to join: no joining as someone new instead.

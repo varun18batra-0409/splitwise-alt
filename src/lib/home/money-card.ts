@@ -50,8 +50,10 @@ export function moneyLabel(x: { mode: MoneyMode; acrossCurrencies?: boolean; peo
 // `parts`: each group's payment between you and them (memberId = their member id there; amount in `currency`, the same
 // currency as the total, so parts of one entry are comparable). Used to pick the group to remind them in.
 export type MoneyPart = { groupId: string; memberId: string; amount: number; iPay: boolean };
-export type MoneyPerson = { key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean; parts: MoneyPart[] };
+// `rowKey`: only for someone you share expenses with directly ("direct:<pair id>"): their card on Settle is "direct-<pair id>".
+export type MoneyPerson = { key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean; parts: MoneyPart[]; rowKey?: string };
 export type PeopleGroup = {
+  direct?: boolean; // a pair (expenses with one person): kept apart from groups even for the same person, never netted with them
   groupId: string;
   groupName: string;
   currency: string;
@@ -59,6 +61,22 @@ export type PeopleGroup = {
   members: { id: string; name: string; phone: string; accountId?: string | null }[];
   transfers: { from: string; to: string; amount: number }[];
 };
+
+// A pair as a one-person "group" for moneyPeople: its single payment is the pair's balance, in the pair's own currency.
+export function pairPeopleGroup(e: { groupId: string; currency: string; myId: string; other: { id: string; name: string; accountId: string | null }; net: number }): PeopleGroup {
+  return {
+    direct: true,
+    groupId: e.groupId,
+    groupName: "Direct",
+    currency: e.currency,
+    myId: e.myId,
+    members: [
+      { id: e.myId, name: "You", phone: "" },
+      { id: e.other.id, name: e.other.name, phone: "", accountId: e.other.accountId },
+    ],
+    transfers: e.net > 0 ? [{ from: e.other.id, to: e.myId, amount: e.net }] : e.net < 0 ? [{ from: e.myId, to: e.other.id, amount: -e.net }] : [],
+  };
+}
 
 // Everyone on the matching side ("owe": people you pay; "owed": people who pay you), largest first.
 // Amounts are positive minor units. Together (one currency) they add up to that side's total.
@@ -83,8 +101,9 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
       const currency = conv === null ? g.currency : common;
       const amount = conv === null ? t.amount : conv;
       const key = resolve(personKey(other, g.groupId, regionForGroup(g)));
-      const slot = `${key}|${currency}`;
-      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0 };
+      // A pair and a group with the same person are separate entries: what you owe in one is never taken off what you are owed in the other.
+      const slot = `${key}|${currency}|${g.direct ? "d" : "g"}`;
+      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0, ...(g.direct ? { rowKey: `direct:${g.groupId}` } : {}) };
       e.signed += iPay ? -amount : amount;
       e.parts.push({ groupId: g.groupId, memberId: other.id, amount, iPay });
       e.approx ||= conv !== null && g.currency !== common;
@@ -179,6 +198,7 @@ export function personButtonLabel(verb: "Pay" | "Remind", first: string, amount?
 // Where "Pay" goes: the person's row on the all-groups Settle up (/settle#pay-key, scrolled to). A part with no saved
 // exchange rate has no row there, so it goes to that group's own Settle up.
 export function payHref(p: MoneyPerson, common: string): string {
+  if (p.rowKey) return `/settle#direct-${p.rowKey.slice(7)}`; // a person you share expenses with directly: their own card
   if (p.currency === common) return `/settle#${settleRowId("pay", p.key)}`;
   const part = [...p.parts].filter((x) => x.iPay).sort((a, b) => b.amount - a.amount)[0];
   return part ? `/groups/${part.groupId}/settle` : "/settle#pay";

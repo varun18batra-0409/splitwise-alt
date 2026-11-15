@@ -1,4 +1,5 @@
 import { closeHint, sharesHint } from "@/lib/settings-words";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
@@ -44,6 +45,7 @@ export default async function GroupSettings({
   searchParams: Promise<{ error?: string; convert?: string }>;
 }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const { error, convert } = await searchParams;
   const group = await db.group.findUnique({
     where: { id },

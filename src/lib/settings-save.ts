@@ -186,6 +186,10 @@ async function conflict(tx: Db, groupId: string, actorId: string, thing: keyof t
 }
 
 export async function saveAllSettings(groupId: string, actorId: string, f: SettingsForm, today: string): Promise<SettingsResult> {
+  // A pair of two people has no settings: nothing is read or written.
+  if ((await db.group.findUnique({ where: { id: groupId }, select: { type: true } }))?.type === "direct") {
+    return { ok: false, error: "This is just between two people, so it has no settings to change." };
+  }
   let committed: { eventId?: string; wantedCurrency: string; currencyWrite: boolean };
   const attempt = () => db.$transaction((tx) => saveInside(tx, groupId, actorId, f, today), { timeout: 20000, maxWait: 10000 });
   try {

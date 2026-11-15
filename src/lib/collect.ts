@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { NOT_DIRECT } from "./direct"; // a pair of two people is not "sharing a group"
 import { blockedEitherWay } from "./blocks";
 import { JOINED } from "./membership";
 import type { Note } from "./account-notes";
@@ -21,7 +22,7 @@ export type CollectNote = Note;
 
 // People you share a group with who are on Loopin (to add to a collection, for in-app notifications).
 export async function loopinFriends(accountId: string): Promise<{ id: string; name: string }[]> {
-  const mine = await db.member.findMany({ where: { accountId, leftAt: null, ...JOINED, group: { deletedAt: null } }, select: { groupId: true } });
+  const mine = await db.member.findMany({ where: { accountId, leftAt: null, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null } }, select: { groupId: true } });
   if (!mine.length) return [];
   const others = await db.member.findMany({
     where: { groupId: { in: mine.map((m) => m.groupId) }, leftAt: null, accountId: { not: null }, ...JOINED },

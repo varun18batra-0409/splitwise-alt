@@ -35,6 +35,7 @@ test("every link in the app opens a real screen (no 404s)", async ({ browser }) 
     "/how-it-works",
     "/groups/new",
     "/add",
+    "/add/person",
     trip.path,
     `${trip.path}?tab=overview`,
     `${trip.path}?tab=activity`,

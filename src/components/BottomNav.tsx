@@ -8,7 +8,7 @@ import { GroupIcon, HomeIcon, PersonIcon, PlusIcon, SettleIcon } from "./icons";
 // Inside a group, ＋ and Settle work on that group.
 // Recap lives on Home's month card, on each group, and on the You page; the unread count lives on the bell (BellButton).
 // Hidden on forms (adding, editing, paying, joining, group settings, a new bill, moving out), where a Save bar sits at the bottom instead, so it never gets in the way.
-const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/groups\/[^/]+\/settings$/, /^\/groups\/[^/]+\/bills\/new$/, /^\/groups\/[^/]+\/people\/[^/]+\/move$/, /^\/groups\/[^/]+\/pot\/new$/, /^\/groups\/[^/]+\/budgets$/, /^\/groups\/[^/]+\/goals\/new$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/p\//, /^\/postcards\/new/, /^\/groups\/[^/]+\/wrapped$/, /^\/groups\/[^/]+\/moments(\/|$)/];
+const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/groups\/[^/]+\/settings$/, /^\/groups\/[^/]+\/bills\/new$/, /^\/groups\/[^/]+\/people\/[^/]+\/move$/, /^\/groups\/[^/]+\/pot\/new$/, /^\/groups\/[^/]+\/budgets$/, /^\/groups\/[^/]+\/goals\/new$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/p\//, /^\/postcards\/new/, /^\/groups\/[^/]+\/wrapped$/, /^\/groups\/[^/]+\/moments(\/|$)/, /^\/add\/person$/];
 
 export function BottomNav() {
   const path = usePathname();
@@ -16,7 +16,9 @@ export function BottomNav() {
   if (HIDE.some((re) => re.test(path))) return null;
 
   const g = /^\/groups\/([^/]+)/.exec(path)?.[1];
-  const onSettle = path === "/settle" || path.endsWith("/settle");
+  // A person you share expenses with directly (a pair): ＋ adds an expense with them, and Settle is the lit tab.
+  const person = /^\/people\/([^/]+)/.exec(path)?.[1];
+  const onSettle = path === "/settle" || path.endsWith("/settle") || Boolean(person);
   const items = [
     { href: "/", label: "Home", icon: <HomeIcon size={22} />, on: path === "/" },
     { href: "/groups", label: "Groups", icon: <GroupIcon size={22} />, on: (path === "/groups" || path.startsWith("/groups/")) && !onSettle },
@@ -43,7 +45,7 @@ export function BottomNav() {
         {cell(items[0])}
         {cell(items[1])}
         <Link
-          href={g ? `/groups/${g}/add` : "/add"}
+          href={person ? `/groups/${person}/add` : g ? `/groups/${g}/add` : "/add"}
           aria-label="Add expense"
           data-haptic="tap"
           className="pop mx-1 flex h-[52px] w-[52px] shrink-0 items-center justify-center bg-fg text-canvas"

@@ -9,6 +9,8 @@ import { GroupChanged } from "./money-guard";
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string; needsRate?: true };
 
+export const PAIR_NO_SETTINGS = "This is just between two people, so it has no settings to change.";
+
 // Rename the group and/or change its card markup. Logged for everyone.
 export async function updateGroupBasics(
   groupId: string,
@@ -19,6 +21,7 @@ export async function updateGroupBasics(
   const c = opts?.tx ?? db;
   const group = await c.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: PAIR_NO_SETTINGS }; // a pair has no name or settings to change
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
   if (await hasLeft(groupId, actorId, c)) return { ok: false, error: LEFT_ERROR };
   const name = changes.name?.trim().replace(/\s+/g, " ").slice(0, 60);
@@ -90,6 +93,8 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     include: { expenses: { include: { shares: true } }, payments: true, members: { select: { id: true } } },
   });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  // A pair's currency is fixed by its first expense: the only way in is the empty-pair path (expectEmpty), which writes nothing once money is there.
+  if (group.type === "direct" && !opts?.expectEmpty) return { ok: false, error: PAIR_NO_SETTINGS };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!isSupportedCurrency(newCurrency)) return { ok: false, error: "Pick a currency from the list." };

@@ -13,6 +13,7 @@ async function memberOf(groupId: string, actorId: string) {
 }
 
 export async function addListItem(groupId: string, actorId: string, text: string): Promise<Result> {
+  if ((await db.group.findUnique({ where: { id: groupId }, select: { type: true } }))?.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!(await memberOf(groupId, actorId))) return { ok: false, error: "Only people in this group can use its list." };
   const t = text.trim().replace(/\s+/g, " ").slice(0, 60);
   if (!t) return { ok: false, error: "Type what to buy." };

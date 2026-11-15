@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { isDirectGroup } from "@/lib/direct-db";
 import { loadGroup } from "@/lib/group-data";
 import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (await isDirectGroup(id)) return new Response("Not found", { status: 404 }); // a pair has no pictures to share
   const myId = await getMyMemberId(id);
   const data = myId ? await loadGroup(id, { events: false, viewer: myId }) : null;
   if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
