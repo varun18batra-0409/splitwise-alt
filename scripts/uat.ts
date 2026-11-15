@@ -1557,7 +1557,7 @@ async function main() {
     }
     assert((await V.getByText(/^(Recently deleted|Hide recently deleted)/).count()) === 0, "Recently deleted is still on Home");
   });
-  await step(V, "Home", "On the narrowest phone (320×640, also 360 and 390) the money card has no sideways scroll: nothing is cut off, the amount always shows whole, the photo takes the right side, the buttons keep their words inside, and the card has no tint", async () => {
+  await step(V, "Home", "On the narrowest phone (320×640, also 360 and 390) the money card has no sideways scroll: nothing is cut off, the amount always shows whole, there is no photo (founder, 15 Nov evening: short card), the buttons keep their words inside, and the card has no tint", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 320, height: 640 });
     await go(V, "/");
@@ -1583,8 +1583,7 @@ async function main() {
       })) as string[];
       assert(over.length === 0, `at ${w}px these spill out of the money card: ${over.join(", ")}`);
       assert((await V.evaluate("document.documentElement.scrollWidth <= window.innerWidth")) as boolean, `Home scrolls sideways at ${w}px`);
-      const share = await card.locator("[data-card-photo]").first().evaluate((el) => el.getBoundingClientRect().width / (el.closest("section")?.getBoundingClientRect().width || 1));
-      assert(share >= 0.38 && share <= 0.48, `at ${w}px the photo takes ${Math.round(share * 100)}% of the card (should be about 44%)`);
+      assert((await card.locator("[data-card-photo], img").count()) === 0, `at ${w}px the money card still has a photo`);
       const amounts = await card.locator("[data-net-balance]").allInnerTexts();
       assert(amounts.every((t) => /[\d]/.test(t) || /All square/.test(t)) && amounts.every((t) => !t.includes("…")), `at ${w}px an amount is cut: ${amounts.join(" | ")}`);
       const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
@@ -4030,7 +4029,24 @@ async function main() {
     for (const p of pages) {
       await go(V, p);
       const over = await V.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      if (over > 1) wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
+      if (over > 1) {
+        // Name what sticks out, so a failure says where to look (the deepest elements past the right edge).
+        const culprits = await V.evaluate(() => {
+          const W = window.innerWidth;
+          const out: string[] = [];
+          document.querySelectorAll("body *").forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 || r.right <= W + 1) return;
+            if ([...el.children].some((c) => c.getBoundingClientRect().right > W + 1)) return; // only the innermost
+            const hooks = [...el.attributes].filter((a) => a.name.startsWith("data-")).map((a) => a.name).join(" ");
+            const up = [...Array(4)].reduce<Element | null>((e) => e?.parentElement ?? null, el);
+            const upHooks = up ? [...up.attributes].filter((a) => a.name.startsWith("data-")).map((a) => a.name).join(" ") : "";
+            out.push(`<${el.tagName.toLowerCase()} ${hooks}> right ${Math.round(r.right)} "${(el.textContent ?? "").trim().slice(0, 40)}" in [${upHooks}]`);
+          });
+          return out.slice(0, 4);
+        });
+        wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px: ${culprits.join(" | ")})`);
+      }
     }
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
     return `${pages.length} screens at ${P.context.viewport?.width ?? "?"} px wide`;
