@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { climateFor, tripMonth, usesFahrenheit, weatherWords } from "@/lib/climate";
 import { happeningsFor } from "@/lib/happenings";
-import { homeHighlights, type HighlightInput } from "@/lib/home/highlights";
+import { beforeYouGo, homeHighlights, type HighlightInput, type HighlightTrip } from "@/lib/home/highlights";
 import { seasonNow } from "@/lib/home/banner";
 
-const base: HighlightInput = { trips: [], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 2 };
+const base: HighlightInput = { hasMonth: false, postcardsNew: 0, billsDue: [] };
 const titles = (h: ReturnType<typeof homeHighlights>) => h.map((x) => (x.kind === "month" ? "month" : `${x.eyebrow} | ${x.title}`));
+const trip = (id: string, over: Partial<HighlightTrip> = {}): HighlightTrip => ({ id, name: "Thailand", phase: { kind: "before", days: 25 }, start: "2026-12-10", end: "2026-12-15", stops: [{ city: "", country: "TH" }], countryName: "Thailand", ...over });
 
 describe("Usual weather for a trip", () => {
   it("knows the season: Goa in November is dry, Lonavala in July is monsoon, Manali in January is freezing", () => {
@@ -43,84 +44,79 @@ describe("What's on where you're going", () => {
   });
 });
 
-describe("Home highlights", () => {
-  it("never fewer than 4, never more than 7; the \"Coming from another app?\" card is gone", () => {
-    expect(homeHighlights(base).length).toBe(4);
-    expect(homeHighlights(base).map((h) => h.id)).toEqual(["fill-postcard", "fill-passport", "fill-trip", "fill-group"]);
-    expect(homeHighlights({ ...base, groups: 1 }).some((h) => h.id === "fill-switch")).toBe(false);
-    // Postcards and the passport stay on Home.
-    expect(homeHighlights(base).some((h) => "href" in h && h.href === "/postcards/new")).toBe(true);
-    expect(homeHighlights(base).some((h) => "href" in h && h.href === "/passport")).toBe(true);
-    const busy = homeHighlights({
-      ...base,
-      hasMonth: true,
-      postcardsNew: 2,
-      season: seasonNow(new Date("2026-12-10T10:00:00Z"), "Asia/Kolkata", "IN"),
-      trips: [
-        { id: "t1", name: "Goa", phase: { kind: "before", days: 12 }, start: "2026-12-26", end: "2026-12-31", stops: [{ city: "Goa", country: "IN" }] },
-        { id: "t2", name: "Bangkok", phase: { kind: "during", day: 2, of: 5 }, start: "2026-12-09", end: "2026-12-13", stops: [{ city: "Bangkok", country: "TH" }], todaySpent: "₹4,200" },
-      ],
-      justBack: [{ id: "t3", name: "Manali", endedDaysAgo: 3, payments: 2, abroad: false }],
-      billsDue: [{ groupId: "f", billId: "b", name: "Rent", group: "Flat 402", inDays: 2, amount: "₹42,000" }],
-    });
-    expect(busy.length).toBe(7);
-    // The trip you're on comes first, then the next trip's weather and what's on.
-    expect(titles(busy).slice(0, 3)).toEqual([
-      "In Bangkok now | ₹4,200 spent today",
-      "Goa in 12 days | Usually 33° by day, 21° at night",
-      "While you’re in Goa | Christmas & New Year in Goa",
-    ]);
+describe("The sliding cards under Before you go: only the useful ones", () => {
+  it("nothing to say: no cards at all (so Home draws no row)", () => {
+    expect(homeHighlights(base)).toEqual([]);
   });
-  it("a trip just over with money left asks to settle; once square, shows the stamp", () => {
-    const owe = homeHighlights({ ...base, justBack: [{ id: "x", name: "Bali", endedDaysAgo: 4, payments: 3, abroad: true }] });
-    expect(titles(owe)[0]).toBe("Back from Bali | 3 payments square it");
-    const square = homeHighlights({ ...base, justBack: [{ id: "x", name: "Bali", endedDaysAgo: 4, payments: 0, abroad: true }] });
-    expect(titles(square)[0]).toBe("Back from Bali | A new stamp in your passport");
+  it("postcards waiting, a bill due soon and the month, in that order; never more than 3", () => {
+    const all = homeHighlights({ ...base, hasMonth: true, postcardsNew: 2, billsDue: [{ groupId: "f", billId: "b", name: "Rent", group: "Flat 402", inDays: 2, amount: "₹42,000" }] });
+    expect(all.map((h) => h.id)).toEqual(["postcards", "bill-b", "month"]);
+    expect(titles(all)).toEqual(["In your letterbox | 2 postcards are waiting", "Flat 402 | Rent is due in 2 days", "month"]);
+    expect(homeHighlights({ ...base, postcardsNew: 1 }).map((h) => (h.kind === "card" ? h.title : ""))).toEqual(["A postcard is waiting"]);
+  });
+  it("a bill is only a card from today to 5 days away, and the nearest one wins", () => {
+    const bill = (billId: string, inDays: number) => ({ groupId: "f", billId, name: billId, group: "Flat", inDays, amount: "" });
+    expect(homeHighlights({ ...base, billsDue: [bill("late", -1), bill("far", 6)] })).toEqual([]);
+    expect(homeHighlights({ ...base, billsDue: [bill("a", 5), bill("b", 0), bill("c", 3)] }).map((h) => h.id)).toEqual(["bill-b"]);
+    expect(titles(homeHighlights({ ...base, billsDue: [bill("b", 0)] }))).toEqual(["Flat | b is due today"]);
+  });
+  it("no trip photo cards, passport or postcard fillers, festival or 'just back' cards remain", () => {
+    const ids = homeHighlights({ ...base, hasMonth: true, postcardsNew: 3, billsDue: [{ groupId: "f", billId: "b", name: "Rent", group: "Flat", inDays: 1, amount: "" }] }).map((h) => h.id);
+    for (const id of ids) expect(id).not.toMatch(/^(on-|on-there-|back-|stamp-|plan-|weather-|season-|fill-)/);
+    // Trips never make a sliding card: the soonest one is Before you go, and the one under way is Coming up.
+    expect(Object.keys(base)).not.toContain("trips");
   });
   it("seasons follow where you live, all year", () => {
     expect(seasonNow(new Date("2027-03-15T10:00:00Z"), "Asia/Kolkata", "IN")?.id).toBe("holi-2027");
     expect(seasonNow(new Date("2027-01-10T10:00:00Z"), "Australia/Sydney", "AU")?.id).toBe("summer-south");
-    expect(seasonNow(new Date("2027-07-01T10:00:00Z"), "America/New_York", "US")?.id).toBe("july4");
-    expect(seasonNow(new Date("2027-07-01T10:00:00Z"), "Asia/Kolkata", "IN")?.id).toBe("monsoon-in");
   });
 });
 
-describe("Home cards after the countdown and needs-you line", () => {
-  const goa = { id: "t1", name: "Goa", phase: { kind: "before" as const, days: 12 }, start: "2026-12-26", end: "2026-12-31", stops: [{ city: "Goa", country: "IN" }] };
-  it("no weather card for the trip whose weather the countdown already says; another trip keeps its own", () => {
-    const manali = { ...goa, id: "t2", name: "Manali", start: "2027-01-05", end: "2027-01-09", stops: [{ city: "Manali", country: "IN" }], phase: { kind: "before" as const, days: 30 } };
-    expect(homeHighlights({ ...base, trips: [goa] }).some((h) => h.id === "weather-t1")).toBe(true);
-    const ids = homeHighlights({ ...base, trips: [goa, manali], skipWeather: ["t1"] }).map((h) => h.id);
-    expect(ids).not.toContain("weather-t1");
-    expect(ids).toContain("weather-t2");
+describe("Before you go: the soonest trip that has not started", () => {
+  it("Thailand in December, from the real climate table: THAILAND · SEASONAL WEATHER, 31° by day, 22° at night, dry and sunny, sunscreen", () => {
+    // TH row, December (index 11): hi 31, lo 22, rain 0 -> "Dry and sunny", and hi >= 29 with no rain -> the sunscreen tip, sun icon.
+    const c = beforeYouGo([trip("th")]);
+    expect(c).toEqual({
+      id: "th",
+      eyebrow: "THAILAND · SEASONAL WEATHER",
+      title: "Usually 31° by day, 22° at night",
+      text: "Typically dry and sunny. Pack sunscreen, sunglasses and a water bottle.",
+      href: "/groups/th",
+      button: "Open the trip",
+      icon: "sun",
+    });
   });
-  it("passport and postcard cards take a real photo when there is one, and keep the drawn art when there is not", () => {
-    const withPhotos = homeHighlights({ ...base, passportCountries: 22, scenes: { passport: "/photos/card-passport.jpg", postcards: "/photos/card-postcards.jpg" } });
-    const pass = withPhotos.find((h) => h.id === "fill-passport");
-    const post = withPhotos.find((h) => h.id === "fill-postcard");
-    expect(pass).toMatchObject({ photo: "/photos/card-passport.jpg", scene: true, title: "22 countries and counting" });
-    expect(post).toMatchObject({ photo: "/photos/card-postcards.jpg", scene: true });
-    const plain = homeHighlights({ ...base, passportCountries: 22 }).find((h) => h.id === "fill-passport");
-    expect(plain).toMatchObject({ art: "passport" });
-    expect(plain && "photo" in plain ? plain.photo : undefined).toBeUndefined();
+  it("Fahrenheit for the US: 31°C is 88°F and 22°C is 72°F (31 x 9/5 + 32 = 87.8, 22 x 9/5 + 32 = 71.6)", () => {
+    expect(beforeYouGo([trip("th")], true)?.title).toBe("Usually 88° by day, 72° at night");
   });
-  it("the photo cards carry their keepsake: the passport with your own stamps (at most 2), the postcard with its taped photo", () => {
-    const stamps = [
-      { code: "TH", country: "Thailand", when: "2026-05-05" },
-      { code: "JP", country: "Japan", when: "2025-10-01" },
-      { code: "FR", country: "France", when: "2025-04-01" },
-    ];
-    const cards = homeHighlights({ ...base, passportCountries: 4, scenes: { passport: "/photos/card-passport.jpg", postcards: "/photos/card-postcards.jpg", stamps, postcardPhoto: "/photos/card-postcard-photo.jpg" } });
-    expect(cards.find((h) => h.id === "fill-passport")).toMatchObject({ keepsake: { kind: "passport", stamps: stamps.slice(0, 2) } });
-    expect(cards.find((h) => h.id === "fill-postcard")).toMatchObject({ keepsake: { kind: "postcard", photo: "/photos/card-postcard-photo.jpg" } });
-    // Nobody abroad yet: the passport alone, never someone else's stamps.
-    const fresh = homeHighlights({ ...base, scenes: { passport: "/photos/card-passport.jpg" } }).find((h) => h.id === "fill-passport");
-    expect(fresh).toMatchObject({ keepsake: { kind: "passport", stamps: [] } });
-    // "Where to next?" takes a real place photo when there is one.
-    const next = homeHighlights({ ...base, scenes: { nextTrip: "/photos/country-jp.jpg" } }).find((h) => h.id === "fill-trip");
-    expect(next).toMatchObject({ photo: "/photos/country-jp.jpg" });
-    // No photo: no keepsake, the drawn art.
-    const plain = homeHighlights({ ...base }).find((h) => h.id === "fill-passport");
-    expect(plain && "keepsake" in plain ? plain.keepsake : undefined).toBeUndefined();
+  it("skips a trip that is under way (or on its first day), and one that is over", () => {
+    const on = trip("on", { phase: { kind: "during", day: 2, of: 5 }, start: "2026-11-12", end: "2026-11-16" });
+    const today = trip("today", { phase: { kind: "today" }, start: "2026-11-15", end: "2026-11-20" });
+    const over = trip("over", { phase: { kind: "after" }, start: "2026-10-01", end: "2026-10-05" });
+    expect(beforeYouGo([on, today, over])).toBeNull();
+    expect(beforeYouGo([on, today, over, trip("later")])?.id).toBe("later");
+  });
+  it("picks the earliest start, whatever order the list is in, with no 60-day limit", () => {
+    const goa = trip("goa", { name: "Goa", stops: [{ city: "Goa", country: "IN" }], countryName: "India", start: "2026-12-26", end: "2026-12-31", phase: { kind: "before", days: 41 } });
+    const far = trip("far", { start: "2027-06-01", end: "2027-06-05", phase: { kind: "before", days: 198 } });
+    expect(beforeYouGo([goa, far, trip("th")])?.id).toBe("th");
+    expect(beforeYouGo([far])?.id).toBe("far"); // 198 days away: still shown
+    expect(beforeYouGo([goa, trip("th")])?.title).toBe("Usually 31° by day, 22° at night");
+    expect(beforeYouGo([goa])?.eyebrow).toBe("INDIA · SEASONAL WEATHER");
+    expect(beforeYouGo([goa])?.title).toBe("Usually 33° by day, 21° at night"); // Goa in December
+  });
+  it("skips a trip whose climate is unknown and tries the next one", () => {
+    const unknown = trip("who-knows", { start: "2026-11-20", end: "2026-11-22", stops: [{ city: "Nowhereville", country: "" }], countryName: undefined, phase: { kind: "before", days: 5 } });
+    expect(climateFor("Nowhereville", "", 10)).toBeNull();
+    expect(beforeYouGo([unknown, trip("th")])?.id).toBe("th");
+    expect(beforeYouGo([unknown])).toBeNull();
+    // A trip with no stops at all has no climate either.
+    expect(beforeYouGo([trip("nostops", { stops: [] })])).toBeNull();
+  });
+  it("no upcoming trips: nothing, so Home draws no section", () => {
+    expect(beforeYouGo([])).toBeNull();
+  });
+  it("with no country name known, the eyebrow names the place instead, still in capitals", () => {
+    expect(beforeYouGo([trip("c", { countryName: undefined, stops: [{ city: "Chiang Mai", country: "TH" }] })])?.eyebrow).toBe("CHIANG MAI · SEASONAL WEATHER");
   });
 });

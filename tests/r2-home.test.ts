@@ -175,6 +175,23 @@ describe("a calmer Home", () => {
     expect(home).toContain("homeHighlights(");
     expect(home).toContain("data-month-card");
   });
+  it("the bottom of Home: Before you go (nothing without an upcoming trip of known weather), then the sliding row only when it has cards", () => {
+    expect(home).toContain("{beforeCard && <BeforeYouGo");
+    expect(home).toContain("{highlights.length > 0 && (");
+    expect(home.indexOf("{highlights.length > 0 && (")).toBeLessThan(home.indexOf("<HomeBanner>"));
+    const b = src("src/components/BeforeYouGo.tsx");
+    expect(b).toContain("data-before-you-go");
+    expect(b).toContain("Before you go");
+    expect(b).toContain("font-display");
+    expect(b).toContain("↗");
+    expect(b).not.toContain("<Image");
+    expect(b).toContain("<WeatherIcon");
+    // No trip photos on the sliding cards.
+    const hc = src("src/components/HighlightCard.tsx");
+    for (const gone of ["next/image", "<Image", "Keepsake", "h.photo", "GroupCover", "scene"]) expect(hc, gone).not.toContain(gone);
+    // The inputs for the removed cards are gone from the page.
+    for (const gone of ["justBack", "keepsakeStamps", "skipWeather", "scenes:", "passportCountries"]) expect(home, gone).not.toContain(gone);
+  });
   it("the Also line: Manali in 40 days; two trips and a third say 'and 1 more'", () => {
     expect(alsoLine([])).toBe("");
     expect(alsoLine([{ place: "Manali", days: 40 }])).toBe("Also: Manali in 40 days");
@@ -193,6 +210,7 @@ describe("a calmer Home", () => {
       'aria-labelledby="home-groups-h"',
       "<MemoryPolaroids",
       "{/* Latest */}",
+      "<BeforeYouGo card={beforeCard} />",
       "<HomeBanner>",
     ];
     order.forEach((x, i) => {

@@ -1325,7 +1325,7 @@ async function main() {
     await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on the money card (label, the exact amount once, “To N people · Group” line, faces, ONE cream button, the photo on the right; no tint, no route or plane, no “Add expense”), nothing under it (what needs you is in Updates behind the bell), then Your groups and the bottom bar, which keeps its “+”", async () => {
+  await step(V, "Home", "Home opens on the money card (label, the exact amount once, “To N people · Group” line, faces, ONE full-width cream button, no photo; no tint, no route or plane, no “Add expense”), nothing under it (what needs you is in Updates behind the bell), then Your groups and the bottom bar, which keeps its “+”", async () => {
     await go(V, "/");
     const money = V.getByRole("region", { name: "Your money" });
     await money.locator("[data-net-balance]").first().waitFor();
@@ -1353,7 +1353,7 @@ async function main() {
       assert(/^(You owe|You’re owed)\b/.test(text), `the card should start with its label: ${text}`);
       assert(tone === "owe" ? /^You owe\b/.test(text) : /^You’re owed\b/.test(text), `the label doesn't match the ${tone} card: ${text}`);
       assert(/\b(To|From) (\d+ people|\S+)( · .+?)?( |$)/.test(text), `the card has no "To N people · Group" line: ${text}`);
-      assert((await money.locator("[data-card-photo]").count()) === 1, "the card has no photo on the right");
+      assert((await money.locator("[data-card-photo], img").count()) === 0, "the money card still has a photo");
       const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
       assert(/[₹$€£]\s?\d/.test(amount), `the amount is "${amount}"`);
       assert(text.split(amount).length === 2, `the amount "${amount}" is repeated on the card: ${text}`);
@@ -1378,7 +1378,7 @@ async function main() {
       assert(keys === "pay,remind", `both-ways buttons: ${keys}`);
       assert((await money.locator("[data-ticket-line]").count()) === 2, "both ways should be two lines");
       assert(/^Review & settle$/.test(labels.find((_, i) => keys.split(",")[i] === "pay")?.trim() ?? "") && /^Remind\b/.test(labels.find((_, i) => keys.split(",")[i] === "remind")?.trim() ?? ""), `both-ways button words: ${labels.join("|")}`);
-      assert((await money.locator("[data-card-photo]").count()) === 2, "both ways should be two cards, each with its photo");
+      assert((await money.locator("[data-card-photo], img").count()) === 0, "the both-ways cards still have a photo");
       assert((await money.locator("[data-route-from]").count()) === 0, "Home's cards still have a route");
       assert((await money.locator("[data-money-action][data-emphasis='bright']").count()) === 1, "both-ways card should have one bright button");
     }
@@ -1601,11 +1601,13 @@ async function main() {
     // Story labels: one line, at most 10 characters.
     for (const t of await V.locator("[data-story-label]").allInnerTexts()) assert([...t.trim()].length <= 10, `a story label is too long: ${t}`);
   });
-  await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
+  await step(V, "Home", "The sliding cards at the bottom (under “Before you go”): only postcards waiting, a bill due soon and the month, so 0 to 3 of them, no two the same, each with words and a button that goes somewhere, no trip photos; none: no row", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');
     const n = await slides.count();
-    assert(n >= 4 && n <= 7, `${n} cards`);
+    assert(n <= 3, `${n} cards`);
+    assert((await V.locator('[aria-roledescription="slide"] img').count()) === 0, "a sliding card still has a photo");
+    for (const t of await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) assert(!/Wish they were here|spent today|payments? squares? it|stamp in your passport|Who’s booking what|While you’re in|countries and counting|Where to next/.test(t), `an old trip or filler card is back: ${t}`);
     assert((await V.locator('[aria-roledescription="slide"]').filter({ hasText: "Coming from another app" }).count()) === 0, "the switching card is back on Home");
     const texts = await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.replace(/\s+/g, " ").trim()));
     assert(new Set(texts).size === texts.length, `the same card twice: ${texts.join(" / ")}`);
@@ -3223,6 +3225,26 @@ async function main() {
     assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
     assert(await card.locator("img").count(), "no picture on the countdown card");
     assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the card doesn't say 10 days");
+    // Share sits under the polaroid (44px tall, inside the card); no names line; the quiet "12 December · 6 people" line with its dashed curve and pin.
+    const share = card.getByRole("button", { name: "Share" });
+    const shareBox = (await share.boundingBox())!;
+    const polaroidBox = (await card.locator("img").first().boundingBox())!;
+    assert(shareBox.height >= 44, `the Share button is ${Math.round(shareBox.height)}px tall`);
+    assert(shareBox.y >= polaroidBox.y + polaroidBox.height - 12, "the Share button is not under the polaroid");
+    assert(!/(^|\n)with /.test(await card.innerText()), "the card still has the names line");
+    const meta = ((await card.locator("[data-trip-meta]").innerText()) ?? "").replace(/\s+/g, " ").trim();
+    assert(/^\d{1,2} [A-Z][a-z]+( \d{4})? · \d+ (people|person)$/.test(meta), `the meta line says “${meta}”`);
+    assert((await card.locator("[data-trip-meta] svg").count()) === 1, "the meta line has no dashed curve and pin");
+    // Before you go: ONE card for the soonest trip that has not started, with its usual weather and no photo; a link into the trip.
+    const before = V.locator("[data-before-you-go]");
+    if (await before.count()) {
+      assert((await before.count()) === 1, "Before you go should be one card");
+      await before.getByRole("heading", { name: "Before you go" }).waitFor();
+      assert(/ · SEASONAL WEATHER$/.test((await before.locator("[data-before-eyebrow]").innerText()).trim()), "the Before you go heading line is wrong");
+      assert(/^Usually \d+° by day, \d+° at night$/.test((await before.locator("[data-before-title]").innerText()).trim()), "the Before you go temperatures are wrong");
+      assert((await before.locator("img").count()) === 0, "Before you go has a photo");
+      assert(/^\/groups\//.test((await before.locator("[data-before-open]").getAttribute("href")) ?? ""), "Open the trip goes elsewhere");
+    }
   });
 
   await step(V, "Countdown", "A second trip in 30 days: Coming up is ONE section with two countdown cards, the soonest first; no “Also:” line, no separate cards", async () => {

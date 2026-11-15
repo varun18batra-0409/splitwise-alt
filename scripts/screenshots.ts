@@ -280,18 +280,18 @@ if (!desktop && !hosted) {
   };
   const problems: string[] = [];
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
-  // (Each may end in one letter: the group's letter drawn under the photo, which the card's text includes but nobody sees.)
+  // (The card has no photo any more, so no stray letter ends the text.)
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle( \S)?$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir( \S)?$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people( \S)?$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people$/ }],
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir( \S)? You owe ₹4,200 To Asha( · .+?)? Review & settle( \S)?$/ }],
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir You owe ₹4,200 To Asha( · .+?)? Review & settle$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)( \S)?$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -350,13 +350,21 @@ await shot("68-home-first-screen", "/", async (p) => {
 if (wide) await page.setViewportSize(wide);
 // The whole Home at 390 (greeting, stories, money card, Coming up, groups, memories, latest, the month card).
 await shot("69-home-full", "/");
-// The Home cards, each one (paused, then picked by its dot), at 390 and on the narrowest phone (320).
+// "Before you go" and the sliding cards under it (postcards waiting, a bill due, the month; the demo may have only one or none), at 390 and
+// on the narrowest phone (320). Each card is picked by its dot when there are dots.
 for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
   if (w) await page.setViewportSize({ width: w, height: 640 });
-  for (const n of [1, 2, 3, 4]) {
+  await shot(`${prefix}-home-before-you-go`, "/", async (p) => {
+    await p.locator("[data-before-you-go]").first().scrollIntoViewIfNeeded();
+    await p.waitForTimeout(300);
+  }, false);
+  for (const n of [1, 2, 3]) {
     await shot(`${prefix}-home-card-${n}`, "/", async (p) => {
-      await p.getByRole("button", { name: /Pause the highlights/ }).click();
-      await p.getByRole("button", { name: new RegExp(`^Show ${n} of`) }).click();
+      const pause = p.getByRole("button", { name: /Pause the highlights/ });
+      if (await pause.count()) await pause.click();
+      const dot = p.getByRole("button", { name: new RegExp(`^Show ${n} of`) });
+      if (await dot.count()) await dot.click();
+      await p.locator("[data-highlight], [data-month-card]").first().scrollIntoViewIfNeeded();
       await p.waitForTimeout(900);
     }, false);
   }

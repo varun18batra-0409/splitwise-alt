@@ -5,7 +5,7 @@ import { passPhoto, type PassGroup } from "@/lib/home/pass-photo";
 import { COMING_UP_MAX, comingUp, destinationCode, nameCode, type ComingUpTrip } from "@/lib/home/coming-up";
 import { passLines, passQuip, tripPhase } from "@/lib/countdown";
 import { MEMORY_MAX, pickMemories, type MemoryGroup } from "@/lib/home/memories";
-import { homeHighlights } from "@/lib/home/highlights";
+import { beforeYouGo, homeHighlights } from "@/lib/home/highlights";
 import type { MomentViewer } from "@/lib/moments-access";
 
 // R2b: Home says each thing once, the money pass has a better photo, "Coming up" is a stack of trip passes, memories on Home.
@@ -29,15 +29,16 @@ describe("1. nothing repeats on Home", () => {
     expect(home).not.toContain("tripTag(");
     expect(home).not.toContain("alsoLine");
   });
-  it("the cards under it don't say the trip's day count or its countdown again", () => {
-    const trip = { id: "t", name: "Bangkok", phase: { kind: "during" as const, day: 2, of: 5 }, start: "2026-11-12", end: "2026-11-16", stops: [{ city: "Bangkok", country: "TH" }], todaySpent: "₹4,200" };
-    const base = { trips: [trip], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 1 };
+  it("the sliding cards don't say a trip's day count or its countdown again: they are only postcards, a bill and the month; the weather is Before you go", () => {
+    const base = { hasMonth: true, postcardsNew: 1, billsDue: [] };
     const cards = homeHighlights(base).flatMap((h) => (h.kind === "card" ? [h.eyebrow] : []));
-    expect(cards[0]).toBe("In Bangkok now");
+    expect(cards).toEqual(["In your letterbox"]);
     expect(cards.join(" ")).not.toMatch(/Day 2/);
-    const soon = { ...trip, phase: { kind: "before" as const, days: 12 } };
-    const withPass = homeHighlights({ ...base, trips: [soon], skipWeather: ["t"] }).map((h) => h.id);
-    expect(withPass).not.toContain("weather-t");
+    expect(homeHighlights(base).map((h) => h.id)).not.toContain("weather-t");
+    // A trip under way is never Before you go (the countdown card says it); the next trip is.
+    const trip = { id: "t", name: "Bangkok", phase: { kind: "during" as const, day: 2, of: 5 }, start: "2026-11-12", end: "2026-11-16", stops: [{ city: "Bangkok", country: "TH" }] };
+    expect(beforeYouGo([trip])).toBeNull();
+    expect(beforeYouGo([trip, { ...trip, id: "n", phase: { kind: "before" as const, days: 12 }, start: "2026-11-27", end: "2026-12-01" }])?.id).toBe("n");
   });
 });
 
@@ -261,7 +262,7 @@ describe("4. Memories on Home: square polaroids, only moments canSeeMoment allow
     expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeGreaterThan(home.indexOf("<MoneyCard"));
     expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeGreaterThan(home.indexOf('aria-labelledby="home-groups-h"'));
     expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeLessThan(home.indexOf("{/* Latest */}"));
-    expect(homeHighlights({ trips: [], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 1 }).some((h) => (h.kind as string) === "memories")).toBe(false);
+    expect(homeHighlights({ hasMonth: false, postcardsNew: 0, billsDue: [] }).some((h) => (h.kind as string) === "memories")).toBe(false);
     const db = src("src/lib/moments-db.ts");
     expect(db.slice(db.indexOf("export async function loadHomeMemories"))).toContain("momentsWhere(viewer)");
     const ui = src("src/components/MemoryPolaroids.tsx");

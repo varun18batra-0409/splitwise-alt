@@ -1,4 +1,4 @@
-// The words and sizes on Home's money card (the "You owe" card from the 15 Nov mockup). Pure, so tests can check them without drawing anything.
+// The words and sizes on Home's money card (the compact "You owe" card from the 15 Nov mockup, no photo). Pure, so tests can check them without drawing anything.
 // The amounts themselves come from homeTicket (src/lib/home/money-card.ts); nothing is worked out again here.
 import type { TicketLine } from "./money-card";
 
@@ -21,7 +21,7 @@ export function buttonLabel(line: Pick<TicketLine, "side" | "action">): string {
   return line.side === "owe" ? "Review & settle" : line.action.label;
 }
 
-// The amount's size by its length, so a lakh amount is never clipped in the card's left 62% ("₹6,17,283.94" is 12 characters and is the smallest size).
+// The amount's size by its length, so a lakh amount is never clipped on the card, even on a 320px phone ("₹6,17,283.94" is 12 characters and is the smallest size).
 export function homeAmountTier(text: string): "xl" | "l" | "m" {
   const n = [...text].length;
   return n <= 8 ? "xl" : n <= 10 ? "l" : "m";

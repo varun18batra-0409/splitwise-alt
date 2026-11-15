@@ -8,7 +8,7 @@ function slideTo(el: HTMLElement | null, i: number) {
   if (el) el.scrollTo({ left: i * el.clientWidth, behavior: still ? "auto" : "smooth" });
 }
 
-// The cards at the top of Home that slide by on their own (like a photo
+// The cards at the bottom of Home (under "Before you go": postcards waiting, a bill due, your month) that slide by on their own (like a photo
 // carousel): swipe them, tap a dot, or pause. They stop moving while you touch
 // them, while the app is in the background, and for anyone who has turned off
 // animations on their phone.

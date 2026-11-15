@@ -9,7 +9,7 @@ import { buttonLabel, cardLabel, homeAmountTier, sideLine } from "@/lib/home/owe
 import type { TripPass } from "@/lib/home/coming-up";
 import type { CoverChoice } from "@/lib/covers";
 
-// Home's money card (below, MoneyCard) is the 15 Nov mockup's "You owe" card. The boarding-pass pieces (TicketShell, PassRoute, PassFields, Amount)
+// Home's money card (below, MoneyCard) is the 15 Nov mockup's compact "You owe" card (no photo). The boarding-pass pieces (TicketShell, PassRoute, PassFields, Amount)
 // stay for Settle up, a group's pay screens and the trip pass.
 // No tinted wash and no coloured border: only the amount carries the colour (orange you owe, green you're owed).
 // Below it, a quiet line for what waits on you. Lower down, "Coming up": a pass like it for each trip that is next.
@@ -241,26 +241,16 @@ export function PassFields({ fields }: { fields: PassField[] }) {
   );
 }
 
-// ---- Home's money card (the 15 Nov mockup) ----
-// One rounded card: on the left the label, the exact amount in the display serif, who and where, the faces and ONE cream pill; on the right
-// the trip's or group's photo with a soft curved edge. Money both ways is two of these in a swipeable stack (larger first, only the first
-// has the cream pill). Nothing is worked out here: homeTicket decides, this only draws.
-const HOME_AMOUNT = { xl: "text-[28px] min-[360px]:text-[34px]", l: "text-[22px] min-[360px]:text-[26px]", m: "text-[17px] min-[360px]:text-[20px]" } as const;
+// ---- Home's money card (the 15 Nov mockup, compact, no photo) ----
+// One dark rounded card, everything left-aligned: the label, the exact amount in the display serif, who and where, the faces and ONE
+// full-width cream pill. Money both ways is two of these in a swipeable stack (larger first, only the first has the cream pill).
+// Nothing is worked out here: homeTicket decides, this only draws.
+const HOME_AMOUNT = { xl: "text-[34px] min-[360px]:text-[40px]", l: "text-[30px] min-[360px]:text-[34px]", m: "text-[24px] min-[360px]:text-[28px]" } as const;
 
-function MoneyShell({ stub, label, attrs, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; children: React.ReactNode }) {
-  const cover = stub[0];
+function MoneyShell({ label, attrs, children }: { label: string; attrs: Record<string, string | undefined>; children: React.ReactNode }) {
   return (
-    <section
-      aria-label={label}
-      className="relative flex min-h-[196px] overflow-hidden rounded-[22px] bg-[#16161a] text-fg after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[22px] after:shadow-[inset_0_0_0_1px_#26262c]"
-      {...attrs}
-    >
-      <div className="relative z-10 flex w-[62%] min-w-0 shrink-0 flex-col py-4 pl-4 pr-1.5 min-[360px]:pl-[18px]">{children}</div>
-      {/* The photo fills the right ~40%; an ellipse clip gives its left edge the soft curve. */}
-      <div aria-hidden data-card-photo className="absolute inset-y-0 right-0 w-[44%] overflow-hidden bg-mist [clip-path:ellipse(100%_115%_at_100%_60%)]">
-        {cover && <CoverBox c={cover} sizes="180px" />}
-        <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(22,22,26,0.35),transparent_35%)]" />
-      </div>
+    <section aria-label={label} className="relative flex flex-col rounded-[22px] bg-[#16161a] px-4 py-4 text-fg shadow-[inset_0_0_0_1px_#26262c] min-[360px]:px-[18px]" {...attrs}>
+      {children}
     </section>
   );
 }
@@ -268,7 +258,7 @@ function MoneyShell({ stub, label, attrs, children }: { stub: StubCover[]; label
 function HomeAmount({ text, exact, tone, tier }: { text: string; exact?: string; tone: "owe" | "owed" | "plain"; tier: "xl" | "l" | "m" }) {
   return (
     <p
-      className={`mt-1.5 whitespace-nowrap font-display font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums [overflow-wrap:normal] ${HOME_AMOUNT[tier]} ${tone === "owe" ? "text-owe" : tone === "owed" ? "text-owed" : "text-fg"}`}
+      className={`mt-1 whitespace-nowrap font-display font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums [overflow-wrap:normal] ${HOME_AMOUNT[tier]} ${tone === "owe" ? "text-owe" : tone === "owed" ? "text-owed" : "text-fg"}`}
       data-net-balance
       data-exact={exact && exact !== text ? exact : undefined}
       title={exact}
@@ -278,29 +268,29 @@ function HomeAmount({ text, exact, tone, tier }: { text: string; exact?: string;
   );
 }
 
-function SideCard({ line, stub, bright, attrs, label }: { line: TicketLine; stub: StubCover[]; bright: boolean; attrs: Record<string, string | undefined>; label?: string }) {
+function SideCard({ line, bright, attrs, label }: { line: TicketLine; bright: boolean; attrs: Record<string, string | undefined>; label?: string }) {
   // The spoken name starts with the words on the button ("Review & settle. Pay Asha Shah ₹54,122").
   const action = { ...line.action, label: buttonLabel(line), fullLabel: line.side === "owe" ? `Review & settle. ${line.action.fullLabel}` : line.action.fullLabel };
   return (
-    <MoneyShell stub={stub} label={label ?? (line.side === "owe" ? "What you owe" : "What you are owed")} attrs={attrs}>
+    <MoneyShell label={label ?? (line.side === "owe" ? "What you owe" : "What you are owed")} attrs={attrs}>
       <p className="text-[14px] leading-none text-fg/70">{cardLabel(line.side)}</p>
       <HomeAmount text={line.amount} exact={line.exact} tone={line.side} tier={homeAmountTier(line.amount)} />
-      <p className="mt-2 line-clamp-2 text-[13.5px] leading-snug text-fg/65 [overflow-wrap:normal] [text-wrap:balance]" data-ticket-context>
+      <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-fg/65 [overflow-wrap:normal] [text-wrap:balance]" data-ticket-context>
         {sideLine(line)}
       </p>
       {line.faces.length > 0 && (
-        <div className="mt-2">
+        <div className="mt-1.5">
           <Faces line={line} />
         </div>
       )}
-      <div className="mt-auto pt-3">
+      <div className={line.faces.length > 0 ? "pt-2.5" : "pt-3"}>
         <ActionButton a={action} className={`${bright ? CREAM : OUTLINE} w-full`} />
       </div>
     </MoneyShell>
   );
 }
 
-export function MoneyCard({ ticket, mode, tone, stub, sideStubs }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain"; stub: StubCover[]; sideStubs?: Record<"owe" | "owed", StubCover[]> }) {
+export function MoneyCard({ ticket, mode, tone }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain" }) {
   const attrs = { "data-balance-card": "", "data-money-mode": mode, "data-tone": tone === "plain" ? "square" : tone, "data-ticket": ticket.kind };
   return (
     <>
@@ -308,36 +298,38 @@ export function MoneyCard({ ticket, mode, tone, stub, sideStubs }: { ticket: Tic
         // Money both ways: two cards in a swipeable stack, the larger first. Only the first has the cream button.
         <PassStack label="Your money, two passes" attrs={attrs}>
           {orderPasses(ticket.lines).map((l, i) => (
-            <SideCard key={l.side} line={l} stub={sideStubs?.[l.side]?.length ? sideStubs[l.side] : stub} bright={i === 0} attrs={{ "data-ticket-line": l.side }} />
+            <SideCard key={l.side} line={l} bright={i === 0} attrs={{ "data-ticket-line": l.side }} />
           ))}
         </PassStack>
       ) : ticket.kind === "one" ? (
-        <SideCard line={ticket.line} stub={stub} bright attrs={attrs} label="Your money" />
+        <SideCard line={ticket.line} bright attrs={attrs} label="Your money" />
       ) : ticket.kind === "square" ? (
-        <MoneyShell stub={stub} label="Your money" attrs={attrs}>
+        <MoneyShell label="Your money" attrs={attrs}>
           <p className="text-[14px] leading-none text-fg/70">Your money</p>
           <HomeAmount text={ticket.amount} tone="plain" tier="l" />
-          <p className="mt-2 text-[13.5px] leading-snug text-fg/65" data-ticket-context>
+          <p className="mt-2 text-[14px] leading-snug text-fg/65" data-ticket-context>
             {ticket.label}
           </p>
-          {/* The stamp sits under the words (never on top of them), tilted like a real one: stamp artwork, not green. */}
-          <span aria-hidden data-settled-stamp className="pointer-events-none mt-3 ml-1 self-start -rotate-[8deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[15px] font-semibold tracking-[0.16em] text-fg/35">
-            SETTLED
-          </span>
-          <Link href="/add" className="mt-auto flex min-h-11 items-center self-start pt-2 text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
-            Add an expense
-          </Link>
+          {/* The stamp sits beside the link (never on top of the words), tilted like a real one: stamp artwork, not green. */}
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <Link href="/add" className="flex min-h-11 items-center text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
+              Add an expense
+            </Link>
+            <span aria-hidden data-settled-stamp className="pointer-events-none mr-1 shrink-0 -rotate-[8deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[15px] font-semibold tracking-[0.16em] text-fg/35">
+              SETTLED
+            </span>
+          </div>
         </MoneyShell>
       ) : (
-        <MoneyShell stub={stub} label="Your money" attrs={attrs}>
+        <MoneyShell label="Your money" attrs={attrs}>
           <p className="line-clamp-2 text-[14px] leading-tight text-fg/70">{ticket.label}</p>
           <HomeAmount text={ticket.amount} exact={ticket.exact} tone="plain" tier={homeAmountTier(ticket.amount)} />
           {ticket.context && (
-            <p className="mt-2 line-clamp-2 text-[13.5px] leading-snug text-fg/65 [text-wrap:balance]" data-ticket-context>
+            <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-fg/65 [text-wrap:balance]" data-ticket-context>
               {ticket.context}
             </p>
           )}
-          <div className="mt-auto pt-3">
+          <div className="pt-3">
             <ActionButton a={ticket.action} className={`${CREAM} w-full`} />
           </div>
         </MoneyShell>

@@ -301,9 +301,9 @@ describe("who went on a trip, and which day its stamp is", () => {
     expect(stampDay({ ...trip, deletedAt: new Date("2026-11-01T00:00:00Z") }, "2026-11-15", "UTC")).toBeNull();
     expect(stampDay({ ...trip, type: "home" }, "2026-11-15", "UTC")).toBeNull();
   });
-  it("Home uses stampDay (not its own copy of the rule)", () => {
+  it("Home has no copy of the stamp rule (it no longer draws a passport card; stampDay lives in src/lib/passport.ts)", () => {
     const src = readFileSync("src/app/(home)/page.tsx", "utf8");
-    expect(src).toContain("stampDay(");
     expect(src).not.toContain("const wentOn");
+    expect(src).not.toContain("keepsakeStamps");
   });
 });

@@ -28,6 +28,16 @@ export function tripRange(start: string, end: string): string {
   return `${a.d}–${b.d} ${b.m} ${b.y}`;
 }
 
+// The quiet line on the Coming up card: "12 December · 6 people". The start day as day and full month (the year only when it is not
+// this year: "12 December 2027"), then the head count ("1 person" singular). An undated trip says just "6 people"; no people counted
+// says just the date. `today` is the viewer's day ("2026-11-15").
+export function tripMetaLine(start: string | null | undefined, people: number, today: string): string {
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const day = start && isDay(start) ? `${Number(start.slice(8, 10))} ${MONTHS[Number(start.slice(5, 7)) - 1]}${start.slice(0, 4) === today.slice(0, 4) ? "" : ` ${start.slice(0, 4)}`}` : "";
+  const who = people > 0 ? `${people} ${people === 1 ? "person" : "people"}` : "";
+  return [day, who].filter(Boolean).join(" · ");
+}
+
 // Checks dates typed in the form: a real start day, an end on or after it, a trip of at most 60 days.
 export function cleanTripDates(start: string, end: string, today: string): { ok: true; start: string; end: string } | { ok: false; error: string } {
   const s = start.trim();

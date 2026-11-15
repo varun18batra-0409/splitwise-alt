@@ -404,13 +404,13 @@ describe("loadPassport counts only trips you really joined", () => {
     expect(stampOf(friend, g.id)).toBe("2024-10-01");
     const beas = await loadPassport({ id: bea.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
     expect(stampOf(beas, g.id)).toBe("2024-10-08");
-    // Home reads the same facts (undatedTripFacts) and stamps the same days.
+    // The passport reads these facts (undatedTripFacts) and stamps the same days.
     const facts = await undatedTripFacts([{ groupId: g.id, me: { id: A, leftAt: new Date("2024-10-05T12:00:00Z") } }], "Asia/Kolkata");
     expect(facts.get(g.id)).toEqual({ count: 1, day: "2024-10-01" });
     const beaFacts = await undatedTripFacts([{ groupId: g.id, me: { id: B, leftAt: null } }], "Asia/Kolkata");
     expect(beaFacts.get(g.id)).toEqual({ count: 2, day: "2024-10-08" });
     expect(stampDay({ type: "trip", deletedAt: null, tripStart: "", undated: facts.get(g.id) ?? null, leftAt: new Date("2024-10-05T12:00:00Z") }, "2025-01-01", "Asia/Kolkata")).toBe("2024-10-01");
-    expect(readFileSync("src/app/(home)/page.tsx", "utf8")).toContain("undatedTripFacts(");
+    // (Home no longer draws a passport card, so it no longer reads these facts itself: the passport is the one place that does.)
   });
   it("an undated trip where the leaver was in nothing: only Taxi (Bea alone, added after Ada left) exists, so Ada has no stamp and no TH in her index", async () => {
     const ada = await account("UhAda");
