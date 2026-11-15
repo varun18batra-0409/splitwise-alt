@@ -87,7 +87,8 @@ class Refused extends Error {
 // (an expense added meanwhile), nothing is changed and `needsRate` says the caller must ask for a real rate.
 // `afterRead` is for tests only: it runs after the group has been read and before the write begins (the gap in which
 // someone else can add an expense).
-export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean; afterRead?: () => Promise<void> }): Promise<Result> {
+// quiet (only with expectEmpty, so there is no money to account for): no history line, so nobody is told and there is nothing to undo.
+export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean; quiet?: boolean; afterRead?: () => Promise<void> }): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
     include: { expenses: { include: { shares: true } }, payments: true, members: { select: { id: true } } },
@@ -143,7 +144,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
 
   await opts?.afterRead?.();
   try {
-  const eventId = await db.$transaction(async (tx) => {
+  const eventId: string | undefined = await db.$transaction(async (tx) => {
     // First a write that only matches if the group is still as read (same currency, not deleted; closed is fine here):
     // it takes the write lock, so every count below is current and no other money save can slip in until we commit.
     // (Money saves do the same with guardGroup, so one of the two always loses cleanly.)
@@ -195,6 +196,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     }
     await writeOtherMoney(tx, otherAfter);
     await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency, settleMin: otherAfter.settleMin } });
+    if (opts?.quiet && opts.expectEmpty) return undefined;
     return logEvent(tx, {
       groupId,
       actorId,

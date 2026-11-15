@@ -7,6 +7,7 @@ import { formatMoney } from "./money";
 import { createPayment, RestoreRefused, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
 import type { Prisma } from "@prisma/client";
+import { PAIR_NO_CLOSE } from "./direct-guard";
 import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, ledgerInTx, removedPaymentsBreak, restoredPaymentsBreak } from "./money-guard";
 
 // "We settled outside the app": record every Smart Settle payment at once and
@@ -31,6 +32,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
   const data = await loadGroup(groupId, { events: false });
   if (!data) return { ok: false, error: "This group no longer exists." };
   const { group, transfers } = data;
+  if (group.type === "direct") return { ok: false, error: PAIR_NO_CLOSE }; // a pair is never closed (it could not be reopened)
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is already closed." };
@@ -81,6 +83,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
 export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean, opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: PAIR_NO_CLOSE };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };

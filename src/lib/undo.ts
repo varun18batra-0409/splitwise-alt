@@ -8,6 +8,7 @@ import { POT_EDIT_ERROR, setExpenseDeleted, setPaymentDeleted } from "./save-exp
 import { isGameResult } from "./pot-result";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
+import { isPairGroup, PAIR_NO_PEOPLE } from "./direct-guard";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
 import { isGroupAdmin } from "./group-admin";
@@ -658,6 +659,7 @@ class CurrencyMoved extends Error {}
 // Take back "added people" — only if they haven't been used anywhere yet.
 export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true, mark?: UndoMark): Promise<UndoResult> {
   if (memberIds.includes(actorId)) return { ok: false, error: "You can’t remove yourself. Use “Leave group” instead." };
+  if (await isPairGroup(groupId)) return { ok: false, error: PAIR_NO_PEOPLE }; // a pair always has exactly its two people
   const members = await db.member.findMany({ where: { id: { in: memberIds }, groupId } });
   for (const m of members) {
     // Someone with their own account who has left or been removed is never taken out (or put back) by somebody else's undo:
@@ -723,6 +725,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
 class MembersMoved extends Error {}
 
 async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"], mark?: UndoMark): Promise<UndoResult> {
+  if (await isPairGroup(groupId)) return { ok: false, error: PAIR_NO_PEOPLE };
   const existing = await db.member.findMany({ where: { groupId } });
   const clash = members.find((m) => existing.some((x) => x.name.toLowerCase() === m.name.toLowerCase()));
   if (clash) return { ok: false, error: `Someone called ${clash.name} is already in the group.` };

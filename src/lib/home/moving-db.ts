@@ -13,6 +13,7 @@ import type { Transfer } from "../settle";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks } from "../money-guard";
 import { lateMoveText, putBackOpen } from "../put-back";
 import type { Prisma } from "@prisma/client";
+import { PAIR_NO_MOVE_OUT } from "../direct-guard";
 
 // Moving out, the deposit — database side.
 
@@ -127,6 +128,7 @@ function checkDay(lastDay: string, now: Date): string | null {
 export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "") {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
+  if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
   const bad = checkDay(lastDay, now);
   if (bad) return { ok: false, error: bad } as Fail;
@@ -173,6 +175,7 @@ export async function moveOut(
   if (ks.state === "done") return { ok: true, payments: [] };
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const leaver = flat.members.find((m) => m.id === input.leaverId && !m.leftAt);
   if (!leaver) return { ok: false, error: "That person isn’t in the flat." };
@@ -560,6 +563,7 @@ class MoveOutBlocked extends Error {
 export async function undoMoveOut(groupId: string, actorId: string, memberId: string, info: MoveOutUndo, mark?: UndoMark, opts: { recordedBy?: string; recordedAt?: Date; now?: Date } = {}): Promise<{ ok: true; eventId: string } | Fail> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT };
   const m = group.members.find((x) => x.id === memberId);
   if (!m) return { ok: false, error: "That person is no longer in the group." };
   if (!m.leftAt) return { ok: false, error: `${m.name} is already back in the flat.` };

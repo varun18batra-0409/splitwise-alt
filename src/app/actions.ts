@@ -18,6 +18,7 @@ import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type 
 import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, removeMembers, undoEvent, undoViewerFor } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { settleAllAndClose } from "@/lib/settle-all";
+import { isPairGroup } from "@/lib/direct-guard";
 import { vapidKeys } from "@/lib/push";
 import { prepareDirectSave } from "@/lib/direct-db";
 import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics } from "@/lib/group-changes";
@@ -602,6 +603,7 @@ export async function renamePerson(formData: FormData) {
 
 export async function removePerson(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
+  if (await isPairGroup(groupId)) redirect(`/people/${groupId}`); // a pair always keeps its two people (the lib refuses too)
   if (!(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
   const row = await db.member.findFirst({ where: { id: memberId, groupId }, select: { accountId: true } });
   // Someone with an account, or anyone already in expenses or payments, is removed but kept in the history
@@ -639,6 +641,7 @@ export async function settleEverything(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group) redirect("/");
+  if (group.type === "direct") redirect(`/people/${group.id}`); // a pair is never closed (the lib refuses too)
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
@@ -837,6 +840,16 @@ export async function invitePersonByEmail(formData: FormData) {
 // People → a name with an open invitation → Cancel invitation (the admin, or the person who sent it).
 // The name goes back to being a plain name that "That's me" can take. Balances don't change.
 export async function cancelInvite(formData: FormData) {
+  // A pair: only a member of it, and the other name must still be a name (checked in cancelDirectInvite). Back to the person's page,
+  // where the invite form is open again so a mistyped address can be fixed.
+  const pairId = String(formData.get("groupId") ?? "");
+  if (await isPairGroup(pairId)) {
+    const myPairId = await getMyMemberId(pairId);
+    if (!myPairId) redirect("/private");
+    const { cancelDirectInvite } = await import("@/lib/direct-db");
+    const r = await cancelDirectInvite(pairId, myPairId);
+    redirect(`/people/${pairId}${r.ok ? "" : `?${new URLSearchParams({ error: r.error })}`}`);
+  }
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { cancelInvitation } = await import("@/lib/invites");
   const r = await cancelInvitation(group.id, me.id, String(formData.get("memberId") ?? ""));

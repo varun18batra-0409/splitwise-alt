@@ -109,9 +109,11 @@ export async function ensureAccountPair(
   if (!otherAccountId || otherAccountId === me.id) return { ok: false, error: PAIR_REFUSED };
   const other = await db.account.findUnique({ where: { id: otherAccountId }, select: { id: true, name: true } });
   if (!other) return { ok: false, error: PAIR_REFUSED };
-  if (await isBlockedEitherWay(me.id, other.id)) return { ok: false, error: PAIR_BLOCKED };
   const key = accountPairKey(me.id, other.id);
   const found = await readPair(key, me.id, false);
+  // Someone who blocked you gets exactly the answer of someone you share nothing with, so a refusal never says why.
+  const blocked = await isBlockedEitherWay(me.id, other.id);
+  if (blocked) return { ok: false, error: PAIR_REFUSED };
   if (found) return found;
   if (!(await shareOpenGroup(me.id, other.id))) return { ok: false, error: PAIR_REFUSED };
   if (!(await allow(`direct-pair:${me.id}`, 30, 3600))) return { ok: false, error: PAIR_BUSY };
@@ -141,7 +143,8 @@ export async function prepareDirectSave(groupId: string, myId: string, currency:
   if (!me || !other) return null;
   if (!editing && me.accountId && other.accountId && (await isBlockedEitherWay(me.accountId, other.accountId))) return PAIR_NEW_BLOCKED;
   if (!editing && g._count.expenses + g._count.payments === 0 && currency !== g.currency && isSupportedCurrency(currency)) {
-    const r = await changeGroupCurrency(groupId, myId, currency, "1", { expectEmpty: true });
+    // quiet: an empty pair has no money to convert, so this writes no history line (nobody is told, and nothing is left behind if the save then fails).
+    const r = await changeGroupCurrency(groupId, myId, currency, "1", { expectEmpty: true, quiet: true });
     if (!r.ok && !r.needsRate) return r.error;
   }
   return null;
@@ -247,9 +250,17 @@ export async function inviteDirectPerson(
   const me = await db.account.findUnique({ where: { id: actor.accountId }, select: { id: true, email: true, name: true } });
   if (!me) return { ok: false, error: "Sign in to invite." };
   const theirs = await db.account.findUnique({ where: { email }, select: { id: true } });
-  // Yourself, or someone you already share a pair with: the same reply, nothing written, nothing sent.
-  if (email === me.email.toLowerCase()) return { ok: true, email };
-  if (theirs && (await db.group.findUnique({ where: { pairKey: accountPairKey(me.id, theirs.id) }, select: { id: true } }))) return { ok: true, email };
+  // Your own email: said plainly (that tells nobody anything).
+  if (email === me.email.toLowerCase()) return { ok: false, error: "That’s your own email. Type theirs." };
+  // Someone you already share a pair with: looks exactly like a normal send (the person's page shows "Invitation sent to …" and can
+  // cancel it), but nothing is invited or sent. Only a small note of the address is kept for that page (see openInviteEmail).
+  if (theirs && (await db.group.findUnique({ where: { pairKey: accountPairKey(me.id, theirs.id) }, select: { id: true } }))) {
+    await db.$transaction([
+      db.invite.updateMany({ where: { groupId, memberId: row.id, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
+      db.requestKey.upsert({ where: { key: decoyKey(groupId, row.id) }, create: { key: decoyKey(groupId, row.id), result: email }, update: { result: email, createdAt: new Date() } }),
+    ]);
+    return { ok: true, email };
+  }
 
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId, email } } });
   const priorOpen = Boolean(prior && !prior.acceptedAt && !prior.declinedAt);
@@ -262,6 +273,7 @@ export async function inviteDirectPerson(
       create: { groupId, email, invitedById: actor.id, token, memberId: row.id },
       update: { invitedById: actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId: row.id },
     }),
+    db.requestKey.deleteMany({ where: { key: decoyKey(groupId, row.id) } }),
   ]);
 
   const actorName = actor.name;
@@ -282,6 +294,32 @@ export async function inviteDirectPerson(
   if (later) later(job);
   else await job();
   return { ok: true, email };
+}
+
+// The address shown as "Invitation sent to …" on the person's page: the open invitation, or the note kept when the address was
+// someone you already share with (so both look the same).
+const decoyKey = (groupId: string, rowId: string) => `direct-decoy:${groupId}:${rowId}`;
+
+export async function openInviteEmail(groupId: string, rowId: string): Promise<string | null> {
+  const real = await db.invite.findFirst({ where: { groupId, memberId: rowId, acceptedAt: null, declinedAt: null }, select: { email: true } });
+  if (real) return real.email;
+  return (await db.requestKey.findUnique({ where: { key: decoyKey(groupId, rowId) }, select: { result: true } }))?.result || null;
+}
+
+// "Cancel invitation" on a pair, so a mistyped address can be fixed. Only a member of the pair who has an account; the other row must
+// still be a name. Closes every open invitation for it and drops the note. Balances and history are not touched; nothing is logged.
+export async function cancelDirectInvite(groupId: string, actorId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group || group.deletedAt || group.type !== DIRECT) return { ok: false, error: "This isn’t there any more." };
+  const actor = group.members.find((m) => m.id === actorId);
+  const row = group.members.find((m) => m.id !== actorId);
+  if (!actor?.accountId || !row) return { ok: false, error: "Only the person who added this name can cancel the invitation." };
+  if (row.accountId || row.claimedAt || row.removedAt) return { ok: false, error: `${row.name} is already on Loopin.` };
+  await db.$transaction([
+    db.invite.updateMany({ where: { groupId, memberId: row.id, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
+    db.requestKey.deleteMany({ where: { key: decoyKey(groupId, row.id) } }),
+  ]);
+  return { ok: true };
 }
 
 function esc(s: string) {

@@ -79,11 +79,12 @@ describe("inviting and accepting", () => {
     expect(await mailTo(d.email)).toBe(0);
   });
 
-  it("inviting yourself looks the same and writes nothing", async () => {
+  it("inviting yourself says so plainly (that tells nobody anything) and writes nothing", async () => {
     const a = await made("sa", "Asha");
     const local = await ensureLocalPair({ id: a.id }, "Sam", { currency: "INR", myName: "Asha" });
     if (!local.ok) throw new Error("refused");
-    expect((await inviteDirectPerson(local.groupId, local.myId, a.email, origin)).ok).toBe(true);
+    const own = await inviteDirectPerson(local.groupId, local.myId, a.email, origin);
+    expect(own).toEqual({ ok: false, error: "That’s your own email. Type theirs." });
     expect(await db.invite.count({ where: { groupId: local.groupId } })).toBe(0);
     expect(await mailTo(a.email)).toBe(0);
   });

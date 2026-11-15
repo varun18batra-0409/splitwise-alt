@@ -10,6 +10,7 @@ import { cleanKey } from "@/lib/once";
 import { tripFromGoalOnce } from "@/lib/goal-trip";
 import { saveBudgetsFor } from "@/lib/home/budgets-db";
 import { moveOut, returnDepositFor, saveDepositFor } from "@/lib/home/moving-db";
+import { isPairGroup } from "@/lib/direct-guard";
 import { db } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 import { niceDate } from "@/lib/format";
@@ -125,6 +126,7 @@ export async function saveBudgets(formData: FormData) {
 export async function setMoveIn(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const actor = await me(groupId);
+  if (await isPairGroup(groupId)) redirect(`/people/${groupId}`); // a pair has no moving in
   const memberId = String(formData.get("memberId") ?? "");
   const day = String(formData.get("day") ?? "");
   const member = await db.member.findFirst({ where: { id: memberId, groupId } });
@@ -146,6 +148,8 @@ export async function moveOutAction(formData: FormData) {
   const leaverId = String(formData.get("leaverId") ?? "");
   const lastDay = String(formData.get("lastDay") ?? "");
   const myId = await me(groupId);
+  // A pair has no moving out (the lib refuses too).
+  if (await isPairGroup(groupId)) redirect(`/people/${groupId}`);
   // You can move yourself out; moving someone else out is for whoever looks after the flat.
   if (myId && leaverId !== myId && !(await isGroupAdmin(groupId, myId))) {
     redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent("Only the person moving out, or whoever looks after this flat, can do this.")}`);

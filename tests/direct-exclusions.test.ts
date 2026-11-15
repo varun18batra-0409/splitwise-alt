@@ -51,9 +51,9 @@ const mine = () => ({ [G.id]: G.a, [P.groupId]: P.aRow, [Q.groupId]: Q.aRow, [lo
 
 describe("19. screens that list groups never show a pair", () => {
   it("loadMyGroups and loadMyGroupsLean return only G; includeDirect is the one way to see pairs", async () => {
-    expect((await loadMyGroups(mine())).map((g) => g.id)).toEqual([G.id]);
-    expect((await loadMyGroupsLean(mine())).map((g) => g.id)).toEqual([G.id]);
-    const withPairs = (await loadMyGroups(mine(), { includeDirect: true })).map((g) => g.id);
+    expect((await loadMyGroups(mine())).map((g) => g.group.id)).toEqual([G.id]);
+    expect((await loadMyGroupsLean(mine())).map((g) => g.group.id)).toEqual([G.id]);
+    const withPairs = (await loadMyGroups(mine(), { includeDirect: true })).map((g) => g.group.id);
     expect(withPairs).toContain(P.groupId);
   });
 

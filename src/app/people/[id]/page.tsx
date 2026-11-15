@@ -13,7 +13,8 @@ import { waitingForMe } from "@/lib/payment-ok";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { balanceLine } from "@/lib/direct";
 import { confirmPaymentAction, rejectPaymentAction } from "@/app/pay-actions";
-import { renamePerson, settleAcrossGroups } from "@/app/actions";
+import { cancelInvite, renamePerson, settleAcrossGroups } from "@/app/actions";
+import { openInviteEmail } from "@/lib/direct-db";
 import { inviteDirect } from "@/app/direct-actions";
 import { differentAmountFor } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
@@ -73,7 +74,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
     group.expenses.length ? db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) } }, select: { expenseId: true, memberId: true, emoji: true } }) : Promise.resolve([]),
     group.expenses.length ? db.receipt.findMany({ where: { groupId: group.id, expenseId: { not: "" } }, select: { id: true, expenseId: true } }) : Promise.resolve([]),
     waitingForMe(group.id, myId),
-    shared ? Promise.resolve(null) : db.invite.findFirst({ where: { groupId: group.id, memberId: other.id, acceptedAt: null, declinedAt: null }, select: { email: true } }),
+    shared ? Promise.resolve(null) : openInviteEmail(group.id, other.id),
   ]);
 
   // Right after a change: Undo (or Redo after an undo), judged on the same history the group screens use.
@@ -165,7 +166,16 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       {!shared && (
         <section aria-label={`Invite ${name}`} className="mt-4 rounded-[22px] border border-line px-4 py-3.5" data-person-invite>
           {openInvite ? (
-            <p className="text-[14.5px] leading-snug text-fg/75">Invitation sent to {openInvite.email}. They’ll see this once they join.</p>
+            <div data-person-open-invite>
+              <p className="text-[14.5px] leading-snug text-fg/75">Invitation sent to {openInvite}. They’ll see this once they join.</p>
+              <form action={cancelInvite} className="mt-2">
+                <input type="hidden" name="groupId" value={group.id} />
+                <input type="hidden" name="memberId" value={other.id} />
+                <button type="submit" className="min-h-11 w-full rounded-full border border-fg/25 text-[15px] font-semibold active:bg-fg/10" data-cancel-invite>
+                  Cancel invitation
+                </button>
+              </form>
+            </div>
           ) : (
             <details>
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[15px] font-medium [&::-webkit-details-marker]:hidden">

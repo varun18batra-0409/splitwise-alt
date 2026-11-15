@@ -63,7 +63,7 @@ describe("starting a pair", () => {
     expect(await db.group.count({ where: { pairKey: accountPairKey(A, B) } })).toBe(1);
     const g = await db.group.findUnique({ where: { id: pairId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
     expect(g!.type).toBe("direct");
-    expect(g!.members.map((m) => m.accountId)).toEqual([A, B]); // the one who started is first
+    expect(g!.members.map((m) => m.accountId).sort()).toEqual([A, B].sort()); // both people, whichever tap won the race and so is first
     expect(await db.groupEvent.count({ where: { groupId: pairId } })).toBe(0); // nothing is logged, so nobody is told
   });
 
@@ -176,7 +176,7 @@ describe("recording a payment in a pair", () => {
     const pay = await recordPaymentCore({ groupId: pairId, fromId: aRow, toId: rRow, amount: 3000, currency: "INR", myId: aRow, key: key("pay-b"), fp: "fp-pay-b", warnOver: false });
     expect(pay.kind).toBe("done");
     expect((await netOf(pairId))[aRow]).toBe(3000); // it counts straight away
-    const p = (await db.payment.findFirst({ where: { groupId: pairId, deletedAt: null, okAt: null, needsOk: true } }))!;
+    const p = (await db.payment.findFirst({ where: { groupId: pairId, fromId: aRow, toId: rRow, deletedAt: null, okAt: null, needsOk: true } }))!;
     expect(p.amount).toBe(3000);
     const needs = await loadNeedsYou({ [pairId]: rRow }, { id: B }, 0);
     const mine = needs.items.find((i) => i.id === `payment:${p.id}`);
