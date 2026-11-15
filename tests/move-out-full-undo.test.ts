@@ -1,7 +1,11 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { moveOut, saveDepositFor } from "@/lib/home/moving-db";
-import { canUndo, historyCheck, ownMoveOut, pickOwnMoveOut, undoEvent, undoViewerFor } from "@/lib/undo";
+import { CLOSED_MOVE_OUT_TEXT, LEAVER_BLOCKED_TEXT, MOVED_OUT_REJOIN_TEXT, actorRefusal, canUndo, historyCheck, leaverUndoChecks, ownMoveOut, pickOwnMoveOut, undoEvent, undoViewerFor } from "@/lib/undo";
+import { setMemberLeft } from "@/lib/people";
+import { joinNew } from "@/lib/join";
+import { acceptInvitation } from "@/lib/invitations";
+import { readFileSync } from "node:fs";
 import { netBalances } from "@/lib/balances";
 import { smartSettle } from "@/lib/settle";
 import { loadGroupView } from "@/lib/group-data";
@@ -24,6 +28,12 @@ import { scopeForLeaver } from "@/lib/left-view";
 //   Square-up: Asha pays Meera 11111   -> Meera 444444, Ravi -444444, Asha 0.
 //   Undo: shares exactly 300000 x 3 and 33334 / 33333 / 33333, the payment taken off -> the "before" balances again.
 //   Settling those: Ravi pays Meera 333333, Asha pays Meera 233333 -> everyone 0.
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined, set: () => undefined, delete: () => undefined }),
+  headers: async () => new Headers({ host: "loopin.test" }),
+}));
+vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const accountIds: string[] = [];
@@ -82,7 +92,7 @@ async function flat() {
     const rows = await db.expenseShare.findMany({ where: { expenseId } });
     return Object.fromEntries(rows.map((s) => [s.memberId, s.amount]));
   };
-  return { g, M, R, S, rent, wifi, nets, sharesOf };
+  return { g, M, R, S, rent, wifi, nets, sharesOf, code: g.inviteCode, asha: sA };
 }
 type Flat = Awaited<ReturnType<typeof flat>>;
 
@@ -204,7 +214,7 @@ describe("undoing a move-out takes everything back", () => {
     await db.expenseShare.updateMany({ where: { expenseId: f.rent.e.id, memberId: f.M }, data: { amount: 399900 } });
     const before = await f.nets();
     const u = await undoEvent(ev.id, f.S);
-    expect(u).toEqual({ ok: false, error: "Rent was changed after the move-out, so this can’t be undone. Ask someone in the flat to undo that change first." });
+    expect(u).toEqual({ ok: false, error: LEAVER_BLOCKED_TEXT }); // Asha has left: told plainly, without naming who changed Rent
     expect(await f.nets()).toEqual(before);
     expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
     expect((await db.groupEvent.findUniqueOrThrow({ where: { id: ev.id } })).undoneAt).toBeNull();
@@ -227,7 +237,7 @@ describe("canUndo / historyCheck for a move-out", () => {
   const ev = (o: Partial<Ev> & { id: string }): Ev => ({ kind: "expense_edited", undo: "", undoneAt: null, expenseId: null, paymentId: null, createdAt: plus(0), ...o });
   const moveOutEv = (moneyPart: object | undefined, details: string[] = []): Ev =>
     ev({ id: "mo", kind: "member_left", actorId: "asha", details: JSON.stringify(details), undo: JSON.stringify({ type: "member_set", memberId: "asha", data: { leftAt: null }, moveOut: { bills: [], ...(moneyPart ? { money: moneyPart } : {}) } }) });
-  const viewer = { id: "asha", isAdmin: false, members: [{ id: "meera", name: "Meera", accountId: "a1", leftAt: null, removedAt: null }, { id: "asha", name: "Asha", accountId: "a2", leftAt: T0, removedAt: null }] };
+  const viewer = { id: "asha", isAdmin: false, closed: false, members: [{ id: "meera", name: "Meera", accountId: "a1", leftAt: null, removedAt: null }, { id: "asha", name: "Asha", accountId: "a2", leftAt: T0, removedAt: null }] };
 
   it("a newer edit of the Rent the move-out re-split blocks it, and names that edit", () => {
     const mo = moveOutEv(money);
@@ -276,5 +286,267 @@ describe("what a leaver sees of the lines about herself", () => {
   it("a line after the day she left, with nobody's balance touched, is kept when it is a left/rejoined line about her, and dropped when it is about someone else", () => {
     const out = scopeForLeaver({ expenses: [], payments: [], events: [line("mine", "asha"), line("rejoin", "asha", "member_rejoined"), line("theirs", "meera"), { ...line("other", "asha", "group_renamed") }] }, "asha", cut);
     expect(out.events.map((e) => e.id).sort()).toEqual(["mine", "rejoin"]);
+  });
+});
+
+// ---- Review fixes ----
+describe("a move-out's own lines are undone with the move-out, never alone (M2)", () => {
+  const T0 = new Date("2026-11-10T06:00:00.000Z");
+  type Ev = Parameters<typeof historyCheck>[0];
+  const ev = (o: Partial<Ev> & { id: string }): Ev => ({ kind: "expense_edited", undo: "", undoneAt: null, expenseId: null, paymentId: null, createdAt: T0, ...o });
+  const parent = (o: Partial<Ev> = {}): Ev =>
+    ev({ id: "mo", kind: "member_left", undo: JSON.stringify({ type: "member_set", memberId: "asha", data: { leftAt: null }, moveOut: { bills: [], money: { currency: "INR", shares: [], payments: [], eventIds: ["edit1", "pay1ev", "charge1"] } } }), ...o });
+  const revert = JSON.stringify({ type: "expense_revert", expenseId: "rent", before: {} });
+  it("the re-split edit, the square-up payment line and the daily charge each say so, naming the person when the names are known", () => {
+    const mo = parent();
+    const nameOf = (id: string) => (id === "asha" ? "Asha" : undefined);
+    for (const id of ["edit1", "pay1ev", "charge1"]) {
+      const line = ev({ id, undo: revert, expenseId: "rent" });
+      expect(historyCheck(line, [line, mo], nameOf)).toEqual({ ok: false, reason: "This was part of Asha’s move-out. Undo the move-out instead." });
+      expect(historyCheck(line, [line, mo])).toEqual({ ok: false, reason: "This was part of a move-out. Undo the move-out instead." });
+    }
+  });
+  it("once the move-out is undone its lines say 'already undone', and an unrelated edit is unaffected", () => {
+    const line = ev({ id: "edit1", undo: revert, expenseId: "rent", undoneAt: T0 });
+    expect(historyCheck(line, [line, parent({ undoneAt: T0 })])).toEqual({ ok: false, reason: "This change was already undone." });
+    const other = ev({ id: "other", undo: revert, expenseId: "snacks" });
+    expect(historyCheck(other, [other, parent()]).ok).toBe(true);
+  });
+  it("a move-out of the same moment (saved just after its lines) still counts", () => {
+    const line = ev({ id: "edit1", undo: revert, expenseId: "rent", createdAt: T0 });
+    expect(historyCheck(line, [line, parent({ createdAt: T0 })]).ok).toBe(false);
+  });
+  it("in the database: undoing the re-split edit or the payment line is refused and changes nothing", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    const before = { nets: await f.nets(), rent: await f.sharesOf(f.rent.e.id), wifi: await f.sharesOf(f.wifi.e.id) };
+    const edit = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "expense_edited", expenseId: f.rent.e.id } });
+    const payLine = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "payment_recorded" } });
+    for (const line of [edit, payLine]) {
+      expect(await undoEvent(line.id, f.R)).toEqual({ ok: false, error: "This was part of Asha’s move-out. Undo the move-out instead." });
+    }
+    expect({ nets: await f.nets(), rent: await f.sharesOf(f.rent.e.id), wifi: await f.sharesOf(f.wifi.e.id) }).toEqual(before);
+    expect(await db.groupEvent.count({ where: { groupId: f.g.id, undoneAt: { not: null } } })).toBe(0);
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
+  });
+});
+
+describe("someone who moved out judges Undo on the full history (M1) and is told plainly why not (L1)", () => {
+  it("Ravi edits Rent after the move-out in a way Asha can't see: her screen's trimmed history says yes, the full history (and the server) say no", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    const mo = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
+    // An edit of Rent by Ravi that moves only Ravi's and Meera's money (touches Ravi and Meera, not Asha), a minute later.
+    await db.groupEvent.create({ data: { groupId: f.g.id, actorId: f.R, kind: "expense_edited", text: "changed Rent", expenseId: f.rent.e.id, touches: `${f.R},${f.M}`, createdAt: new Date(mo.createdAt.getTime() + 60_000), undo: JSON.stringify({ type: "expense_revert", expenseId: f.rent.e.id, before: {} }) } });
+    const viewer = await undoViewerFor(f.g.id, f.S);
+    // (Whether her trimmed Activity shows this edit depends on her share in Rent; the point is that her Undo is judged on the full history.)
+    const checks = await leaverUndoChecks(f.g.id, viewer, new Date());
+    expect(checks.get(mo.id)).toEqual({ ok: false, reason: LEAVER_BLOCKED_TEXT }); // never names Ravi or what he did
+    const own = await ownMoveOut(f.g.id, viewer, new Date());
+    expect(own?.check.ok).toBe(false);
+    expect(await undoEvent(mo.id, f.S)).toEqual({ ok: false, error: LEAVER_BLOCKED_TEXT }); // the server agrees, in the same words
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
+  });
+  it("someone still in the flat has no leaver checks; the leaver's blocked text never names anyone", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    expect((await leaverUndoChecks(f.g.id, await undoViewerFor(f.g.id, f.M), new Date())).size).toBe(0);
+    expect(LEAVER_BLOCKED_TEXT).toBe("Something the move-out changed was changed again since, so it can’t be undone. Ask someone in the flat to undo that change first.");
+    for (const file of ["src/app/groups/[id]/_components/LeftBanner.tsx", "src/app/groups/[id]/people/page.tsx"]) {
+      const src = readFileSync(file, "utf8");
+      expect(src).not.toContain("blockedMessage(ownMove");
+      expect(src).toContain("leaverBlockedText(");
+    }
+  });
+});
+
+describe("rejoining through the group's join link (M3)", () => {
+  it("someone whose move-out can still be undone is not quietly put back; after the undo the link works", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    const joiner = { id: f.asha.id, name: "Asha", email: f.asha.email };
+    const r = await joinNew(f.code, joiner, "Asha");
+    expect(r).toMatchObject({ ok: false, reason: "moved_out", groupId: f.g.id, memberId: f.S });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
+    const mo = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
+    expect((await undoEvent(mo.id, f.S)).ok).toBe(true);
+    expect(await joinNew(f.code, joiner, "Asha")).toMatchObject({ ok: true, memberId: f.S });
+  });
+  it("the join action sends them to People with the calm words", () => {
+    const src = readFileSync("src/app/actions.ts", "utf8");
+    expect(src).toContain('r.reason === "moved_out"');
+    expect(src).toContain("MOVED_OUT_REJOIN_TEXT");
+  });
+});
+
+describe("which move-out is still there to undo (L2, L3)", () => {
+  const T0 = new Date("2026-11-10T06:00:00.000Z");
+  const plus = (ms: number) => new Date(T0.getTime() + ms);
+  type Ev = Parameters<typeof historyCheck>[0];
+  const line = (id: string, kind: string, memberId: string, at: number, extra: object = {}, undoneAt: Date | null = null): Ev => ({
+    id, kind, undoneAt, expenseId: null, paymentId: null, createdAt: plus(at),
+    undo: JSON.stringify({ type: "member_set", memberId, data: { leftAt: null }, ...extra }),
+  });
+  const move = (id: string, memberId: string, at: number) => line(id, "member_left", memberId, at, { moveOut: { bills: [] } });
+  it("a move-out followed by her own rejoin is history; an undone rejoin, or someone else's rejoin, changes nothing; a newer move-out wins again", () => {
+    const m1 = move("m1", "asha", 0);
+    expect(pickOwnMoveOut([m1], "asha")?.id).toBe("m1");
+    expect(pickOwnMoveOut([m1, line("r1", "member_rejoined", "asha", 1000)], "asha")).toBeNull();
+    expect(pickOwnMoveOut([m1, line("r1", "member_rejoined", "asha", 1000, {}, plus(2000))], "asha")?.id).toBe("m1");
+    expect(pickOwnMoveOut([m1, line("r2", "member_rejoined", "ravi", 1000)], "asha")?.id).toBe("m1");
+    const m2 = move("m2", "asha", 5000);
+    expect(pickOwnMoveOut([m1, line("r1", "member_rejoined", "asha", 1000), m2], "asha")?.id).toBe("m2");
+  });
+  it("in the database: Rejoin without undoing, then leaving the plain way, does not bring the old move-out back; the old line's Undo is blocked too", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    const old = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
+    expect((await setMemberLeft(f.g.id, f.S, f.S, false)).ok).toBe(true); // Rejoin without undoing
+    expect((await setMemberLeft(f.g.id, f.S, f.S, true)).ok).toBe(true); // Asha is square (0), so she may leave the plain way
+    const viewer = await undoViewerFor(f.g.id, f.S);
+    expect(await ownMoveOut(f.g.id, viewer, new Date())).toBeNull();
+    expect((await leaverUndoChecks(f.g.id, viewer, new Date())).get(old.id)?.ok).toBe(false); // "This person was changed again since"
+  });
+  it("in a closed group the check says it can't be undone, so no button", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    await db.group.update({ where: { id: f.g.id }, data: { closed: true } });
+    const own = await ownMoveOut(f.g.id, await undoViewerFor(f.g.id, f.S), new Date());
+    expect(own?.check).toEqual({ ok: false, reason: CLOSED_MOVE_OUT_TEXT });
+    expect(CLOSED_MOVE_OUT_TEXT).toBe("The group is closed, so the move-out can’t be undone. Ask someone in the flat to reopen it.");
+  });
+});
+
+// ---- Round 2 ----
+describe("the leaver's Undo button is only shown when the server would accept it (round 2, item 2)", () => {
+  // Each case: the screen says not ok, the server refuses, nothing changes, and the leaver's words name nobody.
+  async function refused(f: Flat, expected: string) {
+    const mo = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
+    const viewer = await undoViewerFor(f.g.id, f.S);
+    const own = await ownMoveOut(f.g.id, viewer, new Date());
+    expect(own?.check).toEqual({ ok: false, reason: expected });
+    expect((await leaverUndoChecks(f.g.id, viewer, new Date())).get(mo.id)).toEqual({ ok: false, reason: expected });
+    const before = { nets: await f.nets(), rent: await f.sharesOf(f.rent.e.id), wifi: await f.sharesOf(f.wifi.e.id) };
+    expect(await undoEvent(mo.id, f.S)).toEqual({ ok: false, error: expected });
+    expect({ nets: await f.nets(), rent: await f.sharesOf(f.rent.e.id), wifi: await f.sharesOf(f.wifi.e.id) }).toEqual(before);
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
+    expect(await db.groupEvent.count({ where: { id: mo.id, undoneAt: { not: null } } })).toBe(0);
+    for (const nm of ["Meera", "Ravi"]) expect(expected).not.toContain(nm);
+  }
+  it("the deposit was returned since", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    const share = await db.depositShare.findFirstOrThrow({ where: { memberId: f.S } });
+    expect(share.status).toBe("transferred");
+    await db.depositShare.update({ where: { id: share.id }, data: { status: "returned" } });
+    await refused(f, LEAVER_BLOCKED_TEXT);
+  });
+  it("a daily bill for the month was added since (worked out without her)", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    // Make the move-out record say it charged Wi-Fi's November in advance; that bill's November run is "added", as it is here.
+    const mo = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
+    const u = JSON.parse(mo.undo);
+    u.moveOut.prepaid = [{ billId: f.wifi.b.id, period: "2026-11", expenseId: "no-such-charge" }];
+    await db.groupEvent.update({ where: { id: mo.id }, data: { undo: JSON.stringify(u) } });
+    await refused(f, LEAVER_BLOCKED_TEXT);
+  });
+  it("someone whose balance the undo would move has left since: the leaver is not told who", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    await db.member.update({ where: { id: f.R }, data: { leftAt: new Date("2026-11-12T00:00:00Z") } }); // Ravi, -444444 at that point
+    await refused(f, LEAVER_BLOCKED_TEXT);
+  });
+  it("a covered 'I've paid' claim on the square-up payment, or a changed currency, is a plain 'can't be undone any more'", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    await db.group.update({ where: { id: f.g.id }, data: { currency: "USD" } });
+    await refused(f, "This move-out can’t be undone any more.");
+  });
+  it("a leaver is never given the 'Ask someone in the flat' words for a permanent block", () => {
+    const src = readFileSync("src/lib/home/moving-db.ts", "utf8");
+    expect(src).toContain('stop(CURRENCY_SINCE, MOVE_OUT_GONE_FOR_GOOD)');
+    expect(src).toContain("counted in the move-out’s square-up, so it can’t be undone.\", MOVE_OUT_GONE_FOR_GOOD)");
+  });
+});
+
+describe("accepting an invitation back (round 2, item 1, and 4b)", () => {
+  async function invite(f: Flat) {
+    return db.invite.create({ data: { groupId: f.g.id, email: f.asha.email, invitedById: f.M, token: `tok-${++n}-${stamp}`, memberId: f.S } });
+  }
+  it("a move-out that can still be undone is not given up: nothing changes and she is sent to People", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    const inv = await invite(f);
+    const r = await acceptInvitation({ id: f.asha.id, email: f.asha.email, name: "Asha" } as never, inv.token);
+    expect(r).toEqual({ ok: false, error: MOVED_OUT_REJOIN_TEXT, movedOut: { groupId: f.g.id, memberId: f.S } });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
+    expect((await db.invite.findUniqueOrThrow({ where: { id: inv.id } })).acceptedAt).toBeNull();
+    expect(await db.groupEvent.count({ where: { groupId: f.g.id, kind: "member_rejoined" } })).toBe(0);
+    const src = readFileSync("src/app/actions.ts", "utf8");
+    expect(src).toContain("r.movedOut");
+    expect(src).toContain("/people?error=");
+  });
+  it("when the move-out can't be undone any more, the invitation just brings her back", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    await db.group.update({ where: { id: f.g.id }, data: { currency: "USD" } }); // permanent block
+    const inv = await invite(f);
+    const r = await acceptInvitation({ id: f.asha.id, email: f.asha.email, name: "Asha" } as never, inv.token);
+    expect(r).toMatchObject({ ok: true, memberId: f.S });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).toBeNull();
+  });
+  it("the join link and the plain-leave guard also only block while the undo is possible", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    await db.group.update({ where: { id: f.g.id }, data: { currency: "USD" } });
+    expect(await joinNew(f.code, { id: f.asha.id, name: "Asha", email: f.asha.email }, "Asha")).toMatchObject({ ok: true, memberId: f.S });
+    expect(readFileSync("src/app/actions.ts", "utf8")).toContain("new Date()))?.check.ok) {");
+  });
+});
+
+describe("closed groups and the undo button (round 2, item 3)", () => {
+  const T0 = new Date("2026-11-10T06:00:00.000Z");
+  const viewer = (closed: boolean) => ({ id: "ravi", isAdmin: true, closed, members: [] as { id: string; leftAt: Date | null }[] });
+  const e = (undo: object) => ({ id: "x", kind: "k", undo: JSON.stringify(undo), undoneAt: null, expenseId: null, paymentId: null, createdAt: T0 });
+  it("a move-out undo for people still in the flat says the group is closed", () => {
+    const mo = e({ type: "member_set", memberId: "asha", data: { leftAt: null }, moveOut: { bills: [] } });
+    // Refused when closed (which rule speaks first depends on who is looking; for someone who could otherwise undo it, it's the closed text).
+    expect(actorRefusal(mo as never, viewer(true) as never, T0)).toBeTruthy();
+    expect(actorRefusal(mo as never, viewer(false) as never, T0)).not.toBe(CLOSED_MOVE_OUT_TEXT);
+  });
+  it("expense and payment undos are not offered in a closed group, as the server refuses them", () => {
+    for (const t of ["expense_delete", "expense_restore", "expense_revert"]) {
+      expect(actorRefusal(e({ type: t }) as never, viewer(true) as never, T0)).toBe("This group is closed. Reopen it to change expenses.");
+      expect(actorRefusal(e({ type: t }) as never, viewer(false) as never, T0)).not.toBe("This group is closed. Reopen it to change expenses.");
+    }
+    for (const t of ["payment_delete", "payment_restore"]) {
+      expect(actorRefusal(e({ type: t }) as never, viewer(true) as never, T0)).toBe("This group is closed. Reopen it to change payments.");
+    }
+  });
+  it("in the database: Meera sees the move-out undo as refused in a closed group, and the server agrees", async () => {
+    const f = await flat();
+    await ashaMovesOut(f);
+    await db.group.update({ where: { id: f.g.id }, data: { closed: true } });
+    const mo = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
+    const v = await undoViewerFor(f.g.id, f.M);
+    expect(v.closed).toBe(true);
+    expect(canUndo(mo as never, [mo] as never, new Date(), v).ok).toBe(false); // Meera can't undo Asha's own move-out anyway; closed or not, no button
+    expect(await undoEvent(mo.id, f.M)).toMatchObject({ ok: false });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
+  });
+});
+
+describe("wording when a move-out line can't be undone alone (round 2, item 4a)", () => {
+  const T0 = new Date("2026-11-10T06:00:00.000Z");
+  type Ev = Parameters<typeof historyCheck>[0];
+  const ev = (o: Partial<Ev> & { id: string }): Ev => ({ kind: "expense_edited", undo: "", undoneAt: null, expenseId: null, paymentId: null, createdAt: T0, ...o });
+  const parent = (o: Partial<Ev> = {}): Ev =>
+    ev({ id: "mo", kind: "member_left", undo: JSON.stringify({ type: "member_set", memberId: "asha", data: { leftAt: null }, moveOut: { bills: [], money: { currency: "INR", shares: [], payments: [], eventIds: ["edit1"] } } }), ...o });
+  it("'Undo the move-out instead' only while the move-out itself can be undone by history", () => {
+    const line = ev({ id: "edit1", undo: JSON.stringify({ type: "expense_revert", expenseId: "rent", before: {} }), expenseId: "rent" });
+    const rejoin = ev({ id: "rj", kind: "member_rejoined", undo: JSON.stringify({ type: "member_set", memberId: "asha", data: { leftAt: "2026-11-10T00:00:00.000Z" } }), createdAt: new Date(T0.getTime() + 1000) });
+    expect(historyCheck(line, [line, parent()], (id) => (id === "asha" ? "Asha" : undefined))).toEqual({ ok: false, reason: "This was part of Asha’s move-out. Undo the move-out instead." });
+    expect(historyCheck(line, [line, parent(), rejoin], (id) => (id === "asha" ? "Asha" : undefined))).toEqual({ ok: false, reason: "This was part of Asha’s move-out, so it can’t be undone on its own." });
   });
 });

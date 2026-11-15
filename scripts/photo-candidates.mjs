@@ -56,7 +56,7 @@ export const COUNTRY_PHOTOS = {
   KE: ["photo-1547471080-7cc2caa01a7e", "photo-1516426122078-c23e76319801"],
   TZ: ["photo-1650668302197-7f556c34cb91", "photo-1575999502951-4ab25b5ca889"],
   EG: ["photo-1503177119275-0aa32b3a9368", "photo-1568322445389-f64ac2515020"],
-  MA: ["photo-1569383746724-6f1b882b8f46", "photo-1539020140153-e479b8c22e70"],
+  MA: ["photo-1597212618440-806262de4f6b", "photo-1680880482590-0f4b9b5258c7", "photo-1539020140153-e479b8c22e70"], // Koutoubia minaret in Marrakech with the snowy Atlas behind; then Ait Benhaddou; then a zellige fountain (founder 15 Nov: the blue Chefchaouen one looked like Greece)
   MU: ["photo-1581702576086-0fb4be1dbafd"],
   SC: ["photo-1563464638093-4d6c0cffbf67", "photo-1590523741831-ab7e8b8f9c7f"],
   SA: ["photo-1586724237569-f3d0c1dee8c6"],

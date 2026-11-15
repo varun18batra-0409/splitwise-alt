@@ -117,7 +117,7 @@ export default async function Home({
     const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
-    const viewer = { id: myId, isAdmin: await isGroupAdmin(didGroup, myId), members: grp.group.members };
+    const viewer = { id: myId, isAdmin: await isGroupAdmin(didGroup, myId), closed: grp.group.closed, members: grp.group.members };
     if (ev && canUndo(ev, events, new Date(), viewer).ok) {
       const actor = ev.actorId === myId ? "You" : grp.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
       undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)} · ${grp.group.name}`, groupId: didGroup, eventId: ev.id };
