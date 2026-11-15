@@ -4,12 +4,13 @@ import { eraseGroups } from "@/lib/purge";
 import { loadGroup } from "@/lib/group-data";
 import { createPayment } from "@/lib/payments";
 import { makeClaim } from "@/lib/payment-claims";
+import { recordOwnPayment } from "@/lib/pay-record";
 import { needsOkFor } from "@/lib/payment-ok";
 import { planSettleRow, settleRowFacts } from "@/lib/settle-row";
 
 // The Settle up page, wired to the real data (the page itself needs a browser; these are the same calls it makes):
-// the payer's row to someone who has joined offers "I've paid" (a claim: no balance moves until they confirm),
-// and the row to a name-only person offers the same words but records the payment straight away.
+// the payer's row offers "I've paid", which records the payment straight away (since 15 Nov: to someone who has joined
+// the payment counts at once and they can tap Not received; to a name-only person it counts with nobody to ask).
 //
 // Cast: Asha (the viewer, a payer), Meera (joined), Kabir (a name only, never joined).
 //   Meera paid ₹600 for Asha and herself: 30000 each.   Kabir paid ₹600 for Asha and himself: 30000 each.
@@ -54,16 +55,18 @@ async function rowFor(gid: string, asha: string, to: string) {
 }
 
 describe("Settle up: the payer's row", () => {
-  it("to someone who has joined it is a claim: no payment is made and the balance does not move until they confirm", async () => {
+  it("to someone who has joined it records a real payment at once: Asha owes Meera 30000 and then nothing, and Meera is asked", async () => {
     const w = await world();
     const { t, plan } = await rowFor(w.gid, w.asha, w.meera);
     expect(t.amount).toBe(30000);
-    expect(plan).toMatchObject({ action: "claim", actionLabel: "I’ve paid" });
-    const r = await makeClaim({ groupId: w.gid, fromId: w.asha, toId: w.meera, actorId: w.asha, source: "app", expectAmount: t.amount });
-    expect(r).toMatchObject({ ok: true, amount: 30000 });
-    expect(await db.payment.count({ where: { groupId: w.gid } })).toBe(0);
-    expect(await db.paymentClaim.count({ where: { groupId: w.gid, status: "waiting" } })).toBe(1);
-    expect((await rowFor(w.gid, w.asha, w.meera)).t.amount).toBe(30000); // still owed
+    expect(plan).toMatchObject({ action: "record", actionLabel: "I’ve paid" });
+    const r = await recordOwnPayment({ groupId: w.gid, fromId: w.asha, toId: w.meera, myId: w.asha, expectAmount: t.amount });
+    expect(r.kind).toBe("done");
+    expect(await db.paymentClaim.count({ where: { groupId: w.gid } })).toBe(0); // no claim, nothing waiting
+    expect(await db.payment.findFirstOrThrow({ where: { groupId: w.gid, toId: w.meera } })).toMatchObject({ amount: 30000, fromId: w.asha, needsOk: true, okAt: null });
+    const after = await loadGroup(w.gid, { events: false });
+    expect(after!.transfers.some((x) => x.from === w.asha && x.to === w.meera)).toBe(false); // square with Meera
+    expect(after!.transfers.find((x) => x.from === w.asha && x.to === w.kabir)?.amount).toBe(30000); // Kabir's still owed
   });
 
   it("to a name-only person it says the same words but records the payment straight away", async () => {

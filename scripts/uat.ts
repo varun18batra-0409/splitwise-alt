@@ -920,8 +920,8 @@ async function main() {
 
   // ===== 6. Settling up =====
   // Every payment row on Settle up has the same layout: one filled main button (Open payment app or Remind), one outlined action
-  // ("I've paid" = a claim that counts after Confirm received, or direct "I've paid" / "They've paid me" / "Mark paid" where
-  // the other person can't confirm) and a "Paid a different amount?" link. There is no amount box on the row any more.
+  // ("I've paid" / "Mark paid": recorded as a real payment at once; since 15 Nov the person paid is told and can tap Not received)
+  // and a "Paid a different amount?" link. There is no amount box on the row any more.
   // F1: the quiet closing actions and "Paid a different amount?" sit under a "More options" link: open the one inside `scope` first.
   const openSettleMore = async (scope: ReturnType<Page["locator"]>) => {
     const d = scope.locator("details[data-more-options]").first();
@@ -1037,7 +1037,7 @@ async function main() {
     void from; void to; void amt;
     return checkBalances(V, g);
   });
-  await step(V, "Settle", "“I’ve paid” is only a claim: balances don't move until Asha taps Confirm received", async () => {
+  await step(V, "Settle", "“I’ve paid” counts straight away (15 Nov): the balances move at once, and Asha sees it in Alerts with a Not received button", async () => {
     await go(V, `${g}/settle`);
     const mine = settleCards(V).filter({ has: V.locator("[data-i-paid]") });
     if (!(await mine.count())) return notRun("Varun pays nobody who has joined right now");
@@ -1046,22 +1046,17 @@ async function main() {
     assert(m, `can't read the row: ${t}`);
     if (m[1] !== "Asha") return notRun(`Varun pays ${m[1]}, who isn't one of the signed-in phones here`);
     const amt = minor(m[2]);
-    const before = await checkBalances(V, g);
     await mine.first().locator("[data-i-paid]").click();
-    await V.waitForURL(/claimed=1/);
-    await V.getByRole("heading", { name: "Waiting for Asha" }).waitFor();
-    await checkBalances(V, g); // the claim moved nothing
-    // Asha's Alerts lists it once, under "Needs you" (not again in Activity).
-    await go(A, "/notifications");
-    await A.locator('[data-need="claim"]').filter({ hasText: /Varun says they paid you/ }).waitFor();
-    assert((await A.getByText(/says they paid/).count()) === 1, "the claim shows up twice in Alerts");
-    await go(A, `${g}/settle`);
-    await A.locator("[data-waiting='Varun']").getByRole("button", { name: "Confirm received" }).click();
-    await A.waitForURL(/ok=1/);
+    await V.waitForURL(/paid=1/);
+    assert((await V.getByRole("heading", { name: "Waiting for Asha" }).count()) === 0, "“I’ve paid” still waits for Asha");
     payments.push({ from: "Varun", to: "Asha", amount: amt, active: true, key: "claim" });
+    const after = await checkBalances(V, g); // the payment already counts
+    // Asha's Alerts: "Varun recorded paying you ₹…", with the Not received button (she can reverse it; not tapped here, so the later steps' balances hold).
     await go(A, "/notifications");
-    assert((await A.locator('[data-need="claim"]').count()) === 0, "Needs you still lists the confirmed claim");
-    return `${before} → after Confirm: ${await checkBalances(V, g)}`;
+    const told = A.locator('[data-need="payment"]').filter({ hasText: /Varun recorded paying you/ }).first();
+    await told.waitFor();
+    assert((await told.getByRole("button", { name: "Not received" }).count()) === 1, "no Not received button on the line in Alerts");
+    return `after I’ve paid: ${after}`;
   });
   // Record a payment: From and To are folded away until tapped (the To list starts open when nobody is picked yet).
   const pickFrom = async (page: Page, name: string) => {
@@ -1159,18 +1154,27 @@ async function main() {
   });
   await step(V, "Across groups", "Settle screen nets them into ONE payment: Asha pays Varun ₹200", async () => {
     await go(V, "/settle");
-    const card = V.locator("main li").filter({ hasText: "Asha" }).filter({ hasText: "UAT Flat" }).first();
+    // The new look (15 Nov): a summary card, then one card per person under TO PAY / TO RECEIVE (Varun is owed here).
+    assert(await V.locator("[data-settle-summary]").count(), "no summary card on the all-groups Settle up");
+    const card = V.locator("[data-settle-card='Asha']");
     const t = (await card.innerText()).replace(/\s+/g, " ");
-    assert(/Asha pays you/.test(t) && /₹200/.test(t), `card says: ${t}`);
-    assert(/1 payment instead of 2/.test(t), "doesn't say 1 payment instead of 2");
-    // Here a payment is recorded at once (unlike a group's own “I’ve paid” claim), so it never says “I’ve paid”.
-    assert((await V.locator("main summary", { hasText: "I’ve paid" }).count()) === 0, "the all-groups Settle screen says “I’ve paid”");
-    // "Mark paid" (Varun is owed) opens a preview of each group's part and the total; only "Record in 2 groups" saves.
-    await card.locator("summary", { hasText: "Mark paid" }).click();
+    assert(/₹200/.test(t), `card says: ${t}`);
+    assert(/UAT Flat/.test(t) && /UAT Dinner club/.test(t), `the card doesn't name both groups: ${t}`);
+    // "View breakdown" opens in place with each group's part and the total.
+    await card.locator("[data-breakdown-toggle]").click();
     const lines = (await card.locator("[data-cross-lines]").innerText()).replace(/\s+/g, " ");
-    assert(/UAT Flat: Asha pays you ₹500/.test(lines) && /UAT Dinner club: you pay Asha ₹300/.test(lines), `preview lines: ${lines}`);
-    assert(/Together: Asha pays you ₹200/.test(await card.locator("[data-cross-total]").innerText()), "preview total isn't Asha pays you ₹200");
-    await card.getByRole("button", { name: "Record in 2 groups" }).click();
+    assert(/UAT Flat: Asha pays you ₹500/.test(lines) && /UAT Dinner club: you pay Asha ₹300/.test(lines), `breakdown lines: ${lines}`);
+    assert(/Together: Asha pays you ₹200/.test(await card.locator("[data-cross-total]").innerText()), "breakdown total isn't Asha pays you ₹200");
+    assert(/1 payment instead of 2/.test((await card.innerText()).replace(/\s+/g, " ")), "doesn't say 1 payment instead of 2");
+    // A payment is recorded at once here, so it never says “I’ve paid”.
+    assert((await V.locator("main").getByText("I’ve paid").count()) === 0, "the all-groups Settle screen says “I’ve paid”");
+    // "Mark received" (Varun is owed) is in the ⋮ menu and opens the sheet; only confirming it saves anything.
+    await card.locator("[data-settle-menu]").click();
+    await card.getByRole("menuitem", { name: "Mark received" }).click();
+    const sheet = V.locator("[data-record-sheet]");
+    await sheet.waitFor();
+    assert(/Mark received/.test(await sheet.innerText()) && /No money will be transferred/.test(await sheet.innerText()), "the sheet doesn't say what it records");
+    await sheet.locator("[data-record-confirm]").click();
     await V.waitForURL(/settle=done/);
     const b2 = await shownBalances(V, g2);
     const b3 = await shownBalances(V, g3);

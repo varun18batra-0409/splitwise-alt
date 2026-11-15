@@ -2,8 +2,8 @@ import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
-import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
-import { DifferentAmountLink, differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
+import { formatMoney, toInputAmount } from "@/lib/money";
+import { differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
 import { crossActionLabel, crossPreview, settleRowId } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
 import { STALE_KEY_ERROR } from "@/lib/once";
@@ -14,11 +14,15 @@ import { db } from "@/lib/db";
 import { payButtons } from "@/lib/pay-links";
 import { coverFor } from "@/lib/covers";
 import { tripPhotoSrc } from "@/lib/places";
-import { groupMark, passFields } from "@/lib/home/money-card";
-import { CREAM, type StubCover } from "@/components/HomeMoney";
-import { firstName, InfoNote, OUTLINE_PILL, PayTicket, PayView, QUIET } from "@/components/PayScreens";
+import { groupMark } from "@/lib/home/money-card";
+import { type StubCover } from "@/components/HomeMoney";
+import { firstName, InfoNote, OUTLINE_PILL, PayView } from "@/components/PayScreens";
+import { BackIcon, iconButtonClass } from "@/components/icons";
+import { BIG_CREAM, SettleCard, type MenuItem } from "@/components/SettleUp";
 
-// Smart Settle across all your groups: one payment per person. Each is a ticket with the group's picture on its stub.
+// Smart Settle across all your groups: one payment per person. Each person is a card (founder's design, 15 Nov): the exact amount, "View breakdown",
+// one big button and a ⋮ menu. "Record payment" opens a bottom sheet; confirming it records the payment in each group at once (settleAcrossGroups), and the
+// person paid, when they are on Loopin, is told in Updates and can tap "Not received". (The group's own Settle up keeps its own look.)
 export default async function SettlePage({ searchParams }: { searchParams: Promise<{ settle?: string; pay?: string }> }) {
   const { settle: notice, pay } = await searchParams;
   const { all, common, settleItems, skippedLinks, othersPending } = await loadOverview(await getMemberships());
@@ -89,20 +93,131 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     );
   }
 
+  // ---- The overview ----
+  const outList = settleItems.filter((it) => it.net <= 0); // people I pay (an "even" pair is listed here, as before)
+  const inList = settleItems.filter((it) => it.net > 0); // people who pay me
+  const oweItems = settleItems.filter((it) => it.net < 0);
+  const sumOf = (xs: Item[]) => xs.reduce((t, it) => t + Math.abs(it.net), 0); // integer minor units in the common currency
+  const approx = (xs: Item[]) => (xs.some((it) => it.converted) ? "≈ " : "");
+  const oweTotal = `${approx(oweItems)}${formatMoney(sumOf(oweItems), common)}`;
+  const owedTotal = `${approx(inList)}${formatMoney(sumOf(inList), common)}`;
+  const showOwe = oweItems.length > 0 || inList.length === 0; // if I owe anyone, the summary is about that; the owed total sits in its own section
+  const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
+  const otherRows = othersPending.map((g) => ({ id: g.group.id, name: g.group.name, n: g.transfers.filter((t) => t.from !== g.myId && t.to !== g.myId).length }));
+  const otherCount = otherRows.reduce((t, r) => t + r.n, 0);
+  const SHEET_NOTE = "This records a payment made outside Loopin. No money will be transferred.";
+
+  const card = (it: Item, way: "in" | "out") => {
+    const first = firstName(it.name);
+    const parts = it.parts;
+    // Part payments exist for one group in one currency ("Paid a different amount?" opens that group's Record a payment).
+    const single = parts.length === 1 && !it.converted ? parts[0] : null;
+    const partHref = single ? differentAmountFor(single.groupId, single.fromId, single.toId, toInputAmount(single.amount, single.currency), false) : undefined;
+    const names = [...new Set(parts.map((p) => p.groupName))];
+    const groupLine = names.length <= 2 ? names.join(" · ") : `${names.length} groups`;
+    const tone = it.net > 0 ? ("owed" as const) : ("owe" as const);
+    const amount = it.net === 0 ? "Even" : amt(it, it.net);
+    const pv = crossPreview(it, common);
+    // Remind about a part where they owe you (never one where you're the one paying).
+    const biggest = [...parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
+    const { buttons } = payButtonsOf(it);
+    const b0 = buttons[0];
+    const menu: MenuItem[] = [];
+    if (way === "in") menu.push({ key: "received", label: "Mark received", opensSheet: true, attrs: { "data-mark-received": "" } });
+    if (partHref) menu.push({ key: "part", label: way === "in" ? "Received a different amount" : "Pay part", href: partHref, attrs: { "data-different-amount": "" } });
+    if (way === "out") menu.push({ key: "details", label: "Payment details", href: `/settle?pay=${encodeURIComponent(it.key)}` });
+    for (const p of parts) {
+      menu.push(
+        parts.length === 1
+          ? { key: `open-${p.groupId}`, label: `Open ${p.groupName}`, href: `/groups/${p.groupId}?tab=balances` }
+          : // Just this group for now (the trip today, the flat at month-end).
+            { key: `only-${p.groupId}`, label: `Settle only in ${p.groupName}`, href: `/groups/${p.groupId}/settle` },
+      );
+    }
+    return (
+      <SettleCard
+        key={it.key}
+        id={settleRowId(way === "in" ? "remind" : "pay", it.key)}
+        name={it.name}
+        groupLine={groupLine}
+        amount={amount}
+        tone={tone}
+        main={
+          way === "in" && biggest
+            ? {
+                kind: "node",
+                node: (
+                  <Link href={`/groups/${biggest.groupId}/remind?from=${biggest.fromId}`} data-remind className={BIG_CREAM}>
+                    Remind {first}
+                  </Link>
+                ),
+              }
+            : { kind: "sheet", label: way === "in" ? "Mark received" : "Record payment" }
+        }
+        menu={menu}
+        breakdown={
+          <div className="mt-1 rounded-2xl bg-mist px-3.5 py-3 text-[13.5px] leading-snug text-fg/75" data-breakdown-body>
+            <ul className="space-y-1" data-cross-lines>
+              {pv.lines.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+            <p className="mt-2 border-t border-line pt-2 font-semibold text-fg" data-cross-total>
+              {pv.total}
+            </p>
+            {parts.length > 1 && <p className="mt-1 text-fg/60">{`1 payment instead of ${parts.length}`}</p>}
+          </div>
+        }
+        sheet={
+          way === "in"
+            ? { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: it.name, to: "You", other: it.name, groupLine, amount, tone, partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
+            : {
+                title: "Record payment",
+                subtitle: `Confirm only after you’ve paid ${first}.`,
+                from: "You",
+                to: it.name,
+                other: it.name,
+                groupLine,
+                amount,
+                tone,
+                partHref,
+                // The person's UPI ID / pay link: the same link the Pay steps open.
+                payWith: b0 ? { href: b0.href, label: b0.kind === "upi" ? "UPI" : b0.label, kind: b0.kind } : undefined,
+                confirmLabel: "Confirm payment recorded",
+                note: SHEET_NOTE,
+              }
+        }
+        action={settleAcrossGroups}
+        fields={
+          <>
+            <FreshKey name="rid" />
+            <input type="hidden" name="parts" value={JSON.stringify(parts.map((p) => ({ groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount })))} />
+          </>
+        }
+      />
+    );
+  };
+
+  const sectionHead = (label: string, n: number, right?: React.ReactNode) => (
+    <h2 className="mb-2.5 mt-7 flex items-baseline justify-between gap-3 px-1 text-[13px] font-semibold tracking-[0.14em] text-fg/75">
+      <span>{`${label} · ${n}`}</span>
+      {right}
+    </h2>
+  );
+
   return (
     <>
-      <PageHeader title="Settle up" back="/" />
-      {settleItems.length > 0 && (
-        <div className="-mt-2 mb-6">
-          <p className="font-display text-[28px] font-semibold leading-[1.04] tracking-[-0.02em]">
-            {settleItems.length === 1 ? "One payment" : `${settleItems.length} payments`}
-            {skippedLinks.length ? " to settle here" : " and you’re all square"}
-          </p>
-          <p className="mt-2 text-sm leading-relaxed text-fg/60">One payment per person, across all your groups. Each one clears itself when it’s marked paid.</p>
+      <header className="mb-5 flex items-center gap-3">
+        <Link href="/" aria-label="Back" className={iconButtonClass}>
+          <BackIcon size={20} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]">Settle up</h1>
+          <p className="text-[15px] leading-snug text-fg/65">Across all your groups</p>
         </div>
-      )}
+      </header>
 
-      {notice === "done" && <Notice params={["settle"]} className="mb-3">Recorded in each group. Everyone’s notified.</Notice>}
+      {notice === "done" && <Notice params={["settle"]} className="mb-3">Payment recorded. Balances updated, and anyone you paid on Loopin can tap Not received.</Notice>}
       {notice === "changed" && <Notice params={["settle"]} className="mb-3">Balances just changed. Here’s the latest.</Notice>}
       {notice === "stale" && <Notice tone="error" params={["settle"]} className="mb-3">{STALE_KEY_ERROR}</Notice>}
       {notice === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
@@ -126,82 +241,44 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         </div>
       ) : (
         <>
-          <h2 className="mb-2.5 px-1 text-[13px] font-semibold text-fg/55">Yours</h2>
-          {(["in", "out"] as const).map((way) => {
-            const list = settleItems.filter((it) => (way === "in" ? it.net > 0 : it.net <= 0));
-            if (!list.length) return null;
-            return (
-              <section key={way} id={way === "in" ? "remind" : "pay"} className="mb-4 scroll-mt-6" aria-label={way === "in" ? "Coming to you" : "From you"}>
-                <ul className="lp-rise space-y-3">
-                  {list.map((it, li) => {
-                    // One cream button on the screen: the first ticket's.
-                    const first = li === 0 && (way === "in" || !settleItems.some((x) => x.net > 0));
-                    const big = `${first ? CREAM : OUTLINE_PILL} w-full`;
-                    // Remind about a part where they owe you (never one where you're the one paying).
-                    const biggest = [...it.parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
-                    const c = coverOf(it);
-                    const title = it.net < 0 ? `You pay ${it.name}` : it.net > 0 ? `${it.name} pays you` : `You and ${it.name} are even`;
-                    const amount = it.net === 0 ? "Even" : amt(it, it.net);
-                    return (
-                      <PayTicket
-                        key={it.key}
-                        id={settleRowId(way === "in" ? "remind" : "pay", it.key)}
-                        attrs={{ "data-transfer-row": "" }}
-                        stub={c.cover ? { covers: [c.cover] } : { letter: it.name }}
-                        from={it.net < 0 ? "You" : it.name}
-                        to={it.net < 0 ? it.name : "You"}
-                        mark={c.mark}
-                        amount={amount}
-                        fields={passFields({ groupNames: [...new Set(it.parts.map((p) => p.groupName))], thisYear: String(new Date().getFullYear()) })}
-                        tone={it.net < 0 ? "owe" : it.net > 0 ? "owed" : "plain"}
-                        sr={`${title} ${amount}`}
-                      >
-                        <div className="mt-auto pt-3">
-                          {it.net < 0 && (
-                            <Link href={`/settle?pay=${encodeURIComponent(it.key)}`} className={big}>
-                              Pay {firstName(it.name)}
-                            </Link>
-                          )}
-                          {it.net > 0 && biggest && (
-                            <Link href={`/groups/${biggest.groupId}/remind?from=${biggest.fromId}`} data-remind className={big}>
-                              Remind {firstName(it.name)}
-                            </Link>
-                          )}
-                          <div className="flex flex-wrap items-start justify-between gap-x-3">
-                            {crossAction(it, QUIET)}
-                            {it.parts.length === 1 && !it.converted ? (
-                              <DifferentAmountLink href={differentAmountFor(it.parts[0].groupId, it.parts[0].fromId, it.parts[0].toId, toInputAmount(it.parts[0].amount, it.parts[0].currency), false)} />
-                            ) : null}
-                          </div>
-                          {/* Which group each part is in (one group is already the pass's Group field). */}
-                          <ul className="space-y-0.5 text-[12.5px] text-fg/55">
-                            {it.parts.length === 1 ? null : (
-                              <>
-                                <li>{`1 payment instead of ${it.parts.length}`}</li>
-                                {it.parts.map((p) => (
-                                  <li key={`${p.groupId}-${p.fromId}-${p.toId}`} className="flex flex-wrap items-center justify-between gap-x-3">
-                                    <span>
-                                      {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
-                                    </span>
-                                    {/* Just this group for now (the trip today, the flat at month-end). */}
-                                    <Link href={`/groups/${p.groupId}/settle`} className="inline-flex min-h-11 shrink-0 items-center font-medium text-fg underline underline-offset-2">
-                                      Settle only here
-                                    </Link>
-                                  </li>
-                                ))}
-                              </>
-                            )}
-                          </ul>
-                        </div>
-                      </PayTicket>
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-          })}
+          <section aria-label="Summary" data-settle-summary className="rounded-[24px] border border-line bg-white px-5 py-5">
+            <p className="text-[12.5px] font-medium tracking-[0.14em] text-fg/70">{showOwe ? "TOTAL YOU OWE" : "TOTAL OWED TO YOU"}</p>
+            <p
+              className={`money mt-2 whitespace-nowrap font-display font-semibold leading-none tracking-[-0.02em] lining-nums tabular-nums ${showOwe ? "text-owe" : "text-owed"} ${
+                [...(showOwe ? oweTotal : owedTotal)].length <= 9 ? "text-[38px] min-[360px]:text-[44px]" : [...(showOwe ? oweTotal : owedTotal)].length <= 12 ? "text-[32px] min-[360px]:text-[38px]" : "text-[26px] min-[360px]:text-[30px]"
+              }`}
+              data-settle-total
+            >
+              {showOwe ? oweTotal : owedTotal}
+            </p>
+            <p className="mt-3 text-[16px] text-fg/80">{`${people(showOwe ? oweItems.length : inList.length)} to settle with`}</p>
+            <hr className="my-4 border-line" />
+            <InfoNote>Pay outside Loopin, then record it here.</InfoNote>
+          </section>
+
+          {outList.length > 0 && (
+            <section id="pay" className="scroll-mt-6" aria-label="To pay">
+              {sectionHead("TO PAY", outList.length)}
+              <ul className="lp-rise space-y-3">{outList.map((it) => card(it, "out"))}</ul>
+            </section>
+          )}
+          {inList.length > 0 && (
+            <section id="remind" className="scroll-mt-6" aria-label="To receive">
+              {sectionHead(
+                "TO RECEIVE",
+                inList.length,
+                showOwe && outList.length > 0 ? (
+                  <span className="money text-[15px] font-semibold tracking-normal tabular-nums text-owed" data-settle-owed-total>
+                    {owedTotal}
+                  </span>
+                ) : undefined,
+              )}
+              <ul className="lp-rise space-y-3">{inList.map((it) => card(it, "in"))}</ul>
+            </section>
+          )}
         </>
       )}
+
       {skippedLinks.length > 0 && (
         <div className="mt-4">
           <p className="mb-2 text-sm text-fg/60">No exchange rate right now, so these aren’t in the total. Settle them inside the group:</p>
@@ -217,23 +294,42 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         </div>
       )}
 
+      {/* Payments between other members of your groups: the row opens in place (each group links to its balances). */}
       {othersPending.length > 0 && (
-        <div className="mt-8">
-          <p className="mb-2 text-sm text-fg/60">Others still settling between themselves</p>
-          <ul className="flex flex-wrap gap-2">
-            {othersPending.map((g) => (
-              <li key={g.group.id}>
-                <Link href={`/groups/${g.group.id}?tab=balances`} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-3.5 text-sm active:bg-mist">
-                  {g.group.name}, {g.transfers.length} {g.transfers.length === 1 ? "payment" : "payments"}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <details className="group mt-6 border-y border-line" data-others-pending>
+          <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3.5 py-3 [&::-webkit-details-marker]:hidden">
+            <svg aria-hidden width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/75">
+              <circle cx="9" cy="8.5" r="3" />
+              <path d="M3.5 19c.6-3 2.8-4.7 5.5-4.7s4.9 1.7 5.5 4.7" />
+              <circle cx="17" cy="9.5" r="2.4" />
+              <path d="M16.5 14.4c2.4.1 4 1.5 4.5 4.1" />
+            </svg>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] font-medium leading-snug">Other group payments</span>
+              <span className="block text-[14px] leading-snug text-fg/60">{`${otherCount} ${otherCount === 1 ? "payment" : "payments"} between other members`}</span>
+            </span>
+            <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/60 transition-transform group-open:rotate-90 motion-reduce:transition-none">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </summary>
+          <div className="pb-4">
+            <p className="mb-2 text-sm text-fg/60">Others still settling between themselves</p>
+            <ul className="flex flex-wrap gap-2">
+              {otherRows.map((r) => (
+                <li key={r.id}>
+                  <Link href={`/groups/${r.id}?tab=balances`} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-3.5 text-sm active:bg-mist">
+                    {r.name}, {r.n} {r.n === 1 ? "payment" : "payments"}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
       )}
-      <div className="mt-8">
-        <InfoNote>{PAYMENT_LINE} Remind sends a WhatsApp link where they can tap “I’ve paid” without signing in.</InfoNote>
-      </div>
+
+      <p className="mt-5 px-1 text-[13.5px] leading-snug text-fg/60" data-settle-footnote>
+        Recording a payment updates balances. Loopin doesn’t transfer money.
+      </p>
     </>
   );
 }

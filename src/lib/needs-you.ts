@@ -8,7 +8,8 @@ import type { DueBill } from "./home/need-line";
 // Alerts: "Needs you" (things only you can answer) kept apart from "Activity" (what happened).
 // Four kinds, each one line that goes straight to where you act:
 //   claim      – someone says they paid you; confirm it or say you haven't got it
-//   payment    – an older payment to you that still waits for your "Confirm received"
+//   payment    – a payment recorded for you (the payer's own "I've paid" counts at once) that still waits for your answer:
+//                "Confirm received", or "Not received", which takes it off the balances again
 //   bill       – a bill that changes each month and is waiting for the amount you enter, or a bill held for
 //                a problem that you pay (shown as "Needs a fix", opening the bill's settings)
 //   collect    – someone in your collection says they've paid; check it
@@ -25,6 +26,7 @@ export type NeedsYouItem = {
   groupId?: string;
   fromId?: string; // claim: who says they paid (to hide the matching line in Activity)
   claimId?: string; // claim: its id (the claim's history line carries the same one)
+  paymentId?: string; // payment: its id, so the row can carry its own "Not received" button
   entryName?: string; // collect: the name on the list that says they paid
   at: Date;
 };
@@ -63,7 +65,7 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     for (const p of payments) {
       const g = groupOf.get(p.toId);
       if (!g) continue;
-      items.push({ id: `payment:${p.id}`, kind: "payment", text: `${nameOf(p.fromId)} says they paid you ${formatMoney(p.amount, g.currency)}`, where: g.name, href: `/groups/${g.id}/settle`, groupId: g.id, fromId: p.fromId, at: p.createdAt });
+      items.push({ id: `payment:${p.id}`, kind: "payment", text: `${nameOf(p.fromId)} ${p.createdById === p.fromId ? "recorded paying" : "says they paid"} you ${formatMoney(p.amount, g.currency)}`, where: g.name, href: `/groups/${g.id}/settle`, groupId: g.id, fromId: p.fromId, paymentId: p.id, at: p.createdAt });
     }
 
     // Bills that wait for an amount, where I'm the one who pays this month.

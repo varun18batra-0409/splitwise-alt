@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
-import { claimKey, isDuplicateKey, retryOnceIfBusy } from "./once";
+import { claimKey, fingerprintOf, isDuplicateKey, retryOnceIfBusy } from "./once";
+import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
@@ -102,4 +103,39 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
     if (isDuplicateKey(err)) return { kind: "duplicate" };
     throw err;
   }
+}
+
+// "I've paid" (founder decision, 15 Nov): the payer's own record counts straight away. It is NOT a claim any more:
+// it goes through recordPaymentCore, the same guarded write as "Mark paid" and "Record a payment" (group guard, one
+// transaction, leaver check, over-the-limit check, an activity line with Undo). Because the person paid is on Loopin,
+// the payment is born needsOk, so they see "<name> recorded paying you ₹X" in Updates with a "Not received" button
+// (rejectPayment in payment-ok.ts), which soft-deletes it again, with its own Undo.
+// The amount is worked out HERE from the group's current Smart Settle plan (never taken from the caller), and
+// `expectAmount` (what the screen showed) must still be it, so a stale screen can't record the wrong number.
+export async function recordOwnPayment(i: { groupId: string; fromId: string; toId: string; myId: string; expectAmount?: number; key?: string }): Promise<PayOutcome> {
+  if (i.fromId !== i.myId) return { kind: "refused", error: "Only the person paying can say they paid. To record someone else’s payment, use Record a different payment." };
+  const data = await loadGroup(i.groupId, { events: false });
+  if (!data) return { kind: "refused", error: "This group no longer exists." };
+  const { group, transfers } = data;
+  if (group.closed) return { kind: "refused", error: "This group is closed, so there’s nothing to do." };
+  const from = group.members.find((m) => m.id === i.fromId);
+  const to = group.members.find((m) => m.id === i.toId);
+  if (!from || !to || i.fromId === i.toId) return { kind: "refused", error: "That one isn’t there any more." };
+  if (from.leftAt || from.removedAt) return { kind: "refused", error: "You left this group. Rejoin it to make changes." };
+  const owed = transfers.find((t) => t.from === i.fromId && t.to === i.toId)?.amount ?? 0;
+  if (owed <= 0) return { kind: "refused", error: "Nothing is owed here right now." };
+  const changed = "Balances changed since you opened this. Check the updated amount and try again.";
+  if (i.expectAmount !== undefined && i.expectAmount !== owed) return { kind: "refused", error: changed };
+  const r = await recordPaymentCore({
+    groupId: i.groupId,
+    fromId: i.fromId,
+    toId: i.toId,
+    amount: owed,
+    currency: group.currency,
+    myId: i.myId,
+    key: i.key,
+    fp: fingerprintOf("pay-own", i.groupId, i.fromId, i.toId, owed),
+    warnOver: true, // a change since the read above that makes this more than they owe is refused, never recorded
+  });
+  return r.kind === "over" ? { kind: "refused", error: changed } : r;
 }

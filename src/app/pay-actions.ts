@@ -5,9 +5,10 @@ import { db } from "@/lib/db";
 import { getAccount, getMyMemberId } from "@/lib/identity";
 import { cleanPayWays } from "@/lib/pay-links";
 import { confirmPayment, rejectPayment } from "@/lib/payment-ok";
-import { confirmClaim, declineClaim, makeClaim, tellReceiver, withdrawClaim } from "@/lib/payment-claims";
+import { confirmClaim, declineClaim, withdrawClaim } from "@/lib/payment-claims";
+import { recordOwnPayment } from "@/lib/pay-record";
+import { cleanKey } from "@/lib/once";
 import { hasLeft, LEFT_ERROR } from "@/lib/active";
-import { formatMoney } from "@/lib/money";
 
 const field = (f: FormData, k: string) => String(f.get(k) ?? "");
 
@@ -39,10 +40,12 @@ export async function rejectPaymentAction(f: FormData) {
   const paymentId = field(f, "paymentId");
   const groupId = await paymentGroup(paymentId);
   const r = await rejectPayment(paymentId, await getMyMemberId(groupId));
+  // From the "Not received" button on the row in Updates: stay there (the undo is in the group's Activity).
+  if (field(f, "back") === "updates") redirect(`/notifications?${new URLSearchParams({ tab: "needs", ...(r.ok ? { notgot: "1" } : { error: r.error }) })}`);
   redirect(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { notgot: "1", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error })}`);
 }
 
-// "I've paid" claims (see lib/payment-claims.ts). Nothing here changes a balance except "Confirm received".
+// Older "I've paid" claims (see lib/payment-claims.ts; the Remind link still makes them). Nothing here changes a balance except "Confirm received".
 async function claimRow(claimId: string) {
   const c = /^[A-Za-z0-9_-]{6,40}$/.test(claimId) ? await db.paymentClaim.findUnique({ where: { id: claimId } }) : null;
   if (!c) redirect("/");
@@ -50,7 +53,9 @@ async function claimRow(claimId: string) {
 }
 const settleUrl = (groupId: string, q: Record<string, string>) => `/groups/${groupId}/settle?${new URLSearchParams(q)}`;
 
-// Settle up → "I've paid ₹X" (the payer's own button).
+// Settle up → "I've paid ₹X" (the payer's own button). From 15 Nov it is no longer a claim: the payment is recorded at once, through the
+// same guarded write as "Mark paid" (recordOwnPayment), and the person paid can tap "Not received" in Updates. (The group page's button now
+// posts recordCustomPayment; this action is kept so a screen opened before the change still does the new thing, never a waiting claim.)
 export async function claimPaidAction(f: FormData) {
   const groupId = field(f, "groupId");
   const myId = await getMyMemberId(groupId);
@@ -60,14 +65,9 @@ export async function claimPaidAction(f: FormData) {
   const expect = Number(field(f, "amount"));
   if (fromId !== myId) redirect(settleUrl(groupId, { error: "Only the person paying can say they paid. To record someone else’s payment, use Record a different payment." }));
   if (await hasLeft(groupId, myId)) redirect(settleUrl(groupId, { error: LEFT_ERROR }));
-  const r = await makeClaim({ groupId, fromId, toId, actorId: myId, source: "app", expectAmount: Number.isSafeInteger(expect) && expect > 0 ? expect : undefined });
-  if (!r.ok) redirect(settleUrl(groupId, { error: r.error }));
-  if (!r.already) {
-    const g = await db.group.findUnique({ where: { id: groupId }, select: { name: true, currency: true } });
-    const me = await db.member.findUnique({ where: { id: myId }, select: { name: true } });
-    tellReceiver({ claimId: r.claimId, groupId, groupName: g?.name ?? "Loopin", toId, fromName: me?.name ?? "Someone", amountText: formatMoney(r.amount ?? 0, g?.currency ?? "INR"), fromId });
-  }
-  redirect(settleUrl(groupId, { claimed: "1" }));
+  const r = await recordOwnPayment({ groupId, fromId, toId, myId, expectAmount: Number.isSafeInteger(expect) && expect > 0 ? expect : undefined, key: cleanKey(f.get("rid")) });
+  if (r.kind === "refused") redirect(settleUrl(groupId, { error: r.error }));
+  redirect(settleUrl(groupId, r.kind === "done" ? { paid: "1", did: r.did } : { paid: "1" }));
 }
 
 export async function withdrawClaimAction(f: FormData) {

@@ -1,8 +1,8 @@
 // What one payment row on Settle up offers. The same rules everywhere:
 //   one big action on the ticket – "Pay Nupur" (I'm paying: it opens the steps, where "Open payment app" lives) or "Remind Meera" (I'm owed);
 //                             cream on the screen's first ticket, an outline pill on the others
-//   one quiet text action   – "I've paid" (a claim: counts after Confirm received, or the same words recorded straight away
-//                             where the other person can't confirm) or "Mark paid" for money owed to me and for others
+//   one quiet text action   – "I've paid" (recorded straight away: the person paid is told and can tap "Not received" to reverse it)
+//                             or "Mark paid" for money owed to me and for others
 //   one quiet "More ›"      – "Paid a different amount?"
 // The plan below is unchanged: only how it is drawn changed. Never two cream buttons on one screen.
 
@@ -21,7 +21,7 @@ export type RowFacts = {
 
 export type RowPlan = {
   main: "pay-app" | "remind" | null;
-  action: "claim" | "record" | null;
+  action: "record" | null; // "I've paid" and "Mark paid" both record a real payment at once (a claim is only ever one that was already waiting)
   actionFilled: boolean; // the action is the row's one filled button
   actionLabel: "I’ve paid" | "Mark paid" | null;
   status: "waiting" | "their-claim" | null;
@@ -55,12 +55,12 @@ export function settleRowFacts(i: {
 
 export function planSettleRow(f: RowFacts): RowPlan {
   const canRecord = !f.closed && !f.iLeft;
-  const claimable = f.iPay && !f.closed && !f.iLeft && f.receiverCanConfirm;
+  // An "I've paid" claim made before 15 Nov may still be waiting for its Confirm received: it keeps working as it did.
+  const claimWaiting = f.iPay && !f.closed && !f.iLeft && f.receiverCanConfirm && f.myClaimWaiting;
   const main: RowPlan["main"] = f.iPay && f.payApps > 0 ? "pay-app" : f.iAmPaid && !f.closed && !f.theirClaimWaiting ? "remind" : null;
   let action: RowPlan["action"] = null;
   let status: RowPlan["status"] = null;
-  if (claimable && f.myClaimWaiting) status = "waiting";
-  else if (claimable) action = "claim";
+  if (claimWaiting) status = "waiting";
   else if (canRecord && !f.theirClaimWaiting) action = "record";
   else if (f.theirClaimWaiting) status = "their-claim";
   // Only my own action can be the filled one; "Mark paid" on a payment between two other people stays an outline button, so it never competes with mine.

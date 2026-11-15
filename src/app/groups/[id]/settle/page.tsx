@@ -31,7 +31,7 @@ import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
 import { planSettleRow, settleMainAction, settleRowFacts, tripEnded } from "@/lib/settle-row";
 import { claimsWaitingFor, declinedNote, myDeclinedClaims, myWaitingClaims } from "@/lib/payment-claims";
-import { claimPaidAction, confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
+import { confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
 
 // Settle up inside one group: the fewest payments that clear every debt.
 // Each can be recorded in full with one tap, or for a smaller amount
@@ -72,7 +72,7 @@ export default async function GroupSettle({
 
   // How each person here likes to be paid (from their You page), my own account,
   // payments others recorded to me that wait for my "Confirm received" (older ones that already count),
-  // and "I've paid" claims (not in the balances yet) waiting for me or made by me.
+  // and older "I've paid" claims (not in the balances yet) waiting for me or made by me. A new "I've paid" is a payment that counts at once.
   const accountIds = [...new Set(group.members.map((m) => m.accountId).filter((a): a is string => Boolean(a)))];
   const [accounts, me, waiting, claimsToMe, myClaims, myDeclined] = await Promise.all([
     accountIds.length ? db.account.findMany({ where: { id: { in: accountIds } }, select: { id: true, upiId: true, payLink: true } }) : Promise.resolve([]),
@@ -90,7 +90,7 @@ export default async function GroupSettle({
   };
   const myWays = waysOf(myId);
   const owedToMe = ordered.some((t) => t.to === myId);
-  const othersToMark = ordered.filter((t) => t.from !== myId); // "Mark all N paid" covers only payments someone else makes (mine go through "I've paid")
+  const othersToMark = ordered.filter((t) => t.from !== myId); // "Mark all N paid" covers only payments someone else makes (mine go through "I've paid", one at a time)
   const iLeft = Boolean(group.members.find((m) => m.id === myId)?.leftAt); // someone who left can answer "Confirm received", but not say they paid
   const today = dayKey(new Date(), await getTimeZone()); // the viewer's today: a trip is "ended" from its last day
   const ended = tripEnded(group, today);
@@ -121,20 +121,10 @@ export default async function GroupSettle({
     );
     const label = plan.actionLabel;
     const aria = `${label}: ${nameOf(t.from)} ${t.from === myId ? "pay" : "pays"} ${t.to === myId ? "you" : nameOf(t.to)} ${money(t.amount)}`;
-    // The one action that says it was paid ("I've paid" = a claim, or recorded straight away where they can't confirm; "Mark paid"), as a button of any look.
+    // The one action that says it was paid ("I've paid" for my own payment, "Mark paid" for money owed to me and for others), as a button of any look.
+    // It records a real payment at once. When the person paid is on Loopin they are told, and can tap "Not received" to reverse it.
     const actionButton = (cls: string): React.ReactNode =>
-      plan.action === "claim" ? (
-        <form action={claimPaidAction} className="flex">
-          <input type="hidden" name="groupId" value={group.id} />
-          <input type="hidden" name="fromId" value={t.from} />
-          <input type="hidden" name="toId" value={t.to} />
-          <input type="hidden" name="amount" value={t.amount} />
-          <button type="submit" data-haptic="success" data-i-paid className={cls} aria-label={aria}>
-            {label}
-          </button>
-        </form>
-      ) : plan.action === "record" ? (
-        // The other person can't tap "Confirm received" (not on Loopin, or a record for someone else): it counts straight away.
+      plan.action === "record" ? (
         <form action={recordCustomPayment} className="flex">
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="fromId" value={t.from} />
@@ -142,7 +132,7 @@ export default async function GroupSettle({
           <input type="hidden" name="amount" value={toInputAmount(t.amount, group.currency)} />
           <input type="hidden" name="back" value="settle" />
           <FreshKey name="rid" />
-          <button type="submit" data-haptic="success" data-mark-paid className={cls} aria-label={aria}>
+          <button type="submit" data-haptic="success" data-mark-paid {...(t.from === myId ? { "data-i-paid": "" } : {})} className={cls} aria-label={aria}>
             {label}
           </button>
         </form>
@@ -176,7 +166,7 @@ export default async function GroupSettle({
     }
   }
 
-  // ---- Waiting for Nupur: right after "I've paid" (a claim) ----
+  // ---- Waiting for Nupur: an older "I've paid" claim (made before 15 Nov, or from a Remind link) that is still waiting ----
   const claimedNow = sp.claimed === "1" ? [...myClaims].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] : undefined;
   if (claimedNow) {
     const to = group.members.find((m) => m.id === claimedNow.toId);
@@ -262,7 +252,7 @@ export default async function GroupSettle({
 
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       {sp.paid === "all" && !sp.undone && <Notice params={["paid"]} className="mb-4">All marked paid ✓ The group stays open.</Notice>}
-      {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-4">Payment recorded. Balances updated. If the person paid is on Loopin, they’re asked to confirm received.</Notice>}
+      {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-4">Payment recorded. Balances updated. If the person paid is on Loopin, they’re told and can tap Not received.</Notice>}
       {sp.claimed === "1" && <Notice params={["claimed"]} className="mb-4">Sent. They’re asked to confirm, and the balances change once they do.</Notice>}
       {sp.withdrawn === "1" && <Notice params={["withdrawn"]} className="mb-4">Taken back. Tap I’ve paid again once you’ve paid.</Notice>}
       {sp.declined === "1" && <Notice params={["declined"]} className="mb-4">Marked as not received. The balances haven’t changed, and they’ll see it.</Notice>}
@@ -275,7 +265,7 @@ export default async function GroupSettle({
         </Notice>
       )}
 
-      {/* Someone said they paid you. A new "I've paid" is a claim: nothing is in the balances until you confirm. Each is a neutral ticket. */}
+      {/* Someone said they paid you. A new "I've paid" already counts (Confirm received / Not received); an older claim is not in the balances until you confirm. Each is a neutral ticket. */}
       {confirmCount > 0 && (
         <section aria-label="Did you get these?" className="mb-6">
           <h2 className="mb-2.5 px-1 text-[13px] font-semibold text-fg/55">Did you get {confirmCount === 1 ? "this" : "these"}?</h2>
@@ -343,11 +333,11 @@ export default async function GroupSettle({
                 to="You"
                 mark={mark}
                 tone="plain"
-                sr={`${p.from.name} says they paid you ${money(p.amount)}`}
+                sr={`${p.from.name} ${p.createdById === p.fromId ? "recorded paying" : "says they paid"} you ${money(p.amount)}`}
                 showSr={false}
               >
                 <p className="mt-2.5 text-[15px] leading-snug">
-                  <strong className="font-semibold">{p.from.name}</strong> says they paid you <strong className="font-display text-[19px] font-medium tabular-nums text-owed">{money(p.amount)}</strong>
+                  <strong className="font-semibold">{p.from.name}</strong> {p.createdById === p.fromId ? "recorded paying" : "says they paid"} you <strong className="font-display text-[19px] font-medium tabular-nums text-owed">{money(p.amount)}</strong>
                 </p>
                 <div className="mt-auto pt-3">
                   <form action={confirmPaymentAction}>
@@ -535,7 +525,7 @@ export default async function GroupSettle({
                 Other ways to settle <span aria-hidden className="ml-1">›</span>
               </summary>
               <div className="space-y-1">
-                {/* Only other people's payments: your own go through "I've paid", so they can be confirmed. */}
+                {/* Only other people's payments: your own go through "I've paid", one at a time. */}
                 {othersToMark.length > 1 && (
                   <form action={markAllPaidAction} className="flex">
                     <input type="hidden" name="groupId" value={group.id} />

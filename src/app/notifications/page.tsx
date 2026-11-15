@@ -14,6 +14,9 @@ import { PhoneStatus } from "@/components/PushControls";
 import { loadNeedsYou, withoutRepeats } from "@/lib/needs-you";
 import { InvitationCard } from "@/components/InvitationCard";
 import { loadInvitations } from "@/lib/invitations";
+import { Notice } from "@/components/Notice";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { rejectPaymentAction } from "@/app/pay-actions";
 
 // The one word on the pill at the right of each row.
 const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = {
@@ -88,7 +91,7 @@ const ICON: Record<string, string> = {
 
 // Everything other people added, changed or deleted in your groups, newest first.
 // Opening this page marks them as read.
-export default async function Notifications({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function Notifications({ searchParams }: { searchParams: Promise<{ tab?: string; notgot?: string; error?: string }> }) {
   const sp = await searchParams;
   const [memberships, tz, account] = await Promise.all([getMemberships(), getTimeZone(), getAccount()]);
   const [{ items }, notes, invitations] = await Promise.all([loadNotifications(memberships, 100), account ? loadNotes(account.id, 50) : Promise.resolve([]), loadInvitations(account)]);
@@ -132,6 +135,9 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
         </Link>
       </nav>
 
+      {sp.notgot === "1" && <Notice params={["notgot"]} className="mb-4">Taken off the balances. They’ll see you haven’t received it.</Notice>}
+      {sp.error && <Notice tone="error" params={["error"]} className="mb-4">{sp.error}</Notice>}
+
       {tab === "needs" && needs.total === 0 && (
         <div className="px-1 py-10 text-center" data-needs-empty>
           <p className="text-[15px] text-fg/75">Nothing needs you right now.</p>
@@ -173,6 +179,19 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
                       {it.action ?? NEED_ACTION[it.kind]}
                     </span>
                   </Link>
+                  {/* A payment recorded for you counts already: this takes it off the balances again if the money didn't arrive. */}
+                  {it.paymentId && (
+                    <form action={rejectPaymentAction} className="pb-3 pl-[76px] pr-4">
+                      <input type="hidden" name="paymentId" value={it.paymentId} />
+                      <input type="hidden" name="back" value="updates" />
+                      <ConfirmButton
+                        message="Haven’t received this payment? It comes off the balances, and the person who paid is told. You can undo it in the group’s Activity."
+                        className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-[13.5px] font-semibold text-fg active:scale-[0.97]"
+                      >
+                        Not received
+                      </ConfirmButton>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>

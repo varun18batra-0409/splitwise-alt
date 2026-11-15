@@ -107,10 +107,12 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   const form = src("src/components/RecordPaymentForm.tsx");
   const pay = src("src/app/groups/[id]/pay/page.tsx");
   it("group Settle up keeps its actions and the fields they send", () => {
-    for (const s of ["claimPaidAction", "confirmClaimAction", "declineClaimAction", "confirmPaymentAction", "rejectPaymentAction", "withdrawClaimAction", "markAllPaidAction", "recordCustomPayment", "settleEverything", "undoChange"]) expect(settle).toContain(s);
+    for (const s of ["confirmClaimAction", "declineClaimAction", "confirmPaymentAction", "rejectPaymentAction", "withdrawClaimAction", "markAllPaidAction", "recordCustomPayment", "settleEverything", "undoChange"]) expect(settle).toContain(s);
     for (const s of ['name="groupId"', 'name="fromId"', 'name="toId"', 'name="amount"', 'name="back" value="settle"', 'name="claimId"', 'name="paymentId"', 'name="plan"', 'name="over" value="1"']) expect(settle).toContain(s);
     expect(settle).toContain("value={toInputAmount(t.amount, group.currency)}"); // the recorded amount is the exact suggested one
-    expect(settle).toContain("value={t.amount}"); // the claim carries the exact suggested amount
+    // "I've paid" records a payment at once (15 Nov): it is the same form as "Mark paid", not a claim.
+    expect(settle).not.toContain("claimPaidAction");
+    expect(settle).toContain('{...(t.from === myId ? { "data-i-paid": "" } : {})}');
   });
   it("group Settle up keeps the hooks the tests read", () => {
     for (const s of ["data-i-paid", "data-mark-paid", "data-remind", "data-claim-waiting", "data-claim-above", "data-claim-declined", "data-waiting", "\"data-claim\"", "data-over-warning", "data-settle-actions", 'data-more-options="settle"', 'aria-label="Did you get these?"', "data-transfer-row"]) expect(settle).toContain(s);
@@ -139,7 +141,17 @@ describe("restyle only: every action, field and hook is still on the pages", () 
     expect(src("src/components/PayScreens.tsx")).toContain("sr-only");
   });
   it("all-groups Settle up keeps its actions, ids and hooks", () => {
-    for (const s of ["settleAcrossGroups", "data-cross-preview", "data-cross-record", "data-cross-lines", "data-cross-total", "data-remind", "settleRowId(", 'id={way === "in" ? "remind" : "pay"}', 'name="parts"', "crossActionLabel(it.net)", "crossPreview(it, common)"]) expect(all).toContain(s);
+    for (const s of ["settleAcrossGroups", "data-cross-preview", "data-cross-record", "data-cross-lines", "data-cross-total", "data-remind", "settleRowId(", 'settleRowId(way === "in" ? "remind" : "pay", it.key)', 'id="pay"', 'id="remind"', 'name="parts"', "crossActionLabel(it.net)", "crossPreview(it, common)"]) expect(all).toContain(s);
+  });
+  it("all-groups Settle up has the new cards and sheet, with the hooks the tests read (15 Nov design)", () => {
+    const cards = src("src/components/SettleUp.tsx");
+    for (const s of ["data-settle-summary", "TOTAL YOU OWE", "TOTAL OWED TO YOU", "Across all your groups", "Other group payments", "Recording a payment updates balances. Loopin doesn’t transfer money.", "Pay outside Loopin, then record it here."]) expect(all).toContain(s);
+    for (const s of ["data-settle-card", "data-breakdown-toggle", "View breakdown", "data-record-sheet", "data-record-confirm", "Full balance", "Today", "Pay with ", "Cancel", "data-sheet-handle", "data-sheet-close"]) expect(cards).toContain(s);
+    for (const s of ["Record payment", "Confirm payment recorded", "Mark received", "Remind ", "This records a payment made outside Loopin. No money will be transferred."]) expect(all).toContain(s);
+    // The UPI button comes ABOVE the confirm button in the sheet.
+    expect(cards.indexOf("data-record-pay")).toBeLessThan(cards.indexOf("data-record-confirm"));
+    // Every secondary action the old page had is still reachable (in the ⋮ menu or the breakdown).
+    for (const s of ["Settle only in", "data-different-amount", "Payment details", "/settle?pay="]) expect(all).toContain(s);
   });
   it("Record a payment still sends the same fields and keeps its hooks", () => {
     for (const s of ['name="groupId"', 'name="back" value="settle"', 'name="fromId"', 'name="toId"', 'name="amount"', 'name="over" value="1"', "data-to={m.id}", "data-over-warning", "data-over-record", "recordCustomPayment", "keyField"]) expect(form).toContain(s);

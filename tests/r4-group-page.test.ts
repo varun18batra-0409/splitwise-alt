@@ -14,14 +14,13 @@ describe("one boarding pass everywhere money is a ticket (rule A4)", () => {
     // No boarding pass on the group page: none of the pass pieces.
     for (const s of ["TicketShell", "PassRoute", "PassFields", "PassStack", "data-notch", "data-barcode", "border-dashed"]) expect(group).not.toContain(s);
   });
-  it("Settle up cards (group and all groups) are drawn by PayTicket, which is the same pass: From and To codes, barcode, notches, fields", () => {
+  it("the group's Settle up cards are drawn by PayTicket, which is the same pass: From and To codes, barcode, notches, fields (the all-groups page has its own cards since 15 Nov)", () => {
     expect(pay).toContain("<TicketShell");
     expect(pay).toContain("<PassRoute from={endCode(from)} to={endCode(to)} />");
     expect(pay).toContain("barcode>");
     expect(pay).toContain("<PassFields");
     expect(pay).toContain("<Amount");
     expect(pay).not.toContain("border-l-2 border-dashed"); // its own perforation is gone: TicketShell draws it
-    expect(src("src/app/settle/page.tsx")).toContain("<PayTicket");
     expect(src("src/app/groups/[id]/settle/page.tsx")).toContain("<PayTicket");
   });
   it("the pass has sentence-case labels and one plane taking off: From, To, never capitals forced by CSS", () => {
@@ -102,11 +101,13 @@ describe("header (mockup 03) and the tabs", () => {
 });
 
 describe("no boarding pass inside a group (founder, 15 Nov)", () => {
-  it("the group's Settle up draws every card plain (initial, who pays whom, the amount); Home's all-groups Settle up keeps the pass", () => {
+  it("the group's Settle up draws every card plain (initial, who pays whom, the amount); the all-groups Settle up has the new SettleCard look (founder's design, 15 Nov)", () => {
     const g = src("src/app/groups/[id]/settle/page.tsx");
     const tickets = g.match(/<PayTicket\n\s+plain\n/g) ?? [];
     expect(tickets.length).toBe((g.match(/<PayTicket\b/g) ?? []).length);
-    expect(src("src/app/settle/page.tsx")).not.toMatch(/<PayTicket\n\s+plain/);
+    const all = src("src/app/settle/page.tsx");
+    expect(all).not.toContain("<PayTicket");
+    expect(all).toContain("<SettleCard");
     const pay = src("src/components/PayScreens.tsx");
     expect(pay).toContain("data-plain-card");
     expect(pay).toContain("if (plain) {");

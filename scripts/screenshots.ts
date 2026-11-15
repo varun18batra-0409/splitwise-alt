@@ -103,6 +103,21 @@ await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.waitForTimeout(300);
 });
 await shot("28-settle", "/settle");
+// All-groups Settle up, 15 Nov design: a breakdown opened in place, and the Record payment sheet (Priya has a UPI ID in this seed, so
+// her card's sheet shows "Pay with UPI" above the confirm button; with nobody to pay, the first card's sheet is shown).
+const openBreakdown = async (p: Page) => {
+  await p.locator("[data-breakdown-toggle]").first().click();
+  await p.waitForTimeout(300);
+};
+const openRecordSheet = async (p: Page) => {
+  const priya = p.locator("[data-settle-card='Priya']:has([data-record-open])");
+  const card = (await priya.count()) ? priya.first() : p.locator("[data-settle-card]:has([data-record-open])").first();
+  await card.locator("[data-record-open]").click();
+  await p.locator("[data-record-sheet]").waitFor();
+  await p.waitForTimeout(300);
+};
+await shot("28b-settle-breakdown", "/settle", openBreakdown);
+await shot("28c-settle-record-sheet", "/settle", openRecordSheet, false);
 await shot("35-how-it-works", "/how-it-works", async (p) => {
   // Scroll through once so every photo and app screen has loaded, as it would for a reader.
   const h = await p.evaluate(() => document.body.scrollHeight);
@@ -132,6 +147,8 @@ for (const w of [320] as const) {
   if (desktop) break;
   await page.setViewportSize({ width: w, height: 640 });
   await shot(`n${w}-S1-settle-pass`, "/settle");
+  await shot(`n${w}-S1-settle-breakdown`, "/settle", openBreakdown);
+  await shot(`n${w}-S1-settle-sheet`, "/settle", openRecordSheet, false);
   await shot(`n${w}-S2-group-settle-pass`, `${g}/settle`);
   await page.setViewportSize(screen);
 }

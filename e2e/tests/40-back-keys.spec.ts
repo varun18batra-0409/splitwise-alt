@@ -24,7 +24,7 @@ test("Back button: the same amount twice is two payments; a used key is refused"
   const groupId = g.path.split("/").pop()!;
   const payments = () => db.payment.count({ where: { groupId, deletedAt: null } });
   // "Record a payment" (Settle up's "Paid a different amount?"): this payment counts straight away.
-  // (Settle up's own "I've paid" is a claim, which has its own tests.) Ravi pays Asha.
+  // (Settle up's own "I've paid" counts straight away too, and has its own tests.) Ravi pays Asha.
   const fillPay = async (amount: string) => {
     await R.locator("label[data-to]").filter({ hasText: "Asha" }).click();
     await R.getByLabel("Amount (INR)").fill(amount);

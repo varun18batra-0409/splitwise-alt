@@ -467,7 +467,7 @@ describe("8: a leaver can answer a claim but is not offered an Undo they can't u
   });
 });
 
-describe("action guards: who can call claimPaidAction and confirmClaimAction", () => {
+describe("action guards: who can call claimPaidAction (now records at once) and confirmClaimAction", () => {
   async function setup() {
     const w = await world();
     await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
@@ -491,11 +491,19 @@ describe("action guards: who can call claimPaidAction and confirmClaimAction", (
     expect(errorOf(await redirectOf(() => P.claimPaidAction(f())))).toBe(LEFT_ERROR);
     expect(await db.paymentClaim.count({ where: { groupId: w.gid } })).toBe(0);
     await db.member.update({ where: { id: w.r }, data: { leftAt: null } });
-    // Ravi can; a wrong amount is refused; the right one makes one claim, and nothing counts yet.
+    // Ravi can; a wrong amount is refused; the right one records the payment AT ONCE (15 Nov: no claim, nothing waits), and Asha can still say Not received.
     expect(errorOf(await redirectOf(() => P.claimPaidAction(form({ groupId: w.gid, fromId: w.r, toId: w.a, amount: "29999" }))))).toMatch(/Balances changed/);
+    expect(await payCount(w.gid)).toBe(0);
     const ok = await redirectOf(() => P.claimPaidAction(f()));
-    expect(ok.searchParams.get("claimed")).toBe("1");
-    expect(await db.paymentClaim.count({ where: { groupId: w.gid, status: "waiting" } })).toBe(1);
+    expect(ok.searchParams.get("paid")).toBe("1");
+    expect(ok.searchParams.get("did")).toBeTruthy();
+    expect(await db.paymentClaim.count({ where: { groupId: w.gid } })).toBe(0);
+    expect(await payCount(w.gid)).toBe(1);
+    // A +60000 - 30000, R -30000 + 30000, M unchanged.
+    expect(await net(w.gid)).toEqual({ [w.a]: 30000, [w.r]: 0, [w.m]: -30000 });
+    const p = await db.payment.findFirstOrThrow({ where: { groupId: w.gid } });
+    expect(p).toMatchObject({ fromId: w.r, toId: w.a, amount: 30000, createdById: w.r, needsOk: true, okAt: null });
+    expect((await rejectPayment(p.id, w.a)).ok).toBe(true);
     expect(await net(w.gid)).toEqual({ [w.a]: 60000, [w.r]: -30000, [w.m]: -30000 });
   });
 

@@ -9,6 +9,11 @@ import { withRetry } from "./once";
 import { needsOkFor } from "./payment-ok";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 
+// NOTE (15 Nov 2026): the payer's own "I've paid" in the app no longer makes a claim: it records a real payment at once
+// (recordOwnPayment in pay-record.ts) that the person paid can reverse with "Not received" (payment-ok.ts). Claims are still made by
+// the Remind link's "I've paid" page (nobody is signed in there), and claims made before the change that are still waiting are
+// confirmed or declined below exactly as before.
+//
 // "I've paid" claims. Ravi says he paid Asha. That is a claim, NOT a payment:
 // it never changes a balance. It waits for Asha's "Confirm received", which
 // records the real payment (already confirmed) in the same step. "Not received"
