@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { JOINED, isPending } from "./membership";
 import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
-import { buildPassport, parseHandPlaces, passportShared, type PassportTrip } from "./passport";
+import { buildPassport, parseHandPlaces, passportShared, undatedTripDay, wentOnTrip, type PassportTrip } from "./passport";
 import type { TripExtras } from "./passport-cards";
 
 // Someone the admin removed stops counting for passport sharing (both ways); someone who left on their own still counts.
@@ -24,6 +24,23 @@ export function passportRoster<T extends RosterMember>(members: T[], viewerId: s
   return members.filter((m) => m.id === viewerId || (!isPending(m) && !m.removedAt));
 }
 
+// For undated trips the viewer left: what the passport sees (every non-deleted expense in the group, and the day of the latest
+// non-game one), because Home's own numbers only count what a leaver may see. Feeds stampDay so Home and the passport agree.
+export async function undatedTripFacts(groupIds: string[]): Promise<Map<string, { expenseCount: number; day: string }>> {
+  const out = new Map<string, { expenseCount: number; day: string }>();
+  if (!groupIds.length) return out;
+  const groups = await db.group.findMany({
+    where: { id: { in: groupIds } },
+    select: {
+      id: true, createdAt: true,
+      _count: { select: { expenses: { where: { deletedAt: null } } } },
+      expenses: { where: { deletedAt: null, kind: { not: "pot" } }, select: { spentAt: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+  for (const g of groups) out.set(g.id, { expenseCount: g._count.expenses, day: undatedTripDay(g.expenses[0], g.createdAt) });
+  return out;
+}
+
 // Your passport, from every trip group you're in (any phone you signed in on).
 export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean; withMoments?: boolean } = {}) {
   const groups = await db.group.findMany({
@@ -42,19 +59,13 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   // Seen by a friend: only trips that are over (a trip happening now would say where you are today).
   // An undated trip happened around its latest spending (not when the group was made,
   // which can be months before: a flight booked early isn't a stamp yet).
-  const undatedDay = (g: (typeof groups)[number]) => {
-    const e = g.expenses[0];
-    return (e ? e.spentAt ?? e.createdAt : g.createdAt).toISOString().slice(0, 10);
-  };
+  const undatedDay = (g: (typeof groups)[number]) => undatedTripDay(g.expenses[0], g.createdAt);
   // (A trip without dates counts as over once nothing has been spent for 3 days:
   // spending today would otherwise tell a friend where you are now.)
   const over = (g: (typeof groups)[number]) =>
     g.tripEnd || g.tripStart ? (g.tripEnd || g.tripStart) < today : new Date(Date.parse(`${undatedDay(g)}T12:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10) < today;
-  // Someone who left before the trip began didn't go.
-  const went = (g: (typeof groups)[number]) => {
-    const start = g.tripStart || undatedDay(g);
-    return g.members.some((m) => !m.leftAt || m.leftAt.toISOString().slice(0, 10) >= start);
-  };
+  // Someone who left before the trip began didn't go. (Only a real start day counts: an undated trip has none to miss.)
+  const went = (g: (typeof groups)[number]) => g.members.some((m) => wentOnTrip(g.tripStart, m.leftAt));
   const trips: PassportTrip[] = groups.filter((g) => (g.tripStart || g._count.expenses > 0) && went(g) && (!opts.forFriend || over(g))).map((g) => ({
     groupId: g.id,
     name: g.name,

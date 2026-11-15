@@ -43,7 +43,7 @@ for (const [w, h] of [
     await page.locator("[data-more] > button").click();
     const row = page.locator("[data-multi-pay-row]");
     expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    const sw = page.getByRole("switch");
+    const sw = row.getByRole("switch"); // (Money back has its own switch in More too)
     await expect(sw).toHaveAttribute("aria-checked", "false");
     await row.getByText("More than one person paid").click();
     await expect(sw).toHaveAttribute("aria-checked", "true");

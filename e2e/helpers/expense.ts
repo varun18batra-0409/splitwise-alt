@@ -28,7 +28,11 @@ export async function openMore(page: Page) {
 const chip = (page: Page, label: string) => page.getByRole("button", { name: new RegExp(`^(✓ )?${label}$`) });
 
 export async function fillExpense(page: Page, x: ExpenseInput) {
-  if (x.moneyBack) await page.getByRole("radio", { name: "Money back" }).click();
+  if (x.moneyBack) {
+    // Money back lives under "Notes, money back…" (no switch at the top).
+    await openMore(page);
+    await page.getByRole("switch", { name: "Money back" }).click();
+  }
   await openSplit(page); // the Paid by and Split between rows open the payer and split controls
   if (x.payers) {
     await page.locator("#expense-name").fill(x.name);

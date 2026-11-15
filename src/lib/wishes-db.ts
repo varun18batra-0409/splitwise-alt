@@ -58,12 +58,16 @@ export async function loadMyWishes(accountId: string): Promise<string[]> {
 
 // Add places (country codes only). Past WISH_LIMIT it adds what fits and says the list is full. Adding one you already have is fine.
 // One at a time: the database has no "skip duplicates" here, so a duplicate (P2002) just means it is already there.
-export async function addWishes(accountId: string, raw: unknown[]): Promise<{ added: number; full: boolean }> {
+// Two adds at the same moment can each see room and together go past the limit, so after writing the list is counted again and
+// anything past the limit (the newest first) is taken off, along with its sharing. `afterRead` is for tests only: it runs after the first count.
+export async function addWishes(accountId: string, raw: unknown[], opts: { afterRead?: () => Promise<void> } = {}): Promise<{ added: number; full: boolean }> {
   const wanted = cleanCountries(raw);
   const have = new Set(await loadMyWishes(accountId));
+  await opts.afterRead?.();
   let count = have.size;
   let added = 0;
   let full = false;
+  const ours = new Map<string, string>(); // id -> country, the rows this call added
   for (const c of wanted) {
     if (have.has(c)) continue;
     if (count >= WISH_LIMIT) {
@@ -71,12 +75,28 @@ export async function addWishes(accountId: string, raw: unknown[]): Promise<{ ad
       break;
     }
     try {
-      await db.wishPlace.create({ data: { accountId, country: c } });
+      const row = await db.wishPlace.create({ data: { accountId, country: c }, select: { id: true } });
+      ours.set(row.id, c);
       added++;
       count++;
       have.add(c);
     } catch (e) {
       if ((e as { code?: string })?.code !== "P2002") throw e; // already there (another tap, another phone): success
+    }
+  }
+  if (ours.size) {
+    const rows = await db.wishPlace.findMany({ where: { accountId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, country: true } });
+    const over = rows.slice(WISH_LIMIT);
+    if (over.length) {
+      await db.wishPlace.deleteMany({ where: { id: { in: over.map((r) => r.id) } } });
+      await db.wishShare.deleteMany({ where: { ownerId: accountId, country: { in: over.map((r) => r.country) } } });
+    }
+    // Which of this call's rows are still there? (Another add at the same moment may have taken some off, so count what is left
+    // rather than only what this call took off: the two calls' "added" then add up to what the list really gained.)
+    const alive = await db.wishPlace.count({ where: { id: { in: [...ours.keys()] } } });
+    if (alive < ours.size) {
+      added -= ours.size - alive;
+      full = true;
     }
   }
   return { added, full };

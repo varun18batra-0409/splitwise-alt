@@ -50,8 +50,10 @@ export function PayTicket({
   sr,
   showSr = true,
   fields,
+  plain = false,
   children,
 }: {
+  plain?: boolean; // inside a group: the card from before the mockups (initial, "Meera pays you", the amount), no boarding pass
   as?: "li" | "div";
   id?: string;
   attrs?: Record<string, string | undefined>;
@@ -66,6 +68,31 @@ export function PayTicket({
   fields?: PassField[];
   children?: React.ReactNode;
 }) {
+  if (plain) {
+    // Inside a group (founder, 15 Nov: "nothing to do with boarding pass inside the group"): the rounded card from before the
+    // mockups: the other person's initial, who pays whom in words, the exact amount, then the same buttons as before.
+    const pays = amount ? `${from === "You" ? "You pay" : `${firstName(from)} pays`} ${to === "You" ? "you" : firstName(to)}` : "";
+    const other = from === "You" ? to : from;
+    return (
+      <Tag id={id} className="scroll-mt-6" {...attrs}>
+        {showSr && <span className="sr-only">{sr}</span>}
+        <div className="glass flex flex-col rounded-[22px] px-[18px] py-4" data-plain-card>
+          {amount && (
+            <div className="flex items-center gap-3" aria-hidden>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mist font-display text-sm font-semibold text-fg">{(other.trim().charAt(0) || "?").toUpperCase()}</span>
+              <div className="min-w-0">
+                <p className="truncate text-[14px] text-fg/75">{pays}</p>
+                <p className={`money whitespace-nowrap font-display text-[22px] font-medium leading-tight tabular-nums ${TONE[tone]}`} data-net-balance>
+                  {amount}
+                </p>
+              </div>
+            </div>
+          )}
+          {children}
+        </div>
+      </Tag>
+    );
+  }
   return (
     <Tag id={id} className="scroll-mt-6" {...attrs}>
       {showSr && <span className="sr-only">{sr}</span>}

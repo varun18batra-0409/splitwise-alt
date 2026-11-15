@@ -57,8 +57,11 @@ describe("pay link and collect link", () => {
     expect(pay).not.toContain("bg-owed");
     expect(pay).toContain("text-owe");
   });
-  it("the collect link has no stamp and no tick in its words, and only one cream button", () => {
-    expect(collect).not.toContain("stampCounts");
+  it("the collect link has no tick in its words and only one cream button; the organiser's card has its '2/6 checked' note back (founder, 15 Nov)", () => {
+    expect(collect).toContain("stampCounts(p)");
+    expect(collect).toContain("data-checked-note");
+    // The note is on the organiser's card only, never on what payers see.
+    expect(collect.indexOf("data-checked-note")).toBeGreaterThan(collect.indexOf("{isOrganiser && ("));
     expect(src("src/components/CollectBits.tsx")).not.toContain("I’ve paid ✓");
     expect(src("src/components/CollectBits.tsx")).toContain('label="I’ve paid" outline={outline}');
     expect(collect).toContain("outline={Boolean(upi || c.payLink)}");

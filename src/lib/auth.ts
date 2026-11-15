@@ -109,7 +109,9 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       // Postcards they sent or received go with them, and so do their photos
       // (unless another remaining card still uses the same photo).
       const cards = await tx.postcard.findMany({ where: { OR: [{ fromId: accountId }, { toId: accountId }] }, select: { id: true, photoId: true } });
-      const photoIds = [...new Set(cards.map((c) => c.photoId).filter(Boolean))];
+      // Photos they uploaded (their own uploads and copies of their moments), even ones no card uses any more, go with them.
+      const uploaded = (await tx.postcardPhoto.findMany({ where: { accountId }, select: { id: true } })).map((p) => p.id);
+      const photoIds = [...new Set([...cards.map((c) => c.photoId).filter(Boolean), ...uploaded])];
       const stillUsed = photoIds.length
         ? new Set((await tx.postcard.findMany({ where: { photoId: { in: photoIds }, id: { notIn: cards.map((c) => c.id) } }, select: { photoId: true } })).map((c) => c.photoId))
         : new Set<string>();

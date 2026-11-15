@@ -12,6 +12,9 @@ import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { isPrint, isSitePhoto, isStampId, rareFor, rareOpen, HANDS, LETTERINGS, paperOf, inkOf, toneOf } from "@/lib/postcards/catalog";
 import { canSendTo } from "@/lib/postcards/people";
+import { fitOf, formatOf, oneSideTooLong, photoSizeOf } from "@/lib/postcards/format";
+import { ownsPostcardPhoto } from "@/lib/postcards/uploads";
+import { myMomentForPostcard } from "@/lib/moments-db";
 import { deliverNotes } from "@/lib/account-notes";
 import { isBlockedEitherWay } from "@/lib/blocks";
 
@@ -29,16 +32,29 @@ export async function sendPostcardAction(f: FormData) {
   if (!to.size) fail("Pick who it’s for.");
   const message = field(f, "message", 600).trim();
   if (!message) fail("Write a few words on the back.");
+  // The shape of the card. Anything unknown is the original (classic, full, small). A one-side card holds up to 160 characters:
+  // checked here, before any photo is stored, and never cut silently.
+  const format = formatOf(f.get("format"));
+  const fit = fitOf(f.get("fit"));
+  const photoSize = photoSizeOf(f.get("photoSize"));
+  if (format === "oneside" && oneSideTooLong(message)) fail("A one-side card holds up to 160 characters. Take a few out.");
 
   // The front: a print, one of Loopin's place photos, or your own photo.
   let front = field(f, "front", 120);
   let photoId = "";
   let newPhoto: { bytes: Uint8Array; type: string } | null = null;
   const reuse = field(f, "reusePhoto", 40);
-  if (front === "own" && reuse && !f.get("photo")) {
-    // Your own photo from a card you sent before: only if it really was yours.
-    const had = await db.postcard.findFirst({ where: { fromId: me.id, photoId: reuse }, select: { id: true } });
-    if (!had) fail("That photo didn’t work. Try another one.");
+  const momentId = field(f, "momentPhoto", 40);
+  if (front === "own" && !f.get("photo") && momentId) {
+    // A photo from one of your own moments: copied onto this card now, so deleting the moment later changes nothing here.
+    const m = await myMomentForPostcard(me.id, momentId);
+    if (!m) fail("That photo didn’t work. Try another one.");
+    const clean = cleanPhoto(m!.bytes);
+    if (!clean) fail("That photo didn’t work. Try another one.");
+    newPhoto = { bytes: clean!, type: m!.type };
+  } else if (front === "own" && reuse && !f.get("photo")) {
+    // Your own photo from a card you sent before: only if it really was yours (you sent a card with it, and the photo is yours).
+    if (!(await ownsPostcardPhoto(me.id, reuse))) fail("That photo didn’t work. Try another one.");
     photoId = reuse;
   } else if (front === "own") {
     const b64 = String(f.get("photo") ?? "");
@@ -83,7 +99,7 @@ export async function sendPostcardAction(f: FormData) {
     const stored = await storePhoto("postcard", newPhoto.bytes, newPhoto.type);
     storedKey = stored.blobKey;
     try {
-      photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: newPhoto.type } })).id;
+      photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: newPhoto.type, accountId: me.id } })).id;
     } catch (err) {
       // The file is stored but its row was not made: put its key on the to-delete list and delete it.
       try {
@@ -104,7 +120,8 @@ export async function sendPostcardAction(f: FormData) {
     groupId,
     front,
     photoId,
-    words: field(f, "words", 40).trim(),
+    // One side has no words on the front and no address.
+    words: format === "oneside" ? "" : field(f, "words", 40).trim(),
     lettering,
     look: cleanLook(field(f, "look", 20)),
     wordsAt: wordsAtOf(field(f, "wordsAt", 10)),
@@ -119,7 +136,10 @@ export async function sendPostcardAction(f: FormData) {
     stamp,
     paper: paperOf(field(f, "paper", 20)),
     ink: inkOf(field(f, "ink", 20)),
-    address: JSON.stringify(address),
+    address: format === "oneside" ? "[]" : JSON.stringify(address),
+    format,
+    fit,
+    photoSize,
     place: field(f, "place", 24).trim(),
   };
   let made: { id: string; toId: string }[];

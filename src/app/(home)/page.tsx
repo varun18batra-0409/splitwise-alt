@@ -27,14 +27,15 @@ import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { homeHighlights } from "@/lib/home/highlights";
-import { parseHandPlaces } from "@/lib/passport";
+import { parseHandPlaces, stampDay } from "@/lib/passport";
+import { undatedTripFacts } from "@/lib/passport-db";
 import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
 import { leaverOf } from "@/lib/left-view-db";
 import { gameVisible, stillIn } from "@/lib/left-view";
-import { canUndo } from "@/lib/undo";
+import { accountHoldersOf, canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { BellButton } from "@/components/BellButton";
 import { countMyCollections, myCollections, progress } from "@/lib/collect";
@@ -43,11 +44,14 @@ import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { countryOf, tripStops } from "@/lib/geo";
-import { ComingUp, MoneyCard, type NeedLine, type StubCover, type TripPassView } from "@/components/HomeMoney";
-import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type GroupFacts, type InvolvedGroup } from "@/lib/home/money-card";
+import { MoneyCard, type StubCover, type TripPassView } from "@/components/HomeMoney";
+import { greetingWord } from "@/lib/home/owe-card";
+import { PassStack } from "@/components/PassStack";
+import { TripCountdown } from "@/components/TripCountdown";
+import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type InvolvedGroup } from "@/lib/home/money-card";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
-import { loadHomeMemories, loadMomentStoryGroups } from "@/lib/moments-db";
+import { loadHomeMemories } from "@/lib/moments-db";
 import { MemoryPolaroids } from "@/components/MemoryPolaroids";
 import { comingUp } from "@/lib/home/coming-up";
 import { passPhoto, type PassGroup } from "@/lib/home/pass-photo";
@@ -55,9 +59,7 @@ import { countryPhoto } from "@/lib/country-photos";
 import { loadMyWishes } from "@/lib/wishes-db";
 import { photoSet, placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
-import { loadNeedsYou } from "@/lib/needs-you";
 import { unreadPostcards } from "@/lib/blocks";
-import { BILL_DUE_DAYS, billDueNeeds, needLine, postcardNeed, type DueBill, type NeedItem } from "@/lib/home/need-line";
 import { tripEmoji } from "@/lib/countdown";
 import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
@@ -68,8 +70,9 @@ export const metadata = { alternates: { canonical: "/" } };
 
 const countPasskeys = (accountId: string) => db.passkey.count({ where: { accountId } });
 
-// Home: stories, your money card (a boarding pass: route, amount, one button; what needs you is a quiet line under it), your groups as polaroids, and the
-// latest changes. Search, Settle and Alerts live in the bottom bar.
+// Home (the 15 Nov mockup): greeting, automated stories, your money card (label, exact amount, who and where, one button, the trip's photo; nothing sits
+// under it: what needs you lives in Updates behind the bell), Coming up (the countdown cards), your groups as polaroids, Memories, Latest and the sliding cards (the tagline is not on Home).
+// Search, Settle and Alerts live in the bottom bar.
 export default async function Home({
   searchParams,
 }: {
@@ -87,9 +90,8 @@ export default async function Home({
 }) {
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
-  // Independent reads, all at once. (`dueSoon` is filled by the needs-you read, from the bill statuses it already works out.)
-  const dueSoon: DueBill[] = [];
-  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs, momentGroups, postcardsNew] = await Promise.all([
+  // Independent reads, all at once.
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew] = await Promise.all([
     loadOverview(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
@@ -97,10 +99,6 @@ export default async function Home({
     getAccount().then((a) => (a ? countMyCollections(a.id) : 0)),
     // Groups someone added you to, waiting for Join or Not now.
     getAccount().then((a) => loadInvitations(a)),
-    // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
-    getAccount().then((a) => loadNeedsYou(memberships, a, 0, new Date(), dueSoon)),
-    // New moments in your trip groups (the last 3 days; only ones you may see).
-    loadMomentStoryGroups(memberships),
     // Postcards that arrived and are unread (none from people you blocked, none still sealed).
     getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
   ]);
@@ -122,23 +120,12 @@ export default async function Home({
     const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
-    if (ev && canUndo(ev, events).ok) {
-      const grp = all.find((x) => x.group.id === didGroup);
+    const grp = all.find((x) => x.group.id === didGroup);
+    if (ev && canUndo(ev, events, new Date(), accountHoldersOf(grp?.group.members ?? []), memberships[didGroup]).ok) {
       const actor = ev.actorId === memberships[didGroup] ? "You" : grp?.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
       undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
     }
   }
-
-  // Needs you: one line at the bottom of the money card, the most important first ("... and 2 more" when there are several): things only you can
-  // answer, a flat bill due soon and a postcard that arrived. Money you owe or are owed is the card's job, new updates are the Alerts badge's,
-  // and "this group is all square, close it" lives in Updates and on the group's own page: none of them repeats here. (src/lib/home/need-line.ts has the rules.)
-  const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Confirm" };
-  const postcardItem = postcardNeed(postcardsNew);
-  const needItems: NeedItem[] = [
-    ...needs.items.map((it) => ({ key: it.id, kind: it.kind, text: it.text, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
-    ...billDueNeeds(dueSoon, today),
-    ...(postcardItem ? [postcardItem] : []),
-  ];
 
   // The latest changes across open groups.
   const recent = open
@@ -211,8 +198,6 @@ export default async function Home({
     hero: { text: heroText.replace(/^([≈ ]*)[+−]/, "$1"), exact: heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined },
     groups: involved,
   });
-  // What waits on you, folded into the card as one line.
-  const need: NeedLine | null = needLine(needItems);
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
     invitations.length > 0 ? (
@@ -278,9 +263,9 @@ export default async function Home({
   );
   const stories = buildStories({
     now: new Date(),
-    moments: momentGroups,
-    // A trip that is still to come is the countdown line (never also a circle); a trip that is on, or its moments, keep theirs.
-    trips: trips.filter((t) => t.phase.kind !== "before").map((t) => ({
+    // Moments are no stories: they live only in Memories, under the story circles.
+    // Every trip that is coming up or on has its circle (founder, 15 Nov: stories always on top), as well as its card in Coming up.
+    trips: trips.map((t) => ({
       id: t.g.group.id,
       name: t.g.group.name,
       phase: t.phase,
@@ -418,9 +403,28 @@ export default async function Home({
     })
     .filter((g) => g.iOwe || g.isOwed);
   // Countries you've been to, newest first: trips that have started, then ones ticked by hand (newest last in the list); home last.
+  // The day a trip's stamp is dated, or null when it has none yet (one rule, shared with the passport: src/lib/passport.ts).
+  // An undated trip you left: Home's own count and last-activity cover only what a leaver may see, the passport's cover the whole group.
+  // So for those (and only those) the passport's numbers are read, and both screens agree.
+  const leftUndated = all.filter((g) => g.leaver && g.group.type === "trip" && !g.group.tripStart && !g.group.deletedAt).map((g) => g.group.id);
+  const undatedFacts = await undatedTripFacts(leftUndated);
+  const stampOf = (g: (typeof all)[number]) => {
+    const f = undatedFacts.get(g.group.id);
+    return stampDay(
+      {
+        type: g.group.type,
+        deletedAt: g.group.deletedAt,
+        tripStart: g.group.tripStart,
+        expenseCount: f ? f.expenseCount : g.expenseCount,
+        lastActivity: f ? new Date(`${f.day}T00:00:00.000Z`) : g.lastActivity,
+        leftAt: g.leaver?.leftAt ?? null,
+      },
+      today,
+    );
+  };
   const visitedCodes = [
     ...all
-      .filter((g) => g.group.type === "trip" && !g.group.deletedAt && g.group.tripStart && g.group.tripStart <= today)
+      .filter((g) => g.group.tripStart && stampOf(g) !== null)
       .sort((a, b) => b.group.tripStart.localeCompare(a.group.tripStart))
       .flatMap((g) => stopsOf(g).map((st) => st.country || homeCountry)),
     ...(account ? parseHandPlaces(account.places).map((pl) => pl.c).reverse() : []),
@@ -454,23 +458,6 @@ export default async function Home({
           owed: photoFor("owed").length ? photoFor("owed") : sideStub(ticket.lines.find((l) => l.side === "owed")?.groupIds ?? []),
         }
       : undefined;
-  // The pass's SINCE and ITEMS fields: per group with money open, the first item added since the group's last payment and how many there
-  // are (what has built up since the last settle-up). A group that can't be read just leaves its fields out.
-  const facts: Record<string, GroupFacts> = {};
-  if (ticket.kind === "one" || ticket.kind === "both") {
-    await Promise.all(
-      involved.map(async (g) => {
-        const after = open.find((x) => x.group.id === g.id)?.lastPaymentAt ?? null;
-        const where = { groupId: g.id, deletedAt: null, ...(after ? { createdAt: { gt: after } } : {}) };
-        try {
-          const [first, items] = await Promise.all([db.expense.findFirst({ where, orderBy: { createdAt: "asc" }, select: { spentAt: true, createdAt: true } }), db.expense.count({ where })]);
-          facts[g.id] = { since: first ? todayKey(first.spentAt ?? first.createdAt, tz) : null, items };
-        } catch {
-          /* left out */
-        }
-      }),
-    );
-  }
   // Coming up: one boarding pass per upcoming trip (trips only, earliest first, at most three); a trip that is on says "Day 2 of 5" on its pass.
   // A finished trip leaves. The weather is the trip's usual weather when we know it, as one small pill.
   const passes: TripPassView[] = comingUp(
@@ -490,8 +477,19 @@ export default async function Home({
     return [{ ...p, stub: cover, shareLine: countdownWords(t.g.group.name, t.phase)?.line ?? "", weather: w ? { text: w.temps.replace(/^Usually /, ""), full: w.line } : undefined }];
   });
 
+  // Trips at the same stage of the countdown each get their own words on their card (slot 0, 1, 2… in that stage).
+  const stageSlot = new Map<string, number>();
+  {
+    const seenStage = new Map<string, number>();
+    for (const p of passes) {
+      const n = seenStage.get(p.stage) ?? 0;
+      seenStage.set(p.stage, n + 1);
+      stageSlot.set(p.id, n);
+    }
+  }
+
   // The sliding cards (4 to 7), picked for what's useful right now. Nothing here repeats what is already on Home: the Coming up passes say
-  // their trips' usual weather, and the needs-you line says a bill due within 3 days and new postcards, so those are left out below.
+  // their trips' usual weather, so that is left out below. A bill due within 3 days and new postcards have no line on Home, so they get their cards here.
   const season = seasonNow(new Date(), tz, region.country);
   // A group they left shows no bills.
   const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
@@ -500,17 +498,18 @@ export default async function Home({
     [
       ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
       ...all
-        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenseCount > 0))
+        .filter((g) => stampOf(g) !== null)
         .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
     ].filter(Boolean),
   );
   // The Home passport card's stamps, the same places the passport counts: trips that have started (or, with no dates, have spending),
   // newest first, skipping a trip you left before it began; then countries ticked by hand. Abroad only, one stamp each, at most 2.
-  const wentOn = (g: (typeof all)[number]) => !g.leaver || !g.group.tripStart || g.leaver.leftAt.toISOString().slice(0, 10) >= g.group.tripStart;
   const keepsakeStamps = [
     ...all
-      .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenseCount > 0) && wentOn(g))
-      .map((g) => ({ g, when: g.group.tripStart || g.lastActivity.toISOString().slice(0, 10) }))
+      .flatMap((g) => {
+        const when = stampOf(g);
+        return when === null ? [] : [{ g, when }];
+      })
       .sort((a, b) => b.when.localeCompare(a.when))
       .flatMap(({ g, when }) => stopsOf(g).filter((st) => st.country).map((st) => ({ code: st.country.toUpperCase(), when, byHand: false }))),
     ...(account ? parseHandPlaces(account.places).map((pl) => ({ code: pl.c.toUpperCase(), when: "", byHand: true })).reverse() : []),
@@ -552,15 +551,13 @@ export default async function Home({
       })),
     hasMonth: Boolean(month),
     season,
-    // New postcards are the needs-you line's: no card for them (the "Send a postcard" card still comes).
-    postcardsNew: 0,
-    // A bill due within 3 days is the needs-you line's; the card only brings up one 4 to 5 days away.
+    // New postcards and a bill due soon have no line of their own on Home any more, so the sliding cards bring them up.
+    postcardsNew,
     billsDue: billRows.flatMap((b) => {
       const due = nextDueDay(b, new Date());
       const g = open.find((x) => x.group.id === b.groupId);
       if (!due || !g || b.nature === "daily") return [];
       const inDays = daysBetween(today, due);
-      if (inDays <= BILL_DUE_DAYS) return [];
       return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays, amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
     }),
     passportCountries: passportSet.size,
@@ -569,14 +566,15 @@ export default async function Home({
     groups: open.length,
     fahrenheit: usesFahrenheit(region.country),
     // The Coming up passes already say their trips' usual weather.
-    skipWeather: passes.map((p) => p.id),
+    // The Coming up cards don't show the weather, so a trip's usual weather may have its own card here.
+    skipWeather: [],
     // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
     scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0], stamps: keepsakeStamps, postcardPhoto: photoSet("card-postcard-photo")[0], nextTrip: [...wishes].reverse().map((c) => countryPhoto(c)).find(Boolean) ?? photoSet("cover-beach")[0] },
   });
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
+  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} momentPhoto={photoSet("card-postcard-photo")[0]} />;
 
   return (
     <>
@@ -606,9 +604,16 @@ export default async function Home({
         </Notice>
       )}
 
-      {/* Just the wordmark and the bell. The app install and "How Loopin works" live in You. */}
-      <header className="mb-4 flex items-center justify-between">
-        <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
+      {/* The wordmark, a quiet greeting under it, and the bell. The app install and "How Loopin works" live in You. */}
+      <header className="mb-4 flex items-start justify-between">
+        <div className="min-w-0">
+          <p className="font-display text-[28px] font-semibold leading-none tracking-tight">loopin</p>
+          {all.length > 0 && (
+            <p className="mt-2 text-[17px] leading-tight text-fg/75" data-greeting>
+              {greetingWord(new Date(), tz)}
+            </p>
+          )}
+        </div>
         <BellButton className="glass border border-fg/10" />
       </header>
 
@@ -693,24 +698,35 @@ export default async function Home({
         </>
       ) : (
         <>
-          {/* Stories on top, like Instagram: a row of circles. Hidden when there are none (then a greeting fills the space). */}
-          <h1 className={stories.length > 0 ? "sr-only" : "mb-4 mt-1 font-display text-[32px] font-semibold leading-[1.05] tracking-tight"}>{greeting(new Date(), tz, account?.name)}</h1>
+          {/* Automated stories on top, like Instagram: a row of circles. Nothing when there are none. */}
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
-          {/* Memories: square polaroids of recent moments you may see. Nothing at all when there are none. */}
-          <MemoryPolaroids memories={memories} />
 
-          {/* Money: a boarding pass with the route, the amount and the one next step; what needs you is a quiet line under it. */}
-          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} sideStubs={sideStubs} facts={facts} year={today.slice(0, 4)} need={need} />
+          {/* Money (the mockup's "You owe" card: label, the exact amount, who and where, faces, ONE cream button, the trip's photo on the right);
+              nothing sits under it: what needs you is in Updates behind the bell. */}
+          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} sideStubs={sideStubs} />
 
-          {/* Coming up, straight after the money (the founder's order): one boarding pass per upcoming trip, earliest first, swiped sideways. */}
-          <ComingUp passes={passes} />
+          {/* Coming up: the countdown card for each trip that is next (the trip's polaroid, "12 days to go", everyone going, Share),
+              earliest first, swiped sideways. Founder, 15 Nov: this card, not the mockup's. */}
+          {passes.length > 0 && (
+            <section aria-labelledby="coming-up-h" className="mt-7" data-coming-up>
+              <h2 id="coming-up-h" className="mb-2 font-display text-[22px] font-semibold tracking-tight">
+                Coming up
+              </h2>
+              <PassStack label="Upcoming trips" attrs={{ "data-coming-up-stack": "" }}>
+                {passes.map((p) => {
+                  const t = trips.find((x) => x.g.group.id === p.id)!;
+                  return <TripCountdown key={p.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(p.id) ?? 0} />;
+                })}
+              </PassStack>
+            </section>
+          )}
 
           {invitationsBlock}
 
           {/* Groups: polaroids you swipe sideways. "See all" opens the full list. */}
-          <section className="mt-5" aria-labelledby="home-groups-h">
+          <section className="mt-7" aria-labelledby="home-groups-h">
             <div className="flex items-baseline justify-between">
-              <h2 id="home-groups-h" className="font-display text-[20px] font-semibold tracking-tight">Your groups</h2>
+              <h2 id="home-groups-h" className="font-display text-[22px] font-semibold tracking-tight">Your groups</h2>
               <Link href="/groups" className="flex min-h-11 items-center text-sm font-medium text-fg/85">
                 See all
               </Link>
@@ -724,11 +740,14 @@ export default async function Home({
             )}
           </section>
 
+          {/* Further down: Memories (the newest moment as a polaroid; nothing at all when there are none), then Latest. */}
+          <MemoryPolaroids memories={memories} />
+
           {/* Latest */}
           {recent.length > 0 && (
-            <section className="mt-8">
+            <section className="mt-7">
               <div className="mb-1 flex items-center justify-between">
-                <h2 className="font-display text-lg font-semibold tracking-tight">Latest</h2>
+                <h2 className="font-display text-[22px] font-semibold tracking-tight">Latest</h2>
                 <Link href="/search" className="hit text-sm text-gray-500">
                   See all ›
                 </Link>
@@ -814,6 +833,9 @@ export default async function Home({
               )}
             </HomeBanner>
           </div>
+
+          {/* No tagline on Home (founder, 15 Nov): "Everyone’s in. Everything adds up." stays on the opening screen, the app's
+              description, shared trip pictures and How Loopin works. */}
         </>
       )}
 
@@ -845,13 +867,6 @@ function PotTeaser({ className = "" }: { className?: string }) {
 // The pill-shaped buttons on the sliding cards.
 const bannerButton =
   "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-transparent px-[18px] text-sm font-semibold text-fg active:bg-fg/10";
-
-function greeting(now: Date, tz: string, name?: string | null): string {
-  const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
-  const part = h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : "evening";
-  const first = name?.trim().split(/\s+/)[0];
-  return `Good ${part}${first ? `, ${first}` : ""}`;
-}
 
 // A drawn icon in a soft round tile, for the rows on the start screen.
 function RowIcon({ d }: { d: string }) {

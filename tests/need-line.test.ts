@@ -64,11 +64,17 @@ describe("the one line", () => {
 
 describe("Home uses it", () => {
   const home = readFileSync("src/app/(home)/page.tsx", "utf8");
-  it("reads the bills due and the unread postcards, and draws the one line", () => {
-    expect(home).toContain("billDueNeeds(dueSoon, today)");
+  it("no longer draws the line: no need read, no needLine, no need prop on the money card", () => {
+    expect(home).not.toContain("needLine(");
+    expect(home).not.toContain("billDueNeeds(");
+    expect(home).not.toContain("loadNeedsYou");
+    expect(home).not.toContain("need={");
+  });
+  it("what the line used to say goes back to the sliding cards: new postcards, and bills due within 3 days", () => {
     expect(home).toContain("unreadPostcards(");
-    expect(home).toContain("needLine(needItems)");
-    expect(home).toContain("loadNeedsYou(memberships, a, 0, new Date(), dueSoon)");
+    expect(home).toMatch(/^\s+postcardsNew,$/m);
+    expect(home).not.toContain("postcardsNew: 0");
+    expect(home).not.toContain("BILL_DUE_DAYS");
   });
   it("the bill read adds to dueSoon only for bills that are coming up and yours (or nobody's), never daily ones", () => {
     const needs = readFileSync("src/lib/needs-you.ts", "utf8");

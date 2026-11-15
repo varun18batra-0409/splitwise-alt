@@ -1,3 +1,5 @@
+import { ONESIDE, type PhotoSize } from "./format";
+
 // Does the message fit on the back of the card? The writing area is 47% of the card wide and 73% of its height
 // (card 3:2), the writing is 4.1% of the card's width times the hand's size, with 1.28 line spacing, and the sign-off
 // ("— Name") sits under the message after a small gap. All sizes below are in "card widths".
@@ -52,4 +54,24 @@ export function overText(over: number): string {
 export function withOpener(message: string, opener: string): string {
   const base = message.trim() ? `${opener.trim()} ${message}` : opener;
   return base.slice(0, MESSAGE_MAX);
+}
+
+// ---------- One side ----------
+// The note on a one-side card gets smaller until it fits its box (never silently cut). f is in card widths.
+// Box width = note.w (card widths); height = (note.bottom - note.top) of the card's height, and the card is 2/3 as tall as wide.
+// Lines are 1.12 × the font tall. The writing starts at `base` (for a hand of size 1.12, scaled by handSize / 1.12) and steps
+// down 2% at a time, 20 times; if even that is too big the answer is 60% of base and over = true.
+const ONESIDE_STEP = 0.02;
+const ONESIDE_STEPS = 20;
+const ONESIDE_LINE = 1.12;
+export function oneSideFont(message: string, handSize: number, size: PhotoSize, measure: MeasureEm = roughMeasure): { f: number; over: boolean } {
+  const g = ONESIDE[size];
+  const base = g.font * (handSize / 1.12);
+  const boxH = (g.note.bottom - g.note.top) * (2 / 3);
+  for (let k = 0; k <= ONESIDE_STEPS; k++) {
+    const f = base * (1 - ONESIDE_STEP * k);
+    const lines = wrapLines(message, g.note.w / f, measure).length;
+    if (lines * ONESIDE_LINE * f <= boxH) return { f, over: false };
+  }
+  return { f: base * 0.6, over: true };
 }

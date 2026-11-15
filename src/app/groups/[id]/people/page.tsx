@@ -5,7 +5,7 @@ import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
 import { getAccount, getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { canUndo } from "@/lib/undo";
+import { accountHoldersOf, canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
 import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
@@ -309,7 +309,7 @@ export default async function PeoplePage({
         </section>
       )}
 
-      {justDid && canUndo(justDid, group.events).ok && (
+      {justDid && canUndo(justDid, group.events, new Date(), accountHoldersOf(group.members), myId).ok && (
         <UndoBar
           key={justDid.id}
           text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`}

@@ -485,28 +485,17 @@ export function AddExpenseForm({
     // Saving is already safe to repeat (one request key per form, and the
     // buttons are off while saving), so the page-wide double-tap lock isn't needed here.
     <form ref={formRef} onSubmit={save} data-allow-repeat="1" className="space-y-7">
-      {/* Money spent (normal) or money back (a refund, a deposit returned) */}
-      <div className="mx-auto grid max-w-[280px] grid-cols-2 gap-1 rounded-full bg-mist p-1" role="radiogroup" aria-label="Money spent or money back">
-        {(
-          [
-            ["expense", "Money spent"],
-            ["refund", "Money back"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="radio"
-            aria-checked={kind === id}
-            onClick={() => setKind(id)}
-            className={`rounded-full py-2 text-sm font-semibold transition-colors ${kind === id ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] text-fg" : "text-fg/55"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Money back (a refund, a deposit returned) is a choice under "Notes, money back…" below (founder, 15 Nov: no switch on top).
+          While it is on, one line here says so, with a way straight back. */}
       {kind === "refund" && (
-        <p className="-mt-4 text-sm text-gray-500">A refund, a returned item or a deposit coming back. Whoever got it owes the people it’s shared with.</p>
+        <div className="flex items-start justify-between gap-3 rounded-[14px] border border-line px-4 py-3 text-sm" data-money-back-note>
+          <p className="text-fg/75">
+            <span className="font-semibold text-fg">Money back.</span> A refund, a returned item or a deposit coming back. Whoever got it owes the people it’s shared with.
+          </p>
+          <button type="button" onClick={() => setKind("expense")} className="-my-2 min-h-11 shrink-0 text-[13px] font-semibold text-fg underline underline-offset-4">
+            Undo
+          </button>
+        </div>
       )}
 
       {/* 2 + 4. Amount (the hero), with the currency and the day as two small chips under it */}
@@ -1337,7 +1326,9 @@ export function AddExpenseForm({
               </span>
             ))}
           </p>
-        ) : null}
+        ) : (
+          <p className="text-fg/55">The result shows once it adds up</p>
+        )}
       </div>
       {usingLast && !panel && (
         <p className="mt-1 text-center text-[13px] text-fg/55">
@@ -1356,13 +1347,30 @@ export function AddExpenseForm({
           aria-expanded={showMore}
           className="mx-auto flex min-h-11 items-center gap-1.5 text-sm text-fg/75 active:text-fg"
         >
-          <span>{showMore ? "Hide more options" : "More options"}</span>
+          <span>{showMore ? "Hide notes and more" : `Notes, money back${members.length > 1 ? ", several payers" : ""}${members.length > 1 && kind === "expense" && spin ? ", spin" : ""}`}</span>
           <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 transition-transform ${showMore ? "-rotate-90" : "rotate-0"}`}>
             <path d="m9 6 6 6-6 6" />
           </svg>
         </button>
         {showMore && (
           <div className="mt-4 space-y-6">
+            {/* Money back: a refund, a returned item or a deposit coming back (it used to be a switch at the top). */}
+            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3" data-money-back-row>
+              <span>
+                <span className="block text-sm font-medium text-fg/85">Money back</span>
+                <span className="block text-xs text-fg/55">A refund or a deposit coming back</span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={kind === "refund"}
+                aria-label="Money back"
+                onClick={() => setKind(kind === "refund" ? "expense" : "refund")}
+                className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${kind === "refund" ? "border-fg bg-fg" : "border-line bg-mist"}`}
+              >
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${kind === "refund" ? "left-6 bg-canvas" : "left-0.5 bg-fg/60"}`} />
+              </button>
+            </label>
             <label className="block">
               <span className={labelClass}>Notes</span>
               <textarea

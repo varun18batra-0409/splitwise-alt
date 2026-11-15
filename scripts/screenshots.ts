@@ -283,17 +283,18 @@ if (!desktop && !hosted) {
   };
   const problems: string[] = [];
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
+  // (Each may end in one letter: the group's letter drawn under the photo, which the card's text includes but nobody sees.)
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| .*From To YOU ASH .*₹54,122 .*Pay Asha$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle( \S)?$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| .*From To KAB YOU .*₹22,916 .*Remind Kabir$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir( \S)?$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| .*From To 3 PPL YOU .*₹31,480 .*Remind 3 people$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people( \S)?$/ }],
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| .*From To KAB YOU .*₹22,916 .*Remind Kabir .*From To YOU ASH .*₹4,200 .*Pay Asha$/ }],
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir( \S)? You owe ₹4,200 To Asha( · .+?)? Review & settle( \S)?$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| .*All square.*Nobody owes anybody.*SETTLED.*Add an expense$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)( \S)?$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -315,8 +316,7 @@ if (!desktop && !hosted) {
         await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
         await shot(`n${w}-home-state-${name}`, "/");
       }
-      // A long first name on the narrowest phone: the button says "Pay Bhagyalakshmi" (cut with "…" only if it cannot fit), the route
-      // codes stay whole (BHA), and the amount stays whole.
+      // A long first name on the narrowest phone: the card says "To Bhagyalakshmi · …" (wrapping between words, never mid-word) and the amount stays whole.
       if (name === "owe") {
         const asha = await db.member.findUnique({ where: { id: A } });
         await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });
@@ -344,14 +344,14 @@ await shot("64-switching", "/switching");
 await shot("65-import", "/import");
 await shot("66-people-not-on-loopin", `${g}/people`);
 await shot("67-splash", "/splash", undefined, false);
-// The first screen of a small phone (375×667): header, stories, the boarding-pass money card with its one button, the start of the group row.
+// The first screen of a small phone (375×667): header, stories, the money card with its one button, the start of the group row.
 const wide = page.viewportSize();
 await shot("68-home-first-screen", "/", async (p) => {
   await p.setViewportSize({ width: 375, height: 667 });
   await p.waitForTimeout(400);
 }, false);
 if (wide) await page.setViewportSize(wide);
-// The whole Home at 390 (stories, boarding pass, groups, countdown, latest, the month card).
+// The whole Home at 390 (greeting, stories, money card, Coming up, groups, memories, latest, the month card).
 await shot("69-home-full", "/");
 // The Home cards, each one (paused, then picked by its dot), at 390 and on the narrowest phone (320).
 for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
@@ -620,12 +620,19 @@ if (!hosted) {
     const sealedCard = await db.postcard.create({
       data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "print:beach", words: "Goa", message: "Open this on New Year's.", stamp: "r:newyear", opensAt: new Date(Date.now() + 60 * 86_400_000), address: "[]", place: "Goa" },
     });
+    // A one-side card from Meera: shown as one picture on the card page and on the shelf.
+    const oneCard = await db.postcard.create({
+      data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", format: "oneside", photoSize: "medium", look: "golden:70", message: "Remember the bus that never came? Best wrong turn ever.", hand: "caveat", stamp: "c:IN", paper: "cream", touches: "seal,coffee", address: "[]", place: "Goa" },
+    });
     await shot("128-postcard-received", `/postcards/${got.id}`, async (p) => {
       await p.waitForTimeout(1200);
     }, false);
     await shot("129-postcard-back", `/postcards/${got.id}`, async (p) => {
       await p.locator("[data-postcard-flip]").click();
       await p.waitForTimeout(1300);
+    }, false);
+    await shot("128b-postcard-oneside-received", `/postcards/${oneCard.id}`, async (p) => {
+      await p.waitForTimeout(1200);
     }, false);
     await shot("129b-postcard-seal-back", `/postcards/${got.id}`, async (p) => {
       await p.getByRole("region", { name: "Seal it back" }).scrollIntoViewIfNeeded();
@@ -644,31 +651,89 @@ if (!hosted) {
     await shot("130-postcards-shelf", "/postcards", async (p) => {
       await p.waitForTimeout(1000);
     });
-    await shot("131-postcard-compose", `/postcards/new?group=${lona.id}`, async (p) => {
+    // The editor, one tool open per shot, at 390. (The card stays on screen; the options sit above the tool row.)
+    const ed = `/postcards/new?group=${lona.id}`;
+    const tool = (name: string) => async (p: Page) => {
+      const t = p.locator(`[data-tool="${name}"]`);
+      await t.scrollIntoViewIfNeeded();
+      await t.click();
+      await p.waitForTimeout(500);
+    };
+    const note = "Remember the bus that never came? Best wrong turn ever.";
+    await shot("131-postcard-front-photo", ed, async (p) => {
       await p.waitForTimeout(1200);
     }, false);
-    await shot("132-postcard-compose-back", `/postcards/new?group=${lona.id}`, async (p) => {
+    await shot("131a-postcard-front-look", ed, async (p) => {
+      await tool("look")(p);
+      await p.getByRole("button", { name: "Look: Faded 70s" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("131b-postcard-front-words", ed, async (p) => {
+      await tool("words")(p);
+      await p.getByRole("button", { name: "Top", exact: true }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("131c-postcard-front-lettering", ed, async (p) => {
+      await tool("lettering")(p);
+      await p.getByRole("button", { name: "Vogue", exact: true }).click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("131d-postcard-front-colour", ed, async (p) => {
+      await tool("colour")(p);
+      await p.getByRole("button", { name: "Gold words" }).click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("131e-postcard-front-touches", ed, async (p) => {
+      await tool("touches")(p);
+      await p.getByRole("button", { name: "Tape", exact: true }).click();
+      await p.getByRole("button", { name: "Pressed flower" }).click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("131f-postcard-front-fit-taped", ed, async (p) => {
+      await p.locator('[data-fit-choice="taped"]').click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("132-postcard-note-message", ed, async (p) => {
       await p.getByRole("tab", { name: "Note" }).click();
-      await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
+      await p.getByRole("textbox", { name: "Your message" }).fill(`${note} Same time next year?`);
       await p.waitForTimeout(1300);
     }, false);
-    await shot("133-postcard-compose-send", `/postcards/new?group=${lona.id}`, async (p) => {
+    const onNote = async (p: Page, t: string) => {
+      await p.getByRole("tab", { name: "Note" }).click();
+      await p.getByRole("textbox", { name: "Your message" }).fill(`${note} Same time next year?`);
+      await tool(t)(p);
+      await p.waitForTimeout(900);
+    };
+    await shot("132a-postcard-note-pen", ed, async (p) => {
+      await onNote(p, "pen");
+      await p.getByRole("button", { name: "Casual handwriting" }).click();
+      await p.getByRole("button", { name: "Sepia ink" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("132b-postcard-note-paper", ed, async (p) => {
+      await onNote(p, "paper");
+      await p.getByRole("button", { name: "Sage paper" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("132c-postcard-note-stamp", ed, async (p) => {
+      await onNote(p, "stamp");
+    }, false);
+    await shot("132d-postcard-note-wax-seal", ed, async (p) => {
+      await onNote(p, "seal");
+      await p.getByRole("button", { name: "Gold wax", exact: true }).click();
+      await p.getByRole("button", { name: "Seal design: Crest" }).click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("132e-postcard-note-touches", ed, async (p) => {
+      await onNote(p, "touches");
+      await p.getByRole("button", { name: "Coffee ring" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("133-postcard-compose-send", ed, async (p) => {
       await p.getByRole("tab", { name: "Send" }).click();
       await p.waitForTimeout(600);
     }, false);
-    await shot("130b-postcard-front-colour", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("button", { name: "Gold words" }).click();
-      await p.locator("[data-tones]").scrollIntoViewIfNeeded();
-      await p.waitForTimeout(1200);
-    }, false);
-    await shot("131b-postcard-looks", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("button", { name: "Look: Faded 70s" }).click();
-      await p.getByRole("button", { name: "Top", exact: true }).click();
-      await p.getByRole("button", { name: "Pressed flower" }).click();
-      await p.locator("[data-looks]").scrollIntoViewIfNeeded();
-      await p.waitForTimeout(1300);
-    }, false);
-    await shot("133b-postcard-sealed-choice", `/postcards/new?group=${lona.id}`, async (p) => {
+    await shot("133b-postcard-sealed-choice", ed, async (p) => {
       await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Open this on New Year's.");
       await p.getByRole("tab", { name: "Send" }).click();
@@ -676,29 +741,16 @@ if (!hosted) {
       await p.locator("[data-opens]").scrollIntoViewIfNeeded();
       await p.waitForTimeout(800);
     }, false);
-    await shot("132c-postcard-wax-seal", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Note" }).click();
-      await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever.");
-      await p.getByRole("button", { name: "Wax seal" }).click();
-      await p.getByRole("button", { name: "Coffee ring" }).click();
-      await p.getByRole("button", { name: "Gold wax", exact: true }).click();
-      await p.getByRole("button", { name: "Seal design: Crest" }).click();
-      await p.locator("[data-seal-picker]").scrollIntoViewIfNeeded();
-      await p.waitForTimeout(1200);
+    await shot("135-postcard-oneside-photo-size", ed, async (p) => {
+      await p.locator('[data-format-choice="oneside"]').click();
+      await p.locator('[data-size-choice="medium"]').click();
+      await p.waitForTimeout(1000);
     }, false);
-    await shot("131c-postcard-front-touches", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("button", { name: "Tape" }).click();
-      await p.getByRole("button", { name: "Pressed flower" }).click();
-      await p.locator("[data-touches-front]").scrollIntoViewIfNeeded();
+    await shot("135a-postcard-oneside-message", ed, async (p) => {
+      await p.locator('[data-format-choice="oneside"]').click();
+      await tool("message")(p);
+      await p.getByRole("textbox", { name: "Your message" }).fill(note); // 55 / 160
       await p.waitForTimeout(1200);
-    }, false);
-    await shot("132b-postcard-colours", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Note" }).click();
-      await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
-      await p.getByRole("button", { name: "Sepia ink" }).click();
-      await p.getByRole("button", { name: "Sage paper" }).click();
-      await p.locator("[data-papers]").scrollIntoViewIfNeeded();
-      await p.waitForTimeout(1300);
     }, false);
     await shot("134-account-postcards", "/account", async (p) => {
       await p.locator("[data-postcards-link]").scrollIntoViewIfNeeded();
@@ -785,6 +837,12 @@ if (!hosted) {
           await p.getByRole("tab", { name: "Note" }).click();
           await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
           await p.waitForTimeout(1300);
+        }, false);
+        await shot(`n${w}-postcard-oneside`, `/postcards/new?group=${lona.id}`, async (p) => {
+          await p.locator('[data-format-choice="oneside"]').click();
+          await p.locator('[data-tool="message"]').click();
+          await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever.");
+          await p.waitForTimeout(1200);
         }, false);
         await shot(`n${w}-our-passports`, `/groups/${pune.id}/passports`, undefined, false);
         await shot(`n${w}-wrapped-intro`, `/groups/${pune.id}/wrapped`, undefined, false);
@@ -950,9 +1008,15 @@ if (!hosted) {
       await p.locator("[data-reactions] summary[aria-label='React']").click();
     }, true],
     ["home-story-circles", "/", undefined, false],
-    ["home-story-frame", "/", async (p) => {
-      await p.locator("[data-story='moment']").first().click();
-      await p.waitForTimeout(900);
+    // Moments are Memories only: the strip collapsed (small polaroids), then opened in place (two columns with captions).
+    ["home-memories-collapsed", "/", async (p) => {
+      await p.locator("[data-memories-row]").waitFor({ timeout: 10_000 });
+      await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
+    }, false],
+    ["home-memories-expanded", "/", async (p) => {
+      await p.locator("[data-memories-toggle]").click();
+      await p.locator("[data-memories-grid]").waitFor();
+      await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
     }, false],
   ]);
   // As the author, the "⋯" menu has Delete; as someone else it has Report and Block.
@@ -1038,7 +1102,8 @@ if (!hosted) {
     { name: "G5-trip-recap", path: `${gt}?tab=charts` },
     { name: "G6-trip-memories-after", path: `/groups/${over.id}?tab=memories` },
   ]);
-  // Home's Memories polaroids (under the story circles) with the moments above, at 390 and the narrowest phone (320), then one tapped open:
+  // Home's Memories (right after the story circles): the small strip, then opened in place into two columns, at 390 and the narrowest
+  // phone (320), then one tapped open:
   // the moment big, Back going home. The same Home with no moments is 01-home / 69-home-full (no Memories row at all).
   await gshots(varu, [
     {
@@ -1048,6 +1113,17 @@ if (!hosted) {
       full: false,
       prepare: async (p) => {
         await p.locator("[data-memories-row]").waitFor({ timeout: 10_000 });
+        await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
+      },
+    },
+    {
+      name: "H2a-home-memories-expanded",
+      path: "/",
+      widths: [390, 320],
+      full: false,
+      prepare: async (p) => {
+        await p.locator("[data-memories-toggle]").click();
+        await p.locator("[data-memories-grid]").waitFor({ timeout: 10_000 });
         await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
       },
     },
@@ -1189,6 +1265,149 @@ if (!hosted) {
     await p.goto(base + groupPath + "/settings", { waitUntil: "networkidle" });
   }, false);
   await us.close();
+}
+// ===== GUIDE SOURCE SHOTS (GD-*): the pictures on /how-it-works, one per public/guide/*.webp, same names =====
+// Phone only (390×844, the visible screen only, tab bar showing). The trip pictures come from a "Tokyo trip" that belongs to its own
+// throwaway demo account, so no other shot (and nothing in the UAT) sees one more group. Flat and couple month reuse the demo data.
+// Every shot is wrapped on its own: if one fails it logs "✗ GD-…" and the rest carry on. (Local copy only.)
+// Guide pictures come from the Android pass only (the iPhone pass shares the same database and doesn't need them).
+if (!hosted && !desktop && !ios) {
+  try {
+    const { db } = await import("../src/lib/db");
+    const { startGame, recordMove, finishGame } = await import("../src/lib/pot-db");
+    const tag = Date.now().toString(36);
+    const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
+    // Four friends with their own accounts, so Friends' passports has people in it. The viewer is Aarav.
+    const mk = (n: string, places: string[]) =>
+      db.account.create({ data: { email: `shots-gd-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n, passportChoiceAt: new Date(), places: JSON.stringify(places.map((c) => ({ c }))) } });
+    const aarav = await mk("Aarav", ["JP", "TH", "AE"]);
+    const friends = [await mk("Meera", ["JP", "FR", "GR"]), await mk("Kabir", ["JP", "ID", "TH"]), await mk("Isha", ["JP", "IT", "SG"])];
+    // The trip ended 5 days ago, so Wrapped and the recap are ready. (Dates are set again for the "coming up" story below.)
+    const tokyo = await db.group.create({
+      data: {
+        name: "Tokyo trip", type: "trip", currency: "INR", inviteCode: `shotsgd${tag}`, tripStart: ist(-9), tripEnd: ist(-5), tripPlace: "Tokyo", tripCountry: "JP",
+        members: { create: [{ name: "Aarav", accountId: aarav.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 5000) }, ...friends.map((a, i) => ({ name: a.name!, accountId: a.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 4000 + i * 500) }))] },
+      },
+      include: { members: true },
+    });
+    const ids = tokyo.members.map((m) => m.id);
+    const who = (n: string) => tokyo.members.find((m) => m.name === n)!.id;
+    // Same expense shape as the Pune shots above: equal split among all four, amounts in paise that divide by 4 so shares add up exactly.
+    // [what, paise, paid by, days ago]: ₹32,000 + 6,400 + 12,000 + 48,000 + 9,600 + 2,800 + 16,000 + 1,200 + 8,800 + 5,200 = ₹1,42,000 in all.
+    const bills: [string, number, string, number][] = [
+      ["Shinkansen tickets", 3200000, "Kabir", 9],
+      ["Airbnb Shibuya", 4800000, "Isha", 9],
+      ["Ramen in Shinjuku", 640000, "Aarav", 8],
+      ["teamLab", 1200000, "Meera", 8],
+      ["Sushi at Tsukiji", 960000, "Kabir", 7],
+      ["Taxi", 280000, "Aarav", 7],
+      ["Onsen day trip", 1600000, "Meera", 6],
+      ["Konbini snacks", 120000, "Isha", 6],
+      ["Dinner in Golden Gai", 880000, "Aarav", 5],
+      ["Souvenirs at Don Quijote", 520000, "Kabir", 5],
+    ];
+    for (const [d, amount, by, ago] of bills) {
+      const spentAt = new Date(`${ist(-ago)}T12:00:00+05:30`);
+      await db.expense.create({
+        data: {
+          groupId: tokyo.id, description: d, amount, splitType: "equal", forMode: "everyone", category: guessCategory(d), paidById: who(by),
+          originalAmount: amount, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: amount, createdById: who(by), spentAt, createdAt: spentAt,
+          shares: { create: ids.map((memberId) => ({ memberId, amount: amount / ids.length })) },
+        },
+      });
+    }
+    // A game night for the same account, for the game-night story (same calls as "Diwali game night" above).
+    const pot = await db.group.create({
+      data: { name: "Diwali game night", type: "pot", currency: "INR", inviteCode: `shotsgdpot${tag}`, members: { create: [{ name: "Aarav", accountId: aarav.id, claimedAt: new Date() }, { name: "Meera" }, { name: "Kabir" }, { name: "Isha" }] } },
+      include: { members: { orderBy: { createdAt: "asc" } } },
+    });
+    const [pa, pm, pk, pi] = ["Aarav", "Meera", "Kabir", "Isha"].map((n) => pot.members.find((x) => x.name === n)!.id);
+    const game = await startGame(pot.id, pa, { name: "Round 1", game: "cards", players: [pa, pm, pk, pi] });
+    if (game.ok) {
+      for (const [w, a] of [[pa, "1000"], [pm, "2000"], [pk, "500"], [pi, "1000"]] as const) await recordMove(game.id, pa, { memberId: w, kind: "take", amount: a });
+      for (const [w, a] of [[pa, "1600"], [pm, "1600"], [pk, "300"], [pi, "1000"]] as const) await recordMove(game.id, pa, { memberId: w, kind: "return", amount: a });
+      // Chips back must add up to chips in (₹4,500), or the game can't finish and there is no game-night story.
+      const done = await finishGame(game.id, pa);
+      if (done && typeof done === "object" && "ok" in done && !done.ok) console.log("✗ GD game night didn't finish", JSON.stringify(done));
+    }
+    await db.account.update({ where: { id: aarav.id }, data: { homeCountry: "IN" } });
+
+    // One browser window per person; the same size and sharpness as the other shots, the visible screen only (fullPage false).
+    const gd = async (cookie: Record<string, unknown>, list: [string, string, ((p: Page) => Promise<void>)?][]) => {
+      const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+      await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession(cookie as Parameters<typeof encodeSession>[0]), url: base }]);
+      const p = await c.newPage();
+      for (const [name, path, prepare] of list) {
+        try {
+          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await p.waitForTimeout(900);
+          if (prepare) await prepare(p); // unlike the numbered shots, a step that fails fails the picture: a wrong screen must not be saved as a guide image
+          await p.screenshot({ path: `${out}/${name}.png`, fullPage: false });
+          console.log("✓", name);
+        } catch (e) {
+          console.log("✗", name, String(e).split("\n")[0]);
+        }
+      }
+      await c.close();
+    };
+    const t = `/groups/${tokyo.id}`;
+    // Opens Wrapped and taps Next until the wanted slide is on screen (as shots 114 and 117 do).
+    const wrappedAt = (kind: string) => async (p: Page) => {
+      for (let k = 0; k < 8; k++) {
+        if ((await p.locator(`[data-wrapped-slide='${kind}']`).count()) > 0) break;
+        await p.getByRole("button", { name: "Next" }).click();
+        await p.waitForTimeout(250);
+      }
+      await p.locator(`[data-wrapped-slide='${kind}']`).waitFor({ timeout: 5000 });
+      await p.waitForTimeout(1000);
+    };
+    const book = (extra?: (p: Page) => Promise<void>) => async (p: Page) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      if (extra) await extra(p);
+    };
+    await gd({ m: {}, a: aarav.id, v: 0 }, [
+      ["GD-spin", `${t}/add`, async (p) => {
+        await p.locator("[data-more] > button").click();
+        await p.getByRole("button", { name: /Spin for it/ }).click();
+        await p.getByRole("dialog", { name: "Spin the wheel" }).getByRole("button", { name: "Spin", exact: true }).click();
+        await p.waitForTimeout(4900);
+      }],
+      ["GD-titles", `${t}?tab=balances`],
+      ["GD-trip-report", `${t}/report`],
+      ["GD-wrapped-total", `${t}/wrapped`, wrappedAt("total")],
+      ["GD-wrapped-receipt", `${t}/wrapped`, wrappedAt("splurge")],
+      ["GD-passport-stamps", "/passport?book=1", book(async (p) => {
+        await p.getByRole("button", { name: "Next page" }).click();
+        await p.waitForTimeout(700);
+      })],
+      ["GD-friends-passports", "/passport/friends"],
+      ["GD-story-pot", "/", async (p) => {
+        await p.locator("[data-stories] [data-story='pot'] button").first().click();
+        await p.waitForTimeout(900);
+      }],
+    ]);
+    // The trip story is only told for a trip that is coming up or under way, so the dates move to next week for this one picture
+    // (the expenses keep their past dates) and go back straight after.
+    await db.group.update({ where: { id: tokyo.id }, data: { tripStart: ist(5), tripEnd: ist(9) } });
+    try {
+      await gd({ m: {}, a: aarav.id, v: 0 }, [
+        ["GD-story-trip", "/", async (p) => {
+          await p.locator("[data-stories] [data-story='trip'] button").first().click();
+          await p.waitForTimeout(900);
+        }],
+      ]);
+    } finally {
+      await db.group.update({ where: { id: tokyo.id }, data: { tripStart: ist(-9), tripEnd: ist(-5) } });
+    }
+    // Flat and couple month are the demo data's own groups, seen as the demo person.
+    await gd({ m: demo.memberships }, [
+      ["GD-flat-month", `/groups/${demo.flat.id}`],
+      ["GD-couple-month", `/groups/${demo.couple.id}`],
+    ]);
+  } catch (e) {
+    console.log("✗ GD- shots (set-up failed)", String(e).split("\n")[0]);
+  }
 }
 await browser.close();
 }

@@ -49,6 +49,29 @@ export function parseHandPlaces(json: string): HandPlace[] {
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
+// Did this person go on the trip? Someone who left the group before the trip's first day didn't. (No start day, or never left: they did.)
+export const wentOnTrip = (start: string, leftAt: Date | null) => !leftAt || !start || leftAt.toISOString().slice(0, 10) >= start;
+
+// The day an undated trip happened: around its latest (non-game) spending, not when the group was made (a flight booked months
+// early isn't a stamp yet). The one rule the passport and Home both use.
+export function undatedTripDay(latest: { spentAt: Date | null; createdAt: Date } | null | undefined, groupCreatedAt: Date): string {
+  return (latest ? latest.spentAt ?? latest.createdAt : groupCreatedAt).toISOString().slice(0, 10);
+}
+
+// The day a group's stamp is dated, or null when it earns none: not a trip, deleted, not started yet (or, with no dates, nothing
+// spent yet), or this person left before the trip began. A trip with dates is stamped on its start day; one without, on the day of its
+// latest activity. Pure, and the one rule Home and the passport both use.
+export function stampDay(
+  g: { type: string; deletedAt: Date | null; tripStart: string; expenseCount: number; lastActivity: Date; leftAt: Date | null },
+  today: string,
+): string | null {
+  if (g.type !== "trip" || g.deletedAt) return null;
+  if (g.tripStart ? g.tripStart > today : g.expenseCount <= 0) return null;
+  const day = g.tripStart || g.lastActivity.toISOString().slice(0, 10);
+  // Leaving before the first day only means something when the trip has a real start day; anyone in an undated trip gets the stamp.
+  return g.tripStart && !wentOnTrip(g.tripStart, g.leftAt) ? null : day;
+}
+
 export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: string, today: string) {
   const look = (code: string) => countryOf(code) ?? { code, name: code, flag: "🏳️" };
   const stamps: Stamp[] = [];

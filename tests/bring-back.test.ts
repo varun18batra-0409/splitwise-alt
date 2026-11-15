@@ -23,13 +23,14 @@ const { db } = await import("@/lib/db");
 const { setMemberLeft, setMember } = await import("@/lib/people");
 const { addRegistered, inviteByEmail } = await import("@/lib/invites");
 const { acceptInvitation, declineInvitation, loadInvitations } = await import("@/lib/invitations");
-const { joinExisting } = await import("@/lib/join");
+const { joinExisting, joinNew } = await import("@/lib/join");
 const { confirmUsedPending } = await import("@/lib/membership");
-const { undoEvent, removeMembers } = await import("@/lib/undo");
+const { undoEvent, removeMembers, canUndo } = await import("@/lib/undo");
 const { undoMoveOut, moveOut, saveDepositFor } = await import("@/lib/home/moving-db");
 const { netBalances } = await import("@/lib/balances");
 const { canSeePassport } = await import("@/lib/passport-db");
 const { addWishes, setShares, sharedWithMe, matches, currentFriends } = await import("@/lib/wishes-db");
+const { lateMoveText, lateRemovalText } = await import("@/lib/put-back");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const origin = "https://loopin.test";
@@ -542,5 +543,254 @@ describe("'m:' invitations are only for rows still in the group", () => {
     expect(after.accountId).toBeNull();
     expect(after.addedBy).toBe("");
     expect(after.leftAt).toBeNull();
+  });
+});
+
+// Putting someone with an account back by Undo works only for whoever took them out, and only for 10 minutes (put-back.ts).
+// Names nobody has claimed, and a person's own undo of their own move-out, keep no time limit.
+const age = (eventId: string, minutes: number) => db.groupEvent.update({ where: { id: eventId }, data: { createdAt: new Date(Date.now() - minutes * 60_000) } });
+
+describe("undoing a removal is open for 10 minutes", () => {
+  it("the admin removes Ada and undoes 9 minutes later: she is back (leftAt and removedAt cleared)", async () => {
+    const w = await world();
+    const removed = await setMemberLeft(w.g.id, w.S, w.A, true);
+    if (!removed.ok || !removed.eventId) throw new Error("no event");
+    await age(removed.eventId, 9);
+    expect((await undoEvent(removed.eventId, w.S)).ok).toBe(true);
+    const ada = await row(w.A);
+    expect(ada.leftAt).toBeNull();
+    expect(ada.removedAt).toBeNull();
+  });
+
+  it("11 minutes later the undo is refused with the calm message, nothing changes, and inviting her back still works", async () => {
+    const w = await world();
+    const removed = await setMemberLeft(w.g.id, w.S, w.A, true);
+    if (!removed.ok || !removed.eventId) throw new Error("no event");
+    await age(removed.eventId, 11);
+    const late = await undoEvent(removed.eventId, w.S);
+    expect(late).toEqual({ ok: false, error: lateRemovalText("Ada") });
+    expect((await row(w.A)).removedAt).not.toBeNull();
+    expect((await row(w.A)).leftAt).not.toBeNull();
+    expect((await db.groupEvent.findUniqueOrThrow({ where: { id: removed.eventId } })).undoneAt).toBeNull();
+    // The way back: invite her, she accepts.
+    await addRegistered(w.g.id, w.S, w.ada.id, origin);
+    expect((await acceptInvitation(w.ada, (await loadInvitations(w.ada))[0].key)).ok).toBe(true);
+    const ada = await row(w.A);
+    expect(ada.leftAt).toBeNull();
+    expect(ada.removedAt).toBeNull();
+  });
+
+  it("a name nobody has claimed (Kiran) removed a day ago can still be put back", async () => {
+    const w = await world();
+    const removed = await setMemberLeft(w.g.id, w.S, w.K, true);
+    if (!removed.ok || !removed.eventId) throw new Error("no event");
+    await age(removed.eventId, 24 * 60);
+    expect((await undoEvent(removed.eventId, w.S)).ok).toBe(true);
+    expect((await row(w.K)).leftAt).toBeNull();
+    expect((await row(w.K)).removedAt).toBeNull();
+  });
+
+  it("Ada left on her own, then was removed: undoing the removal 11 minutes later only puts back her own 'left', so it is still allowed", async () => {
+    const w = await world();
+    const left = await setMemberLeft(w.g.id, w.A, w.A, true);
+    if (!left.ok || !left.eventId) throw new Error("no event");
+    await age(left.eventId, 20);
+    const original = (await row(w.A)).leftAt;
+    const removed = await setMemberLeft(w.g.id, w.S, w.A, true);
+    if (!removed.ok || !removed.eventId) throw new Error("no event");
+    expect((await row(w.A)).removedAt).not.toBeNull();
+    await age(removed.eventId, 11);
+    expect((await undoEvent(removed.eventId, w.S)).ok).toBe(true);
+    const ada = await row(w.A);
+    expect(ada.leftAt?.getTime()).toBe(original?.getTime());
+    expect(ada.removedAt).toBeNull();
+  });
+});
+
+// Review fixes: the "only whoever made it" rule also covers removals, and re-creating a deleted member needs the same 10 minutes.
+//   Money in world(): Ada 0, Bea +2000, Asha -2000. Asha pays Bea 2000 -> Asha 0, Bea 0, so Asha may leave.
+describe("undo after the admin changed, and undo of an undo of 'joined'", () => {
+  it("Asha removes Ada, Asha leaves (zero balance), Bea is now the admin: Bea cannot undo Asha's removal within 10 minutes; Ada stays removed", async () => {
+    const w = await world();
+    const removed = await setMemberLeft(w.g.id, w.S, w.A, true);
+    if (!removed.ok || !removed.eventId) throw new Error("no event");
+    await db.payment.create({ data: { groupId: w.g.id, fromId: w.S, toId: w.B, amount: 2000, createdById: w.S } });
+    expect(await nets(w)).toEqual({ [w.A]: 0, [w.B]: 0, [w.S]: 0, [w.K]: 0 });
+    expect((await setMemberLeft(w.g.id, w.S, w.S, true)).ok).toBe(true);
+    const r = await undoEvent(removed.eventId, w.B);
+    expect(r).toEqual({ ok: false, error: "Only the person who removed Ada can undo that. You can invite them back from People." });
+    expect((await row(w.A)).removedAt).not.toBeNull();
+    expect((await row(w.A)).leftAt).not.toBeNull();
+    expect((await db.groupEvent.findUniqueOrThrow({ where: { id: removed.eventId } })).undoneAt).toBeNull();
+  });
+
+  const joinedAndUndone = async () => {
+    const w = await world();
+    expect((await joinNew(w.code, w.cy, "Cy")).ok).toBe(true);
+    const joined = await db.groupEvent.findFirstOrThrow({ where: { groupId: w.g.id, text: "joined the group" } });
+    const first = await undoEvent(joined.id, w.S); // the admin undoes "joined": Cy's row is deleted
+    if (!first.ok || !first.eventId) throw new Error("no event");
+    expect(await db.member.count({ where: { groupId: w.g.id, accountId: w.cy.id } })).toBe(0);
+    // Everything before the undo happened an hour ago, so ageing the undo by 9 or 11 minutes keeps it the newest change
+    // (otherwise "joined" would look newer than its own undo and the "added or removed again since" check would answer first).
+    await db.groupEvent.updateMany({ where: { groupId: w.g.id, id: { not: first.eventId } }, data: { createdAt: new Date(Date.now() - 60 * 60_000) } });
+    return { w, eventId: first.eventId };
+  };
+  it("undoing that undo 11 minutes later is refused (nobody is re-created); within 10 minutes the admin may; someone else may not", async () => {
+    const { w, eventId } = await joinedAndUndone();
+    await age(eventId, 9);
+    // Not the person who did it: refused with the "only the person who made it" words (no earlier guard answers first); nobody is re-created.
+    expect(await undoEvent(eventId, w.B)).toEqual({ ok: false, error: "Only the person who made that change can undo it. You can invite Cy back from People." });
+    expect(await db.member.count({ where: { groupId: w.g.id, accountId: w.cy.id } })).toBe(0);
+    await age(eventId, 11);
+    expect(await undoEvent(eventId, w.S)).toEqual({ ok: false, error: lateRemovalText("Cy") });
+    expect(await db.member.count({ where: { groupId: w.g.id, accountId: w.cy.id } })).toBe(0);
+    await age(eventId, 9);
+    expect((await undoEvent(eventId, w.S)).ok).toBe(true);
+    expect(await db.member.count({ where: { groupId: w.g.id, accountId: w.cy.id } })).toBe(1);
+  });
+});
+
+describe("canUndo hides a late put-back of someone with an account", () => {
+  const made = new Date("2026-11-15T10:00:00.000Z");
+  const ev = (undo: object, actorId: string) => ({ id: "e1", kind: "member_left", undo: JSON.stringify(undo), undoneAt: null, expenseId: null, paymentId: null, createdAt: made, actorId });
+  const removal = ev({ type: "member_set", memberId: "ada", data: { leftAt: null, removedAt: null, removedById: "" } }, "sam");
+  const holders = new Set(["ada"]);
+  it("a removal: shown at 10 minutes, hidden after; a name with no account is never hidden; her own undo of her own leave is never hidden", () => {
+    expect(canUndo(removal, [removal], new Date("2026-11-15T10:10:00.000Z"), holders).ok).toBe(true);
+    expect(canUndo(removal, [removal], new Date("2026-11-15T10:10:00.001Z"), holders).ok).toBe(false);
+    expect(canUndo(removal, [removal], new Date("2026-11-15T12:00:00.000Z"), new Set()).ok).toBe(true);
+    const own = ev({ type: "member_set", memberId: "ada", data: { leftAt: null } }, "ada");
+    expect(canUndo(own, [own], new Date("2026-11-15T12:00:00.000Z"), holders).ok).toBe(true);
+  });
+  it("Ravi records Asha's move-out: 11 minutes later Undo is shown to Asha herself, hidden for Meera", () => {
+    const moveOut = ev({ type: "member_set", memberId: "asha", data: { leftAt: null } }, "ravi");
+    const late = new Date("2026-11-15T10:11:00.000Z");
+    const all = new Set(["meera", "ravi", "asha"]);
+    expect(canUndo(moveOut, [moveOut], late, all, "asha").ok).toBe(true);
+    expect(canUndo(moveOut, [moveOut], late, all, "meera").ok).toBe(false);
+    expect(canUndo(moveOut, [moveOut], new Date("2026-11-15T10:05:00.000Z"), all, "meera").ok).toBe(true);
+  });
+  it("a member restore that brings back an account holder: same 10 minutes", () => {
+    const restore = ev({ type: "members_restore", members: [{ id: "cy", name: "Cy", phone: "", createdAt: made.toISOString(), accountId: "acc" }] }, "sam");
+    expect(canUndo(restore, [restore], new Date("2026-11-15T10:09:00.000Z"), holders).ok).toBe(true);
+    expect(canUndo(restore, [restore], new Date("2026-11-15T10:11:00.000Z"), holders).ok).toBe(false);
+  });
+});
+
+// Hand-worked (amounts in paise). Meera (first in), Ravi and Asha, equal weights.
+//   Groceries 9000 paid by Ravi, 3000 each          -> Ravi +6000, Asha -3000, Meera -3000
+//   Milk 6000 a day, paid by Meera, split equally; Asha's last day is 10 Nov: 10 x 6000 / 3 = 20000, charged now (paid by Meera, Asha's share only)
+//                                                    -> Ravi +6000, Asha -23000, Meera +17000
+//   Square-up: Asha pays Ravi 6000 and Meera 17000   -> all 0. Wi-Fi (paid by Asha) goes to Ravi; her 3000000 deposit goes to Meera.
+//   Undo of the move-out: milk charge gone, bills and deposit back; the two square-up payments stay (their own lines in Activity)
+//                                                    -> Ravi 0, Asha -3000 + 6000 + 17000 = +20000, Meera -3000 - 17000 = -20000.
+//   Deleting those two payments afterwards           -> Ravi +6000, Asha -3000, Meera -3000.
+async function flatMove() {
+  const [meeraAcc, raviAcc, ashaAcc] = [await account("Meera"), await account("Ravi"), await account("Asha")];
+  const g = await db.group.create({
+    data: {
+      name: `Flat move ${++n} ${stamp}`, type: "home", currency: "INR", inviteCode: `bbm-${n}-${stamp}`,
+      members: {
+        create: [
+          { name: "Meera", accountId: meeraAcc.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1), splitWeight: 100 },
+          { name: "Ravi", accountId: raviAcc.id, claimedAt: new Date(2026, 0, 2), createdAt: new Date(2026, 0, 2), splitWeight: 100 },
+          { name: "Asha", accountId: ashaAcc.id, claimedAt: new Date(2026, 0, 3), createdAt: new Date(2026, 0, 3), splitWeight: 100 },
+        ],
+      },
+    },
+    include: { members: true },
+  });
+  groupIds.push(g.id);
+  const id = (nm: string) => g.members.find((m) => m.name === nm)!.id;
+  const [M, R, S] = [id("Meera"), id("Ravi"), id("Asha")];
+  await db.expense.create({
+    data: {
+      groupId: g.id, description: "Groceries", amount: 9000, paidById: R, createdById: R, splitType: "equal", forMode: "everyone",
+      originalAmount: 9000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 9000,
+      shares: { create: [{ memberId: M, amount: 3000 }, { memberId: R, amount: 3000 }, { memberId: S, amount: 3000 }] },
+    },
+  });
+  const milk = await db.bill.create({ data: { groupId: g.id, name: "Milk", category: "groceries", nature: "daily", amount: 6000, startMonth: "2026-11", payer: M, split: JSON.stringify({ mode: "equal" }) } });
+  const wifi = await db.bill.create({ data: { groupId: g.id, name: "Wi-Fi", nature: "fixed", amount: 100000, day: 5, startMonth: "2026-10", payer: S } });
+  expect((await saveDepositFor(g.id, M, { heldBy: "Landlord", amounts: { [S]: "30000", [R]: "30000" } })).ok).toBe(true);
+  const netsNow = async () => {
+    const x = await db.group.findUniqueOrThrow({ where: { id: g.id }, include: { members: true, expenses: { where: { deletedAt: null }, include: { shares: true } }, payments: { where: { deletedAt: null } } } });
+    return netBalances(x.members.map((m) => m.id), x.expenses, x.payments);
+  };
+  expect(await netsNow()).toEqual({ [R]: 6000, [S]: -3000, [M]: -3000 });
+  // Ravi records Asha's move-out, "add it now" on, deposit to Meera.
+  const r = await moveOut(g.id, R, { leaverId: S, lastDay: "2026-11-10", depositTo: M, addDaily: true, requestKey: `bbmo-${stamp}-${n}-abcdefgh` }, new Date("2026-11-10T06:00:00Z"));
+  expect(r.ok).toBe(true);
+  expect(await netsNow()).toEqual({ [R]: 0, [S]: 0, [M]: 0 });
+  const charge = await db.expense.findFirstOrThrow({ where: { groupId: g.id, description: { contains: "Milk" } }, include: { shares: true } });
+  expect(charge).toMatchObject({ amount: 20000, paidById: M });
+  expect(charge.shares.map((s) => [s.memberId, s.amount])).toEqual([[S, 20000]]);
+  expect((await db.bill.findUniqueOrThrow({ where: { id: wifi.id } })).payer).toBe(R);
+  const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, kind: "member_left" } });
+  expect(ev.actorId).toBe(R);
+  const depositOf = async (memberId: string) => (await db.depositShare.findMany({ where: { deposit: { groupId: g.id }, memberId } }))[0];
+  return { g, M, R, S, ev, milk, wifi, netsNow, depositOf, charge };
+}
+
+describe("undoing a move-out is open for 10 minutes, to whoever recorded it", () => {
+  it("Ravi undoes within 10 minutes: Asha is back, bills and deposit as before, the milk charge is gone; then deleting the two square-up payments gives the starting balances", async () => {
+    const f = await flatMove();
+    await age(f.ev.id, 9);
+    expect((await undoEvent(f.ev.id, f.R)).ok).toBe(true);
+    expect((await row(f.S)).leftAt).toBeNull();
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.wifi.id } })).payer).toBe(f.S);
+    expect(await f.depositOf(f.S)).toMatchObject({ amount: 3000000, status: "held", toMemberId: "" });
+    expect(await f.depositOf(f.M)).toBeUndefined();
+    expect(await f.depositOf(f.R)).toMatchObject({ amount: 3000000, status: "held" });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: f.charge.id } })).deletedAt).not.toBeNull();
+    const bill = await db.bill.findUniqueOrThrow({ where: { id: f.milk.id } });
+    expect(JSON.parse(bill.prepaid)).toEqual({});
+    const after = await f.netsNow();
+    expect(after).toEqual({ [f.R]: 0, [f.S]: 20000, [f.M]: -20000 });
+    expect(Object.values(after).reduce((a, b) => a + b, 0)).toBe(0);
+    // The two square-up payments stay until someone deletes them in Activity.
+    const pays = await db.groupEvent.findMany({ where: { groupId: f.g.id, kind: "payment_recorded" } });
+    expect(pays).toHaveLength(2);
+    for (const p of pays) expect((await undoEvent(p.id, f.R)).ok).toBe(true);
+    expect(await f.netsNow()).toEqual({ [f.R]: 6000, [f.S]: -3000, [f.M]: -3000 });
+  });
+
+  it("Ravi tries 11 minutes later: refused with the calm message, nothing moves, the change is not marked undone", async () => {
+    const f = await flatMove();
+    await age(f.ev.id, 11);
+    const late = await undoEvent(f.ev.id, f.R);
+    expect(late).toEqual({ ok: false, error: lateMoveText("Asha") });
+    expect((await row(f.S)).leftAt).not.toBeNull();
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.wifi.id } })).payer).toBe(f.R);
+    expect(await f.depositOf(f.M)).toMatchObject({ amount: 3000000, status: "held" });
+    expect(await f.netsNow()).toEqual({ [f.R]: 0, [f.S]: 0, [f.M]: 0 });
+    expect((await db.groupEvent.findUniqueOrThrow({ where: { id: f.ev.id } })).undoneAt).toBeNull();
+  });
+
+  it("Asha can still undo her own move-out after 10 minutes", async () => {
+    const f = await flatMove();
+    await age(f.ev.id, 11);
+    expect((await undoEvent(f.ev.id, f.S)).ok).toBe(true);
+    expect((await row(f.S)).leftAt).toBeNull();
+    expect(await f.netsNow()).toEqual({ [f.R]: 0, [f.S]: 20000, [f.M]: -20000 });
+  });
+
+  it("Meera, who did not record it, is refused even within 10 minutes (and she looks after the flat); nothing changes", async () => {
+    const f = await flatMove();
+    const r = await undoEvent(f.ev.id, f.M);
+    expect(r).toEqual({ ok: false, error: "Only Asha can undo leaving the group. You can invite them back from People." });
+    expect((await row(f.S)).leftAt).not.toBeNull();
+    expect(await f.netsNow()).toEqual({ [f.R]: 0, [f.S]: 0, [f.M]: 0 });
+  });
+
+  it("undoMoveOut called directly by the recorder with a record 11 minutes old gives the late message; someone else gets the older message", async () => {
+    const f = await flatMove();
+    const late = await undoMoveOut(f.g.id, f.R, f.S, { bills: [] } as never, undefined, { recordedBy: f.R, recordedAt: new Date(Date.now() - 11 * 60_000) });
+    expect(late).toEqual({ ok: false, error: lateMoveText("Asha") });
+    expect((await row(f.S)).leftAt).not.toBeNull();
+    // Someone who did not record it gets the older message, however fresh it is.
+    const other = await undoMoveOut(f.g.id, f.M, f.S, { bills: [] } as never, undefined, { recordedBy: f.R, recordedAt: new Date() });
+    expect(other).toEqual({ ok: false, error: "Only Asha can undo moving out. You can invite them back from People." });
   });
 });

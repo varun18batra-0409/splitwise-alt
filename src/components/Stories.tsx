@@ -102,19 +102,21 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
   );
 }
 
-// The small label above a slide's words ("Day 2 of 5"): plain sentence-case type, no tape or handwriting.
+// A handwritten label on a strip of paper tape, stuck on at a slight angle ("Day 2 of 5").
 function Sticker({ children }: { children: ReactNode }) {
-  return <p className="mb-3 text-[14px] font-medium leading-tight text-[#f4f2ec]/75">{children}</p>;
+  return (
+    <p className="mb-3 inline-block -rotate-[4deg] bg-[#f4f2ec] px-3.5 pb-1 pt-0.5 font-hand text-[25px] font-bold leading-tight text-[#0d0d0f] shadow-[0_8px_18px_-6px_rgba(0,0,0,0.6)]">{children}</p>
+  );
 }
 
 function Words({ kicker, head, line, calm }: { kicker?: string; head: string; line?: string; calm?: boolean }) {
   return (
     <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[96px] z-20 px-6 text-[#f7f4ec]">
       {kicker && <Sticker>{kicker}</Sticker>}
-      <p className={`break-words font-display font-semibold tracking-[-0.02em] ${calm ? "text-[clamp(24px,7vw,28px)] leading-[1.15]" : "text-[clamp(28px,8.5vw,36px)] leading-[1.1]"}`} data-story-headline>
+      <p className={`break-words font-display font-semibold tracking-[-0.02em] ${calm ? "text-[clamp(24px,7vw,28px)] leading-[1.15]" : "text-[clamp(34px,10.5vw,44px)] leading-[1.0]"}`} data-story-headline>
         {head}
       </p>
-      {line && <p className="mt-2 text-[17px] leading-snug text-[#f4f2ec]/85">{line}</p>}
+      {line && <p className={`mt-2 font-hand text-[24px] font-bold leading-tight ${calm ? "text-[#f7f4ec]/85" : "text-[#ffd9a8]"}`}>{line}</p>}
     </div>
   );
 }
@@ -151,7 +153,8 @@ function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
           <p className="mt-1 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
             {f.big}
           </p>
-                    {f.line && <p className="mt-4 text-[17px] leading-snug text-[#f4f2ec]/85">{f.line}</p>}
+          <span aria-hidden className="mt-5 block h-[3px] w-14 rounded-full" style={{ background: accent }} />
+          {f.line && <p className="mt-4 font-hand text-[26px] font-bold leading-tight text-[#f7f4ec]/85">{f.line}</p>}
         </div>
       </div>
     );
@@ -159,7 +162,7 @@ function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
     <div className="absolute inset-0 text-[#f7f4ec]">
       <Backdrop accent={accent} />
       <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[110px] pt-24">
-        <p className="font-display text-[28px] font-semibold leading-none tracking-[-0.02em]" data-story-headline>
+        <p className="font-display text-[34px] font-semibold leading-none tracking-[-0.02em]" data-story-headline>
           {f.kicker}
         </p>
         <ul className="mt-5 space-y-2.5">
@@ -177,7 +180,7 @@ function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
             </li>
           ))}
         </ul>
-        {f.line && <p className="mt-4 text-[17px] leading-snug text-[#f4f2ec]/85">{f.line}</p>}
+        {f.line && <p className="mt-4 font-hand text-[24px] font-bold leading-tight text-[#f7f4ec]/85">{f.line}</p>}
       </div>
     </div>
   );

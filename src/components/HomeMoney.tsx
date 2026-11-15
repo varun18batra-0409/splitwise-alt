@@ -4,12 +4,13 @@ import { ShareCountdown } from "@/components/ShareCountdown";
 import { ExactAmount } from "@/components/ExactAmount";
 import { GroupCover } from "@/components/GroupCover";
 import { PassStack } from "@/components/PassStack";
-import { amountTier, orderPasses, passFields, routeCode, sideFacts, type GroupFacts, type GroupMark, type PassField, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
+import { orderPasses, routeCode, type GroupMark, type PassField, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
+import { buttonLabel, cardLabel, homeAmountTier, sideLine } from "@/lib/home/owe-card";
 import type { TripPass } from "@/lib/home/coming-up";
 import type { CoverChoice } from "@/lib/covers";
 
-// Home's money card, as a boarding pass: a stub with the group's picture, a dashed perforation with two bites, then the route
-// ("You ┄ ✈ Nupur"), the amount, the group's name and ONE cream button. Money both ways is two lines on the same ticket.
+// Home's money card (below, MoneyCard) is the 15 Nov mockup's "You owe" card. The boarding-pass pieces (TicketShell, PassRoute, PassFields, Amount)
+// stay for Settle up, a group's pay screens and the trip pass.
 // No tinted wash and no coloured border: only the amount carries the colour (orange you owe, green you're owed).
 // Below it, a quiet line for what waits on you. Lower down, "Coming up": a pass like it for each trip that is next.
 
@@ -18,13 +19,10 @@ export const OUTLINE = "flex h-11 min-w-0 items-center justify-center whitespace
 
 const AMOUNT_SIZE = { xl: "text-[32px] min-[360px]:text-[38px]", l: "text-[26px] min-[360px]:text-[28px]", m: "text-[20px] min-[360px]:text-[22px]" } as const;
 
-// What waits on you, as a quiet line under the card: the top one, or "2 payments to confirm · See them".
-export type NeedLine = { text: React.ReactNode; action: string; href: string; count: number };
-
 // A group's picture, filling its box (the box needs a size and `relative`). A trip with no picture of its own uses its place photo,
 // the same as its polaroid. `sizes` is the shown width, so the phone gets a copy that is sharp at 2x.
 export type StubCover = { id: string; cover: { kind: CoverChoice; src?: string }; photo?: string; name: string };
-function CoverBox({ c, sizes }: { c: StubCover; sizes: string }) {
+export function CoverBox({ c, sizes }: { c: StubCover; sizes: string }) {
   return (
     <>
       <GroupCover {...c.cover} uid={`mc-${c.id}`} letter={c.name} small sizes={sizes} quality={80} />
@@ -83,7 +81,7 @@ export function ActionButton({ a, className }: { a: TicketAction; className: str
 
 function Faces({ line }: { line: TicketLine }) {
   return (
-    <Link href={line.peopleHref} aria-label={`${line.phrase}. See who, in Settle up`} className="-my-0.5 mt-1 flex min-h-11 items-center self-start pr-2 active:opacity-70" data-money-people>
+    <Link href={line.peopleHref} aria-label={`${line.phrase}. See who, in Settle up`} className="-my-2 flex min-h-11 items-center self-start pr-2 active:opacity-70" data-money-people>
       <span aria-hidden className="flex">
         {line.faces.map((f, i) => (
           <span key={i} className="-ml-1.5 grid h-6 w-6 place-items-center rounded-full border-2 border-[#16161a] bg-[#2a2a31] text-[11px] font-bold text-fg/90 first:ml-0">
@@ -138,7 +136,7 @@ export function BothLine({ line }: { line: BothLineData }) {
 
 // A thin barcode along the stub's bottom edge: decorative only (bars of different widths, ~20% off-white).
 const BARS = [2, 1, 3, 1, 1, 2, 3, 1, 2, 1, 1, 3, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 3, 1, 1, 2, 1];
-function Barcode({ paper = false }: { paper?: boolean }) {
+function Barcode({ paper = false, slim = false }: { paper?: boolean; slim?: boolean }) {
   let x = 0;
   const rects = BARS.map((w, i) => {
     const r = <rect key={i} x={x} y={0} width={w} height={14} />;
@@ -146,8 +144,8 @@ function Barcode({ paper = false }: { paper?: boolean }) {
     return r;
   });
   return (
-    <span aria-hidden data-barcode className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-7 items-center justify-center px-2.5 ${paper ? "" : "bg-[#16161a]/80"}`}>
-      <svg viewBox={`0 0 ${x} 14`} preserveAspectRatio="none" className={`h-3.5 w-full ${paper ? "fill-[#26231d]/45" : "fill-fg/20"}`}>
+    <span aria-hidden data-barcode className={`pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center ${slim ? "h-5 px-2" : "h-7 px-2.5"} ${paper ? "" : "bg-[#16161a]/80"}`}>
+      <svg viewBox={`0 0 ${x} 14`} preserveAspectRatio="none" className={`w-full ${slim ? "h-2.5" : "h-3.5"} ${paper ? "fill-[#26231d]/45" : "fill-fg/20"}`}>
         {rects}
       </svg>
     </span>
@@ -164,12 +162,14 @@ const PAPER_STUB = {
     "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .3 0 0 0 0 .25 0 0 0 0 .15 0 0 0 .35 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>\")",
 } as const;
 
-export function TicketShell({ stub, label, attrs, barcode = false, paper, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; barcode?: boolean; paper?: string[]; children: React.ReactNode }) {
+// `compact`: Home's slim pass (founder, 15 Nov: "too big"): a narrow stub, smaller notches and padding; the body is one route line and
+// one amount-and-button row.
+export function TicketShell({ stub, label, attrs, barcode = false, paper, compact = false, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; barcode?: boolean; paper?: string[]; compact?: boolean; children: React.ReactNode }) {
   const covers = paper ? [] : stub.slice(0, 2);
   return (
-    <section aria-label={label} className="relative flex min-h-[176px] overflow-hidden rounded-[20px] bg-[#16161a] text-fg shadow-[inset_0_0_0_1px_#26262c]" {...attrs}>
+    <section aria-label={label} className={`relative flex overflow-hidden rounded-[20px] bg-[#16161a] text-fg shadow-[inset_0_0_0_1px_#26262c] ${compact ? "min-h-[120px]" : "min-h-[176px]"}`} data-compact={compact ? "" : undefined} {...attrs}>
       {/* The stub: the group's picture (a small stack of two when the money is across groups). */}
-      <div className="relative flex w-[84px] shrink-0 flex-col min-[360px]:w-[100px]" data-ticket-stub={paper ? "paper" : covers.length} style={paper ? PAPER_STUB : undefined}>
+      <div className={`relative flex shrink-0 flex-col ${compact ? "w-[64px] min-[360px]:w-[72px]" : "w-[84px] min-[360px]:w-[100px]"}`} data-ticket-stub={paper ? "paper" : covers.length} style={paper ? PAPER_STUB : undefined}>
         {paper && (
           <span aria-hidden data-stub-initials className="flex flex-1 flex-col items-center justify-center gap-1 pb-7 font-display text-[30px] font-medium leading-none text-[#26231d]/80">
             {paper.slice(0, 3).map((c, i) => (
@@ -183,13 +183,22 @@ export function TicketShell({ stub, label, attrs, barcode = false, paper, childr
             <CoverBox c={c} sizes="100px" />
           </div>
         ))}
-        {barcode && <Barcode paper={Boolean(paper)} />}
+        {barcode && <Barcode paper={Boolean(paper)} slim={compact} />}
       </div>
-      {/* The perforation (a dashed line, ~25% off-white) with the two 16px half-circle notches of a ticket. */}
-      <span aria-hidden className="my-3.5 w-0 shrink-0 border-l-2 border-dashed border-fg/25" data-perforation />
-      <span aria-hidden data-notch className="absolute -top-2 left-[77px] h-4 w-4 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[93px]" />
-      <span aria-hidden data-notch className="absolute -bottom-2 left-[77px] h-4 w-4 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[93px]" />
-      <div className="relative flex min-w-0 flex-1 flex-col px-3.5 pb-3.5 pt-4 min-[360px]:pl-[18px] min-[360px]:pr-4">{children}</div>
+      {/* The perforation (a dashed line, ~25% off-white) with the two half-circle notches of a ticket (16px, 14px when compact). */}
+      <span aria-hidden className={`w-0 shrink-0 border-l-2 border-dashed border-fg/25 ${compact ? "my-3" : "my-3.5"}`} data-perforation />
+      {compact ? (
+        <>
+          <span aria-hidden data-notch className="absolute -top-[7px] left-[58px] h-3.5 w-3.5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[66px]" />
+          <span aria-hidden data-notch className="absolute -bottom-[7px] left-[58px] h-3.5 w-3.5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[66px]" />
+        </>
+      ) : (
+        <>
+          <span aria-hidden data-notch className="absolute -top-2 left-[77px] h-4 w-4 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[93px]" />
+          <span aria-hidden data-notch className="absolute -bottom-2 left-[77px] h-4 w-4 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[93px]" />
+        </>
+      )}
+      <div className={`relative flex min-w-0 flex-1 flex-col ${compact ? "justify-center px-3 py-2.5 min-[360px]:pl-4 min-[360px]:pr-3.5" : "px-3.5 pb-3.5 pt-4 min-[360px]:pl-[18px] min-[360px]:pr-4"}`}>{children}</div>
     </section>
   );
 }
@@ -232,86 +241,106 @@ export function PassFields({ fields }: { fields: PassField[] }) {
   );
 }
 
-export type PassFacts = Record<string, GroupFacts | undefined>;
+// ---- Home's money card (the 15 Nov mockup) ----
+// One rounded card: on the left the label, the exact amount in the display serif, who and where, the faces and ONE cream pill; on the right
+// the trip's or group's photo with a soft curved edge. Money both ways is two of these in a swipeable stack (larger first, only the first
+// has the cream pill). Nothing is worked out here: homeTicket decides, this only draws.
+const HOME_AMOUNT = { xl: "text-[28px] min-[360px]:text-[34px]", l: "text-[22px] min-[360px]:text-[26px]", m: "text-[17px] min-[360px]:text-[20px]" } as const;
 
-// One pass for one side: route, exact amount, the faces when several people, up to three fields and ONE button.
-function PassBody({ line, facts, year, bright }: { line: TicketLine; facts: PassFacts; year: string; bright: boolean }) {
-  const f = sideFacts(line.groupIds, facts);
+function MoneyShell({ stub, label, attrs, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; children: React.ReactNode }) {
+  const cover = stub[0];
   return (
-    <>
-      <PassRoute from={line.fromCode} to={line.toCode} />
-      <Amount text={line.amount} exact={line.exact} tone={line.side} tier={amountTier(line.amount)} />
-      {line.faces.length > 0 && <Faces line={line} />}
-      <PassFields fields={passFields({ groupNames: line.groupNames, since: f.since, items: f.items, thisYear: year })} />
-      <div className="mt-auto pt-3">
-        <ActionButton a={line.action} className={`${bright ? CREAM : OUTLINE} w-full`} />
+    <section
+      aria-label={label}
+      className="relative flex min-h-[196px] overflow-hidden rounded-[22px] bg-[#16161a] text-fg after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[22px] after:shadow-[inset_0_0_0_1px_#26262c]"
+      {...attrs}
+    >
+      <div className="relative z-10 flex w-[62%] min-w-0 shrink-0 flex-col py-4 pl-4 pr-1.5 min-[360px]:pl-[18px]">{children}</div>
+      {/* The photo fills the right ~40%; an ellipse clip gives its left edge the soft curve. */}
+      <div aria-hidden data-card-photo className="absolute inset-y-0 right-0 w-[44%] overflow-hidden bg-mist [clip-path:ellipse(100%_115%_at_100%_60%)]">
+        {cover && <CoverBox c={cover} sizes="180px" />}
+        <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(22,22,26,0.35),transparent_35%)]" />
       </div>
-    </>
+    </section>
   );
 }
 
-// Nothing to do: the same pass with a "SETTLED" stamp across it (stamp artwork, not green) and one quiet link. Home and a group's page share it.
-export function SquareBody({ amount, label, addHref, title = "Your money" }: { amount: string; label: string; addHref?: string; title?: string }) {
+function HomeAmount({ text, exact, tone, tier }: { text: string; exact?: string; tone: "owe" | "owed" | "plain"; tier: "xl" | "l" | "m" }) {
   return (
-    <div className="relative flex flex-1 flex-col">
-      <p className="text-[11px] leading-none text-fg/50">{title}</p>
-      <Amount text={amount} tone="plain" tier="l" />
-      <p className="mt-1.5 truncate text-[13.5px] text-fg/55" data-ticket-context>{label}</p>
-      {/* The stamp sits under the words (never on top of them), tilted like a real one. */}
-      <span aria-hidden data-settled-stamp className="pointer-events-none mr-1 mt-3 self-end -rotate-[10deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[17px] font-semibold tracking-[0.16em] text-fg/35 min-[360px]:text-[20px]">
-        SETTLED
-      </span>
-      {addHref && (
-        <Link href={addHref} className="mt-auto flex min-h-11 items-center self-start pt-2 text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
-          Add an expense
-        </Link>
-      )}
-    </div>
+    <p
+      className={`mt-1.5 whitespace-nowrap font-display font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums [overflow-wrap:normal] ${HOME_AMOUNT[tier]} ${tone === "owe" ? "text-owe" : tone === "owed" ? "text-owed" : "text-fg"}`}
+      data-net-balance
+      data-exact={exact && exact !== text ? exact : undefined}
+      title={exact}
+    >
+      {exact && exact !== text ? <ExactAmount amount={text} exact={exact} /> : text}
+    </p>
   );
 }
 
-export function MoneyCard({ ticket, mode, tone, stub, sideStubs, facts = {}, need, year = String(new Date().getFullYear()) }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain"; stub: StubCover[]; sideStubs?: Record<"owe" | "owed", StubCover[]>; facts?: PassFacts; need?: NeedLine | null; year?: string }) {
+function SideCard({ line, stub, bright, attrs, label }: { line: TicketLine; stub: StubCover[]; bright: boolean; attrs: Record<string, string | undefined>; label?: string }) {
+  // The spoken name starts with the words on the button ("Review & settle. Pay Asha Shah ₹54,122").
+  const action = { ...line.action, label: buttonLabel(line), fullLabel: line.side === "owe" ? `Review & settle. ${line.action.fullLabel}` : line.action.fullLabel };
+  return (
+    <MoneyShell stub={stub} label={label ?? (line.side === "owe" ? "What you owe" : "What you are owed")} attrs={attrs}>
+      <p className="text-[14px] leading-none text-fg/70">{cardLabel(line.side)}</p>
+      <HomeAmount text={line.amount} exact={line.exact} tone={line.side} tier={homeAmountTier(line.amount)} />
+      <p className="mt-2 line-clamp-2 text-[13.5px] leading-snug text-fg/65 [overflow-wrap:normal] [text-wrap:balance]" data-ticket-context>
+        {sideLine(line)}
+      </p>
+      {line.faces.length > 0 && (
+        <div className="mt-2">
+          <Faces line={line} />
+        </div>
+      )}
+      <div className="mt-auto pt-3">
+        <ActionButton a={action} className={`${bright ? CREAM : OUTLINE} w-full`} />
+      </div>
+    </MoneyShell>
+  );
+}
+
+export function MoneyCard({ ticket, mode, tone, stub, sideStubs }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain"; stub: StubCover[]; sideStubs?: Record<"owe" | "owed", StubCover[]> }) {
   const attrs = { "data-balance-card": "", "data-money-mode": mode, "data-tone": tone === "plain" ? "square" : tone, "data-ticket": ticket.kind };
   return (
     <>
       {ticket.kind === "both" ? (
-        // Money both ways: two passes in a swipeable stack, the larger first. Only the first pass has the cream button.
+        // Money both ways: two cards in a swipeable stack, the larger first. Only the first has the cream button.
         <PassStack label="Your money, two passes" attrs={attrs}>
           {orderPasses(ticket.lines).map((l, i) => (
-            <TicketShell key={l.side} stub={sideStubs?.[l.side]?.length ? sideStubs[l.side] : stub} label={l.side === "owe" ? "What you owe" : "What you are owed"} attrs={{ "data-ticket-line": l.side }} barcode>
-              <PassBody line={l} facts={facts} year={year} bright={i === 0} />
-            </TicketShell>
+            <SideCard key={l.side} line={l} stub={sideStubs?.[l.side]?.length ? sideStubs[l.side] : stub} bright={i === 0} attrs={{ "data-ticket-line": l.side }} />
           ))}
         </PassStack>
-      ) : (
-        <TicketShell stub={stub} label="Your money" attrs={attrs} barcode>
-          {ticket.kind === "one" ? (
-            <PassBody line={ticket.line} facts={facts} year={year} bright />
-          ) : ticket.kind === "square" ? (
-            <SquareBody amount={ticket.amount} label={ticket.label} addHref="/add" />
-          ) : (
-            <>
-              <p className="truncate text-[13px] font-semibold text-fg/65">{ticket.label}</p>
-              <Amount text={ticket.amount} exact={ticket.exact} tone="plain" tier={amountTier(ticket.amount)} />
-              {ticket.context && <p className="mt-1 truncate text-[13.5px] text-fg/55" data-ticket-context>{ticket.context}</p>}
-              <div className="mt-auto pt-3">
-                <ActionButton a={ticket.action} className={`${CREAM} w-full`} />
-              </div>
-            </>
-          )}
-        </TicketShell>
-      )}
-      {need && (
-        // What waits on you, as one line under the pass (a 44px link): full contrast, up to two lines, a small off-white marker dot.
-        <div className="mt-1 px-1" data-need-line data-need-count={need.count}>
-          <Link href={need.href} className="flex min-h-11 items-center gap-2.5 py-1 text-[14px] leading-snug active:opacity-70" data-need-link>
-            <span aria-hidden data-need-dot className="h-1.5 w-1.5 shrink-0 rounded-full bg-fg" />
-            <span className="line-clamp-2 min-w-0 flex-1 font-medium text-fg">{need.text}</span>
-            <span className="shrink-0 font-semibold text-fg" data-need-action>
-              {need.action}
-            </span>
+      ) : ticket.kind === "one" ? (
+        <SideCard line={ticket.line} stub={stub} bright attrs={attrs} label="Your money" />
+      ) : ticket.kind === "square" ? (
+        <MoneyShell stub={stub} label="Your money" attrs={attrs}>
+          <p className="text-[14px] leading-none text-fg/70">Your money</p>
+          <HomeAmount text={ticket.amount} tone="plain" tier="l" />
+          <p className="mt-2 text-[13.5px] leading-snug text-fg/65" data-ticket-context>
+            {ticket.label}
+          </p>
+          {/* The stamp sits under the words (never on top of them), tilted like a real one: stamp artwork, not green. */}
+          <span aria-hidden data-settled-stamp className="pointer-events-none mt-3 ml-1 self-start -rotate-[8deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[15px] font-semibold tracking-[0.16em] text-fg/35">
+            SETTLED
+          </span>
+          <Link href="/add" className="mt-auto flex min-h-11 items-center self-start pt-2 text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
+            Add an expense
           </Link>
-        </div>
+        </MoneyShell>
+      ) : (
+        <MoneyShell stub={stub} label="Your money" attrs={attrs}>
+          <p className="line-clamp-2 text-[14px] leading-tight text-fg/70">{ticket.label}</p>
+          <HomeAmount text={ticket.amount} exact={ticket.exact} tone="plain" tier={homeAmountTier(ticket.amount)} />
+          {ticket.context && (
+            <p className="mt-2 line-clamp-2 text-[13.5px] leading-snug text-fg/65 [text-wrap:balance]" data-ticket-context>
+              {ticket.context}
+            </p>
+          )}
+          <div className="mt-auto pt-3">
+            <ActionButton a={ticket.action} className={`${CREAM} w-full`} />
+          </div>
+        </MoneyShell>
       )}
     </>
   );

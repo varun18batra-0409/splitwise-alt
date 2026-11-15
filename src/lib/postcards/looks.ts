@@ -16,9 +16,9 @@ export const LOOKS: Look[] = [
 ];
 
 // "golden:70" → the look and its strength (0–100).
-// Five to pick from. The other looks stay valid for old cards and are drawn as the nearest kept one.
-export const LOOK_PICKS = ["none", "golden", "faded", "bw", "sepia"] as const;
-const LOOK_NEAREST: Record<string, string> = { kodak: "golden", riviera: "golden", matte: "faded", cool: "none" };
+// Eight to pick from. "Warm film" is not offered (it carried a brand name): it stays valid for old cards and is drawn as Golden hour.
+export const LOOK_PICKS = ["none", "golden", "faded", "matte", "riviera", "cool", "bw", "sepia"] as const;
+const LOOK_NEAREST: Record<string, string> = { kodak: "golden" };
 export const keptLook = (id: string) => LOOK_NEAREST[id] ?? id;
 export function lookOf(spec: string): { id: string; amount: number } {
   const [rawId, n] = String(spec || "").split(":");
@@ -86,6 +86,9 @@ export const SEAL_COLOURS = [
   { id: "rosegold", name: "Rose gold", hi: "#ffe0d8", mid: "#c98c80", lo: "#6a3a33", metal: true },
   { id: "pearl", name: "Pearl", hi: "#ffffff", mid: "#e6e0d4", lo: "#9a9282", metal: true },
 ] as const;
+// Wax colours and designs offered in the picker. The others (ochre, copper, olive; XO, forever) are still drawn as themselves on cards that have them.
+export const SEAL_COLOUR_PICKS = ["crimson", "scarlet", "burgundy", "blush", "gold", "bronze", "silver", "rosegold", "pearl", "navy", "sapphire", "teal", "forest", "plum", "black"] as const;
+export const SEAL_DESIGN_PICKS = ["initial", "crest", "fleur", "heart", "star", "rose", "crown", "laurel", "compass", "anchor", "key", "moon", "plane", "bee"] as const;
 export const SEAL_DESIGNS = [
   { id: "initial", name: "Your initial" },
   { id: "crest", name: "Crest" },
@@ -179,8 +182,8 @@ export const TOUCHES: Touch[] = [
     id: "paravion",
     name: "Par avion",
     side: "back",
-    x: 0.06,
-    y: 0.12,
+    x: 0.33,
+    y: 0.06,
     w: 0.24,
     rot: -3,
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64" width="240" height="64"><rect x="2" y="2" width="236" height="60" rx="5" fill="#f4f1ea" stroke="#1e4f9a" stroke-width="3"/><rect x="8" y="8" width="224" height="48" rx="3" fill="none" stroke="#1e4f9a" stroke-width="1"/><text x="120" y="31" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" letter-spacing="4" fill="#1e4f9a">PAR AVION</text><text x="120" y="48" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10.5" font-weight="700" letter-spacing="3" fill="#1e4f9a">BY AIR MAIL</text></svg>`,
@@ -346,7 +349,7 @@ export const TOUCHES: Touch[] = [
     y: 0.76,
     w: 0.32,
     rot: 4,
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 70" width="240" height="70"><rect width="240" height="70" fill="#2a1d14" fill-opacity=".92"/><g fill="#f0d9a8" fill-opacity=".85">${Array.from({ length: 16 }, (_, i) => `<rect x="${6 + i * 15}" y="4" width="8" height="6" rx="1"/><rect x="${6 + i * 15}" y="60" width="8" height="6" rx="1"/>`).join("")}</g><g fill="#c98a4a" fill-opacity=".35"><rect x="8" y="15" width="70" height="40"/><rect x="85" y="15" width="70" height="40"/><rect x="162" y="15" width="70" height="40"/></g><text x="10" y="13.5" font-family="Arial, sans-serif" font-size="5" letter-spacing="1" fill="#f0a84a">KODAK SAFETY FILM 400  ▸ 14  ▸ 15</text></svg>`.replace("KODAK SAFETY FILM 400", "SAFETY FILM 400"),
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 70" width="240" height="70"><rect width="240" height="70" fill="#2a1d14" fill-opacity=".92"/><g fill="#f0d9a8" fill-opacity=".85">${Array.from({ length: 16 }, (_, i) => `<rect x="${6 + i * 15}" y="4" width="8" height="6" rx="1"/><rect x="${6 + i * 15}" y="60" width="8" height="6" rx="1"/>`).join("")}</g><g fill="#c98a4a" fill-opacity=".35"><rect x="8" y="15" width="70" height="40"/><rect x="85" y="15" width="70" height="40"/><rect x="162" y="15" width="70" height="40"/></g><text x="10" y="13.5" font-family="Arial, sans-serif" font-size="5" letter-spacing="1" fill="#f0a84a">SAFETY FILM 400  ▸ 14  ▸ 15</text></svg>`,
   },
   {
     id: "kiss",
@@ -393,21 +396,33 @@ export const cleanTouches = (raw: string) =>
   [...new Set(String(raw || "").split(","))]
     .filter((t) => TOUCHES.some((x) => x.id === t))
     .join(",");
-// Four to pick from (two on each side). The other touches stay valid for old cards: the front stickers are drawn as
-// the tape, "Lipstick kiss" as the coffee ring, and the stamp-like labels on the back are left off (a card shows one
-// stamp, one postmark and one seal at most).
-export const TOUCH_PICKS = ["tape", "flower", "seal", "coffee"] as const;
+// Ten to pick from. "seal" is chosen through the Wax seal tool. The front stickers with a place or brand feel (luggage tag, hotel sticker,
+// boarding pass, photo corners) are not offered: they stay valid for old cards and are drawn as the tape, "Lipstick kiss" as the coffee
+// ring, and the stamp-like labels on the back are left off (a card shows one stamp, one postmark and one seal at most).
+export const TOUCH_PICKS = ["tape", "flower", "seal", "coffee", "paravion", "ticket", "map", "compass", "film", "clip"] as const;
 const TOUCH_NEAREST: Record<string, string> = {
-  clip: "tape", ticket: "tape", luggage: "tape", sticker: "tape", boarding: "tape", map: "tape", compass: "tape", film: "tape", corners: "tape",
+  luggage: "tape", sticker: "tape", boarding: "tape", corners: "tape",
   kiss: "coffee",
 };
 export const keptTouch = (id: string) => TOUCH_NEAREST[id] ?? id;
 export const keptTouches = (raw: string | undefined) =>
   [...new Set(String(raw || "").split(",").map(keptTouch))].filter((t) => (TOUCH_PICKS as readonly string[]).includes(t));
-export const touchesOn = (raw: string | undefined, side: "front" | "back") => {
+export const touchesOn = (raw: string | undefined, side: "front" | "back" | "oneside"): Touch[] => {
   const ids = new Set(keptTouches(raw));
+  if (side === "oneside") {
+    // One side has no tape (the print has its own) and room for only a few: each sits where it doesn't cover the print or the note.
+    return TOUCHES.filter((t) => ids.has(t.id) && t.id in ONESIDE_TOUCHES).map((t) => ({ ...t, ...ONESIDE_TOUCHES[t.id], side: "back" as const }));
+  }
   return TOUCHES.filter((t) => t.side === side && ids.has(t.id));
 };
+// Touches that fit a one-side card, with their own spots.
+export const ONESIDE_TOUCHES: Record<string, { x: number; y: number; w: number; rot: number }> = {
+  seal: { x: 0.4, y: 0.74, w: 0.13, rot: -8 },
+  coffee: { x: 0.58, y: 0.55, w: 0.3, rot: 0 },
+  flower: { x: 0.05, y: 0.62, w: 0.16, rot: 14 },
+  paravion: { x: 0.43, y: 0.04, w: 0.18, rot: -3 },
+};
+export const ONESIDE_TOUCH_IDS = Object.keys(ONESIDE_TOUCHES);
 
 // ---------- Wax-seal replies ----------
 export const REACTIONS = [

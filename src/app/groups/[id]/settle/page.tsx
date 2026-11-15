@@ -15,7 +15,7 @@ import { eventsFrom, loadGroup, loadGroupSettle } from "@/lib/group-data";
 import { formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { applySettleMin } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
-import { canUndo } from "@/lib/undo";
+import { accountHoldersOf, canUndo } from "@/lib/undo";
 import { recordCustomPayment, settleEverything, undoChange } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { DifferentAmountLink, differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
@@ -67,7 +67,7 @@ export default async function GroupSettle({
   const undoEvents: Awaited<ReturnType<typeof eventsFrom>> = sp.did ? (data.leaver ? ((await loadGroup(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did)) : [];
   const justDid = sp.did ? undoEvents.find((e) => e.id === sp.did) : undefined;
   // (Someone who left can answer "Confirm received" / "Not received" but can't undo it, so no Undo bar for them.)
-  const showUndo = justDid && !group.members.find((m) => m.id === myId)?.leftAt && canUndo(justDid, undoEvents).ok;
+  const showUndo = justDid && !group.members.find((m) => m.id === myId)?.leftAt && canUndo(justDid, undoEvents, new Date(), accountHoldersOf(group.members), myId).ok;
 
   // How each person here likes to be paid (from their You page), my own account,
   // payments others recorded to me that wait for my "Confirm received" (older ones that already count),
@@ -281,6 +281,7 @@ export default async function GroupSettle({
           <ul className="space-y-3">
             {claimsToMe.map((c, i) => (
               <PayTicket
+                plain
                 key={c.id}
                 attrs={{ "data-waiting": c.fromName, "data-claim": c.id }}
                 stub={{ letter: c.fromName }}
@@ -333,6 +334,7 @@ export default async function GroupSettle({
             ))}
             {waiting.map((p, i) => (
               <PayTicket
+                plain
                 key={p.id}
                 attrs={{ "data-waiting": p.from.name }}
                 stub={{ letter: p.from.name }}
@@ -407,6 +409,7 @@ export default async function GroupSettle({
                   const them = firstName(nameOf(f.other));
                   return (
                     <PayTicket
+                      plain
                       key={`${t.from}-${t.to}`}
                       attrs={{ "data-transfer-row": "" }}
                       stub={{ letter: nameOf(f.other) }}

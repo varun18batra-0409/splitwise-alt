@@ -10,6 +10,8 @@ import { isPending } from "./membership";
 //   canSeeMoment(viewer, moment)   pure: the access table, tested row by row (tests/moments-access.test.ts)
 //   loadMomentViewer(groupId)      who is asking: their member row, account, whether they look after the group, and their blocks
 //
+//   canUseMomentOnPostcard(viewer, moment)   pure: may this person copy their own moment's photo onto a postcard they are writing
+//
 // The group always comes from the moment's own row, never from the request. A refusal is always the same plain "not found".
 
 export type MomentViewer = {
@@ -59,6 +61,12 @@ export function canDeleteMoment(v: MomentViewer | null, m: MomentFacts): boolean
   const mine = v.accountId !== null ? m.authorAccountId === v.accountId : m.authorId === v.memberId;
   if (mine && canSeeMoment(v, m)) return true;
   return v.isAdmin && current(v);
+}
+
+// A postcard may carry a photo from a moment you added yourself, while you are still in that trip group (as a signed-in member).
+// Never someone else's moment, never one from a group you left, were removed from, or that was deleted.
+export function canUseMomentOnPostcard(v: MomentViewer | null, m: MomentFacts): boolean {
+  return Boolean(v) && current(v!) && v!.accountId !== null && m.authorAccountId === v!.accountId && v!.groupId === m.groupId;
 }
 
 // Reporting needs an account and sight of the moment; you can't report your own.

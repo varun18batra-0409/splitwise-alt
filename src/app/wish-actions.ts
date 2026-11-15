@@ -26,6 +26,7 @@ export async function addWishesAction(f: FormData) {
   const a = await me();
   const picked = cleanCountries(f.getAll("country"));
   if (!picked.length) redirect(back({ error: "Tick at least one country." }));
+  if (!(await allow(`wish-add:${a.id}`, 30, 3600))) redirect(back({ error: "You’ve added a lot of places just now. Try again in a bit." }));
   const { addWishes } = await import("@/lib/wishes-db");
   const r = await addWishes(a.id, picked);
   redirect(back({ wished: String(r.added), ...(r.full ? { full: "1" } : {}) }, "#list"));

@@ -35,10 +35,11 @@ test("a trip's tabs: four tabs, old addresses open, Memories has no money, Trip 
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `no sideways scroll at ${w}`).toBe(true);
 
-    // Overview: the money pass, Add expense, the latest expenses, and Trip recap | Group settings at the bottom.
+    // Overview: the money box (as before the mockups: no boarding pass), Add expense, the latest expenses, and Trip recap | Group settings.
     await expect(bar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     await expect(page.locator("[data-group-balance]")).toBeVisible();
-    await expect(page.locator("[data-group-balance] [data-route-from]")).toHaveCount(1);
+    await expect(page.locator("[data-group-balance] [data-why]")).toHaveCount(1);
+    await expect(page.locator("[data-group-balance] [data-route-from]")).toHaveCount(0);
     await expect(page.locator("[data-recent-expenses]")).toContainText("Boat tickets");
     await expect(page.locator("[data-group-recap]")).toBeVisible();
     await expect(page.locator("[data-invite-pill]")).toBeVisible(); // the labelled Invite pill

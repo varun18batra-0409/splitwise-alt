@@ -11,6 +11,7 @@ import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepai
 import { monthsBetween, payerFor } from "./bills";
 import type { Transfer } from "../settle";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "../money-guard";
+import { lateMoveText, putBackOpen } from "../put-back";
 
 // Moving out, the deposit — database side.
 
@@ -450,14 +451,18 @@ export async function returnDepositFor(groupId: string, actorId: string, deducti
 // turns on, and the deposit they handed over, go back as they were. A bill
 // changed since keeps its newer settings; a deposit changed since (returned,
 // handed on) blocks the undo, so money is never put in two places.
-export async function undoMoveOut(groupId: string, actorId: string, memberId: string, info: MoveOutUndo, mark?: UndoMark): Promise<{ ok: true; eventId: string } | Fail> {
+export async function undoMoveOut(groupId: string, actorId: string, memberId: string, info: MoveOutUndo, mark?: UndoMark, opts: { recordedBy?: string; recordedAt?: Date; now?: Date } = {}): Promise<{ ok: true; eventId: string } | Fail> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   const m = group.members.find((x) => x.id === memberId);
   if (!m) return { ok: false, error: "That person is no longer in the group." };
   if (!m.leftAt) return { ok: false, error: `${m.name} is already back in the flat.` };
-  // Only they can undo their own move-out (someone with an account is never put back without their say; the admin invites them back).
-  if (m.accountId && memberId !== actorId) return { ok: false, error: `Only ${m.name} can undo moving out. You can invite them back from People.` };
+  // Only they can undo their own move-out (someone with an account is never put back without their say; the admin invites them back),
+  // or whoever recorded it, for 10 minutes (put-back.ts).
+  const recorder = opts.recordedBy === actorId && opts.recordedAt && putBackOpen(opts.recordedAt, opts.now);
+  if (m.accountId && memberId !== actorId && !recorder) {
+    return { ok: false, error: opts.recordedBy === actorId ? lateMoveText(m.name) : `Only ${m.name} can undo moving out. You can invite them back from People.` };
+  }
   // The admin removed them since: they don't undo their way back in.
   if (m.removedAt) return { ok: false, error: `${m.name} was removed from the group, so the move-out can’t be undone.` };
   try {

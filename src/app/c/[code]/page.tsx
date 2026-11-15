@@ -13,6 +13,8 @@ import { todayKey } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { countsLine, loadCollection, loopinFriends, personalReminder, progress, progressBar, progressLines, reminderText, upiLink, whatsappTo } from "@/lib/collect";
 import { FriendPicker } from "@/components/FriendPicker";
+import { stampCounts } from "@/lib/collect-rules";
+import { INK, INK_OWED } from "@/components/Polaroid";
 import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -166,9 +168,24 @@ export default async function CollectionPage({ params, searchParams }: Props) {
 
       {/* The jar (organiser): who's collecting, for what, the three numbers and the bar */}
       {isOrganiser && (
-        <section aria-label="This collection" className="vault rounded-[20px] px-5 pb-5 pt-5 text-fg">
-          <p className="text-[13px] text-fg/60">{c.organiser} is collecting</p>
-          <h1 className="mt-1 break-words font-display text-[clamp(24px,7.5vw,28px)] font-semibold leading-[1.1] tracking-tight" data-collection-title>
+        <section aria-label="This collection" className="vault relative rounded-[20px] px-5 pb-5 pt-5 text-fg">
+          {/* The little paper note in the corner, as before the mockups (founder, 15 Nov): how many of the people are checked, "2/6". */}
+          {(() => {
+            const stamp = stampCounts(p);
+            return (
+              <span aria-label={stamp.of !== null ? `${stamp.n} of ${stamp.of} checked` : `${stamp.n} checked`} className="absolute right-4 top-4 rotate-[7deg] bg-[#f4f1e8] px-2.5 pb-1 pt-1.5 text-center shadow-[0_10px_20px_-8px_rgba(0,0,0,0.9)]" style={{ color: INK }} data-checked-note>
+                <span aria-hidden className="block font-hand text-[26px] font-bold leading-none tabular-nums">
+                  {stamp.n}
+                  {stamp.of !== null && <span className="text-[18px]">/{stamp.of}</span>}
+                </span>
+                <span aria-hidden className="block text-[10px] font-semibold uppercase tracking-wide" style={{ color: INK_OWED }}>
+                  {stamp.word}
+                </span>
+              </span>
+            );
+          })()}
+          <p className="pr-20 text-[13px] text-fg/60">{c.organiser} is collecting</p>
+          <h1 className="mt-1 break-words pr-16 font-display text-[clamp(24px,7.5vw,28px)] font-semibold leading-[1.1] tracking-tight" data-collection-title>
             {c.title}
           </h1>
           {c.note && <p className="mt-2 text-sm text-fg/60">{c.note}</p>}

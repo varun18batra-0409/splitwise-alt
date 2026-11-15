@@ -143,11 +143,11 @@ describe("fix 2: leaving the history out changes nothing else", () => {
     expect(page).toContain("if (noHistory && sp.did)");
     expect(page).toContain("resolveTab(sp.tab, tabs,");
     expect(page).toContain("eventsFrom(group.id, sp.did)");
-    expect(page).toContain("canUndo(justDid, undoEvents)");
+    expect(page).toContain("canUndo(justDid, undoEvents,");
     const settle = readFileSync("src/app/groups/[id]/settle/page.tsx", "utf8");
     expect(settle).toContain("loadGroupSettle(id"); // stage 2: no events, and no expense rows either (the leaver's Undo bar loads its own)
     expect(settle).toContain("eventsFrom(group.id, sp.did)");
-    expect(settle).toContain("canUndo(justDid, undoEvents)");
+    expect(settle).toContain("canUndo(justDid, undoEvents,");
   });
 });
 

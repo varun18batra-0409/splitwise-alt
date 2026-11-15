@@ -17,7 +17,8 @@ import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-
 //   account is invited back and rejoins by accepting (invites.ts).
 // - Removed: when someone else (the admin) takes a person out, it is "removed", not
 //   "left": removedAt is set, they can't rejoin on their own or with the link, and
-//   only the admin can bring them back. Undoing the removal clears it.
+//   only the admin can bring them back. Undoing the removal clears it, but for someone with their own account only
+//   by the person who removed them and only within 10 minutes (put-back.ts); after that they are invited back.
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 

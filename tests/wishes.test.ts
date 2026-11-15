@@ -242,6 +242,37 @@ describe("writing", () => {
     expect(await addWishes(A.id, [codes[0]])).toEqual({ added: 0, full: false }); // one already there is fine, not 'full'
   });
 
+  it("someone else fills the last place while this add is under way: the newest is taken off again, so the list never goes past 200", async () => {
+    const A = await account("Ada");
+    const codes = COUNTRIES.map((c) => c.code);
+    expect(await addWishes(A.id, codes.slice(0, 199))).toEqual({ added: 199, full: false });
+    const r = await addWishes(A.id, [codes[200]], {
+      // The 200th place arrives (saved a second earlier) after this add counted 199.
+      afterRead: async () => {
+        await db.wishPlace.create({ data: { accountId: A.id, country: codes[199], createdAt: new Date(Date.now() - 1000) } });
+      },
+    });
+    expect(r).toEqual({ added: 0, full: true });
+    const list = await loadMyWishes(A.id);
+    expect(list.length).toBe(200);
+    expect(list).toContain(codes[199]);
+    expect(list).not.toContain(codes[200]);
+  });
+
+  // The list itself is the rule (never above 200). Each "N added" note is that phone's own view at its moment: when the two finish
+  // in between each other's trims, one may count a place the other then trims, so the notes can add up to one more than 2.
+  it("two adds of 2 at 198 places at the same moment: exactly 200 places, each 'added' note is 0 to 2, and one says the list is full", async () => {
+    const A = await account("Ada");
+    const codes = COUNTRIES.map((c) => c.code);
+    await addWishes(A.id, codes.slice(0, 198));
+    const [r1, r2] = await Promise.all([addWishes(A.id, codes.slice(198, 200)), addWishes(A.id, codes.slice(200, 202))]);
+    expect((await loadMyWishes(A.id)).length).toBe(200);
+    for (const r of [r1, r2]) expect(r.added).toBeGreaterThanOrEqual(0), expect(r.added).toBeLessThanOrEqual(2);
+    expect(r1.added + r2.added).toBeGreaterThanOrEqual(2);
+    expect(r1.added + r2.added).toBeLessThanOrEqual(3);
+    expect(r1.full || r2.full).toBe(true);
+  });
+
   it("adding the same place twice is success, once", async () => {
     const A = await account("Ada");
     expect(await addWishes(A.id, ["JP", "jp", "JP"])).toEqual({ added: 1, full: false });
@@ -625,6 +656,15 @@ describe("the actions: the owner is always the signed-in account", () => {
     signInAs(A);
     for (let i = 0; i < 30; i++) expect(errorOf(await go(() => shareWishesAction(form({ scope: "JP", friend: [B.id] }))))).toBeNull();
     expect(errorOf(await go(() => shareWishesAction(form({ scope: "JP", friend: [B.id] }))))).toBe("You’ve changed sharing a lot just now. Try again in a bit.");
+  });
+
+  it("adding places is limited to 30 taps an hour; the 31st is sent back with a calm message and adds nothing", async () => {
+    const A = await account("Ada");
+    const codes = COUNTRIES.map((c) => c.code);
+    signInAs(A);
+    for (let i = 0; i < 30; i++) expect(errorOf(await go(() => addWishesAction(form({ country: [codes[i]] }))))).toBeNull();
+    expect(errorOf(await go(() => addWishesAction(form({ country: [codes[30]] }))))).toBe("You’ve added a lot of places just now. Try again in a bit.");
+    expect((await loadMyWishes(A.id)).length).toBe(30);
   });
 
   it("planning is limited to 5 a day (each tap counts, even a refused one)", async () => {

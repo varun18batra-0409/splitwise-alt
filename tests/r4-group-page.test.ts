@@ -9,22 +9,10 @@ describe("one boarding pass everywhere money is a ticket (rule A4)", () => {
   const home = src("src/components/HomeMoney.tsx");
   const group = src("src/app/groups/[id]/_components/GroupSummary.tsx");
   const pay = src("src/components/PayScreens.tsx");
-  it("the group ticket draws Home's own pieces: TicketShell, PassRoute, Amount, PassFields, ActionButton, the stack and the settled body", () => {
-    for (const s of ["TicketShell", "PassRoute", "Amount", "PassFields", "ActionButton", "SquareBody", "PassStack", "CREAM", "OUTLINE"]) expect(group).toContain(s);
-    expect(group).toContain('from "@/components/HomeMoney"');
-    // No second design: nothing of its own for the route, the notches, the barcode or the perforation.
-    for (const s of ["data-notch", "data-barcode", "border-dashed", "data-perforation", "data-mark="]) expect(group).not.toContain(s);
-  });
-  it("on the group page the stub is paper with initials (the photo is already above), with the barcode", () => {
-    expect(group).toContain("paper={");
-    expect(group).toContain("barcode");
-    expect(home).toContain("PAPER_STUB");
-    expect(home).toContain("data-stub-initials");
-    expect(home).toContain('data-ticket-stub={paper ? "paper" : covers.length}');
-  });
-  it("both ways is two passes in the same swipeable stack, the larger first; only the first has the cream button", () => {
-    expect(group).toContain("orderPasses(");
-    expect(group).toContain("bright={i === 0}");
+  it("the group's money box is the card from before the mockups (founder, 15 Nov): You're owed, the amount, one Settle up, the line with Why?", () => {
+    for (const s of ["You’re owed", "You owe", "Your balance", "Settle up", "data-summary-line", "Why?", "payments clear", "glass rounded-[26px]"]) expect(group).toContain(s);
+    // No boarding pass on the group page: none of the pass pieces.
+    for (const s of ["TicketShell", "PassRoute", "PassFields", "PassStack", "data-notch", "data-barcode", "border-dashed"]) expect(group).not.toContain(s);
   });
   it("Settle up cards (group and all groups) are drawn by PayTicket, which is the same pass: From and To codes, barcode, notches, fields", () => {
     expect(pay).toContain("<TicketShell");
@@ -43,13 +31,13 @@ describe("one boarding pass everywhere money is a ticket (rule A4)", () => {
     expect(group).not.toContain("uppercase");
     expect(pay).not.toContain("uppercase");
   });
-  it("one cream button on the Overview: Add expense is outline, the pass's Settle up is cream", () => {
+  it("one cream button on the Overview: Add expense is outline, the money box's Settle up is cream", () => {
     const o = src("src/app/groups/[id]/_components/OverviewTab.tsx");
     expect(o).toContain("OUTLINE");
     expect(o).not.toContain("CREAM");
   });
-  it("exact amounts: the ticket formats with exactMoney (formatMoney), not the rounding helper", () => {
-    expect(group).toContain("exactMoney(side.amount, group.currency)");
+  it("exact amounts: the money box formats with exactMoney (formatMoney), not the rounding helper", () => {
+    expect(group).toContain("exactMoney(Math.abs(mine), group.currency)");
     expect(group).not.toContain("overviewMoney");
   });
 });
@@ -110,5 +98,17 @@ describe("header (mockup 03) and the tabs", () => {
   it("People keeps Manage people and the hooks its tests read; the People page goes back to it", () => {
     expect(src("src/app/groups/[id]/_components/PeopleTab.tsx")).toContain("Manage people");
     expect(src("src/app/groups/[id]/people/page.tsx")).toContain('back={`/groups/${group.id}?tab=balances`}');
+  });
+});
+
+describe("no boarding pass inside a group (founder, 15 Nov)", () => {
+  it("the group's Settle up draws every card plain (initial, who pays whom, the amount); Home's all-groups Settle up keeps the pass", () => {
+    const g = src("src/app/groups/[id]/settle/page.tsx");
+    const tickets = g.match(/<PayTicket\n\s+plain\n/g) ?? [];
+    expect(tickets.length).toBe((g.match(/<PayTicket\b/g) ?? []).length);
+    expect(src("src/app/settle/page.tsx")).not.toMatch(/<PayTicket\n\s+plain/);
+    const pay = src("src/components/PayScreens.tsx");
+    expect(pay).toContain("data-plain-card");
+    expect(pay).toContain("if (plain) {");
   });
 });

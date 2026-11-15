@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COUNTRIES, countryOf, searchCountries, tripStops } from "@/lib/geo";
-import { buildPassport, parseHandPlaces, stampPages } from "@/lib/passport";
+import { readFileSync } from "node:fs";
+import { buildPassport, parseHandPlaces, stampDay, stampPages, wentOnTrip } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
@@ -79,7 +80,7 @@ describe("Trip passport: stamps", () => {
 
 describe("Stories on Home", () => {
   const now = new Date("2026-10-27T10:00:00Z");
-  it("a trip coming up, last night's game and a year ago; old games and far trips left out; a collection is no circle (its progress is the Collecting card)", () => {
+  it("a trip coming up, last night's game, a year ago and a collection filling up (its circle is back, founder 15 Nov); old games and far trips left out", () => {
     const s = buildStories({
       now,
       trips: [
@@ -95,7 +96,7 @@ describe("Stories on Home", () => {
       memories: [{ id: "g9", name: "Manali trip", years: 1, people: 6, days: 4 }],
       wrapped: [],
     });
-    expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "pot-p1", "memory-g9-1"]);
+    expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "pot-p1", "memory-g9-1", "collect-c1-2"]);
     expect(s[0]).toMatchObject({ headline: "Goa in 3 days", line: "5 of you, 3 sleeps to go", href: "/groups/g1" });
     expect(s.find((x) => x.kind === "pot")?.headline).toBe("Asha came out ahead by ₹600");
     expect(s.find((x) => x.kind === "memory")?.headline).toBe("A year ago: Manali");
@@ -218,5 +219,40 @@ describe("R1 item 13: badges show only earned ones plus the next one", () => {
   });
   it("everything earned: all of them, no extra", () => {
     expect(visibleBadges([b("a", 1, 1), b("b", 3, 3)]).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+});
+
+// Someone who left a trip's group before its first day didn't go on it: no stamp, on Home or in the passport (one rule, passport.ts).
+describe("who went on a trip, and which day its stamp is", () => {
+  it("wentOnTrip: only leaving BEFORE the start day means they didn't go (start 2026-03-10)", () => {
+    expect(wentOnTrip("2026-03-10", null)).toBe(true);
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-09T23:59:59Z"))).toBe(false);
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-10T00:00:00Z"))).toBe(true);
+    expect(wentOnTrip("2026-03-10", new Date("2026-03-20T12:00:00Z"))).toBe(true);
+    expect(wentOnTrip("", new Date("2026-03-01T12:00:00Z"))).toBe(true);
+  });
+
+  const trip = { type: "trip", deletedAt: null as Date | null, tripStart: "2026-10-01", expenseCount: 0, lastActivity: new Date("2026-10-05T08:00:00Z"), leftAt: null as Date | null };
+  it("stampDay (today 2026-11-15): dated trips are stamped on their start day", () => {
+    expect(stampDay(trip, "2026-11-15")).toBe("2026-10-01");
+    expect(stampDay({ ...trip, tripStart: "2026-12-01" }, "2026-11-15")).toBeNull(); // not started yet
+    expect(stampDay({ ...trip, leftAt: new Date("2026-09-30T10:00:00Z") }, "2026-11-15")).toBeNull(); // left the day before it began
+    expect(stampDay({ ...trip, leftAt: new Date("2026-10-01T10:00:00Z") }, "2026-11-15")).toBe("2026-10-01");
+  });
+  it("stampDay: a trip without dates is stamped on its last activity day, once something was spent", () => {
+    const undated = { ...trip, tripStart: "", expenseCount: 3 };
+    // No real start day, so leaving earlier than the last activity doesn't lose the stamp.
+    expect(stampDay({ ...undated, leftAt: new Date("2026-10-01T12:00:00Z") }, "2026-11-15")).toBe("2026-10-05");
+    expect(stampDay({ ...undated, leftAt: new Date("2026-10-06T12:00:00Z") }, "2026-11-15")).toBe("2026-10-05");
+    expect(stampDay({ ...undated, expenseCount: 0 }, "2026-11-15")).toBeNull();
+  });
+  it("stampDay: a deleted group or one that is not a trip has none", () => {
+    expect(stampDay({ ...trip, deletedAt: new Date("2026-11-01T00:00:00Z") }, "2026-11-15")).toBeNull();
+    expect(stampDay({ ...trip, type: "home" }, "2026-11-15")).toBeNull();
+  });
+  it("Home uses stampDay (not its own copy of the rule)", () => {
+    const src = readFileSync("src/app/(home)/page.tsx", "utf8");
+    expect(src).toContain("stampDay(");
+    expect(src).not.toContain("const wentOn");
   });
 });

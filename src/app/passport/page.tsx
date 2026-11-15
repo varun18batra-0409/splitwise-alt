@@ -6,6 +6,7 @@ import { todayKey } from "@/lib/dates";
 import { visitorRegion } from "@/lib/region";
 import { celebrateMarks, loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
+import { passportLine } from "@/lib/passport-line";
 import { parseHandPlaces, passportCounts, passportNeedsAnswer, passportShared, stampPages } from "@/lib/passport";
 import { withCountryPhotos } from "@/lib/country-photos";
 import { beenCards, shownCards } from "@/lib/passport-cards";
@@ -86,7 +87,9 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         <p aria-hidden className="whitespace-nowrap font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.02em]">
           Your passport
         </p>
-        <p className="mt-1.5 text-[16px] leading-snug text-fg/75">A personal travel log of your trips and places.</p>
+        <p className="mt-1.5 text-balance text-[16px] leading-snug text-fg/75" data-passport-line>
+          {passportLine(counts.countries)}
+        </p>
       </div>
       <PassportTabs tab={tab} />
 

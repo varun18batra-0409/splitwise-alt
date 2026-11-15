@@ -12,6 +12,7 @@ import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
 import { isGroupAdmin } from "./group-admin";
 import { undoMoveOut } from "./home/moving-db";
+import { lateMoveText, lateRemovalText, putBackOpen } from "./put-back";
 import { DEFAULT_TIME_ZONE } from "./dates";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
 
@@ -23,7 +24,9 @@ import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, people
 //   change to that expense or payment;
 // - a group setting change only while it's the latest change of that kind;
 // - a currency change only while no money has changed since;
-// - people can only be removed again if they aren't in any expense or payment.
+// - people can only be removed again if they aren't in any expense or payment;
+// - putting someone with their own account back (undoing their removal or move-out) works only for whoever made that
+//   change, and only within 10 minutes of it (put-back.ts). Their own undo of their own move-out has no time limit.
 
 type EventLike = {
   id: string;
@@ -55,10 +58,22 @@ const later = (a: EventLike, b: EventLike) =>
 // Can this change still be undone? Pure, so the screen can show/hide the Undo button.
 export type CanUndo = { ok: true } | { ok: false; reason: string; blockedBy?: EventLike };
 
-export function canUndo(ev: EventLike, all: EventLike[]): CanUndo {
+// `accountHolders` (optional): ids of the group's members who have their own account. With it, the Undo for taking one of them out
+// (a removal or a recorded move-out) is hidden once the 10 minutes are over (put-back.ts); their own undo of their own leave has no limit.
+// `viewerId` (optional): the member looking. Their own undo of their own move-out is never hidden by the 10 minutes.
+export function canUndo(ev: EventLike, all: EventLike[], now: Date = new Date(), accountHolders?: ReadonlySet<string>, viewerId?: string): CanUndo {
   const payload = parseUndo(ev.undo);
   if (!payload) return { ok: false, reason: "This change can’t be undone." };
   if (ev.undoneAt) return { ok: false, reason: "This change was already undone." };
+  // (Screens only: undoEvent itself doesn't pass `accountHolders` and gives the full calm message below.)
+  if (accountHolders && !putBackOpen(ev.createdAt, now)) {
+    if (payload.type === "members_restore" && payload.members.some((m) => m.accountId)) {
+      return { ok: false, reason: "Undo only lasts 10 minutes. Invite them back from People." };
+    }
+    if (payload.type === "member_set" && payload.data.leftAt === null && accountHolders.has(payload.memberId) && ev.actorId !== payload.memberId && viewerId !== payload.memberId) {
+      return { ok: false, reason: "Undo only lasts 10 minutes. Invite them back from People." };
+    }
+  }
   const newer = all.filter((x) => x.id !== ev.id && later(x, ev)).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1));
   // The first newer change that stands in the way (so the message can name it).
   const block = (reason: string, pred: (x: EventLike) => boolean): CanUndo | null => {
@@ -90,6 +105,9 @@ export function canUndo(ev: EventLike, all: EventLike[]): CanUndo {
   return checks.find((c) => c !== null) ?? { ok: true };
 }
 
+// The ids of the members who have their own account (what canUndo's `accountHolders` wants).
+export const accountHoldersOf = (members: { id: string; accountId: string | null }[]): Set<string> => new Set(members.filter((m) => m.accountId).map((m) => m.id));
+
 // "Can’t undo yet: Ravi changed Dinner after this (2:14 pm). Undo that first in Activity, or edit Dinner."
 // Names the change that stands in the way. Falls back to the plain reason when it can't tell who or what.
 export function blockedMessage(check: Extract<CanUndo, { ok: false }>, ctx: { nameOf: (memberId: string) => string | undefined; tz: string }): string {
@@ -118,6 +136,7 @@ export async function undoEvent(eventId: string, actorId: string | undefined, tz
 }
 
 async function undoOnce(eventId: string, actorId: string | undefined, tz: string): Promise<UndoResult> {
+  const now = new Date();
   const ev = await db.groupEvent.findUnique({ where: { id: eventId } });
   if (!ev) return { ok: false, error: "That change no longer exists." };
   const group = await db.group.findUnique({
@@ -135,7 +154,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
 
   if (group.deletedAt) return { ok: false, error: "This group was deleted. Restore it first." };
 
-  const check = canUndo(ev, group.events);
+  const check = canUndo(ev, group.events, now);
   if (!check.ok) {
     const nameOf = (id: string) => (id === actorId ? "You" : group.members.find((m) => m.id === id)?.name);
     return { ok: false, error: blockedMessage(check, { nameOf, tz }) };
@@ -149,17 +168,29 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // (a name nobody has claimed has no one to ask, so anyone can). The admin invites them back instead.
   // Also refused: anyone else undoing something the person did to THEMSELF (their own leave, or their own undo of a rejoin) that would
   // put them back in. The only undo of that kind allowed to someone else is the admin's own removal action (the event is the admin's).
+  // The person who took someone with an account out can undo that, but only for 10 minutes (put-back.ts); after that the person is invited back.
   if (payload.type === "member_set" && payload.data.leftAt === null && payload.memberId !== actorId) {
-    const own = ev.actorId === payload.memberId;
-    if (own || (ev.kind === "member_left" && !("removedAt" in payload.data))) {
-      const who = group.members.find((m) => m.id === payload.memberId);
-      if (who?.accountId) return { ok: false, error: `Only ${who.name} can undo leaving the group. You can invite them back from People.` };
+    const who = group.members.find((m) => m.id === payload.memberId);
+    if (who?.accountId) {
+      const own = ev.actorId === payload.memberId;
+      const recordedLeave = ev.kind === "member_left" && !("removedAt" in payload.data); // a move-out or "marked as left"
+      if (own || (recordedLeave && ev.actorId !== actorId)) return { ok: false, error: `Only ${who.name} can undo leaving the group. You can invite them back from People.` };
+      // A removal made by someone else (the admin may have changed since): only whoever made it can undo it.
+      if (ev.actorId !== actorId) return { ok: false, error: `Only the person who removed ${who.name} can undo that. You can invite them back from People.` };
+      if (!putBackOpen(ev.createdAt, now)) return { ok: false, error: recordedLeave ? lateMoveText(who.name) : lateRemovalText(who.name) };
     }
   }
   // Likewise undoing someone's own coming back (accepting an invitation, rejoining) would push them out: only they can.
   if (payload.type === "member_set" && ev.kind === "member_rejoined" && payload.memberId !== actorId) {
     const who = group.members.find((m) => m.id === payload.memberId);
     if (who?.accountId) return { ok: false, error: `Only ${who.name} can undo rejoining the group.` };
+  }
+  // Re-creating someone with their own account (undoing an undo of "joined" or of "added people") needs the same care: only whoever
+  // made that change, for 10 minutes. Every event that restores member rows has this payload, so this covers them all.
+  if (payload.type === "members_restore") {
+    const holder = payload.members.find((m) => m.accountId);
+    if (holder && ev.actorId !== actorId) return { ok: false, error: `Only the person who made that change can undo it. You can invite ${holder.name} back from People.` };
+    if (holder && !putBackOpen(ev.createdAt, now)) return { ok: false, error: lateRemovalText(holder.name) };
   }
   const adminOnly =
     payload.type === "currency_restore" ||
@@ -175,7 +206,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   const mark: UndoMark = { eventId: ev.id, actorId };
   let result: UndoResult;
   try {
-    result = await apply(payload, ev.groupId, actorId, ev.text, mark);
+    result = await apply(payload, ev.groupId, actorId, ev.text, mark, { actorId: ev.actorId, createdAt: ev.createdAt });
   } catch (err) {
     if (err instanceof UndoTaken) return { ok: false, error: err.message };
     throw err;
@@ -186,7 +217,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   return result;
 }
 
-async function apply(p: UndoPayload, groupId: string, actorId: string, originalText: string, mark: UndoMark): Promise<UndoResult> {
+async function apply(p: UndoPayload, groupId: string, actorId: string, originalText: string, mark: UndoMark, ev: { actorId: string; createdAt: Date }): Promise<UndoResult> {
   switch (p.type) {
     case "expense_delete":
       return fromResult(await setExpenseDeleted(p.expenseId, actorId, true, { mark }));
@@ -211,7 +242,7 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
     case "payments_set":
       return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted, { mark }));
     case "member_set":
-      if (p.moveOut && p.data.leftAt === null) return fromResult(await undoMoveOut(groupId, actorId, p.memberId, p.moveOut, mark));
+      if (p.moveOut && p.data.leftAt === null) return fromResult(await undoMoveOut(groupId, actorId, p.memberId, p.moveOut, mark, { recordedBy: ev.actorId, recordedAt: ev.createdAt }));
       return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true, { mark }));
   }
 }

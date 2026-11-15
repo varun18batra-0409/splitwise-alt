@@ -2,7 +2,10 @@
 
 import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { ONESIDE, ONESIDE_SIGN, ONESIDE_STAMP, ONESIDE_WAVES, fitOf, photoSizeOf } from "@/lib/postcards/format";
+import { oneSideFont } from "@/lib/postcards/fit";
 import type { BackProps, FrontProps } from "./Card";
+import type { OneSideProps } from "./OneSide";
 
 // The postcard as two pictures (1500 × 1000), drawn on the phone with the same fonts and art as on
 // screen: for WhatsApp, or to save. The front first, then the back.
@@ -26,7 +29,7 @@ function cover(ctx: CanvasRenderingContext2D, im: HTMLImageElement, x: number, y
   const ih = im.height * s;
   ctx.drawImage(im, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
 }
-async function touches(ctx: CanvasRenderingContext2D, raw: string | undefined, side: "front" | "back", ox: number, oy: number, w: number, h: number, seal = "", initial = "") {
+async function touches(ctx: CanvasRenderingContext2D, raw: string | undefined, side: "front" | "back" | "oneside", ox: number, oy: number, w: number, h: number, seal = "", initial = "") {
   for (const t of touchesOn(raw, side)) {
     const im = await svgImage(t.id === "seal" ? waxSeal(seal, initial, "x") : t.svg);
     const tw = w * t.w;
@@ -77,6 +80,36 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number): string
   return out;
 }
 
+// A white-edged print, tilted, with a strip of tape on its top edge. (cx, cy) is its middle; pw its width; the picture inside has
+// the proportions `aspect` (width / height); padSide and padBottom are the white border as shares of the print's width.
+function drawPrint(ctx: CanvasRenderingContext2D, media: HTMLImageElement | null, filter: string, cx: number, cy: number, pw: number, aspect: number, padSide: number, padBottom: number, rotDeg: number, tapeW: number, tapeH: number) {
+  const pad = pw * padSide;
+  const iw = pw - pad * 2;
+  const ih = iw / aspect;
+  const ph = pad + ih + pw * padBottom;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((rotDeg * Math.PI) / 180);
+  ctx.shadowColor = "rgba(40,30,10,0.5)";
+  ctx.shadowBlur = pw * 0.05;
+  ctx.shadowOffsetY = pw * 0.02;
+  ctx.fillStyle = "#fbf8f1";
+  ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+  ctx.shadowColor = "transparent";
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-pw / 2 + pad, -ph / 2 + pad, iw, ih);
+  ctx.clip();
+  if (filter !== "none") ctx.filter = filter;
+  if (media) cover(ctx, media, -pw / 2 + pad, -ph / 2 + pad, iw, ih);
+  ctx.filter = "none";
+  ctx.restore();
+  ctx.rotate((-6 * Math.PI) / 180);
+  ctx.fillStyle = "rgba(226,212,170,0.82)";
+  ctx.fillRect(-tapeW / 2, -ph / 2 - tapeH / 2, tapeW, tapeH);
+  ctx.restore();
+}
+
 export async function drawFront(p: FrontProps): Promise<Blob> {
   const cv = document.createElement("canvas");
   cv.width = W;
@@ -87,23 +120,46 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
   const print = p.front.startsWith("print:") ? p.front.slice(6) : "";
   const img = !print ? p.photo || (p.front.startsWith("photo:") ? p.front.slice(6) : "") : "";
   const f = lookCss(p.look ?? "");
-  if (f !== "none") ctx.filter = f;
-  if (print) cover(ctx, await svgImage(printSvg(print, "x")), 0, 0, W, H);
-  else if (img) cover(ctx, await loadImage(img), 0, 0, W, H);
-  ctx.filter = "none";
+  const fit = fitOf(p.fit);
   const at = wordsAtOf(p.wordsAt ?? "bottom");
   const t = toneOf(p.tone ?? "white");
-  if (img && p.words && !t.dark) {
-    const g = at === "top" ? ctx.createLinearGradient(0, H * 0.55, 0, 0) : at === "middle" ? ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.6) : ctx.createLinearGradient(0, H * 0.45, 0, H);
+  const media = print ? await svgImage(printSvg(print, "x")) : img ? await loadImage(img) : null;
+  // The soft shade behind light words, over the rectangle (x, y, w, h) the picture fills.
+  const shade = (x: number, y: number, w: number, h: number) => {
+    if (!(img && p.words && !t.dark)) return;
+    const g = at === "top" ? ctx.createLinearGradient(0, y + h * 0.55, 0, y) : at === "middle" ? ctx.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w * 0.6) : ctx.createLinearGradient(0, y + h * 0.45, 0, y + h);
     g.addColorStop(0, at === "middle" ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0)");
     g.addColorStop(1, at === "middle" ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.42)");
     ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+  };
+  if (fit === "full") {
+    if (f !== "none") ctx.filter = f;
+    if (media) cover(ctx, media, 0, 0, W, H);
+    ctx.filter = "none";
+    shade(0, 0, W, H);
+  } else if (fit === "border") {
+    ctx.fillStyle = "#f4f0e6";
     ctx.fillRect(0, 0, W, H);
+    const [x, y, w, h] = [W * 0.05, H * 0.05, W * 0.9, H * 0.9];
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    if (f !== "none") ctx.filter = f;
+    if (media) cover(ctx, media, x, y, w, h);
+    ctx.filter = "none";
+    shade(x, y, w, h);
+    ctx.restore();
+  } else {
+    drawPrint(ctx, media, f, W / 2, H / 2, W * 0.62, print ? 3 / 2 : 4 / 3, 1.6 / 62, 6 / 62, -3, W * 0.16, W * 0.046);
   }
   grain(ctx, W, H, 0.12);
-  ctx.strokeStyle = "rgba(255,255,255,0.6)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(W * 0.032, W * 0.032, W - W * 0.064, H - W * 0.064);
+  if (fit === "full") {
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(W * 0.032, W * 0.032, W - W * 0.064, H - W * 0.064);
+  }
   if (p.words) {
     const l = letteringOf(p.lettering);
     const long = p.words.length > 11;
@@ -230,6 +286,126 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     ctx.textBaseline = "top";
   }
   await touches(ctx, p.touches, "back", ox, oy, w, h, p.seal ?? "", p.from);
+  grain(ctx, W, H, 0.08);
+  return new Promise((res) => cv.toBlob((b) => res(b!), "image/jpeg", 0.92));
+}
+
+// A one-side card as one picture (1500 × 1000), laid out with the same numbers as the on-screen card.
+export async function drawOneSide(p: OneSideProps): Promise<Blob> {
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const ctx = cv.getContext("2d")!;
+  const size = photoSizeOf(p.size);
+  const g = ONESIDE[size];
+  let ox = 0;
+  let oy = 0;
+  let w = W;
+  let h = H;
+  if (p.paper === "airmail") {
+    ctx.fillStyle = "#fbf7ef";
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(-Math.PI / 4);
+    const cols = ["#c8453a", "#fbf7ef", "#2f5fa7", "#fbf7ef"];
+    for (let x = -W * 1.5, i = 0; x < W * 1.5; x += 30, i++) {
+      ctx.fillStyle = cols[i % 4];
+      ctx.fillRect(x, -W, 30, W * 2);
+    }
+    ctx.restore();
+    ox = oy = W * 0.034;
+    w = W - ox * 2;
+    h = H - oy * 2;
+  }
+  const X = (f: number) => ox + w * f;
+  const Y = (f: number) => oy + h * f;
+  const gr = ctx.createRadialGradient(ox, oy, 0, ox, oy, w * 1.2);
+  const [p0, p1, p2] = paperTones(p.paper);
+  gr.addColorStop(0, p0);
+  gr.addColorStop(0.7, p1);
+  gr.addColorStop(1, p2);
+  ctx.fillStyle = gr;
+  ctx.fillRect(ox, oy, w, h);
+  // The taped print.
+  const print = p.front.startsWith("print:") ? p.front.slice(6) : "";
+  const img = !print ? p.photo || (p.front.startsWith("photo:") ? p.front.slice(6) : "") : "";
+  const media = print ? await svgImage(printSvg(print, "x")) : img ? await loadImage(img) : null;
+  const pw = w * g.print.w;
+  const pad = pw * 0.042;
+  const iw = pw - pad * 2;
+  const ih = iw * (20 / 27);
+  const ph = pad + ih + pw * 0.153;
+  ctx.save();
+  // Turned about its middle, as on screen.
+  ctx.translate(X(g.print.x) + pw / 2, Y(g.print.y) + ph / 2);
+  ctx.rotate((g.print.rot * Math.PI) / 180);
+  ctx.shadowColor = "rgba(40,30,10,0.5)";
+  ctx.shadowBlur = pw * 0.05;
+  ctx.shadowOffsetY = pw * 0.02;
+  ctx.fillStyle = "#fbf8f1";
+  ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+  ctx.shadowColor = "transparent";
+  ctx.beginPath();
+  ctx.rect(-pw / 2 + pad, -ph / 2 + pad, iw, ih);
+  ctx.clip();
+  const f = lookCss(p.look ?? "");
+  if (f !== "none") ctx.filter = f;
+  if (media) cover(ctx, media, -pw / 2 + pad, -ph / 2 + pad, iw, ih);
+  ctx.filter = "none";
+  ctx.restore();
+  ctx.save();
+  ctx.translate(X(g.tape.x) + (w * g.tape.w) / 2, Y(g.tape.y) + (h * g.tape.h) / 2);
+  ctx.rotate((g.tape.rot * Math.PI) / 180);
+  ctx.fillStyle = "rgba(226,212,170,0.82)";
+  ctx.fillRect(-(w * g.tape.w) / 2, -(h * g.tape.h) / 2, w * g.tape.w, h * g.tape.h);
+  ctx.restore();
+  // Waves, postmark, stamp.
+  const waves = await svgImage(WAVES_SVG);
+  ctx.globalAlpha = 0.4;
+  ctx.drawImage(waves, X(1 - ONESIDE_WAVES.right - ONESIDE_WAVES.w), Y(ONESIDE_WAVES.top), w * ONESIDE_WAVES.w, w * ONESIDE_WAVES.w * 0.25);
+  ctx.globalAlpha = 0.6;
+  const pm = await svgImage(postmarkSvg(p.place || "Loopin", p.date, "x"));
+  ctx.save();
+  ctx.translate(X(1 - 0.175 - 0.06), Y(0.035) + w * 0.06);
+  ctx.rotate((-12 * Math.PI) / 180);
+  ctx.drawImage(pm, -w * 0.06, -w * 0.06, w * 0.12, w * 0.12);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  const st = await svgImage(stampSvg(p.stamp, "x"));
+  const sw = w * ONESIDE_STAMP.w;
+  const sh = sw * (92 / 76);
+  ctx.save();
+  ctx.translate(X(1 - ONESIDE_STAMP.right) - sw / 2, Y(ONESIDE_STAMP.top) + sh / 2);
+  ctx.rotate((2 * Math.PI) / 180);
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 4;
+  ctx.drawImage(st, -sw / 2, -sh / 2, sw, sh);
+  ctx.restore();
+  // The note, centred in its box, and the sign-off.
+  const hand = handOf(p.hand);
+  const { f: nf } = oneSideFont(p.message.trim(), hand.size, size);
+  const fs = Math.round(w * nf);
+  await document.fonts.load(`${fs}px "${hand.family}"`).catch(() => {});
+  ctx.fillStyle = inkColor(p.ink ?? "navy");
+  ctx.font = `${fs}px "${hand.family}", cursive`;
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+  const lines = wrap(ctx, p.message.trim(), w * g.note.w);
+  const boxTop = Y(g.note.top);
+  const boxH = h * (g.note.bottom - g.note.top);
+  let y = boxTop + Math.max(0, (boxH - lines.length * fs * 1.12) / 2);
+  for (const line of lines) {
+    ctx.fillText(line, X(g.note.x), y);
+    y += fs * 1.12;
+  }
+  const sf = Math.round(w * 0.058 * (hand.size / 1.12));
+  ctx.font = `${sf}px "${hand.family}", cursive`;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(`\u2014 ${p.from}`, X(1 - ONESIDE_SIGN.right), Y(1 - ONESIDE_SIGN.bottom));
+  ctx.textAlign = "left";
+  await touches(ctx, p.touches, "oneside", ox, oy, w, h, p.seal ?? "", p.from);
   grain(ctx, W, H, 0.08);
   return new Promise((res) => cv.toBlob((b) => res(b!), "image/jpeg", 0.92));
 }

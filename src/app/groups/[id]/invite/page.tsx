@@ -8,7 +8,7 @@ import { getMyMemberId, privatePath } from "@/lib/identity";
 import { invitePeople, makeNewInviteLink } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { canUndo } from "@/lib/undo";
+import { accountHoldersOf, canUndo } from "@/lib/undo";
 import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareInvite } from "@/components/ShareInvite";
 import { ContactInvite, PeopleSearch } from "@/components/AddPeople";
@@ -272,7 +272,7 @@ export default async function AddPeoplePage({
         <p className="mt-3 text-xs text-gray-400">“Not on Loopin yet”: added by name. They can take over their name from the group link after signing up.</p>
       )}
 
-      {justDid && canUndo(justDid, group.events).ok && (
+      {justDid && canUndo(justDid, group.events, new Date(), accountHoldersOf(group.members), myId).ok && (
         <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`} groupId={group.id} eventId={justDid.id} back="people" redo={sp.undone === "1"} />
       )}
     </>

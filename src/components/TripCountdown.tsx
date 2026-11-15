@@ -5,7 +5,8 @@ import { countdownCard, countdownWords, placeOf, tripEmoji, type TripPhase } fro
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 
-// The trip countdown card: the trip's polaroid on the left, a divider, and "12 days to go" on the right, with everyone coming.
+// The trip countdown, as a boarding pass (as on 12 Nov, commit 3fd1a0a2): the trip's polaroid on the left, a torn perforation with two
+// half-circle bites, and "12 days to go" on the right (handwritten), with everyone coming and Share.
 // It warms up as the day gets close: calm a month out, green within a month,
 // glowing orange in the last week, and "Today" on the day.
 
@@ -28,7 +29,7 @@ export function TripCountdown({ group, phase, slot = 0 }: { group: Group; phase:
   const withWho = names.length <= 1 ? "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
 
   return (
-    <section aria-label="Trip countdown" data-countdown={phase.kind === "before" ? days : phase.kind} className="lp-rise h-full">
+    <section aria-label={`${place}, trip countdown`} data-countdown={phase.kind === "before" ? days : phase.kind} data-trip-pass={group.id} className="lp-rise h-full">
       <div className={`relative flex h-full overflow-hidden rounded-[22px] text-fg ${glow} [background:radial-gradient(90%_120%_at_100%_0%,#3a2a1e_0%,transparent_60%),linear-gradient(160deg,#1d1a17_0%,#121014_80%)]`}>
         {/* The trip's photo */}
         <Link href={`/groups/${group.id}`} className="relative z-10 shrink-0 py-4 pl-3.5 pr-3" aria-label={`Open ${group.name}`}>
@@ -43,12 +44,15 @@ export function TripCountdown({ group, phase, slot = 0 }: { group: Group; phase:
             sizes="150px"
           />
         </Link>
-        {/* A plain divider: the ticket shape is only for money. */}
-        <span aria-hidden className="my-4 w-px bg-fg/10" />
+        {/* The perforation, with the two half-circle bites of a ticket */}
+        <span aria-hidden className="relative my-3 w-0 border-l-2 border-dashed border-fg/15">
+          <span className="absolute -left-[11px] -top-[23px] h-5 w-5 rounded-full bg-canvas" />
+          <span className="absolute -bottom-[23px] -left-[11px] h-5 w-5 rounded-full bg-canvas" />
+        </span>
         {/* The count */}
         <div className="flex min-w-0 flex-1 flex-col justify-center py-4 pl-3.5 pr-3">
           <div className="flex items-center gap-2">
-            <p className="shrink-0 text-[12px] font-semibold text-fg/60">{c?.kicker ?? (phase.kind === "during" ? "On the trip" : "Coming up")}</p>
+            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/60">{c?.kicker ?? (phase.kind === "during" ? "On the trip" : "Coming up")}</p>
             {phase.kind !== "during" && <TakeOff className={bigColor} />}
           </div>
           <p className="mt-1 flex flex-wrap items-baseline gap-x-2">

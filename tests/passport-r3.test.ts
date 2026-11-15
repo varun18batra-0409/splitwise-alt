@@ -163,7 +163,7 @@ describe("R3: the passport page follows mockup 14", () => {
     expect(tabs).not.toMatch(/className="[^"]*\bhidden\b/);
   });
   it("the subtitle, the two tabs, and the order: stats, stamps, cards, then Add | Share, question, settings", () => {
-    expect(page).toContain("A personal travel log of your trips and places.");
+    expect(page).toContain("{passportLine(counts.countries)}");
     expect(page).not.toContain("just for you");
     expect(tabs).toContain('{ id: "want", label: "Want to go" }');
     const base = page.indexOf("<PassportStats");

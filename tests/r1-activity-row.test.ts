@@ -34,8 +34,8 @@ describe("R1 item 4: the Collecting card", () => {
     expect(card).not.toContain("awaiting check");
     expect(card).not.toContain("text-owed");
   });
-  it("no Collection story circle", () => {
-    expect(src("src/lib/home/stories.ts")).not.toContain('kind: "collect",');
+  it("the Collection story circle is back with the original stories (founder, 15 Nov)", () => {
+    expect(src("src/lib/home/stories.ts")).toContain('kind: "collect",');
   });
 });
 
@@ -181,10 +181,14 @@ describe("R1 item 14: recap and updates", () => {
 
 describe("R1 item 15: Add expense small copy", () => {
   const form = src("src/components/AddExpenseForm.tsx");
-  it("no 'result shows once it adds up'; the fold says 'More options'", () => {
-    expect(form).not.toContain("The result shows once it adds up");
-    expect(form).toContain('"More options"');
-    expect(form).not.toContain("Notes, several payers");
+  it("the earlier wording is back (founder, 15 Nov): 'The result shows once it adds up' and the fold names notes, several payers, spin", () => {
+    expect(form).toContain("The result shows once it adds up");
+    expect(form).toContain('"Hide notes and more"');
+    // Money back moved from the top switch into the fold (founder, 15 Nov), and the fold names it.
+    expect(form).toContain("`Notes, money back");
+    expect(form).toContain('aria-label="Money back"');
+    expect(form).not.toContain('aria-label="Money spent or money back"');
+    expect(form).not.toContain('"More options"');
   });
   it("the amount box stays plain digits while typing (no grouping reintroduced)", () => {
     expect(form).not.toMatch(/onChange=\{\(e\) => setAmount\(groupDigits/);
@@ -230,8 +234,12 @@ describe("R1 item 9: the pay link page", () => {
 
 describe("R1 item 17: postcard send step", () => {
   it("drops the 'Or' when the WhatsApp option above it is not shown (no message yet)", () => {
-    const c = src("src/app/postcards/new/Composer.tsx");
-    expect(c).toContain('{message.trim() ? "Or send it in Loopin" : "Send it in Loopin"}');
-    expect(c).toContain("data-whatsapp-anyone"); // shown only when message.trim()
+    // The rebuilt editor's send step: "Who it's for" first; the "or" and the WhatsApp option only once there is a message.
+    const c = src("src/app/postcards/new/editor/SendStep.tsx");
+    const gate = c.indexOf("{hasMessage && (");
+    expect(gate).toBeGreaterThan(0);
+    expect(c.indexOf(">or</p>")).toBeGreaterThan(gate);
+    expect(c.indexOf("data-whatsapp-anyone")).toBeGreaterThan(gate);
+    expect(c).not.toContain("Or send it in Loopin");
   });
 });

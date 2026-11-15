@@ -12,10 +12,10 @@ import type { MomentViewer } from "@/lib/moments-access";
 const src = (p: string) => readFileSync(`${__dirname}/../${p}`, "utf8");
 
 describe("1. nothing repeats on Home", () => {
-  it("a polaroid says one word: You owe, Owed to you or Square. No amount", () => {
+  it("a polaroid says one word: You owe, You’re owed or Settled. No amount", () => {
     expect(cardWord(-5412200)).toEqual({ text: "You owe", tone: "owe" });
-    expect(cardWord(300000)).toEqual({ text: "Owed to you", tone: "owed" });
-    expect(cardWord(0)).toEqual({ text: "Square", tone: "square" });
+    expect(cardWord(300000)).toEqual({ text: "You’re owed", tone: "owed" });
+    expect(cardWord(0)).toEqual({ text: "Settled", tone: "square" });
     for (const w of [cardWord(-1), cardWord(1), cardWord(0)]) expect(w.text).not.toMatch(/\d|₹/);
     const cards = src("src/components/HomeGroups.tsx");
     expect(cards).not.toContain("formatMoney");
@@ -203,7 +203,8 @@ describe("3. Coming up: one boarding pass per upcoming trip", () => {
     expect(body).not.toContain("data-notch");
     expect(src("src/components/PassStack.tsx")).toContain("items.length > 1");
     const home = src("src/app/(home)/page.tsx");
-    expect(home).toContain("<ComingUp passes={passes} />");
+    // Home's Coming up is the polaroid countdown card again (founder, 15 Nov); the trip pass stays for a group's own page.
+    expect(home).toContain("<TripCountdown key={p.id}");
     expect(home).toContain("comingUp(");
   });
 });
@@ -251,21 +252,29 @@ describe("4. Memories on Home: square polaroids, only moments canSeeMoment allow
     expect(pickMemories([grp({ viewer: viewer({ removedAt: at(2) }), moments: [mo("a")] })], thumb)).toEqual([]);
     expect(pickMemories([grp({ moments: [mo("x", { groupId: "bali" })] })], thumb)).toEqual([]);
   });
-  it("the old carousel card is gone; the row sits right under the story circles, and the loader uses the viewer's own filter", () => {
+  it("the old carousel card is gone; the polaroid sits under Your groups (after the money card), and the loader uses the viewer's own filter", () => {
     const home = src("src/app/(home)/page.tsx");
     expect(home).not.toContain("MemoriesCard");
     expect(existsSync(`${__dirname}/../src/components/MemoriesCard.tsx`)).toBe(false);
     const stories = home.indexOf("<Stories stories={stories} className=\"mb-4\" />");
     expect(stories).toBeGreaterThan(0);
-    expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeGreaterThan(stories);
-    expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeLessThan(home.indexOf("<MoneyCard"));
+    expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeGreaterThan(home.indexOf("<MoneyCard"));
+    expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeGreaterThan(home.indexOf('aria-labelledby="home-groups-h"'));
+    expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeLessThan(home.indexOf("{/* Latest */}"));
     expect(homeHighlights({ trips: [], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 1 }).some((h) => (h.kind as string) === "memories")).toBe(false);
     const db = src("src/lib/moments-db.ts");
     expect(db.slice(db.indexOf("export async function loadHomeMemories"))).toContain("momentsWhere(viewer)");
     const ui = src("src/components/MemoryPolaroids.tsx");
     expect(ui).toContain("aspect-square");
     expect(ui).toContain("font-hand");
-    expect(ui).toContain("snap-x");
+    // Collapsed: the newest moment as one polaroid beside a quiet line; expanded in place: a two-column grid; a toggle between them.
+    expect(ui).toContain('"use client"');
+    expect(ui).toContain("data-memories-collapsed");
+    expect(ui).toContain("Little moments, shared together.");
+    expect(ui).toContain("data-swoosh");
+    expect(ui).toContain("grid-cols-2");
+    expect(ui).toContain("data-memories-toggle");
+    expect(ui).toContain("aria-expanded={all}");
   });
   it("the moment viewer sends Back home only for from=home", () => {
     const page = src("src/app/groups/[id]/moments/[momentId]/page.tsx");

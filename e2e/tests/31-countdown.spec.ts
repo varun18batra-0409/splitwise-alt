@@ -30,10 +30,12 @@ test("a trip with dates counts down on the group and Home; settings change it; t
 
   await page.goto("/");
   await settled(page);
-  // "Coming up": one boarding pass for the trip, with "In 12 days" among its fields.
+  // No tagline on Home (founder, 15 Nov): it lives on the opening screen, the app description, shared pictures and How Loopin works.
+  await expect(page.locator("[data-tagline]")).toHaveCount(0);
+  // "Coming up": the trip's countdown card (its polaroid, "12 days to go").
   const card = page.locator("[data-trip-pass]");
   await expect(card).toHaveAttribute("data-countdown", "12");
-  await expect(card.locator('[data-pass-field="in"]')).toContainText("12 days");
+  await expect(card.locator("[data-countdown-big]")).toContainText("12");
 
   // Share: WhatsApp, everyone in the trip (in Loopin), more apps.
   await card.getByRole("button", { name: "Share" }).click();
@@ -83,7 +85,7 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   const passes = page.locator("[data-trip-pass]");
   await expect(passes).toHaveCount(2);
   await expect(passes.first()).toHaveAttribute("data-countdown", "1");
-  await expect(passes.first().locator('[data-pass-field="in"]')).toContainText("1 day");
+  await expect(passes.first().locator("[data-countdown-big]")).toContainText(/1|Tomorrow/);
   await expect(passes.nth(1)).toHaveAttribute("data-countdown", "40");
   await expect(page.locator("[data-trip-also]")).toHaveCount(0);
   await expect(page.locator("[data-trip-row]")).toHaveCount(0);

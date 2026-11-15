@@ -876,17 +876,17 @@ async function main() {
     await go(V, `${g}?tab=balances`);
     await V.getByText("THB expenses").first().waitFor();
   });
-  await step(V, "Simple screens", "Group top is short: balance, Settle up and See breakdown only (details moved to People)", async () => {
+  await step(V, "Simple screens", "Group top is short: balance, Settle up and Why? only (details moved to People)", async () => {
     await go(V, g);
-    const top = await V.locator("main section").first().innerText(); // everything above the tabs
+    const top = await V.locator("[data-group-balance]").first().innerText(); // the money box
     for (const gone of ["THB expenses", "spent across", "card markup"]) assert(!top.includes(gone), `group top still shows “${gone}”`);
     await V.getByRole("link", { name: "Settle up" }).first().waitFor();
-    await V.getByRole("link", { name: "See breakdown" }).first().waitFor();
+    await V.locator("[data-group-balance]").getByRole("link", { name: "Why?" }).first().waitFor();
   });
   await step(V, "Simple screens", "Balances only explains; paying happens on Settle up (no duplicate buttons)", async () => {
-    // How many payments are yours is the ticket's Payments field at the top of the group's Overview, no longer a card of its own on Balances.
+    // How many payments clear everything is the money box's line at the top of the group's Overview, no longer a card of its own on Balances.
     await go(V, g);
-    await V.locator("[data-pass-field='payments']").first().waitFor();
+    await V.locator("[data-summary-line]").filter({ hasText: /payments? clears? everything/ }).first().waitFor();
     await go(V, `${g}?tab=balances`);
     assert((await V.getByRole("button", { name: "Mark as paid" }).count()) === 0, "Balances still has Mark as paid");
     assert((await V.getByText(/payments? clears? everything/).count()) === 0, "Balances still repeats the payments-clear card");
@@ -906,7 +906,7 @@ async function main() {
   await step(V, "Why?", "“Why?” lines add up to the balance shown", async () => {
     const want = Math.round(expected().Varun);
     await go(V, g);
-    await V.getByRole("link", { name: "See breakdown" }).click();
+    await V.locator("[data-group-balance]").getByRole("link", { name: "Why?" }).click();
     await V.waitForURL(/why=/);
     const panel = V.locator("details[id^='why-'][open]").first();
     await panel.waitFor();
@@ -1245,7 +1245,8 @@ async function main() {
   });
   await step(V, "Couples", "Money back: Asha got ₹200 back, shared 55 / 45 → Asha owes ₹960", async () => {
     await go(V, `${gc}/add`);
-    await V.getByRole("radio", { name: "Money back" }).click();
+    await V.locator("[data-more] > button").click(); // Money back sits under "Notes, money back…" (no switch at the top)
+    await V.getByRole("switch", { name: "Money back" }).click();
     await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
     await V.locator("#expense-name").fill("Refund");
@@ -1325,7 +1326,7 @@ async function main() {
     await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on the boarding-pass money card (route, one amount, ONE cream button; no tint, no “Add expense”, no repeated amount), a quiet line under it for what needs you, then Your groups and the bottom bar, which keeps its “+”", async () => {
+  await step(V, "Home", "Home opens on the money card (label, the exact amount once, “To N people · Group” line, faces, ONE cream button, the photo on the right; no tint, no route or plane, no “Add expense”), nothing under it (what needs you is in Updates behind the bell), then Your groups and the bottom bar, which keeps its “+”", async () => {
     await go(V, "/");
     const money = V.getByRole("region", { name: "Your money" });
     await money.locator("[data-net-balance]").first().waitFor();
@@ -1348,22 +1349,24 @@ async function main() {
     } else if (kind === "neutral") {
       assert(keys === "settle" && /^Settle up$/.test(labels[0].trim()), `neutral card buttons: ${keys}`);
     } else if (kind === "one") {
-      // One person or several: a route line, the amount once, and one button.
-      const fromCode = ((await money.locator("[data-route-from]").innerText()) ?? "").trim();
-      const toCode = ((await money.locator("[data-route-to]").innerText()) ?? "").trim();
-      assert((fromCode === "YOU") !== (toCode === "YOU") && fromCode !== toCode, `the route codes are "${fromCode}" and "${toCode}" (one end is YOU)`);
-      assert((await money.locator("[data-route] [data-mark='plane'][data-takeoff]").count()) === 1, "the route has no take-off plane");
+      // One person or several: the label, the amount once, "To N people · Group" (or "From ...") and one button. No route codes or plane on Home.
+      assert((await money.locator("[data-route], [data-route-from], [data-route-to], [data-mark]").count()) === 0, "Home's money card still has a route or plane");
+      assert(/^(You owe|You’re owed)\b/.test(text), `the card should start with its label: ${text}`);
+      assert(tone === "owe" ? /^You owe\b/.test(text) : /^You’re owed\b/.test(text), `the label doesn't match the ${tone} card: ${text}`);
+      assert(/\b(To|From) (\d+ people|\S+)( · .+?)?( |$)/.test(text), `the card has no "To N people · Group" line: ${text}`);
+      assert((await money.locator("[data-card-photo]").count()) === 1, "the card has no photo on the right");
       const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
       assert(/[₹$€£]\s?\d/.test(amount), `the amount is "${amount}"`);
       assert(text.split(amount).length === 2, `the amount "${amount}" is repeated on the card: ${text}`);
+      assert((await money.locator("[data-money-action]").count()) === 1, "the card should have exactly one button");
       const label = labels[0].trim();
       const href = (await money.locator("[data-money-action]").getAttribute("href")) ?? "";
       assert(keys === (tone === "owe" ? "pay" : "remind"), `main button is "${label}" (${keys}) on a ${tone} card`);
       if (tone === "owe") {
-        assert(/^Pay \S+/.test(label), `Pay button says "${label}"`);
-        assert(/^\/settle#pay-/.test(href) || /^\/groups\/[^/]+\/settle$/.test(href), `Pay goes to ${href}`);
+        assert(label === "Review & settle", `the owe button says "${label}"`);
+        assert(/^\/settle#pay-/.test(href) || /^\/groups\/[^/]+\/settle$/.test(href), `Review & settle goes to ${href}`);
       } else {
-        assert(/^Remind (\S+|all \d+)$/.test(label), `Remind button says "${label}"`);
+        assert(/^Remind (\S+|\d+ people)$/.test(label), `Remind button says "${label}"`);
         assert(/^\/groups\/[^/]+\/remind\?from=/.test(href) || href === "/settle#remind", `Remind goes to ${href}`);
       }
       const who = money.locator("[data-money-people]");
@@ -1375,29 +1378,16 @@ async function main() {
       // Both ways: two lines, each with its own small button; never netted into one amount.
       assert(keys === "pay,remind", `both-ways buttons: ${keys}`);
       assert((await money.locator("[data-ticket-line]").count()) === 2, "both ways should be two lines");
-      assert(/^Pay \S+/.test(labels[0].trim()) || /^Remind /.test(labels[0].trim()), `both-ways button words: ${labels.join("|")}`);
-      assert((await money.locator("[data-route-from]").count()) === 2, "both ways should be two passes, each with its own route");
+      assert(/^Review & settle$/.test(labels.find((_, i) => keys.split(",")[i] === "pay")?.trim() ?? "") && /^Remind\b/.test(labels.find((_, i) => keys.split(",")[i] === "remind")?.trim() ?? ""), `both-ways button words: ${labels.join("|")}`);
+      assert((await money.locator("[data-card-photo]").count()) === 2, "both ways should be two cards, each with its photo");
+      assert((await money.locator("[data-route-from]").count()) === 0, "Home's cards still have a route");
       assert((await money.locator("[data-money-action][data-emphasis='bright']").count()) === 1, "both-ways card should have one bright button");
     }
-    // What waits on you is one quiet line under the card (a 44px link, full contrast, a small dot, no box), never a section of its own.
+    // Home has no "what needs you" line or section: that lives in Updates behind the bell (the claim to confirm is checked there, around "Needs you").
     assert((await V.locator("[data-needs-you]").count()) === 0, "Home still has a separate Needs you section");
     assert((await V.getByRole("heading", { name: "Needs you" }).count()) === 0, "Home still has a Needs you heading");
-    assert((await money.locator("[data-need-line]").count()) === 0, "the need line is still inside the card");
-    const needLine = V.locator("[data-need-line]");
-    if (await needLine.count()) {
-      const link = needLine.locator("[data-need-link]");
-      assert((await link.boundingBox())!.height >= 44, "the need line is under 44px tall");
-      assert((await needLine.locator("[data-need-dot]").count()) === 1, "the need line has no marker dot");
-      const n = Number(await needLine.getAttribute("data-need-count"));
-      const t = (await link.innerText()).replace(/\s+/g, " ");
-      if (n >= 2) {
-        assert(/^\d+ (things need you|payments to confirm) See them/.test(t) && (await link.getAttribute("href")) === "/notifications", `the many-needs line is "${t}"`);
-      } else {
-        assert(/(Confirm|Add|Add it|Needs a fix|Close it|View)$/.test(t), `the need line has no action word: ${t}`);
-        if (/Close it/.test(t)) assert(/^.+ is all square\. Close it$/.test(t), `the close line says: ${t}`);
-        if (/says they paid/.test(t)) assert(/says they paid (you|[A-Z])/.test(t) && !/says they paid [₹$€£]/.test(t), `the need line doesn't say who was paid: ${t}`);
-      }
-    }
+    assert((await V.locator("[data-need-line]").count()) === 0, "Home still has the need line");
+    assert((await V.locator("[data-need-link]").count()) === 0, "Home still has a need link");
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
     await V.getByRole("link", { name: "See all" }).first().waitFor();
     await V.locator("[data-group-card]").first().waitFor();
@@ -1405,7 +1395,7 @@ async function main() {
     await nav.waitFor();
     assert(await nav.getByRole("link", { name: "Add expense" }).count(), "the bottom bar lost its “+”");
   });
-  await step(V, "Home", "On a small phone (375×667) the header, the boarding-pass card (one-amount ticket at most about 200px tall, both-ways about 260px) and its buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next polaroid peeks in; the bottom bar's + goes to the group picker or the only group", async () => {
+  await step(V, "Home", "On a small phone (375×667) the header, the money card (one-amount card at most about 200px tall, both-ways about 260px) and its buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar with “+ New group” and two whole polaroids; the bottom bar's + goes to the group picker or the only group", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 375, height: 667 });
     await go(V, "/");
@@ -1413,11 +1403,11 @@ async function main() {
     await card.waitFor();
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
-    const limit = (await card.getAttribute("data-ticket")) === "both" ? 330 : 290; // a boarding pass: route, amount, fields, button (both ways add the dots)
+    const limit = (await card.getAttribute("data-ticket")) === "both" ? 330 : 290; // the card: label, amount, who and where, faces, button (both ways add the dots)
     assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
-      assert(bb.height >= 44 && bb.y + bb.height <= 667, `a money button is ${Math.round(bb.height)}px tall, ending at ${Math.round(bb.y + bb.height)}`);
+      assert(bb.height >= 40 && bb.y + bb.height <= 667, `a money button (a 40px pill with a 48px tap area) is ${Math.round(bb.height)}px tall, ending at ${Math.round(bb.y + bb.height)}`);
     }
     const emphasis = await card.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-emphasis")));
     assert(emphasis.filter((e) => e === "bright").length === 1, `money buttons emphasis: ${emphasis.join(",")}`);
@@ -1429,14 +1419,14 @@ async function main() {
       const bb = (await b.boundingBox())!;
       assert(bb.y + bb.height <= nav.y + 1, `a money button ends at ${Math.round(bb.y + bb.height)}px, under the bottom bar (${Math.round(nav.y)}px)`);
     }
-    // Polaroids are about 140px wide, so “+ New group” and the first group fit whole and the next one peeks in from the right.
-    assert(Math.round(first.width) >= 134 && Math.round(first.width) <= 146, `a group card is ${Math.round(first.width)}px wide (should be about 140)`);
+    // Founder, 15 Nov: “+ New group” and TWO whole polaroids fit the first screen (as in the mockup); a third, if any, is just off to the right.
+    assert(first.width >= 90 && first.width <= 152, `a group card is ${Math.round(first.width)}px wide (two should fit beside “+ New group”)`);
     const newCard = (await V.locator("[data-group-card-new]").boundingBox())!;
-    assert(newCard.x + newCard.width <= 375 && first.x + first.width <= 375, "“+ New group” and the first group card aren't both whole on the first screen");
+    assert(newCard.x >= 0 && newCard.x + newCard.width <= 375 && first.x + first.width <= 375, "“+ New group” and the first group card aren't both whole on the first screen");
     const cards = await V.locator("[data-group-card]").all();
     if (cards.length > 1) {
       const second = (await cards[1].boundingBox())!;
-      assert(second.x < 375 && second.x + second.width > 375, `the next card doesn't peek in (it spans ${Math.round(second.x)}–${Math.round(second.x + second.width)}px of 375)`);
+      assert(second.x + second.width <= 375 + 1, `the second group card isn't whole on the first screen (it spans ${Math.round(second.x)}–${Math.round(second.x + second.width)}px of 375)`);
     }
     // The stories row, when there is one, is above the money card with 80px circles.
     if (await V.locator("[data-stories]").count()) {
@@ -1457,8 +1447,8 @@ async function main() {
     assert(hrefs.length > 0 && new Set(hrefs).size === hrefs.length, `group cards: ${hrefs.join(" ")}`);
     // Every card says where you stand in words that are not just a colour.
     for (const t of await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => ({ tone: e.getAttribute("data-tone"), text: (e as HTMLElement).innerText })))) {
-      if (t.tone === "square") assert(/Square/.test(t.text), `a square card says: ${t.text}`);
-      else assert(t.tone === "owed" ? /Owed to you/.test(t.text) : /You owe/.test(t.text), `a ${t.tone} card says: ${t.text}`);
+      if (t.tone === "square") assert(/Settled/.test(t.text), `a square card says: ${t.text}`);
+      else assert(t.tone === "owed" ? /You’re owed/.test(t.text) : /You owe/.test(t.text), `a ${t.tone} card says: ${t.text}`);
       assert(!/[₹$€£]\s?\d/.test(t.text), `a polaroid repeats an amount: ${t.text}`);
     }
     // One stories row at most, and not again lower down; no row at all when there are no stories.
@@ -1559,7 +1549,7 @@ async function main() {
     }
     assert((await V.getByText(/^(Recently deleted|Hide recently deleted)/).count()) === 0, "Recently deleted is still on Home");
   });
-  await step(V, "Home", "On the narrowest phone (320×640, also 360 and 390) the boarding-pass card has no sideways scroll: nothing is cut off, the amount always shows whole, the stub is 84px below 360px and 100px from 360px, the buttons keep their words inside, and the card has no tint", async () => {
+  await step(V, "Home", "On the narrowest phone (320×640, also 360 and 390) the money card has no sideways scroll: nothing is cut off, the amount always shows whole, the photo takes the right side, the buttons keep their words inside, and the card has no tint", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 320, height: 640 });
     await go(V, "/");
@@ -1573,10 +1563,10 @@ async function main() {
         const bad: string[] = [];
         const cr = el.getBoundingClientRect();
         if (cr.right > window.innerWidth + 0.5 || (!el.hasAttribute("data-pass-stack") && el.scrollWidth > el.clientWidth + 1)) bad.push("card");
-        el.querySelectorAll("[data-money-action], [data-money-people], [data-net-balance], [data-route]").forEach((e) => {
+        el.querySelectorAll("[data-money-action], [data-money-people], [data-net-balance]").forEach((e) => {
           if (e.closest("[data-pass-stack] li:not(:first-child)")) return; // the next pass waits off to the side of the stack
           const r = e.getBoundingClientRect();
-          const name = e.getAttribute("data-money-action") || (e.hasAttribute("data-net-balance") ? "amount" : e.hasAttribute("data-route") ? "route" : "people");
+          const name = e.getAttribute("data-money-action") || (e.hasAttribute("data-net-balance") ? "amount" : "people");
           if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) bad.push(name);
           // The amount is never the thing that is cut: it fits its own box.
           if (e.hasAttribute("data-net-balance") && (e as HTMLElement).scrollWidth > (e as HTMLElement).clientWidth + 1) bad.push("amount cut");
@@ -1585,8 +1575,8 @@ async function main() {
       })) as string[];
       assert(over.length === 0, `at ${w}px these spill out of the money card: ${over.join(", ")}`);
       assert((await V.evaluate("document.documentElement.scrollWidth <= window.innerWidth")) as boolean, `Home scrolls sideways at ${w}px`);
-      const stub = (await card.locator("[data-ticket-stub]").boundingBox())!;
-      assert(Math.round(stub.width) === (w < 360 ? 84 : 100), `at ${w}px the stub is ${Math.round(stub.width)}px wide`);
+      const share = await card.locator("[data-card-photo]").first().evaluate((el) => el.getBoundingClientRect().width / (el.closest("section")?.getBoundingClientRect().width || 1));
+      assert(share >= 0.38 && share <= 0.48, `at ${w}px the photo takes ${Math.round(share * 100)}% of the card (should be about 44%)`);
       const amounts = await card.locator("[data-net-balance]").allInnerTexts();
       assert(amounts.every((t) => /[\d]/.test(t) || /All square/.test(t)) && amounts.every((t) => !t.includes("…")), `at ${w}px an amount is cut: ${amounts.join(" | ")}`);
       const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
@@ -3223,18 +3213,18 @@ async function main() {
     return new URL(page.url()).pathname.replace(/\/invite$/, "");
   }
 
-  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home's Coming up shows its boarding pass with the trip's picture", async () => {
+  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home's Coming up shows its countdown card with the trip's picture", async () => {
     const goa = await newTrip(V, `UAT Goa trip ${stamp % 1000}`, istDay(10));
     await go(V, goa);
     await V.locator("[data-countdown-line]").first().filter({ hasText: "in 10 days" }).waitFor();
     await go(V, "/");
     const card = V.locator("[data-trip-pass]").first();
     assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
-    assert(await card.locator("[data-ticket-stub] img").count(), "no picture on the trip pass stub");
-    assert(/10 days/.test((await card.locator('[data-pass-field="in"]').first().textContent()) ?? ""), "the pass doesn't say 10 days");
+    assert(await card.locator("img").count(), "no picture on the countdown card");
+    assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the card doesn't say 10 days");
   });
 
-  await step(V, "Countdown", "A second trip in 30 days: Coming up is ONE section with two boarding passes, the soonest first; no “Also:” line, no separate cards", async () => {
+  await step(V, "Countdown", "A second trip in 30 days: Coming up is ONE section with two countdown cards, the soonest first; no “Also:” line, no separate cards", async () => {
     await newTrip(V, `UAT Manali trip ${stamp % 1000}`, istDay(30));
     await go(V, "/");
     assert((await V.locator("[data-coming-up]").count()) === 1, "Home should have exactly one Coming up section");
@@ -3616,7 +3606,8 @@ async function main() {
   });
   await step(V, "Money", "Money back bigger than a share: Meera gets ₹600 back for the minibus, shared by all 12 (₹50 each)", async () => {
     await go(V, `${tw.path}/add`);
-    await V.getByRole("radio", { name: "Money back" }).click();
+    await V.locator("[data-more] > button").click(); // Money back sits under "Notes, money back…" (no switch at the top)
+    await V.getByRole("switch", { name: "Money back" }).click();
     await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Meera$/ }).first().click();
     await V.locator("#expense-name").fill("Minibus refund");
@@ -3773,8 +3764,9 @@ async function main() {
     await go(page, `/postcards/new?group=${mainGid}`);
     await page.getByRole("button", { name: "Print: Mountains" }).click();
     await page.getByRole("tab", { name: "Note" }).click();
-    await page.getByRole("button", { name: "Wax seal" }).click();
+    await page.getByRole("button", { name: "Wax seal", exact: true }).click(); // the tool, then its colours
     await page.getByRole("button", { name: "Gold wax", exact: true }).click();
+    await page.getByRole("button", { name: "Message", exact: true }).click();
     await page.getByRole("textbox", { name: "Your message" }).fill(message);
     await page.getByRole("tab", { name: "Send" }).click();
     if (until) {
@@ -3811,6 +3803,23 @@ async function main() {
     await R.locator("[data-postcard-flip]").click();
     await R.locator("[data-back-message]").waitFor();
     assert((await R.locator("[data-back-message]").innerText()).includes("open me later"), "the opened postcard has the wrong message");
+  });
+  await step(R, "Sharing", "One-side postcard: Asha sends it, Ravi reads it as one card (no flip), with the message on it", async () => {
+    const message = `UAT one side ${stamp}: wrong turn, best day.`;
+    await go(A, `/postcards/new?group=${mainGid}`);
+    await A.locator('[data-format-choice="oneside"]').click();
+    await A.getByRole("button", { name: "Message", exact: true }).click();
+    await A.getByRole("textbox", { name: "Your message" }).fill(message);
+    await A.locator("[data-next]").click();
+    await A.locator("[data-recipient='Ravi']").click();
+    await A.getByRole("button", { name: "Send to 1 person" }).click();
+    await A.waitForURL(/\/postcards\/[a-z0-9]+\?sent=1/);
+    await go(R, new URL(A.url()).pathname);
+    await R.locator("[data-postcard-oneside]").first().waitFor();
+    assert((await R.locator("[data-postcard-flip]").count()) === 0, "a one-side card can be flipped");
+    assert((await R.locator("[data-back-message]").innerText()).includes("wrong turn"), "the message isn't on the one-side card");
+    const card = await db.postcard.findFirstOrThrow({ where: { fromId: ashaAcc.id, toId: raviAcc.id, message: { contains: `UAT one side ${stamp}` } } });
+    assert(card.format === "oneside", `the card was saved as ${card.format}`);
   });
   await step(Z, "Permissions", "A postcard is for its sender and its receiver only: a third person gets “not found”, and signed out is sent to sign in", async () => {
     assert(cardPath, "no postcard was sent");
@@ -4149,11 +4158,21 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     const photo = await V.request.get(momentPhotoUrl(momentOne), { headers: bypass });
     assert(photo.status() === 200 && /private, no-cache/.test(photo.headers()["cache-control"] ?? "") && Boolean(photo.headers()["etag"]), `the photo answered ${photo.status()}`);
   });
-  await step(A, "Moments", "Asha sees “Varun added a moment” in Home's story circles, adds her own moment, and reacts 😂 to Varun's: the count shows 1", async () => {
+  await step(A, "Moments", "Asha sees Varun's moment in Home's Memories strip (never in the story circles), adds her own moment, and reacts 😂 to Varun's: the count shows 1", async () => {
     await go(A, "/");
-    await A.locator("[data-story='moment']").first().waitFor();
-    // Story circles are by group: the circle is labelled with the group's name.
-    assert(/^UAT Mom/.test((await A.locator("[data-story='moment'] [data-story-label]").first().innerText()).trim()), "the moment circle isn’t labelled with its group");
+    // Moments are Memories only (founder, 15 Nov): a small polaroid in the strip under the story circles, named for its group; no story circle.
+    await A.locator("[data-memories-row] [data-memory]").first().waitFor();
+    assert((await A.locator("[data-story='moment']").count()) === 0, "a moment is in the story circles (moments are Memories only)");
+    assert(/from UAT Mom/.test((await A.locator("[data-memories-row] [data-memory]").first().getAttribute("aria-label")) ?? ""), "the memory isn’t labelled with its group");
+    // Collapsed (the founder's 15 Nov mockup) it is the newest moment as one tilted polaroid with its caption, beside "Little moments, shared
+    // together."; "See all" opens it in place into a grid with every caption and group name, and "Show less" folds it back.
+    assert((await A.locator("[data-memories-collapsed] [data-memory-lead]").count()) === 1, "the folded Memories doesn't show one polaroid in front");
+    assert(/Little moments, shared together/.test(await A.locator("[data-memories-line]").innerText()), "the folded Memories has no line beside the polaroid");
+    await A.locator("[data-memories-toggle]").click();
+    await A.locator("[data-memories-grid] [data-memory-group]").first().waitFor();
+    assert(/UAT Mom/.test(await A.locator("[data-memories-grid] [data-memory-group]").first().innerText()), "the opened Memories don’t name the group");
+    await A.locator("[data-memories-toggle]").click();
+    await A.locator("[data-memories-collapsed]").waitFor();
     await addMomentThroughTheForm(A, "Worth the early alarm.", "");
     momentTwo = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "Worth the early alarm." } })).id;
     await go(A, `${momentsGroup}/moments/${momentOne}`);
@@ -4165,7 +4184,7 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     assert(/😂\s*1/.test(await chip.innerText()), `the reaction chip reads “${await chip.innerText()}”, not “😂 1”`);
     assert((await assertMomentPhotosDecoded(A, "the big moment")) >= 1, "the big moment shows no photo");
   });
-  await step(R, "Moments", "Ravi reports Varun's moment (and sees the thank-you), then blocks Varun: it disappears from his list, his story circles, and its photo address answers 404", async () => {
+  await step(R, "Moments", "Ravi reports Varun's moment (and sees the thank-you), then blocks Varun: it disappears from his list, his Memories strip, and its photo address answers 404", async () => {
     await go(R, `${momentsGroup}/moments/${momentOne}`);
     await R.locator("[data-moment-menu] summary").click();
     await R.getByRole("link", { name: "Report this moment", exact: true }).click();
@@ -4179,8 +4198,8 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     await go(R, `${momentsGroup}/moments`);
     assert((await R.getByText("The boat we almost missed").count()) === 0, "a blocked person's moment is still in the list");
     await go(R, "/");
-    const circles = await R.locator("[data-story='moment']").evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText));
-    assert(!circles.some((t) => /Varun/.test(t)), "a blocked person's moment is still in the story circles");
+    assert((await R.locator("[data-story='moment']").count()) === 0, "a moment is in the story circles (moments are Memories only)");
+    assert((await R.locator(`[data-memory='${momentOne}']`).count()) === 0, "a blocked person's moment is still in Home's Memories");
     const photo = await R.request.get(momentPhotoUrl(momentOne), { headers: bypass });
     assert(photo.status() === 404, `a blocked person's photo answered ${photo.status()}, not 404`);
     const mine = await R.request.get(momentPhotoUrl(momentTwo), { headers: bypass });

@@ -150,12 +150,18 @@ function local(currency: string, india: boolean): Local {
 }
 
 // A moment, drawn: a photo, a few words, the day and a reaction. (No real photo: it's only a picture of the idea.)
-function MomentArt() {
+// A real trip photo (longtail boats under limestone cliffs), as a moment would show it. With no photo downloaded, the camera stays.
+function MomentArt({ photo }: { photo?: string }) {
   return (
     <Card className="!p-0 overflow-hidden">
-      <div className="rise flex h-[120px] items-center justify-center bg-mist text-fg/55">
-        <CameraIcon size={34} />
-      </div>
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photo} alt="" className="rise block h-[140px] w-full object-cover" data-tour-moment-photo />
+      ) : (
+        <div className="rise flex h-[120px] items-center justify-center bg-mist text-fg/55">
+          <CameraIcon size={34} />
+        </div>
+      )}
       <div className="px-4 pb-4 pt-3">
         <p className="rise rise-2 font-display text-[20px] font-semibold leading-snug">The boat we almost missed</p>
         <p className="rise rise-2 mt-0.5 text-[13px] text-fg/55">Day 3 · Only your group</p>
@@ -167,7 +173,7 @@ function MomentArt() {
   );
 }
 
-function makeSlides(L: Local): Slide[] {
+function makeSlides(L: Local, momentPhoto?: string): Slide[] {
   const v = L.india ? { dinner: 1200, each: 300, back: 900 } : { dinner: 120, each: 30, back: 90 };
   return [
     {
@@ -244,7 +250,7 @@ function makeSlides(L: Local): Slide[] {
       id: "moment",
       title: "Keep the little moments.",
       caption: "Add one photo and a few words to your trip group. Only the people in it see them.",
-      art: <MomentArt />,
+      art: <MomentArt photo={momentPhoto} />,
     },
     {
       id: "passport",
@@ -261,14 +267,16 @@ export function IntroTour({
   signInHref,
   currency = "USD",
   india = false,
+  momentPhoto,
 }: {
   startHref?: string;
   cta?: string;
   signInHref?: string;
   currency?: string;
   india?: boolean;
+  momentPhoto?: string;
 }) {
-  const slides = useMemo(() => makeSlides(local(currency, india)), [currency, india]);
+  const slides = useMemo(() => makeSlides(local(currency, india), momentPhoto), [currency, india, momentPhoto]);
   const track = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const last = active === slides.length - 1;

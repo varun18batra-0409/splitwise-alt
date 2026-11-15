@@ -20,7 +20,7 @@ const CANDIDATES = {
 // work from the build machines: the website sits behind a robot check, and only the image server answers.
 export const COUNTRY_PHOTOS = {
   MY: ["photo-1596422846543-75c6fc197f07", "photo-1581792343403-f3201559d559"],
-  KH: [], // none checked yet: the drawn stamp stays
+  KH: ["photo-1566706546199-a93ba33ce9f7", "photo-1768904532098-7ac5bcee6b65", "photo-1787055923407-e11fea7de630"], // Angkor Wat reflected at golden hour (checked by eye 15 Nov)
   LA: ["photo-1540611025311-01df3cef54b5", "photo-1707817643213-35009bae9814"],
   PH: ["photo-1518509562904-e7ef99cdcc86", "photo-1499793983690-e29da59ef1c2"],
   KR: ["photo-1535189043414-47a3c49a0bed", "photo-1548115184-bc6544d06a58"],
@@ -66,7 +66,7 @@ export const COUNTRY_PHOTOS = {
   GE: ["photo-1565008576549-57569a49371d"],
   AZ: ["photo-1633786139955-b9a53b580a53", "photo-1596306499300-0b7b1689b9f6"],
   UZ: ["photo-1653023102302-247f5f0fbdd1"],
-  KZ: [], // none checked yet: the drawn stamp stays
+  KZ: ["photo-1572940734104-684309ed7ac9", "photo-1600255531849-9edcc7c3d115", "photo-1677475191981-653bcfcc3cd2"], // Big Almaty Lake under snowy peaks (checked by eye 15 Nov)
 };
 
 

@@ -40,8 +40,8 @@ export const LETTERINGS: Lettering[] = [
   { id: "poster", name: "Poster", family: "Bebas Neue", caps: true },
   { id: "bold", name: "Bold", family: "Abril Fatface" },
   { id: "editorial", name: "Editorial", family: "Fraunces", hidden: true },
-  { id: "elegant", name: "Elegant", family: "Cormorant Garamond", italic: true, hidden: true },
-  { id: "vogue", name: "Vogue", family: "Bodoni Moda", italic: true, hidden: true },
+  { id: "elegant", name: "Elegant", family: "Cormorant Garamond", italic: true },
+  { id: "vogue", name: "Vogue", family: "Bodoni Moda", italic: true },
   { id: "riviera", name: "Riviera", family: "Italiana" },
   { id: "roman", name: "Roman", family: "Cinzel", caps: true },
   { id: "deco", name: "Deco", family: "Josefin Sans", caps: true },
@@ -62,13 +62,13 @@ export const LETTERINGS: Lettering[] = [
   { id: "blackletter", name: "Old English", family: "UnifrakturMaguntia" },
   { id: "stencil", name: "Stencil", family: "Stardos Stencil", caps: true },
 ];
-// The picker offers five. Every other id stays valid (old cards keep their id) and is drawn as the nearest kept one.
-export const LETTERING_PICKS = ["classic", "italic", "poster", "typewriter", "script"] as const;
+// The picker offers fourteen. Cheap-looking or off-style ones are not offered: they stay valid (old cards keep their id) and are
+// drawn as the nearest offered one.
+export const LETTERING_PICKS = ["classic", "italic", "elegant", "vogue", "riviera", "roman", "deco", "artdeco", "engraved", "poster", "bold", "typewriter", "script", "signpainter"] as const;
 const LETTERING_NEAREST: Record<string, string> = {
-  bold: "classic", slab: "classic", retro: "classic", artdeco: "classic", engraved: "classic", editorial: "classic",
-  riviera: "italic", elegant: "italic", vogue: "italic",
-  roman: "poster", deco: "poster", condensed: "poster", woodtype: "poster", collegiate: "poster", neon: "poster", stencil: "poster",
-  signpainter: "script", bollywood: "script", sport: "script", blackletter: "script",
+  neon: "poster", collegiate: "poster", stencil: "poster", woodtype: "poster", condensed: "poster",
+  bollywood: "script", sport: "script", blackletter: "script",
+  slab: "classic", retro: "classic", editorial: "classic",
 };
 export const keptLettering = (id: string) => LETTERING_NEAREST[id] ?? id;
 export const letteringOf = (id: string) => LETTERINGS.find((l) => l.id === keptLettering(id)) ?? LETTERINGS[0];
@@ -95,15 +95,26 @@ export const HANDS: { id: string; family: string; size: number }[] = [
   { id: "allura", family: "Allura", size: 1.22 },
   { id: "grace", family: "Covered By Your Grace", size: 1.1 },
 ];
-// Three to pick from. The other ids stay valid for old cards and are drawn as the nearest of these three.
+// Thirteen to pick from. The four rounded print hands that look alike are not offered: they stay valid for old cards and are
+// drawn as the nearest offered one.
 export const HAND_PICKS = [
   { id: "caveat", name: "Classic" },
   { id: "kalam", name: "Casual" },
   { id: "patrick", name: "Neat" },
+  { id: "homemade", name: "Inky" },
+  { id: "dancing", name: "Flowing" },
+  { id: "satisfy", name: "Brush" },
+  { id: "parisienne", name: "Parisian" },
+  { id: "allura", name: "Formal" },
+  { id: "sacramento", name: "Fine" },
+  { id: "labelle", name: "Loose" },
+  { id: "nothing", name: "Quick" },
+  { id: "cedarville", name: "School" },
+  { id: "shadows", name: "Light" },
 ] as const;
 const HAND_NEAREST: Record<string, string> = {
-  homemade: "kalam", nothing: "kalam", reenie: "kalam", indie: "kalam", shadows: "kalam", gochi: "kalam", grace: "kalam",
-  dancing: "caveat", sacramento: "caveat", labelle: "caveat", cedarville: "caveat", satisfy: "caveat", parisienne: "caveat", delafield: "caveat", allura: "caveat",
+  reenie: "kalam", indie: "kalam", gochi: "kalam", grace: "kalam",
+  delafield: "caveat",
 };
 export const keptHand = (id: string) => HAND_NEAREST[id] ?? id;
 export const handOf = (id: string) => HANDS.find((h) => h.id === keptHand(id)) ?? HANDS[0];
@@ -132,13 +143,9 @@ export const PAPERS = [
   { id: "rose", name: "Rose", g: ["#fbecee", "#f1d6da", "#e6c0c6"] },
   { id: "stone", name: "Stone", g: ["#efeeeb", "#dedcd6", "#cdcac2"] },
 ] as const;
-// Four to pick from. The other papers stay valid for old cards and are drawn as the nearest of these four.
-export const PAPER_PICKS = ["cream", "ivory", "airmail", "sage"] as const;
-const PAPER_NEAREST: Record<string, string> = {
-  kraft: "cream", parchment: "cream", aged: "cream", butter: "cream", blush: "cream", rose: "cream",
-  linen: "ivory", stone: "ivory", sky: "ivory", dusk: "ivory", lavender: "ivory",
-  mint: "sage",
-};
+// Thirteen to pick from. Butter, rose and mint are not offered: they stay valid for old cards and are drawn as the nearest one.
+export const PAPER_PICKS = ["cream", "ivory", "airmail", "kraft", "linen", "parchment", "aged", "stone", "sage", "sky", "dusk", "blush", "lavender"] as const;
+const PAPER_NEAREST: Record<string, string> = { butter: "cream", rose: "cream", mint: "sage" };
 export const keptPaper = (id: string) => PAPER_NEAREST[id] ?? id;
 export const paperOf = (id: string) => PAPERS.find((p) => p.id === keptPaper(id))?.id ?? "cream";
 export const paperTones = (id: string) => (PAPERS.find((p) => p.id === keptPaper(id)) ?? PAPERS[0]).g;
@@ -165,13 +172,10 @@ export const TONES = [
   { id: "plum", name: "Plum", c: "#4a1d44", dark: true },
   { id: "chocolate", name: "Chocolate", c: "#3e2516", dark: true },
 ] as const;
-// Six to pick from. The other colours stay valid for old cards and are drawn as the nearest of these six.
-export const TONE_PICKS = ["white", "cream", "gold", "coral", "navy", "black"] as const;
-const TONE_NEAREST: Record<string, string> = {
-  ivory: "cream", sunflower: "gold", blush: "coral", peach: "coral", red: "coral",
-  sea: "white", sky: "white", mint: "white", lilac: "white",
-  teal: "navy", plum: "navy", forest: "black", chocolate: "black",
-};
+// Fourteen to pick from. Peach, sunflower, mint, forest and chocolate are not offered: they stay valid for old cards and are drawn
+// as the nearest one.
+export const TONE_PICKS = ["white", "ivory", "cream", "gold", "coral", "blush", "sea", "sky", "lilac", "red", "navy", "teal", "plum", "black"] as const;
+const TONE_NEAREST: Record<string, string> = { peach: "coral", sunflower: "gold", mint: "white", forest: "black", chocolate: "black" };
 export const keptTone = (id: string) => TONE_NEAREST[id] ?? id;
 export const toneOf = (id: string) => TONES.find((t) => t.id === keptTone(id)) ?? TONES[0];
 
@@ -195,13 +199,10 @@ export const INKS = [
   { id: "slate", name: "Slate", c: "#3b4652" },
   { id: "indigo", name: "Indigo", c: "#2e2a7a" },
 ] as const;
-// Four to pick from. The other inks stay valid for old cards and are drawn as the nearest of these four.
-export const INK_PICKS = ["navy", "black", "sepia", "green"] as const;
-const INK_NEAREST: Record<string, string> = {
-  blue: "navy", indigo: "navy", violet: "navy", slate: "navy",
-  teal: "green", turquoise: "green", emerald: "green", olive: "green",
-  brown: "sepia", burnt: "sepia", oxblood: "sepia", crimson: "sepia", plum: "sepia",
-};
+// Thirteen to pick from. Burnt orange, emerald, turquoise and olive are not offered: they stay valid for old cards and are drawn as
+// the nearest one.
+export const INK_PICKS = ["navy", "blue", "indigo", "black", "slate", "sepia", "brown", "oxblood", "crimson", "plum", "violet", "green", "teal"] as const;
+const INK_NEAREST: Record<string, string> = { burnt: "sepia", emerald: "green", turquoise: "green", olive: "green" };
 export const keptInk = (id: string) => INK_NEAREST[id] ?? id;
 export const inkOf = (id: string) => (INKS.find((i) => i.id === keptInk(id)) ?? INKS[0]).id;
 export const inkColor = (id: string) => (INKS.find((i) => i.id === keptInk(id)) ?? INKS[0]).c;
@@ -358,6 +359,15 @@ export const isStampId = (id: string) => {
   if (/^c:[A-Z]{2}$/.test(base)) return cc === undefined;
   return (base.startsWith("t:") && base.slice(2) in THEMES) || (base.startsWith("r:") && base.slice(2) in RARE);
 };
+
+// The order the stamp picker shows: the one already chosen, the trip's country, home, the limited ones on issue now, then the
+// themes (each in the sender's money) and then every other country. Everything is offered once; nothing is repeated.
+const THEME_ORDER = ["airmail", "love", "beach", "mountains", "temple", "chai", "rail", "seaside", "lighthouse", "tea", "night", "lotus", "desert", "backwaters", "cards", "home"];
+export function stampOrder(current: string, tripCc = "", home = "", rareIds: string[] = []): string[] {
+  const cc = (c: string) => (/^[A-Za-z]{2}$/.test(c) ? `c:${c.toUpperCase()}` : "");
+  const list = [current, cc(tripCc), cc(home), ...rareIds, ...THEME_ORDER.map((t) => withHome(`t:${t}`, home)), ...COUNTRY_STAMP_IDS];
+  return [...new Set(list.filter(Boolean))];
+}
 
 // The stamp as a standalone SVG (76×92), drawn like an engraved (intaglio) stamp: white perforated
 // margin, a picture panel of fine engraved lines with a light vignette, the landmark in ink, the value

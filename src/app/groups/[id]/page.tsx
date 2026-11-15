@@ -7,7 +7,7 @@ import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
 import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
-import { canUndo } from "@/lib/undo";
+import { accountHoldersOf, canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { buildGroupView, type GroupEvent } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
@@ -179,7 +179,7 @@ export default async function GroupPage({
     undoEvents = leaver ? ((await loadGroupView(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did);
   }
   const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
-  const showUndo = justDid && canUndo(justDid, undoEvents).ok;
+  const showUndo = justDid && canUndo(justDid, undoEvents, new Date(), accountHoldersOf(group.members), myId).ok;
 
   // "Our moments" (trip groups only): the small strip on Overview, and the whole list on Memories, as far as this person may see them.
   const momentViewer = group.type === "trip" ? await loadMomentViewer(group.id, myId) : null;

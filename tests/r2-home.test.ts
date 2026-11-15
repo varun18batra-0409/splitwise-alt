@@ -129,20 +129,24 @@ describe("all square and the neutral card", () => {
     expect(hm).toContain("data-square-add");
     expect(hm).toContain("Add an expense");
   });
-  it("the ticket shape is for money AND upcoming trips: the old Also coming up card has no perforation or notches; Coming up reuses TicketShell", () => {
-    expect(src("src/components/HomeMoney.tsx")).toContain("<TicketShell\n      stub={[p.stub]}");
+  it("Home's Coming up card is the 12 Nov countdown again (founder, 15 Nov): torn perforation with two half-circle bites, uppercase tracked kicker, handwritten 'days to go'", () => {
+    expect(src("src/components/HomeMoney.tsx")).toContain("<TicketShell\n      stub={[p.stub]}"); // the trip pass stays for a group's own page
     const c = src("src/components/TripCountdown.tsx");
-    expect(c).not.toContain("border-l-2 border-dashed");
-    expect(c).not.toContain("half-circle");
-    expect(c).not.toContain("uppercase");
+    expect(c).toContain("border-l-2 border-dashed");
+    expect(c.match(/h-5 w-5 rounded-full bg-canvas/g)).toHaveLength(2);
+    expect(c).toContain("uppercase tracking-[0.18em]");
+    expect(c).toContain("font-hand");
+    expect(c).toContain("data-trip-pass={group.id}");
+    expect(c).toContain("trip countdown");
   });
 });
 
 describe("the pass drawing", () => {
-  it("notches are 16px half circles top and bottom; dashed perforation at 25%; barcode strip is decorative", () => {
+  it("notches are half circles top and bottom (16px, 14px on Home's slim pass); dashed perforation at 25%; barcode strip is decorative", () => {
     const hm = src("src/components/HomeMoney.tsx");
-    expect(hm.match(/data-notch/g)).toHaveLength(2);
+    expect(hm.match(/data-notch/g)).toHaveLength(4);
     expect(hm).toContain("h-4 w-4 rounded-full");
+    expect(hm).toContain("h-3.5 w-3.5 rounded-full");
     expect(hm).toContain("border-dashed border-fg/25");
     expect(hm).toContain("fill-fg/20");
     expect(hm.slice(hm.indexOf("function Barcode"), hm.indexOf("export function TicketShell"))).toContain("aria-hidden");
@@ -159,8 +163,9 @@ describe("a calmer Home", () => {
     expect(you).toContain("<GetAppButton");
     expect(you).toContain('href="/how-it-works"');
   });
-  it("one Coming up section of trip passes (no countdown row, no Also line); no TripRow, no Also coming up cards, no Plan a trip card; the sliding Home cards are back", () => {
-    expect(home).toContain("<ComingUp");
+  it("one Coming up section of countdown cards (no countdown row, no Also line); no TripRow, no Also coming up cards, no Plan a trip card; the sliding Home cards are back", () => {
+    expect(home).toContain('data-coming-up>');
+    expect(home).toContain("<TripCountdown");
     expect(home).not.toContain("TripStrip");
     expect(home).not.toContain("alsoLine(");
     expect(home).not.toContain("TripRow");
@@ -175,14 +180,32 @@ describe("a calmer Home", () => {
     expect(alsoLine([{ place: "Manali", days: 40 }])).toBe("Also: Manali in 40 days");
     expect(alsoLine([{ place: "Manali", days: 40 }, { place: "Goa", days: 1 }, { place: "Bali", days: 90 }])).toBe("Also: Manali in 40 days, Goa tomorrow and 1 more");
   });
-  it("no story circle for a coming trip's countdown", () => {
-    expect(home).toContain('trips.filter((t) => t.phase.kind !== "before")');
+  it("a coming trip has its story circle (stories always on top, founder 15 Nov), and the order is greeting, stories, money, Coming up, invitations, groups, Memories, Latest, the sliding cards, the tagline", () => {
+    expect(home).not.toContain('trips.filter((t) => t.phase.kind !== "before")');
+    expect(home).toContain("trips: trips.map((t) => ({");
+    const at = (x: string) => home.indexOf(x);
+    const order = [
+      "data-greeting",
+      '<Stories stories={stories} className="mb-4" />',
+      "<MoneyCard",
+      "data-coming-up>",
+      "{invitationsBlock}\n\n          {/* Groups",
+      'aria-labelledby="home-groups-h"',
+      "<MemoryPolaroids",
+      "{/* Latest */}",
+      "<HomeBanner>",
+    ];
+    order.forEach((x, i) => {
+      expect(at(x), x).toBeGreaterThan(0);
+      if (i > 0) expect(at(x), `${x} after ${order[i - 1]}`).toBeGreaterThan(at(order[i - 1]));
+    });
+    expect(home).not.toMatch(/<MoneyCard[^>]* compact/);
+    expect(home).not.toContain("sr-only");
   });
-  it("the need line is full contrast, two lines at most, with a small dot, no arrow", () => {
+  it("Home has no need line under the money card (what needs you is in Updates behind the bell)", () => {
     const hm = src("src/components/HomeMoney.tsx");
-    expect(hm).toContain("data-need-dot");
-    expect(hm).toContain("line-clamp-2");
-    expect(hm).not.toContain("font-medium text-fg/55");
+    expect(hm).not.toContain("data-need-dot");
+    expect(hm).not.toContain("data-need-line");
   });
   it("one dismissible sign-in banner, remembered in a try/catch", () => {
     expect(home).toContain("<SignInBanner");

@@ -8,7 +8,7 @@ import { parseDetails } from "@/lib/events";
 import { viewerDetails } from "@/lib/left-view";
 import { niceDate, rateText } from "@/lib/format";
 import { formatMoney, formatPercent } from "@/lib/money";
-import { canUndo } from "@/lib/undo";
+import { accountHoldersOf, canUndo } from "@/lib/undo";
 import { deleteExpense, removePayment, restoreExpense, restorePayment, undoChange } from "@/app/actions";
 import { SwipeRow } from "@/components/SwipeRow";
 import type { ReactNode } from "react";
@@ -472,7 +472,7 @@ function UndoControl({ v, ev }: { v: GroupView; ev?: GroupEvent }) {
   if (ev.undoneAt) {
     return <span className="text-xs text-gray-400">undone by {ev.undoneById ? v.nameOf(ev.undoneById) : "someone"}</span>;
   }
-  if (!canUndo(ev, v.group.events).ok) return null;
+  if (!canUndo(ev, v.group.events, new Date(), accountHoldersOf(v.group.members), v.myId).ok) return null;
   return (
     <form action={undoChange} className="inline">
       <input type="hidden" name="groupId" value={v.group.id} />

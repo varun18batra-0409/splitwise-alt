@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PostcardBack, PostcardFront, type BackProps, type FrontProps } from "./Card";
+import type { OneSideProps } from "./OneSide";
 import { buzz } from "@/lib/haptics";
 
 // Each side is shown only while it faces you (switching halfway through the turn), so a side never
@@ -34,16 +35,22 @@ export function PostcardFlip({ front, back, className = "", start = "front" }: {
   );
 }
 
-export function PostcardShare({ front, back, name }: { front: FrontProps; back: BackProps; name: string }) {
+// `one` is set for a one-side card: it is shared as a single picture.
+export function PostcardShare({ front, back, name, one }: { front: FrontProps; back: BackProps; name: string; one?: OneSideProps | null }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   async function share() {
     setBusy(true);
     setNote("");
     try {
-      const { drawBack, drawFront } = await import("./render");
-      const [f, b] = await Promise.all([drawFront(front), drawBack(back)]);
-      const files = [new File([f], `${name}-front.jpg`, { type: "image/jpeg" }), new File([b], `${name}-back.jpg`, { type: "image/jpeg" })];
+      const { drawBack, drawFront, drawOneSide } = await import("./render");
+      let files: File[];
+      if (one) {
+        files = [new File([await drawOneSide(one)], `${name}.jpg`, { type: "image/jpeg" })];
+      } else {
+        const [f, b] = await Promise.all([drawFront(front), drawBack(back)]);
+        files = [new File([f], `${name}-front.jpg`, { type: "image/jpeg" }), new File([b], `${name}-back.jpg`, { type: "image/jpeg" })];
+      }
       if (navigator.canShare?.({ files })) {
         await navigator.share({ files }).catch(() => {});
       } else {
@@ -53,7 +60,7 @@ export function PostcardShare({ front, back, name }: { front: FrontProps; back: 
           a.download = file.name;
           a.click();
         }
-        setNote("Saved both sides as pictures.");
+        setNote(one ? "Saved the card as a picture." : "Saved both sides as pictures.");
       }
     } catch {
       setNote("Couldn’t make the pictures on this phone.");
@@ -70,7 +77,7 @@ export function PostcardShare({ front, back, name }: { front: FrontProps; back: 
         {busy ? "Making the pictures…" : "WhatsApp & more"}
       </button>
       <p className="mt-2 text-center text-xs text-fg/60" role="status">
-        {note || "WhatsApp and other apps get two pictures: the front, then the back."}
+        {note || (one ? "WhatsApp and other apps get one picture." : "WhatsApp and other apps get two pictures: the front, then the back.")}
       </p>
     </div>
   );
