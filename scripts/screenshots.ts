@@ -1377,9 +1377,17 @@ if (!hosted && !desktop && !ios) {
       ["GD-trip-report", `${t}/report`],
       ["GD-wrapped-total", `${t}/wrapped`, wrappedAt("total")],
       ["GD-wrapped-receipt", `${t}/wrapped`, wrappedAt("splurge")],
+      // Turn pages until the first page of stamps is the one on screen (the map and badges come first).
       ["GD-passport-stamps", "/passport?book=1", book(async (p) => {
-        await p.getByRole("button", { name: "Next page" }).click();
-        await p.waitForTimeout(700);
+        const onScreen = async () => {
+          const b = await p.locator("[data-stamp-page]").first().boundingBox();
+          return Boolean(b && b.x >= 0 && b.x + b.width <= (p.viewportSize()?.width ?? 390) + 1);
+        };
+        for (let k = 0; k < 6 && !(await onScreen()); k++) {
+          await p.getByRole("button", { name: "Next page" }).click();
+          await p.waitForTimeout(700);
+        }
+        if (!(await onScreen())) throw new Error("no page of stamps came on screen");
       })],
       ["GD-friends-passports", "/passport/friends"],
       ["GD-story-pot", "/", async (p) => {
