@@ -5,6 +5,7 @@ import { cleanNames } from "./names";
 import { freeName } from "./invites";
 import { newInviteCode } from "./group-setup";
 import { isGroupAdmin, pickAdmin } from "./group-admin";
+import { ownMoveOut, undoViewerFor } from "./undo";
 
 // Joining a group from its invite link, and making a new link. Pure database
 // work, no redirects, so it can be tested. The actions in app/actions.ts turn
@@ -15,7 +16,8 @@ import { isGroupAdmin, pickAdmin } from "./group-admin";
 //   The admin can bring them back from People.
 // - Someone who left on their own can rejoin from the link, as before.
 
-export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name"; adminName?: string };
+// "moved_out": they moved out with Loopin and can still undo it, so the link doesn't quietly put them back (groupId and memberId say where to send them).
+export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name" | "moved_out"; adminName?: string; groupId?: string; memberId?: string };
 export const NAME_NEEDED = "Add your name so the group knows who you are.";
 export type JoinOk = { ok: true; memberId: string };
 export type JoinAccount = { id: string; name: string; email: string };
@@ -95,6 +97,9 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
   if (gone) return { ok: false, reason: "removed", adminName: removedBy(group, gone) };
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
+    if (mine.leftAt && (await ownMoveOut(group.id, await undoViewerFor(group.id, mine.id), new Date()))) {
+      return { ok: false, reason: "moved_out", groupId: group.id, memberId: mine.id };
+    }
     // Only if they are still not removed (a removal landing a moment ago must not be undone by this write).
     if (mine.leftAt && (await db.member.updateMany({ where: { id: mine.id, removedAt: null }, data: { leftAt: null } })).count !== 1) return { ok: false, reason: "retry" };
     await markSeen(mine.id);

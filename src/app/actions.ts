@@ -15,7 +15,7 @@ import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercen
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
-import { ownMoveOut, removeMembers, undoEvent, undoViewerFor } from "@/lib/undo";
+import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, removeMembers, undoEvent, undoViewerFor } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
@@ -212,6 +212,11 @@ export async function joinAsNew(formData: FormData) {
   if (!(await allow(`join:${(await originAndIp()).ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
   const { account } = await joinContext(code);
   const r = await joinNew(code, account, String(formData.get("name") ?? ""));
+  // Someone whose move-out can still be undone is not quietly put back in: People explains and offers Undo my move-out.
+  if (!r.ok && r.reason === "moved_out" && r.groupId && r.memberId) {
+    await setMyMemberId(r.groupId, r.memberId);
+    redirect(`/groups/${r.groupId}/people?error=${encodeURIComponent(MOVED_OUT_REJOIN_TEXT)}`);
+  }
   if (!r.ok) joinRefused(code, r);
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
@@ -598,7 +603,7 @@ export async function setPersonLeft(formData: FormData) {
   // Rejoining yourself after a move-out Loopin recorded (bills, deposit, square-up payments) would leave all of that as it is: the person is
   // pointed to "Undo my move-out" first. "Rejoin without undoing" (plain=1, behind a confirmation) is the deliberate way past it.
   if (memberId === myId && formData.get("left") !== "1" && formData.get("plain") !== "1" && (await ownMoveOut(groupId, await undoViewerFor(groupId, myId), new Date()))) {
-    backToPeople(groupId, { ok: false, error: "You moved out with Loopin. Tap Undo my move-out to get your bills and deposit back, or Rejoin without undoing." });
+    backToPeople(groupId, { ok: false, error: MOVED_OUT_REJOIN_TEXT });
   }
   // You can always leave or rejoin yourself. Taking someone else out is for whoever looks after the group; any member can bring back
   // someone who left on their own (only a person the admin removed needs the admin: setMemberLeft checks that).

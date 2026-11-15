@@ -180,7 +180,7 @@ export default async function GroupPage({
     undoEvents = leaver ? ((await loadGroupView(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did);
   }
   const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
-  const showUndo = justDid && canUndo(justDid, undoEvents, new Date(), v.undoViewer).ok;
+  const showUndo = justDid && (v.leaverChecks.get(justDid.id) ?? canUndo(justDid, undoEvents, new Date(), v.undoViewer)).ok;
   // Someone who moved out themselves (not removed) can undo it from here: the line and whether the server would allow it right now.
   const ownMove = leaver && !leaver.removed ? await ownMoveOut(group.id, v.undoViewer, new Date()) : null;
 

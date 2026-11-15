@@ -3,7 +3,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { parseDetails } from "@/lib/events";
 import { COPY_DAYS } from "@/lib/left-view";
-import { blockedMessage, type CanUndo } from "@/lib/undo";
+import { LEAVER_BLOCKED_TEXT, type CanUndo } from "@/lib/undo";
 import { undoChange } from "@/app/actions";
 import type { GroupView } from "./view";
 
@@ -13,6 +13,11 @@ export type OwnMoveOut = { event: { id: string }; check: CanUndo };
 // What undoing a move-out gives back, in plain words (shown above the button on the group page and on People).
 export const UNDO_MOVE_OUT_EXPLAINER =
   "Everything goes back to how it was before you moved out: your share of the bills, your deposit and the square-up payments. If you really paid any of those, record it again afterwards.";
+
+// Why a leaver can't undo right now: never names who did what after they left, so a later change gets one plain line.
+export function leaverBlockedText(check: Extract<CanUndo, { ok: false }>): string {
+  return check.blockedBy ? LEAVER_BLOCKED_TEXT : check.reason;
+}
 
 // "Undo my move-out": posts to the same undo as everything else; `back` says which page to return to.
 export function UndoMoveOutButton({ groupId, eventId, back }: { groupId: string; eventId: string; back: string }) {
@@ -47,7 +52,7 @@ export function LeftBanner({ v, ownMoveOut = null }: { v: GroupView; ownMoveOut?
             </>
           ) : (
             <p className="text-sm text-gray-500" data-own-move-out-blocked>
-              {blockedMessage(ownMoveOut.check, { nameOf: v.nameOf, tz })}
+              {leaverBlockedText(ownMoveOut.check)}
             </p>
           )}
         </div>
