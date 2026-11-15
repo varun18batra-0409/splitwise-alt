@@ -54,6 +54,16 @@ describe("The sliding cards under Before you go: only the useful ones", () => {
     expect(titles(all)).toEqual(["In your letterbox | 2 postcards are waiting", "Flat 402 | Rent is due in 2 days", "month"]);
     expect(homeHighlights({ ...base, postcardsNew: 1 }).map((h) => (h.kind === "card" ? h.title : ""))).toEqual(["A postcard is waiting"]);
   });
+  it("the festival card for where you are comes back (founder, 15 Nov): after the bill, before the month, drawn art, no photo", () => {
+    const season = { id: "christmas", eyebrow: "Christmas is coming", title: "Holiday plans?", text: "Secret Santa, a trip or a big dinner: one group, split fairly.", button: "Start a group", href: "/groups/new?type=other" };
+    const all = homeHighlights({ ...base, hasMonth: true, billsDue: [{ groupId: "f", billId: "b", name: "Rent", group: "Flat 402", inDays: 2, amount: "" }], season });
+    expect(all.map((h) => h.id)).toEqual(["bill-b", "season-christmas", "month"]);
+    const card = all[1];
+    expect(card.kind === "card" && card.art).toBe("festive");
+    expect(seasonNow(new Date("2026-12-05T06:00:00Z"), "Asia/Kolkata", "IN")?.id).toBe("christmas");
+    expect(seasonNow(new Date("2026-12-28T06:00:00Z"), "Asia/Kolkata", "IN")?.id).toBe("new-year");
+    expect(seasonNow(new Date("2026-11-20T06:00:00Z"), "Asia/Kolkata", "IN")?.id).not.toBe("thanksgiving-2026"); // US-only festival
+  });
   it("a bill is only a card from today to 5 days away, and the nearest one wins", () => {
     const bill = (billId: string, inDays: number) => ({ groupId: "f", billId, name: billId, group: "Flat", inDays, amount: "" });
     expect(homeHighlights({ ...base, billsDue: [bill("late", -1), bill("far", 6)] })).toEqual([]);

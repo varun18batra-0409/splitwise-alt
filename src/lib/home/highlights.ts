@@ -1,10 +1,12 @@
 import { climateFor, tripMonth, weatherWords } from "../climate";
 import type { TripPhase } from "../countdown";
+import type { Season } from "./banner";
 
 // The bottom of Home (founder, 15 Nov). Two things, both pure so tests can check them:
 // 1. "Before you go": ONE card for the soonest trip that has not started, with its usual weather (beforeYouGo).
 // 2. The sliding cards under it, now only the useful ones: new postcards waiting, a bill due soon, and your month in numbers (homeHighlights).
-// No trip photos, passport or postcard fillers, festivals or "just back" cards any more. Nothing useful: no card, and no row.
+// Plus the festival card for where you are (Diwali, Christmas, New Year, Eid…: seasonNow in banner.ts; founder, 15 Nov: keep it, region-specific).
+// No trip photos, passport or postcard fillers or "just back" cards any more. Nothing useful: no card, and no row.
 
 export type HighlightTone = "rose" | "teal";
 export type Highlight =
@@ -18,7 +20,7 @@ export type Highlight =
       text: string;
       button: string;
       href: string;
-      art: "postcard" | "bill";
+      art: "postcard" | "bill" | "festive";
     };
 
 export type HighlightTrip = {
@@ -35,12 +37,14 @@ export type HighlightInput = {
   hasMonth: boolean;
   postcardsNew: number;
   billsDue: { groupId: string; billId: string; name: string; group: string; inDays: number; amount: string }[];
+  // The festival or season card for this visitor's country and today's date (null: none now).
+  season?: Pick<Season, "id" | "eyebrow" | "title" | "text" | "button" | "href"> | null;
 };
 
 const when = (days: number) => (days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`);
 const place = (t: HighlightTrip) => t.stops.find((s) => s.city)?.city || t.name;
 
-// The sliding cards: postcards first, then a bill due in the next few days, then the month. Between 0 and 3; never a card with nothing to say.
+// The sliding cards: postcards first, then a bill due in the next few days, then the festival card, then the month. Between 0 and 4; never a card with nothing to say.
 export function homeHighlights(x: HighlightInput): Highlight[] {
   const out: Highlight[] = [];
 
@@ -73,7 +77,11 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       art: "bill",
     });
 
-  // 3. Your month in numbers.
+  // 3. The festival or season coming up where you are (drawn art, never a trip photo).
+  if (x.season)
+    out.push({ id: `season-${x.season.id}`, kind: "card", tone: "rose", eyebrow: x.season.eyebrow, title: x.season.title, text: x.season.text, button: x.season.button, href: x.season.href, art: "festive" });
+
+  // 4. Your month in numbers.
   if (x.hasMonth) out.push({ id: "month", kind: "month" });
 
   return out;

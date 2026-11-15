@@ -23,7 +23,7 @@ import { homeMoney } from "@/lib/home/display";
 import { climateFor, tripMonth, usesFahrenheit, weatherWords } from "@/lib/climate";
 import { Polaroid } from "@/components/Polaroid";
 import { coverFor, coverOf } from "@/lib/covers";
-import { monthNumbers } from "@/lib/home/banner";
+import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { beforeYouGo, homeHighlights } from "@/lib/home/highlights";
@@ -427,6 +427,8 @@ export default async function Home({
   );
   const highlights = homeHighlights({
     hasMonth: Boolean(month),
+    // The festival or season coming up in this visitor's country (Christmas, New Year, Diwali, Eid…).
+    season: seasonNow(new Date(), tz, region.country),
     // New postcards and a bill due soon have no line of their own on Home, so the sliding cards bring them up.
     postcardsNew,
     billsDue: billRows.flatMap((b) => {

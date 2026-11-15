@@ -1610,11 +1610,11 @@ async function main() {
     // Story labels: one line, at most 10 characters.
     for (const t of await V.locator("[data-story-label]").allInnerTexts()) assert([...t.trim()].length <= 10, `a story label is too long: ${t}`);
   });
-  await step(V, "Home", "The sliding cards at the bottom (under “Before you go”): only postcards waiting, a bill due soon and the month, so 0 to 3 of them, no two the same, each with words and a button that goes somewhere, no trip photos; none: no row", async () => {
+  await step(V, "Home", "The sliding cards at the bottom (under “Before you go”): only postcards waiting, a bill due soon, the festival card for where you are and the month, so 0 to 4 of them, no two the same, each with words and a button that goes somewhere, no trip photos; none: no row", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');
     const n = await slides.count();
-    assert(n <= 3, `${n} cards`);
+    assert(n <= 4, `${n} cards`);
     assert((await V.locator('[aria-roledescription="slide"] img').count()) === 0, "a sliding card still has a photo");
     for (const t of await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) assert(!/Wish they were here|spent today|payments? squares? it|stamp in your passport|Who’s booking what|While you’re in|countries and counting|Where to next/.test(t), `an old trip or filler card is back: ${t}`);
     assert((await V.locator('[aria-roledescription="slide"]').filter({ hasText: "Coming from another app" }).count()) === 0, "the switching card is back on Home");

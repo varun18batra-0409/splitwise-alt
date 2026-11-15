@@ -88,5 +88,22 @@ function ArtPicture({ kind }: { kind: string }) {
         <span className="h-1 w-2/3 self-end rounded bg-[#2a2620]/60" />
       </div>
     );
+  if (kind === "festive")
+    // A paper lantern on a string with a few gold sparks: festive without pointing at one festival.
+    return (
+      <div aria-hidden className="absolute right-10 top-0">
+        <div className="mx-auto h-8 w-px bg-[#d9c79a]/60" />
+        <div className="relative h-[104px] w-[76px] rounded-[38px] bg-[radial-gradient(circle_at_50%_40%,#ffd27a,#e0853f_60%,#9c3d22)] shadow-[0_0_40px_rgba(255,190,110,0.35)]">
+          <div className="absolute inset-x-2 top-3 h-px bg-[#7d2a14]/40" />
+          <div className="absolute inset-x-1 top-1/2 h-px bg-[#7d2a14]/40" />
+          <div className="absolute inset-x-2 bottom-3 h-px bg-[#7d2a14]/40" />
+          <div className="absolute -top-1.5 left-1/2 h-3 w-8 -translate-x-1/2 rounded-sm bg-[#3a2a1c]" />
+          <div className="absolute -bottom-1.5 left-1/2 h-3 w-8 -translate-x-1/2 rounded-sm bg-[#3a2a1c]" />
+        </div>
+        <span className="absolute -left-6 top-14 h-1.5 w-1.5 rounded-full bg-[#ffd27a]" />
+        <span className="absolute -right-4 top-24 h-1 w-1 rounded-full bg-[#ffd27a]/80" />
+        <span className="absolute -left-3 top-32 h-1 w-1 rounded-full bg-[#ffd27a]/70" />
+      </div>
+    );
   return null;
 }
