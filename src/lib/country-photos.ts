@@ -10,7 +10,8 @@ export const COUNTRY_SLOT: Record<string, string> = {
   LK: "place-srilanka", JP: "place-japan", GB: "place-london", NP: "place-nepal", US: "place-newyork", GR: "place-santorini",
   BT: "place-bhutan", CH: "place-switzerland", FR: "cover-paris", IN: "cover-taj",
   ...Object.fromEntries(
-    "MY KH LA PH KR CN HK TW TR IT ES PT DE NL BE AT CZ HU HR IS NO SE DK FI IE PL CA MX BR AR PE AU NZ ZA KE TZ EG MA MU SC SA QA OM JO GE AZ UZ KZ"
+    ("MY KH LA PH KR CN HK TW TR IT ES PT DE NL BE AT CZ HU HR IS NO SE DK FI IE PL CA MX BR AR PE AU NZ ZA KE TZ EG MA MU SC SA QA OM JO GE AZ UZ KZ " +
+      "BA ET VA KW BH LB CY MT MC LU SK SI RS ME AL MK BG RO EE LV LT RU UA MN MM BD PK KG AM BN MO CL CO CU CR PA EC BO UY DO JM BS PR GT NA BW ZW ZM RW UG GH NG SN TN FJ PF LI AD SM")
       .split(" ")
       .map((c) => [c, `country-${c.toLowerCase()}`]),
   ),
