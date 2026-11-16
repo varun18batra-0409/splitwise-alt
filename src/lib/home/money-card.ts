@@ -657,6 +657,8 @@ export function homeNetCard(x: { items: NetItem[]; common: string; toCommon: (am
   };
   // Both kinds must have something (a line that nets to 0 is hidden); with only one left it would just repeat the net, so none show.
   const lines = sum.group !== 0 && sum.direct !== 0 ? [line("group"), line("direct")] : [];
-  const aria = tone === "plain" ? "Net, it evens out. Open Settle up" : `Net, ${say} ${amount}. Open Settle up`;
+  // Screen readers hear the Group / Non-group split too (the link's label replaces what is inside it).
+  const split = lines.length ? ` ${lines.map((l) => l.text).join(", ")}.` : "";
+  const aria = tone === "plain" ? `Net, it evens out.${split} Open Settle up` : `Net, ${say} ${amount}.${split} Open Settle up`;
   return { kind: "net", tone, label: `Net · ${say}`, amount, value, approx, lines, href: "/settle", aria };
 }

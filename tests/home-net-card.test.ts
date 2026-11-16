@@ -19,7 +19,7 @@ describe("the slim Net card", () => {
       ["group", "+", 2291600, "Group +₹22,916"],
       ["direct", "−", -60000, "Non-group −₹600"],
     ]);
-    expect(c.aria).toBe("Net, you’re owed ₹22,316. Open Settle up");
+    expect(c.aria).toBe("Net, you’re owed ₹22,316. Group +₹22,916, Non-group −₹600. Open Settle up");
   });
   it("(2) you owe 50000 (₹500) in groups, you're owed 20000 (₹200) directly: net 20000 - 50000 = -30000, you owe ₹300; lines −₹500 and +₹200", () => {
     const c = card([inr(-50000, false), inr(20000, true)]);

@@ -308,6 +308,34 @@ if (!desktop && !hosted) {
         }
       }
     }
+    // Home with BOTH kinds of money, so the slim card shows its Group and Non-group lines:
+    // in a flat, Asha paid 4583200 split with Kabir (Kabir owes her 2291600); Rohan (non-group) owes her 60000. Net +2351600.
+    const flat = await db.group.create({
+      data: {
+        name: "Flat 402", type: "home", currency: "INR", inviteCode: `shotsboth${Date.now().toString(36)}`,
+        members: { create: [{ name: "Asha", accountId: me.id, claimedAt: new Date() }, { name: "Kabir" }] },
+      },
+      include: { members: true },
+    });
+    const [asha, kabir] = [flat.members.find((m) => m.name === "Asha")!, flat.members.find((m) => m.name === "Kabir")!];
+    await db.expense.create({
+      data: {
+        groupId: flat.id, description: "Rent", splitType: "equal", amount: 4583200, originalAmount: 4583200, convertedAmount: 4583200,
+        originalCurrency: "INR", baseCurrency: "INR", paidById: asha.id, createdById: asha.id,
+        shares: { create: [{ memberId: asha.id, amount: 2291600 }, { memberId: kabir.id, amount: 2291600 }] },
+      },
+    });
+    for (const w of [390, 320] as const) {
+      await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+      try {
+        await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+        await p.waitForTimeout(500);
+        await p.screenshot({ path: `${out}/direct${w}-home-both.png`, fullPage: false });
+        console.log(`  ✓ direct${w}-home-both`);
+      } catch (e) {
+        console.log(`  ✗ direct${w}-home-both`, String(e).split("\n")[0]);
+      }
+    }
     await c.close();
   }
 }
