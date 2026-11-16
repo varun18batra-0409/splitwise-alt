@@ -330,7 +330,7 @@ describe("9. H1: nobody but the person paid can bring a refused payment back", (
     // Meera recorded it for others, so she may Undo it (and Redo it) inside the 10 minutes: recorderOk is what the Undo button passes.
     expect((await setPaymentsDeleted(w.gid, M, ids, true, { recorderOk: true })).ok).toBe(true);
     expect(await w.net()).toEqual({ [A]: -40000, [R]: 40000, [M]: 0 });
-    expect((await recordPaymentCore({ groupId: w.gid, fromId: A, toId: R, amount: 40000, currency: "INR", myId: A, key: key(), fp: `fp-${key()}`, warnOver: false })).ok).toBe(true); // Asha's own "I've paid" counts at once
+    expect((await recordPaymentCore({ groupId: w.gid, fromId: A, toId: R, amount: 40000, currency: "INR", myId: A, key: key(), fp: `fp-${key()}`, warnOver: false })).kind).toBe("done"); // Asha's own "I've paid" counts at once
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     expect((await leave(w, A)).ok).toBe(true);
     const redo = await setPaymentsDeleted(w.gid, M, ids, false, { recorderOk: true });
