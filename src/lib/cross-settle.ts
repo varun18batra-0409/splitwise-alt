@@ -184,7 +184,20 @@ export function crossPreview(item: CrossItem, common: string): { lines: string[]
 
 // "Even across groups": someone you are even with overall, though you owe them in one group and they owe you in another. Nothing is
 // paid for them: "Clear both" records the same linked parts as "Record payment" always did, and they cancel each other.
-export const isEvenItem = (item: Pick<CrossItem, "net">): boolean => item.net === 0;
+// Even only when every part is in ONE currency and the parts, signed by who pays, add to exactly 0 in that currency. A converted net of 0
+// across different currencies (₹4,200 against $50 at 84) is not even: Clear both would swap currencies. Two USD groups seen from an INR account still qualify.
+export function isEvenItem(item: Pick<CrossItem, "parts">): boolean {
+  if (item.parts.length === 0) return false;
+  const currency = item.parts[0].currency;
+  if (!item.parts.every((p) => p.currency === currency)) return false;
+  return item.parts.reduce((t, p) => t + (p.iPay ? -p.amount : p.amount), 0) === 0;
+}
+
+// What Clear both is about to record, one line per group in that group's own currency ("You paid Asha ₹1,000 in Thailand trip").
+export function clearBothLines(item: CrossItem): string[] {
+  const parts = [...item.parts].sort((a, b) => Number(b.iPay) - Number(a.iPay) || a.groupName.localeCompare(b.groupName));
+  return parts.map((p) => (p.iPay ? `You paid ${item.name} ${formatMoney(p.amount, p.currency)} in ${p.groupName}` : `${item.name} paid you ${formatMoney(p.amount, p.currency)} in ${p.groupName}`));
+}
 
 // The one plain line on that row: what you are owed first, then what you owe, each in its own group ("Owed ₹4,200 in Flat 402, owe ₹4,200 in Thailand trip. Nothing to pay.").
 export function evenCaption(item: CrossItem): string {

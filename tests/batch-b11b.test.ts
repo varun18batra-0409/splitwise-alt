@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { CLEAR_BOTH_NOTE, CLEAR_BOTH_SUBTITLE, evenCaption, isEvenItem, type CrossItem } from "@/lib/cross-settle";
+import { clearBothLines, CLEAR_BOTH_NOTE, CLEAR_BOTH_SUBTITLE, evenCaption, isEvenItem, type CrossItem } from "@/lib/cross-settle";
 import { skippedLine } from "@/lib/insights";
 import { cardFeeLabel } from "@/lib/activity";
 import { leaverDepositRows, leaverGoalTotal, wellDoneWords } from "@/lib/leaver-rows";
@@ -20,7 +20,7 @@ const even: CrossItem = {
 describe("1. Even across groups", () => {
   it("is recognised by net 0 and worded as nothing to pay (owed side first)", () => {
     expect(isEvenItem(even)).toBe(true);
-    expect(isEvenItem({ net: -1 })).toBe(false);
+    expect(isEvenItem({ parts: [{ ...even.parts[0] }] })).toBe(false);
     expect(evenCaption(even)).toBe("Owed ₹4,200 in Flat 402, owe ₹4,200 in Thailand trip. Nothing to pay.");
     expect(CLEAR_BOTH_SUBTITLE).toMatch(/Nothing is paid/);
     expect(CLEAR_BOTH_NOTE).toMatch(/No money moves/);
@@ -28,12 +28,11 @@ describe("1. Even across groups", () => {
   });
   it("the page: To pay is only net < 0, Even has its own section, Clear both uses settleAcrossGroups, no Payment details for net 0", () => {
     const page = src("src/app/settle/page.tsx");
-    expect(page).toContain("settleItems.filter((it) => it.net < 0)");
+    expect(page).toContain("const oweItems = settleItems.filter((it) => it.net < 0)"); // the summary count
     expect(page).toContain('sectionHead("EVEN ACROSS GROUPS"');
     expect(page).toContain('label: even ? "Clear both"');
     expect(page).toContain("action={settleAcrossGroups}");
     expect(page).toContain('way === "out" && it.net < 0');
-    expect(page).not.toMatch(/it\.net <= 0/);
   });
 });
 
@@ -97,8 +96,8 @@ describe("5. Money colours only for money", () => {
   });
   it("payer's recorded amount and Paid stamp are neutral; the person paid stays green", () => {
     const f = src("src/components/PayScreens.tsx");
-    expect(f).toContain('const paidByMe = from === "You"');
-    expect(f).toContain('paidByMe ? "text-fg" : "text-owed"');
+    expect(f).toContain('const notPaidToMe = to !== "You"'); // you paid, or you are neither: neutral
+    expect(f).toContain('notPaidToMe ? "text-fg" : "text-owed"');
   });
   it("labels, status lines, icons and errors carry no money colour", () => {
     for (const [file, bad] of [
@@ -125,5 +124,45 @@ describe("6. Screenshots", () => {
     expect(block).toContain("for (const w of [390, 320] as const)");
     for (const n of ["settle-even", "people", "expenses-card-fee", "deposit-left", "goal-left", "recap"]) expect(block).toContain(`["${n}"`);
     expect(block).toContain("b11b${w}-${n}");
+  });
+});
+
+describe("Review fixes: even needs one currency", () => {
+  const part = (currency: string, amount: number, iPay: boolean) => ({ groupId: `g${currency}${amount}${iPay}`, groupName: "G", currency, fromId: "f", toId: "t", amount, iPay });
+  const item = (parts: ReturnType<typeof part>[]): CrossItem => ({ key: "k", name: "Asha", net: 0, converted: parts.some((p) => p.currency !== "INR"), parts });
+  it("₹4,200 against $50 at rate 84 is not even (converted net is 0, currencies differ)", () => {
+    // hand: 5000 cents x 84 = 420000 paise = ₹4,200, so the converted net is -420000 + 420000 = 0
+    expect(-420000 + Math.round(5000 * 84)).toBe(0);
+    expect(isEvenItem(item([part("INR", 420000, true), part("USD", 5000, false)]))).toBe(false);
+  });
+  it("two USD groups, +5000 and -5000 cents, are even (also from an INR account)", () => {
+    expect(isEvenItem(item([part("USD", 5000, false), part("USD", 5000, true)]))).toBe(true);
+    expect(isEvenItem(item([part("USD", 5000, false), part("USD", 4999, true)]))).toBe(false);
+  });
+  it("VND against USD that rounds to 0 is not even", () => {
+    expect(isEvenItem(item([part("VND", 2100000, true), part("USD", 8400, false)]))).toBe(false);
+  });
+  it("the page filters match: even people are only in Even; others keep their old section", () => {
+    const page = src("src/app/settle/page.tsx");
+    expect(page).toContain("settleItems.filter((it) => it.net <= 0 && !isEvenItem(it))");
+    expect(page).toContain("settleItems.filter((it) => it.net > 0)");
+    expect(page).toContain('it.net === 0 ? "Even" : amt(it, it.net)');
+  });
+  it("all square is not shown while there are even people", () => {
+    const page = src("src/app/settle/page.tsx");
+    expect(page).toContain("data-nothing-to-pay");
+    expect(page).toMatch(/evenList\.length > 0 \? \([\s\S]*Nothing to pay[\s\S]*All square/);
+  });
+});
+
+describe("Review fixes: Clear both sheet lists the payments", () => {
+  it("one line per group in that group's currency", () => {
+    expect(clearBothLines(even)).toEqual(["You paid Asha ₹4,200 in Thailand trip", "Asha paid you ₹4,200 in Flat 402"]);
+    expect(src("src/components/SettleUp.tsx")).toContain("data-clear-both-lines");
+    expect(src("src/components/SettleUp.tsx")).toContain("Records:");
+    expect(src("src/app/settle/page.tsx")).toContain("lines: clearBothLines(it)");
+  });
+  it("Payment recorded is green only for the person paid", () => {
+    expect(src("src/components/PayScreens.tsx")).toContain('to !== "You"');
   });
 });

@@ -31,6 +31,7 @@ export type SheetSpec = {
   groupLine: string;
   amount: string; // exact, formatted
   tone: "owe" | "owed" | "even";
+  lines?: string[]; // "Clear both": the payments it will record, one per group
   even?: boolean; // "Clear both": no payment is made, so no "from → to" line and no amount row
   partHref?: string; // where "Full balance" leads to enter a part amount (only when part payments are supported for this row)
   payWith?: { href: string; label: string; kind: string }; // the person's UPI / pay link, opening the same link as before
@@ -290,6 +291,16 @@ export function SettleCard({
               </div>
             </dl>
 
+            {sheet.lines && sheet.lines.length > 0 && (
+              <div className="mt-4 text-[14px] leading-snug text-fg/80" data-clear-both-lines>
+                <p className="font-semibold text-fg">Records:</p>
+                <ul className="mt-1 space-y-1">
+                  {sheet.lines.map((l) => (
+                    <li key={l}>{l}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p className="mt-4 text-[14px] leading-snug text-fg/65">{sheet.note}</p>
 
             <div className="mt-5 space-y-3">

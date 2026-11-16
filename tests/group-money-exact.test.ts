@@ -50,8 +50,9 @@ describe("People page and This month use exact amounts for balances", () => {
     const { readFileSync } = await import("node:fs");
     const people = readFileSync("src/app/groups/[id]/people/page.tsx", "utf8");
     expect(people).not.toContain("<Amt");
-    expect(people).toContain("`gets ${money(bal)}`");
-    expect(people).toContain("`owes ${money(-bal)}`"); // the owed amount is shown as a plain positive figure (no minus sign), still the exact formatter
+    // Balance lines are coloured (green gets, orange owes), the words stay grey; the figure is still the exact formatter, a plain positive number (no minus sign).
+    expect(people).toContain('<span className="text-owed">{money(bal)}</span>');
+    expect(people).toContain('<span className="text-owe">{money(-bal)}</span>');
     for (const bad of ["homeMoney", "overviewMoney"]) expect(people).not.toContain(bad);
     const month = readFileSync("src/app/groups/[id]/_components/ThisMonthTab.tsx", "utf8");
     for (const line of month.split("\n").filter((l) => /Overall you|ahead|behind|Yours|put in/.test(l))) expect(line, line).not.toContain("<Amt");

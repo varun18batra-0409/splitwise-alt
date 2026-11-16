@@ -6,7 +6,7 @@ import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
-import { CLEAR_BOTH_NOTE, CLEAR_BOTH_SUBTITLE, crossActionLabel, crossPreview, evenCaption, isEvenItem, settleRowId } from "@/lib/cross-settle";
+import { CLEAR_BOTH_NOTE, CLEAR_BOTH_SUBTITLE, crossActionLabel, crossPreview, clearBothLines, evenCaption, isEvenItem, settleRowId } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
 import { STALE_KEY_ERROR } from "@/lib/once";
 import { FreshKey } from "@/components/FreshKey";
@@ -139,8 +139,9 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   }
 
   // ---- The overview ----
-  const outList = settleItems.filter((it) => it.net < 0); // people I pay: matches the summary count
-  const evenList = settleItems.filter(isEvenItem); // even across groups: nothing to pay, "Clear both" cancels the two sides
+  const evenList = settleItems.filter(isEvenItem);
+  // People I pay. A person who is even in ONE currency is in the Even section instead; a mixed-currency person whose converted net is 0 stays here, as before.
+  const outList = settleItems.filter((it) => it.net <= 0 && !isEvenItem(it)); // even across groups: nothing to pay, "Clear both" cancels the two sides
   const inList = settleItems.filter((it) => it.net > 0); // people who pay me
   const oweItems = settleItems.filter((it) => it.net < 0);
   const sumOf = (xs: Item[]) => xs.reduce((t, it) => t + Math.abs(it.net), 0); // integer minor units in the common currency
@@ -167,6 +168,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     ? `Not in the total: ${notInTotal.map((e) => (e.net < 0 ? `you owe ${e.other.name} ${formatMoney(-e.net, e.currency)}` : `${e.other.name} owes you ${formatMoney(e.net, e.currency)}`)).join("; ")}`
     : "";
   const nothingOpen = settleItems.every(isEvenItem) && pairsOpen.length === 0; // even-across-groups people have their own small section below
+  const evenNames = evenList.map((it) => firstName(it.name));
+  const evenNamed = evenNames.length <= 1 ? evenNames.join("") : `${evenNames.slice(0, -1).join(", ")} and ${evenNames[evenNames.length - 1]}`;
   const otherRows = othersPending.map((g) => ({ id: g.group.id, name: g.group.name, n: g.transfers.filter((t) => t.from !== g.myId && t.to !== g.myId).length }));
   const otherCount = otherRows.reduce((t, r) => t + r.n, 0);
   const SHEET_NOTE = "This records a payment made outside Loopin. No money will be transferred.";
@@ -181,7 +184,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const groupLine = names.length <= 2 ? names.join(" · ") : `${names.length} groups`;
     const even = way === "even";
     const tone = even ? ("even" as const) : it.net > 0 ? ("owed" as const) : ("owe" as const);
-    const amount = even ? "Even across groups" : amt(it, it.net);
+    const amount = even ? "Even across groups" : it.net === 0 ? "Even" : amt(it, it.net);
     const pv = crossPreview(it, common);
     // Remind about a part where they owe you (never one where you're the one paying).
     const biggest = [...parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
@@ -238,7 +241,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         }
         sheet={
           even
-            ? { title: "Clear both", subtitle: CLEAR_BOTH_SUBTITLE, from: "You", to: it.name, other: it.name, groupLine, amount, tone, even: true, confirmLabel: "Clear both", note: CLEAR_BOTH_NOTE }
+            ? { title: "Clear both", subtitle: CLEAR_BOTH_SUBTITLE, from: "You", to: it.name, other: it.name, groupLine, amount, tone, even: true, lines: clearBothLines(it), confirmLabel: "Clear both", note: CLEAR_BOTH_NOTE }
             : way === "in"
             ? { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: it.name, to: "You", other: it.name, groupLine, amount, tone, partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
             : {
@@ -420,8 +423,17 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       ) : nothingOpen ? (
         <div className="rounded-[20px] border border-line bg-white px-5 py-10 text-center">
           <SquareSeal size={56} className="mx-auto" />
-          <p className="mt-3 font-display text-2xl font-semibold">All square</p>
-          <p className="mt-1 text-sm text-fg/60">You’re settled up with everyone.</p>
+          {evenList.length > 0 ? (
+            <>
+              <p className="mt-3 font-display text-2xl font-semibold" data-nothing-to-pay>Nothing to pay</p>
+              <p className="mt-1 text-sm text-fg/60">{`You’re even with ${evenNamed} across groups.`}</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-3 font-display text-2xl font-semibold">All square</p>
+              <p className="mt-1 text-sm text-fg/60">You’re settled up with everyone.</p>
+            </>
+          )}
         </div>
       ) : (
         <section aria-label="Summary" data-settle-summary className="rounded-[24px] border border-line bg-white px-5 py-5">
