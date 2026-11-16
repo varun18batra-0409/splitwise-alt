@@ -531,6 +531,538 @@
      "cands": []
     }
    ]
+  },
+  {
+   "file": "top-4.png",
+   "title": "Top 4: USA (Orlando to Sedona)",
+   "rows": [
+    {
+     "slot": "Orlando",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1597466599360-3b9775841aec",
+       "page": "https://unsplash.com/fr/photos/le-chateau-de-cendrillon-dans-magic-kingdom-orlando-z4ky2zXIjDM",
+       "desc": "Cinderella Castle with blue turrets and stone walls, Magic Kingdom, Orlando"
+      },
+      {
+       "id": "photo-1758464642918-47f7d0364396",
+       "page": "https://unsplash.com/fr/photos/des-gratte-ciel-modernes-selevent-au-dessus-dun-parc-luxuriant-et-dun-etang-4NUCd1ldaBY",
+       "desc": "Modern skyscrapers above a lush park and pond (Orlando search)"
+      },
+      {
+       "id": "photo-1609184889233-eff6dd93def4",
+       "page": "https://unsplash.com/fr/photos/ligne-dhorizon-de-la-ville-a-travers-le-plan-deau-pendant-la-journee-Tyn3-Cljx-A",
+       "desc": "City skyline across the water in daytime (Orlando search)"
+      }
+     ]
+    },
+    {
+     "slot": "Austin",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1588993608283-7f0eda4438be",
+       "page": "https://unsplash.com/photos/austin-skyline-and-bridge-over-river-ztVcGTSD8xw",
+       "desc": "Bridge over a river leading to the downtown skyline of Austin, Texas"
+      },
+      {
+       "id": "photo-1530089711124-9ca31fb9e863",
+       "page": "https://unsplash.com/photos/austin-skyline-and-congress-avenue-bridge-AlBgcDfDG_s",
+       "desc": "Aerial view of the Austin skyline and Congress Avenue Bridge over Lady Bird Lake"
+      },
+      {
+       "id": "photo-1666969565832-b55bf42a900d",
+       "page": "https://unsplash.com/photos/a-city-skyline-at-sunset-cB_LQ6NGkq4",
+       "desc": "A city skyline at sunset (Austin search)"
+      }
+     ]
+    },
+    {
+     "slot": "Maui",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1542259009477-d625272157b7",
+       "page": "https://unsplash.com/photos/tropical-beach-at-sunset-in-maui-7782WXBriyM",
+       "desc": "Tropical beach at sunset in Maui"
+      },
+      {
+       "id": "photo-1779325524712-dc4fccd9fe17",
+       "page": "https://unsplash.com/photos/green-coastal-landscape-with-ocean-beach-and-mountains-under-clouds-OJCTIjlUKyc",
+       "desc": "Green coastal landscape with ocean, beach and mountains (Maui search)"
+      },
+      {
+       "id": "photo-1562191326-0da0767cfffe",
+       "page": "https://unsplash.com/photos/forest-beside-blue-sea-9QoDLDEu9Kg",
+       "desc": "Forest beside blue sea (Maui search)"
+      }
+     ]
+    },
+    {
+     "slot": "Zion",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1766386787610-53ef5c3da25d",
+       "page": "https://unsplash.com/photos/a-bridge-crosses-a-river-below-a-large-mountain-UEPDHHrx4Zs",
+       "desc": "A bridge crosses a river below a large mountain, Zion National Park, Utah"
+      },
+      {
+       "id": "photo-1766386787622-a6eabdf58fab",
+       "page": "https://unsplash.com/photos/red-rock-mountain-overlooking-a-forest-and-river-6knKOzFPALw",
+       "desc": "Red rock mountain overlooking a forest and river, Zion National Park, Utah"
+      }
+     ]
+    },
+    {
+     "slot": "Alaska",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1787594799825-3586cee8243e",
+       "page": "https://unsplash.com/de/fotos/teich-mit-kiefern-und-bergen-o_WT6J29u_o",
+       "desc": "Calm pond reflecting pines and mountains under blue sky (Alaska search)"
+      },
+      {
+       "id": "photo-1772895908990-64ef12be55e5",
+       "page": "https://unsplash.com/de/fotos/schneebedeckte-berge-spiegeln-sich-in-einem-ruhigen-see-wider-fzcBFc5PJO8",
+       "desc": "Snow-covered mountains reflected in a calm lake (Alaska search)"
+      },
+      {
+       "id": "photo-1574788901656-6a9ee34a3fa7",
+       "page": "https://unsplash.com/de/fotos/gebirgszuge-in-der-nahe-des-sees-twG_u1iugdA",
+       "desc": "Mountain ranges near a lake (Alaska search)"
+      }
+     ]
+    },
+    {
+     "slot": "Napa Valley",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1722245557255-34c4bbcbb48a",
+       "page": "https://unsplash.com/photos/a-row-of-trees-in-a-field-with-mountains-in-the-background-0gS6XD-KLTU",
+       "desc": "Row of trees in a field with mountains behind, Napa, CA"
+      },
+      {
+       "id": "photo-1656873593110-58a8b76823b5",
+       "page": "https://unsplash.com/photos/rows-of-trees-in-a-field-7WYOqn4XhGc",
+       "desc": "Rows of trees in a field, Napa Valley, CA"
+      }
+     ]
+    },
+    {
+     "slot": "Lake Tahoe",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1552083375-1447ce886485",
+       "page": "https://unsplash.com/photos/emerald-bay-state-park-aerial-view-UWQP2mh5YJI",
+       "desc": "Aerial view of Emerald Bay State Park with boats on blue water"
+      },
+      {
+       "id": "photo-1647285471436-9d1b1e9d6e47",
+       "page": "https://unsplash.com/photos/a-rocky-shore-with-clear-blue-water-and-mountains-in-the-background-nNCdDwX-lBY",
+       "desc": "Rocky shore with clear blue water and mountains behind (Tahoe search)"
+      },
+      {
+       "id": "photo-1577416026704-0fe2d48a0f20",
+       "page": "https://unsplash.com/photos/rock-formations-viewing-lake-surrounded-with-green-trees-under-white-and-blue-sky-efhEncQLi4w",
+       "desc": "Rock formations viewing a lake ringed by green trees (Tahoe search)"
+      }
+     ]
+    },
+    {
+     "slot": "Aspen",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1524429656589-6633a470097c",
+       "page": "https://unsplash.com/photos/body-of-water-across-the-mountain-during-sunset-xoYPV4oVQJI",
+       "desc": "Body of water across the mountain at sunset (Aspen search)"
+      },
+      {
+       "id": "photo-1597776089867-1fbc459af100",
+       "page": "https://unsplash.com/photos/red-cable-car-over-green-trees-during-daytime-ozVYbNWyrjA",
+       "desc": "Red cable car over green trees (Aspen search)"
+      },
+      {
+       "id": "photo-1579889551683-2e5d22deb230",
+       "page": "https://unsplash.com/photos/green-mountains-near-river-under-blue-sky-during-daytime-nkcAv0dO7Sg",
+       "desc": "Green mountains near a river under blue sky (Aspen search)"
+      }
+     ]
+    },
+    {
+     "slot": "Denver",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1709689702529-6fa1f343e108",
+       "page": "https://unsplash.com/fr/photos/le-soleil-se-couche-sur-une-grande-ville-OVE2SA0TVJE",
+       "desc": "Sun setting over a big city (Denver search)"
+      },
+      {
+       "id": "photo-1648441095877-90406e6ba04d",
+       "page": "https://unsplash.com/fr/photos/une-vue-dune-ville-avec-des-montagnes-en-arriere-plan-Q9X_p5dDq_8",
+       "desc": "View of a city with mountains in the background (Denver search)"
+      },
+      {
+       "id": "photo-1586740070162-41777c99457f",
+       "page": "https://unsplash.com/fr/photos/immeubles-de-grande-hauteur-sous-des-nuages-blancs-et-un-ciel-bleu-pendant-la-journee-ud0Y1ItHhr0",
+       "desc": "High-rises under white clouds and blue sky (Denver search)"
+      }
+     ]
+    },
+    {
+     "slot": "Philadelphia",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1517009572053-93fb56dfef49",
+       "page": "https://unsplash.com/de/fotos/turm-und-strasse-des-rathauses-von-philadelphia-ZB5Xgw_MLa0",
+       "desc": "Philadelphia City Hall tower rising above a street"
+      },
+      {
+       "id": "photo-1760393496342-c09cf9c1818c",
+       "page": "https://unsplash.com/de/fotos/zug-der-sich-unter-strahlend-blauem-himmel-der-skyline-einer-stadt-nahert-jOAlZ_1qMdU",
+       "desc": "Train approaching a city skyline under bright blue sky (Philadelphia search)"
+      },
+      {
+       "id": "photo-1569761316261-9a8696fa2ca3",
+       "page": "https://unsplash.com/de/fotos/luftbild-von-gebauden-guy5aS3GvgA",
+       "desc": "Aerial view of buildings (Philadelphia search)"
+      }
+     ]
+    },
+    {
+     "slot": "Savannah",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1667489012686-6d3239f90f0e",
+       "page": "https://unsplash.com/photos/a-tall-white-building-with-a-tall-pointy-tower-et23yc9785o",
+       "desc": "Tall white building with a pointy tower (Savannah search)"
+      },
+      {
+       "id": "photo-1667489012747-d4bbc525486f",
+       "page": "https://unsplash.com/photos/a-horse-carriage-on-the-street-ZTGebIiwK5U",
+       "desc": "Horse carriage on the street (Savannah search)"
+      }
+     ]
+    },
+    {
+     "slot": "Key West",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1601136939973-5b5dc52a16cb",
+       "page": "https://unsplash.com/photos/gray-wooden-dock-on-body-of-water-during-daytime-LwPmzW65U4M",
+       "desc": "Grey wooden dock on water (Key West search)"
+      },
+      {
+       "id": "photo-1782498270934-722d02d3efc2",
+       "page": "https://unsplash.com/photos/palm-trees-line-a-sandy-beach-beside-a-rock-jetty-qJ69U0qkAtI",
+       "desc": "Palm trees along a sandy beach beside a rock jetty (Key West search)"
+      },
+      {
+       "id": "photo-1787817718659-284271076a2f",
+       "page": "https://unsplash.com/photos/directional-signs-on-pier-over-ocean-nKZSxilQuhc",
+       "desc": "Wooden post with directional signs on a pier (Key West search)"
+      }
+     ]
+    },
+    {
+     "slot": "Sedona",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1676499935421-cd932f67e8f2",
+       "page": "https://unsplash.com/photos/a-red-rock-formation-with-trees-and-clouds-in-the-background-11BJ6XFbrOQ",
+       "desc": "Red rock formation with trees and clouds (Sedona search)"
+      },
+      {
+       "id": "photo-1639690255075-bc98ed4b40fa",
+       "page": "https://unsplash.com/photos/a-mountain-with-trees-and-rocks-in-the-background-Maya1LftXHQ",
+       "desc": "Mountain with trees and rocks, Sedona"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "top-5.png",
+   "title": "Top 5: USA (Portland to Boston, plus New York and San Diego retries)",
+   "rows": [
+    {
+     "slot": "Portland",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1628783629868-19fb7eb52e2a",
+       "page": "https://unsplash.com/photos/city-with-high-rise-buildings-near-mountain-during-sunset-Ff4BbI31Czg",
+       "desc": "City with high-rises near a mountain at sunset (Portland search)"
+      },
+      {
+       "id": "photo-1782318691186-1d909c479de4",
+       "page": "https://unsplash.com/photos/portland-oregon-neon-sign-glowing-at-dusk-8WJqVwDnV54",
+       "desc": "Portland, Oregon neon sign glowing at dusk"
+      }
+     ]
+    },
+    {
+     "slot": "Atlanta",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1663601460253-aba72eea6edf",
+       "page": "https://unsplash.com/photos/a-city-with-tall-buildings-9fxD3UW_C1I",
+       "desc": "A city with tall buildings (Atlanta search)"
+      },
+      {
+       "id": "photo-1702494600481-043a92b6271e",
+       "page": "https://unsplash.com/photos/a-body-of-water-with-a-city-in-the-background-9V1q3dhnrOU",
+       "desc": "Body of water with a city in the background (Atlanta search)"
+      },
+      {
+       "id": "photo-1611106014123-092d7642f560",
+       "page": "https://unsplash.com/photos/aerial-view-of-city-buildings-during-daytime-XV81dRUMzpo",
+       "desc": "Aerial view of city buildings in daytime (Atlanta search)"
+      }
+     ]
+    },
+    {
+     "slot": "Houston",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1692154600992-463fa9b27abd",
+       "page": "https://unsplash.com/photos/a-view-of-a-city-at-night-from-the-top-of-a-building-DdsXgbHVg7M",
+       "desc": "City at night from the top of a building (Houston search)"
+      },
+      {
+       "id": "photo-1625109998123-40f1cc978735",
+       "page": "https://unsplash.com/photos/green-trees-near-body-of-water-under-blue-sky-during-daytime-MoEsShvG7wI",
+       "desc": "Green trees near water under blue sky (Houston search)"
+      },
+      {
+       "id": "photo-1631330190649-d7da7dd8a6fb",
+       "page": "https://unsplash.com/photos/green-trees-near-city-buildings-under-white-clouds-during-daytime-KdQq7b7kX7Q",
+       "desc": "Green trees near city buildings under white clouds (Houston search)"
+      }
+     ]
+    },
+    {
+     "slot": "Dallas",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1781665790160-f18dd7e5e245",
+       "page": "https://unsplash.com/photos/vibrant-dallas-city-skyline-illuminated-at-night-_NuB9bPqoKM",
+       "desc": "Vibrant Dallas city skyline illuminated at night"
+      },
+      {
+       "id": "photo-1772209253741-2176cf175947",
+       "page": "https://unsplash.com/photos/modern-buildings-with-a-tall-observation-tower-at-sunset-VkPOZpsooxI",
+       "desc": "Modern buildings with a tall observation tower at sunset (Dallas search)"
+      },
+      {
+       "id": "photo-1621904878414-d4ca4756bd7e",
+       "page": "https://unsplash.com/photos/city-buildings-under-blue-sky-during-daytime-h1n7o0yb0sE",
+       "desc": "City buildings under blue sky (Dallas search)"
+      }
+     ]
+    },
+    {
+     "slot": "Phoenix",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1783215195866-66309ac0cefe",
+       "page": "https://unsplash.com/photos/a-tall-saguaro-cactus-stands-against-a-soft-sunset-sky-TjPsp9QwN6E",
+       "desc": "Tall saguaro cactus against a soft sunset sky (Phoenix search)"
+      },
+      {
+       "id": "photo-1783215196060-04d14196d780",
+       "page": "https://unsplash.com/photos/desert-landscape-with-various-cacti-and-a-sunlit-mountain-zqYxYvYakfs",
+       "desc": "Desert landscape with cacti and a sunlit mountain (Phoenix search)"
+      },
+      {
+       "id": "photo-1706403222567-06fe8d8dc93e",
+       "page": "https://unsplash.com/photos/an-aerial-view-of-a-city-with-mountains-in-the-background-akE66HU-_Kg",
+       "desc": "Aerial view of a city with mountains behind (Phoenix search)"
+      }
+     ]
+    },
+    {
+     "slot": "Niagara Falls (US side)",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1763877506868-636dc8550fb2",
+       "page": "https://unsplash.com/photos/niagara-falls-with-a-boat-on-the-water-AaS5-JTxX4Y",
+       "desc": "Niagara Falls with a boat on the water"
+      },
+      {
+       "id": "photo-1598402453861-4fbcbf6ced3b",
+       "page": "https://unsplash.com/photos/waterfalls-under-blue-sky-and-white-clouds-during-daytime-Y2M2RpSOwyw",
+       "desc": "Waterfalls under blue sky and white clouds (Niagara search)"
+      },
+      {
+       "id": "photo-1606516397986-1eeb79e8c052",
+       "page": "https://unsplash.com/photos/aerial-view-of-water-falls-mNs_6VmbaiA",
+       "desc": "Aerial view of the falls (Niagara search)"
+      }
+     ]
+    },
+    {
+     "slot": "Hamptons / Montauk",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1755875592891-abacc257c89b",
+       "page": "https://unsplash.com/ko/%EC%82%AC%EC%A7%84/%EA%B1%B4%EB%AC%BC%EC%9D%B4-%EC%9E%88%EB%8A%94-%ED%92%80%EC%9D%B4-%EB%AC%B4%EC%84%B1%ED%95%9C-%EC%96%B8%EB%8D%95-%EC%9C%84%EC%9D%98-%ED%95%98%EC%96%80-%EB%93%B1%EB%8C%80-L0c82eGsJ9g",
+       "desc": "White lighthouse on a grassy hill, Montauk Lighthouse, Montauk, NY"
+      },
+      {
+       "id": "photo-1547054739-74df6a810357",
+       "page": "https://unsplash.com/photos/lightened-tower-p0neMGnsP_Y",
+       "desc": "Lighthouse tower (page tags point to Montauk, no explicit location)"
+      }
+     ]
+    },
+    {
+     "slot": "Cape Cod",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1595336605453-d0ea24263c6e",
+       "page": "https://unsplash.com/photos/white-lighthouse-on-top-of-hill-near-body-of-water-during-daytime-AytYHYV6_Cs",
+       "desc": "White lighthouse on top of a hill near water (Cape Cod search)"
+      },
+      {
+       "id": "photo-1708458988303-0828184d091e",
+       "page": "https://unsplash.com/photos/a-path-to-the-beach-leading-to-the-ocean-eJKsNzxZRM4",
+       "desc": "Path to the beach leading to the ocean (Cape Cod search)"
+      },
+      {
+       "id": "photo-1580157313605-1e66e630d498",
+       "page": "https://unsplash.com/photos/green-grass-field-near-body-of-water-during-daytime-YwSxLoiXZFU",
+       "desc": "Green grass field near water (Cape Cod search)"
+      }
+     ]
+    },
+    {
+     "slot": "Big Sur",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1541201738517-9b35cfce2ac1",
+       "page": "https://unsplash.com/photos/gray-and-brown-bridge-beside-beach-during-daytime-jr8klO6WpW8",
+       "desc": "Bixby Creek Bridge, Monterey (Big Sur)"
+      },
+      {
+       "id": "photo-1577141858496-787d4d9f86c5",
+       "page": "https://unsplash.com/photos/brown-mountain-and-trees-during-daytime-VmYPeFG61zU",
+       "desc": "Brown mountain and trees, Bixby Canyon Bridge, Monterey, CA"
+      }
+     ]
+    },
+    {
+     "slot": "New York (better than Now)",
+     "note": "",
+     "now": [
+      {
+       "id": "photo-1764344793554-12da6166d940",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1496588152823-86ff7695e68f",
+       "page": "https://unsplash.com/de/fotos/panoramafotografie-der-brooklyn-bridge-_QdFx92MO2U",
+       "desc": "Panorama of the Brooklyn Bridge"
+      },
+      {
+       "id": "photo-1765187275519-547fb2d0bb6a",
+       "page": "https://unsplash.com/de/fotos/skyline-von-new-york-city-mit-einem-world-trade-center-_ZEk8iXVWyI",
+       "desc": "New York City skyline with One World Trade Center"
+      },
+      {
+       "id": "photo-1543716091-a840c05249ec",
+       "page": "https://unsplash.com/de/fotos/empire-state-building-new-york-city-tagsuber-rfj_wOYQkus",
+       "desc": "Empire State Building, New York City, daytime"
+      }
+     ]
+    },
+    {
+     "slot": "San Diego (city / harbour)",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1514939775307-d44e7f10cabd",
+       "page": "https://unsplash.com/photos/city-near-body-of-water-during-nighttime-uxIU0kYGu-k",
+       "desc": "City near water at night (San Diego search)"
+      },
+      {
+       "id": "photo-1519954352454-2d5a7353e277",
+       "page": "https://unsplash.com/photos/photography-of-boat-in-body-of-water-RQF6bbS4shw",
+       "desc": "Boat on the water (San Diego search)"
+      },
+      {
+       "id": "photo-1566353820592-c81f362cbd46",
+       "page": "https://unsplash.com/photos/vehicles-on-road-beside-buildings-during-daytime-f5jyMrOS3yo",
+       "desc": "Vehicles on a road beside buildings (San Diego search)"
+      }
+     ]
+    },
+    {
+     "slot": "Boston (better)",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1780752930209-3b77105e5f3c",
+       "page": "https://unsplash.com/photos/downtown-boston-skyline-from-the-harbor-with-boats-yrBtGEkuXOA",
+       "desc": "Downtown Boston skyline from the harbour with boats"
+      },
+      {
+       "id": "photo-1764131648259-eda1d4bcfe0a",
+       "page": "https://unsplash.com/photos/sailboat-on-water-with-city-skyline-at-sunset-yKy-pBOP6zo",
+       "desc": "Sailboat on water with a city skyline at sunset (Boston search)"
+      },
+      {
+       "id": "photo-1573571162980-28ca0e8f542d",
+       "page": "https://unsplash.com/photos/view-photography-of-lighted-city-buildings-NQqFwerlHfQ",
+       "desc": "Lit-up city buildings (Boston search)"
+      }
+     ]
+    }
+   ]
   }
  ]
 }
