@@ -2,8 +2,8 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { csvFileName, groupCsv } from "@/lib/csv";
 import { getTimeZone } from "@/lib/tz";
-import { readableWhere } from "@/lib/left-view-db";
-import { hideLaterNotes, leaverCut } from "@/lib/left-view";
+import { laterRowEvents, readableWhere } from "@/lib/left-view-db";
+import { asOfCut, hideLaterNotes, leaverCut } from "@/lib/left-view";
 
 // Download the group's expenses and payments as a CSV file (members only).
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,13 +24,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // Someone who left (or was removed) gets the same view as on screen: up to the day they left, plus later changes to their own share.
   const me = group.members.find((m) => m.id === myId)!;
   const scope = await readableWhere(group.id, me);
-  const [allExpenses, payments] = await Promise.all([
+  const [rawExpenses, rawPayments] = await Promise.all([
     db.expense.findMany({ where: { groupId: group.id, ...(scope ? { AND: [scope.expenses] } : {}) }, include: { shares: true } }),
     db.payment.findMany({ where: { groupId: group.id, ...(scope ? { AND: [scope.payments] } : {}) } }),
   ]);
   // Notes of expenses changed after they left stay blank for them.
   const cut = leaverCut(me);
-  const expenses = cut ? hideLaterNotes(allExpenses, cut.leftAt) : allExpenses;
+  // Rows added before they left are written as they were that day (MA-3).
+  const asOf = cut ? asOfCut({ expenses: rawExpenses, payments: rawPayments }, await laterRowEvents(group.id, cut.leftAt), me.id, cut.leftAt) : { expenses: rawExpenses, payments: rawPayments };
+  const payments = asOf.payments;
+  const expenses = cut ? hideLaterNotes(asOf.expenses, cut.leftAt) : asOf.expenses;
   const body = groupCsv(group, group.members, expenses, payments, await getTimeZone(), { onlyInvolved: Boolean(scope) });
   return new Response(body, {
     headers: {

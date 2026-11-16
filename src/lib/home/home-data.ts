@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "../db";
 import { daysBetween } from "../countdown";
 import { viewMonth } from "./banner";
+import { asOfChanged } from "../left-view-db";
 import type { loadMyGroupsLight } from "../group-data";
 
 // The rows Home still needs, read for just those things instead of every group's whole history:
@@ -115,6 +116,20 @@ export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; 
   const slot = (gid: string) => recent.get(gid) ?? recent.set(gid, { expenses: [], payments: [] }).get(gid)!;
   for (const e of ([...newest, ...spentOn] as ExpenseRow[]).sort(newestFirst)) slot(e.groupId).expenses.push(e);
   for (const p of ([...paid] as PaymentRow[]).sort(newestFirst)) slot(p.groupId).payments.push(p);
+
+  // Groups you left: rows changed or deleted after you left are shown as they were that day (MA-3). The database filters above read
+  // today's state, so these groups' changed rows are swapped for their as-of versions here. Only what is shown changes.
+  for (const g of open.filter((x) => x.leaver && x.readable)) {
+    const me = g.group.members.find((m) => m.id === g.myId);
+    if (!me) continue;
+    const { expenses, payments } = await asOfChanged(g.group.id, me);
+    if (!expenses.length && !payments.length) continue;
+    const s = slot(g.group.id);
+    const eIds = new Set(expenses.map((x) => x.id));
+    const pIds = new Set(payments.map((x) => x.id));
+    s.expenses = [...s.expenses.filter((e) => !eIds.has(e.id)), ...expenses.flatMap((x) => (x.shown && !x.shown.deletedAt ? [x.shown as ExpenseRow] : []))].sort(newestFirst);
+    s.payments = [...s.payments.filter((p) => !pIds.has(p.id)), ...payments.flatMap((x) => (x.shown.deletedAt ? [] : [x.shown as PaymentRow]))].sort(newestFirst);
+  }
 
   // Your month, shaped for monthNumbers (which keeps only what dayKey puts in the month in the viewer's zone).
   const byGroup = new Map<string, MonthRow[]>();

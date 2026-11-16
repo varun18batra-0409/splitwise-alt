@@ -8,6 +8,7 @@ import { PageHeader, secondaryButtonClass } from "@/components/ui";
 import { GroupCover } from "@/components/GroupCover";
 import { ShareSheet } from "@/components/ShareSheet";
 import { coverFor } from "@/lib/covers";
+import { peopleShown } from "@/lib/left-view";
 import { placePhoto } from "@/lib/places";
 import { squareNumbers, squareTiles } from "@/lib/square";
 import { Confetti } from "@/components/Confetti";
@@ -22,7 +23,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   const { group, expenses, payments, transfers } = data;
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
-  const people = group.members.filter((m) => !m.leftAt).length;
+  const people = peopleShown(group.members, myId, data.leaver?.leftAt).length; // a leaver counts themselves and who was there when they left
   const n = squareNumbers({ expenses, payments, people, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const money = (x: number) => formatMoney(x, group.currency);
   const photo = group.type === "trip" ? placePhoto(group.name)?.src : undefined;

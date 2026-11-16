@@ -121,7 +121,23 @@ export function coverOf(group: CoverGroup): CoverChoice {
 // Everything <GroupCover> needs: which picture, and the address of the group's
 // own photo. `outside`: for someone not in the group yet (the invite page),
 // who never sees the group's own photo.
-export function coverFor(group: CoverGroup, outside = false): { kind: CoverChoice; src?: string } {
+// D-5: someone who left (or was removed) at `cut` is not shown a group photo put up after that day (the photo route says 404 to them
+// too, see photoAfterCut). They see the default cover for the group's type instead. Any other choice of cover is left alone.
+// Pure; the loaders for a leaver's pages apply it once, so every screen that draws the cover agrees.
+export function coverSeenBy<G extends { cover?: string | null; coverAt?: Date | null }>(group: G, cut: Date | null | undefined): G {
+  if (!cut || group.cover !== "own" || !group.coverAt || group.coverAt.getTime() <= cut.getTime()) return group;
+  return { ...group, cover: "", coverAt: null };
+}
+
+// Is a group photo (saved at `updatedAt`) newer than the day this member left or was removed? Then it is not theirs to see.
+export function photoAfterCut(updatedAt: Date, m: { leftAt?: Date | null; removedAt?: Date | null }): boolean {
+  const cut = m.leftAt ?? m.removedAt ?? null;
+  return Boolean(cut && updatedAt.getTime() > cut.getTime());
+}
+
+// `cut`: the day the viewer left the group, if they did (see coverSeenBy).
+export function coverFor(group: CoverGroup, outside = false, cut?: Date | null): { kind: CoverChoice; src?: string } {
+  if (cut) group = coverSeenBy(group, cut);
   const kind = coverOf(group);
   if (kind !== "own") return { kind };
   if (outside) return { kind: typeDefault(group.type ?? "") };

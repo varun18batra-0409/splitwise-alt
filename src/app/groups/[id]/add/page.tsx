@@ -87,7 +87,7 @@ export default async function AddExpensePage({
     <SheetPage
       title={pair ? `Add expense with ${pair.otherName}` : `Add to ${group.name}`}
       back={pair ? `/people/${group.id}` : `/groups/${group.id}`}
-      cover={pair ? { kind: "plain" } : coverFor(group)}
+      cover={pair ? { kind: "plain" } : coverFor(group, false, group.members.find((m) => m.id === myId)?.leftAt)}
       photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
       uid={group.id}
       letter={group.name}

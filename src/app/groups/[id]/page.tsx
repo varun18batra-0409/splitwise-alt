@@ -1,4 +1,5 @@
 import { neutralGameText } from "@/lib/game-words";
+import { peopleShown } from "@/lib/left-view";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getAccount, getMemberships, privatePath } from "@/lib/identity";
@@ -195,7 +196,7 @@ export default async function GroupPage({
       ? await (async () => {
           const homeCountry = (account?.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
           const [cards, postcards] = await Promise.all([momentViewer ? listMoments(momentViewer) : Promise.resolve([]), account ? loadGroupPostcards(account.id, group.id) : Promise.resolve([])]);
-          const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: group.members.length }, homeCountry, today, leaver?.leftAt ?? null, passportZone(account)) : null;
+          const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: leaver ? peopleShown(group.members, myId, leaver.leftAt).length : group.members.length }, homeCountry, today, leaver?.leftAt ?? null, passportZone(account)) : null;
           return { cards, postcards, stamp };
         })()
       : null;

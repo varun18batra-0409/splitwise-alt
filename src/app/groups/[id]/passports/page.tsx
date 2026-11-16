@@ -9,6 +9,7 @@ import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportRoster } from "@/lib/passport-db";
 import { blockedEitherWay } from "@/lib/blocks";
+import { membershipSpan, overlapped } from "@/lib/left-view";
 import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader } from "@/components/ui";
@@ -26,12 +27,15 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   if (!myId) redirect(await privatePath(id));
   const group = await db.group.findUnique({
     where: { id },
-    select: { id: true, name: true, deletedAt: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, removedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+    select: { id: true, name: true, deletedAt: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, removedAt: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) notFound();
   // Only someone who really joined (and wasn't removed) can open it, and it lists only people who did too.
-  const everyone = passportRoster(group.members, myId);
-  if (!everyone) redirect(await privatePath(id));
+  const everyoneEver = passportRoster(group.members, myId);
+  if (!everyoneEver) redirect(await privatePath(id));
+  // Only people who were in the group at the same time as the viewer (someone who joined after they left isn't listed).
+  const myRow = group.members.find((m) => m.id === myId)!;
+  const everyone = everyoneEver.filter((m) => m.id === myId || overlapped(membershipSpan(myRow), membershipSpan(m)));
   // Someone blocked (either way round) is left out of Our passports; the group itself is untouched.
   const myAccountId = group.members.find((m) => m.id === myId)?.accountId;
   const hidden = myAccountId ? await blockedEitherWay(myAccountId) : new Set<string>();

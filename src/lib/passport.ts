@@ -65,6 +65,17 @@ export function undatedTripDay(latest: { spentAt: Date | null; createdAt: Date }
   return dayKey(latest.spentAt ?? latest.createdAt, tz);
 }
 
+// Is this trip over, as a friend may see it (a trip happening now would say where its owner is today)? With an end day: once that day
+// has passed. With a start but no end: 3 days after the later of the start and the latest spending (the same rule as an undated trip),
+// so a week-long trip with the end left blank isn't shown from its second day (SB-14). With no dates: 3 days after the latest
+// spending, or straight away when there is none. `spendingDay`: the day of the latest spending the owner may see, if any.
+export function tripOver(trip: { tripStart: string; tripEnd: string }, spendingDay: string | undefined, today: string): boolean {
+  if (trip.tripEnd) return trip.tripEnd < today;
+  const after3 = (day: string) => new Date(Date.parse(`${day}T12:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10) < today;
+  if (trip.tripStart) return after3(spendingDay && spendingDay > trip.tripStart ? spendingDay : trip.tripStart);
+  return !spendingDay || after3(spendingDay);
+}
+
 export type SpendingRow = {
   createdAt: Date;
   spentAt: Date | null;

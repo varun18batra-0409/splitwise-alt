@@ -3,8 +3,8 @@ import { getAccount, getMemberships } from "@/lib/identity";
 import { myDataCsv } from "@/lib/csv";
 import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
-import { readableWhere } from "@/lib/left-view-db";
-import { hideLaterNotes, leaverCut } from "@/lib/left-view";
+import { laterRowEvents, readableWhere } from "@/lib/left-view-db";
+import { asOfCut, hideLaterNotes, leaverCut } from "@/lib/left-view";
 import { loadMyDataExtra } from "@/lib/my-data-extra";
 
 // "Download all my data" (Account): one CSV with every group I'm in on this
@@ -42,7 +42,7 @@ export async function GET() {
           // Groups I left (or was removed from): only what I'm allowed to see there, like on screen.
           const me = g.members.find((m) => m.id === memberships[g.id])!;
           const scope = await readableWhere(g.id, me);
-          const [allExpenses, payments, claims] = await Promise.all([
+          const [rawExpenses, rawPayments, claims] = await Promise.all([
             db.expense.findMany({ where: { groupId: g.id, ...(scope ? { AND: [scope.expenses] } : {}) }, include: { shares: true } }),
             db.payment.findMany({ where: { groupId: g.id, ...(scope ? { AND: [scope.payments] } : {}) } }),
             // Only my own "I've paid" claims (said by me, or said to me).
@@ -50,7 +50,10 @@ export async function GET() {
           ]);
           // Notes of expenses changed after I left stay blank.
           const cut = leaverCut(me);
-          const expenses = cut ? hideLaterNotes(allExpenses, cut.leftAt) : allExpenses;
+          // Rows from before I left are written as they were that day (MA-3).
+          const asOf = cut ? asOfCut({ expenses: rawExpenses, payments: rawPayments }, await laterRowEvents(g.id, cut.leftAt), me.id, cut.leftAt) : { expenses: rawExpenses, payments: rawPayments };
+          const payments = asOf.payments;
+          const expenses = cut ? hideLaterNotes(asOf.expenses, cut.leftAt) : asOf.expenses;
           return { ...g, expenses, payments, claims, myId: memberships[g.id] };
         }),
     ),

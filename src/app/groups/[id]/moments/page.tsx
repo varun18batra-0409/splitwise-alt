@@ -12,7 +12,7 @@ import { MomentsFeed } from "@/components/MomentsFeed";
 import { canAddMoment, canDeleteMoment, canOpenMoments, canReactToMoment, canReportMoment, loadMomentViewer } from "@/lib/moments-access";
 import { listMoments, type MomentCard } from "@/lib/moments-db";
 import { momentPageStories } from "@/lib/moments-stories";
-import { coverFor } from "@/lib/covers";
+import { coverFor, coverSeenBy } from "@/lib/covers";
 import { tripPhotoSrc } from "@/lib/places";
 import { MomentBig } from "./_components/MomentBig";
 
@@ -31,6 +31,8 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
   if (!canOpenMoments(viewer) || viewer.groupType !== "trip") notFound();
   const [group, cards, tz] = await Promise.all([db.group.findUnique({ where: { id }, select: { id: true, name: true, type: true, cover: true, coverAt: true, tripPlace: true } }), listMoments(viewer), getTimeZone()]);
   if (!group) notFound();
+  // A group photo put up after they left is not shown to someone who left: the default cover instead.
+  const seen = coverSeenBy(group, viewer.leftAt ?? viewer.removedAt);
   const now = new Date();
   const where = place(group.name);
   const here = `/groups/${id}/moments`;
@@ -52,7 +54,7 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
     canDelete: canDeleteMoment(viewer, c),
     canReport: canReportMoment(viewer, c),
   });
-  const stories = momentPageStories(cards, id, group.name, now, { photo: tripPhotoSrc(group), cover: coverFor(group) });
+  const stories = momentPageStories(cards, id, group.name, now, { photo: tripPhotoSrc(seen), cover: coverFor(seen) });
 
   // With 20 or more, the older ones are grouped by day (the rows are MomentsFeed, shared with the group's Memories tab).
   const grouped = older.length + 1 >= 20;
