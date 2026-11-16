@@ -33,6 +33,7 @@ import { createGroupFor, setTripDates, updateSharing } from "@/lib/group-setup";
 import { addWaitingBill } from "@/lib/home/bills-db";
 import { checkBudgets } from "@/lib/home/budgets-db";
 import { after } from "next/server";
+import { noteTripPlaceLater } from "@/lib/unknown-places";
 import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
@@ -84,6 +85,8 @@ export async function createGroup(formData: FormData) {
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
   await copyPushTo(account.id, me.id);
+  // A place with no photo yet: only its name is noted (after the group is made; never fails this).
+  if (group.type === "trip") noteTripPlaceLater((job) => after(job), group.id, group.tripPlace, group.tripCountry);
   // A Pot (card night) goes straight to its first game, where players can be added by name.
   redirect(group.type === "pot" ? `/groups/${group.id}/pot/new?first=1` : `/groups/${group.id}/invite?new=1`);
 }
@@ -417,6 +420,7 @@ export async function updateGroupSettings(formData: FormData) {
     const tc = String(formData.get("tripCountry") ?? "").toUpperCase();
     const tripCountry = countryOf(tc) ? tc : "";
     if (tripPlace !== group.tripPlace || tripCountry !== group.tripCountry) await db.group.update({ where: { id: group.id }, data: { tripPlace, tripCountry } });
+    noteTripPlaceLater((job) => after(job), group.id, tripPlace, tripCountry); // name only, after the save, never fails it
   }
   // The picture is just for looks: saved as it is, no history entry.
   if (formData.has("cover")) {
@@ -473,6 +477,8 @@ export async function saveGroupSettings(formData: FormData) {
     dayKey(new Date(), await getTimeZone()),
   );
   if (!r.ok) redirect(`${back}?${new URLSearchParams({ error: r.code && r.code !== "conflict" ? r.code : r.error })}`);
+  // The place was saved: note it for new place photos if Loopin has none (name only, after the save, never fails it).
+  if (group.type === "trip" && formData.has("tripPlace")) noteTripPlaceLater((job) => after(job), group.id, str("tripPlace"), str("tripCountry"));
   if (r.convertTo) redirect(`${back}?convert=${r.convertTo}`);
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }

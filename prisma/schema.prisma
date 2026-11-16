@@ -852,3 +852,22 @@ model MomentReaction {
   @@unique([momentId, memberId])
   @@index([momentId])
 }
+
+// Places people typed in "Where to?" that Loopin has no photo for yet. The place name ONLY: never the group, its name, a
+// person or an account. `groups` = how many different trips named it (counted through UnknownPlaceSeen, below).
+// A workflow lists the places with 2+ trips every 3 days so new place photos can be added (see src/lib/unknown-places.ts).
+model UnknownPlace {
+  place     String   @id // lowercase, letters/spaces/hyphens/apostrophes, 2-40 characters
+  groups    Int      @default(0)
+  firstSeen DateTime @default(now())
+  lastSeen  DateTime @default(now())
+}
+
+// One row per (place, trip) so a trip is counted once. `tag` is a keyed one-way hash (HMAC with the app's secret) of
+// the trip and the place: it can't be turned back into a trip id, and only the app (which holds the secret) can make it.
+// No link to Group, so deleting a group changes nothing here. Never printed or exported.
+model UnknownPlaceSeen {
+  place String
+  tag   String
+  @@id([place, tag])
+}
