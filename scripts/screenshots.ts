@@ -1388,7 +1388,24 @@ if (!desktop) {
         await p.locator("[data-guest-sheet]").waitFor({ timeout: 5000 });
         await p.waitForTimeout(500);
       }, false);
+      // The email link page with guest groups: the account named big, then two plain choices.
+      await snapAt(c, "AS3-email-link", "/signin/verify?e=dev@example.test&c=123456", undefined, false);
       await c.close();
+      // Signed in, with the groups still only on this phone: the quiet notice on Home, and the sign-out page that lists them first.
+      const acc = await db.account.create({ data: { email: `as3-notice-${stamp}@uat.loopin.test`, name: "Asha" } });
+      try {
+        const c2 = await fresh({ locale: "en-IN", cookies: [{ name: SESSION_COOKIE, value: await encodeSession({ m: held, a: acc.id, v: 0 }) }, { name: "lp_tour", value: "1" }] });
+        await snapAt(c2, "AS3-only-here-home", "/", undefined, false);
+        await snapAt(c2, "AS3-only-here-signout", "/account/sign-in#other-phones", undefined, true);
+        await snapAt(c2, "AS3-only-here-sheet", "/", async (p) => {
+          await p.locator("[data-guest-open]").first().click();
+          await p.locator("[data-guest-sheet]").waitFor({ timeout: 5000 });
+          await p.waitForTimeout(400);
+        }, false);
+        await c2.close();
+      } finally {
+        await db.account.delete({ where: { id: acc.id } }).catch(() => undefined);
+      }
     } catch (e) {
       console.log("✗ AS3-guest-sheet (set-up failed)", String(e).split("\n")[0]);
     } finally {

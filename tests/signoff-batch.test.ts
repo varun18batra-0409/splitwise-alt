@@ -82,3 +82,38 @@ describe("CB-17 / VA2-37 / VD1-34: taps are 44 px and small text is larger", () 
     expect(src("src/components/Charts.tsx")).toContain("min-h-11");
   });
 });
+
+// Review of AS-3 (Medium 1 and 2, Low 3).
+describe("AS-3 review fixes", () => {
+  const sheet = src("src/components/GuestMoveSheet.tsx");
+  it("nothing is capped at 12: no limit in the lookup, the pages or the confirmation", () => {
+    expect(src("src/lib/identity.ts")).toContain("export async function guestGroupsOnPhone(): Promise<GuestGroup[]>");
+    for (const f of ["src/app/signin/page.tsx", "src/app/signin/verify/page.tsx", "src/app/join/[code]/page.tsx", "src/app/actions.ts"]) expect(src(f), f).not.toMatch(/guestGroupsOnPhone\(\s*\d/);
+    expect(src("src/lib/identity.ts")).not.toContain(".slice(0, 50)");
+    expect(sheet).toContain("overflow-y-auto"); // the list scrolls
+  });
+  it("a failed confirmation does not carry on to Google: the sheet stays with 'Something went wrong. Try again.'", () => {
+    expect(sheet).toContain("Something went wrong. Try again.");
+    expect(sheet).toContain('throw new Error("not saved")');
+    // the redirect comes after the check of the answer
+    expect(sheet.indexOf('throw new Error("not saved")')).toBeLessThan(sheet.indexOf("window.location.assign(href)"));
+    expect(sheet).toContain("cancelGuestMove()"); // Cancel throws the note away
+  });
+  it("Home offers to move groups that are only on this phone, and sign-out lists them first", () => {
+    expect(src("src/app/(home)/page.tsx")).toContain("<GuestMoveNotice groups={guestGroups} />");
+    expect(sheet).toContain("only on this phone. Move");
+    const out = src("src/app/account/sign-in/page.tsx");
+    for (const t of ["These groups are only on this phone and will be lost from it", "Move them first", "Sign out anyway"]) expect(out).toContain(t);
+    expect(out).toContain("They stay safe in your email"); // still said when nothing is only on this phone
+  });
+  it("the email link asks two plain questions when guest groups exist, and one when they don't", () => {
+    const v = src("src/app/signin/verify/page.tsx");
+    for (const t of ["Move them and sign in", "Sign in without moving them", 'name="move" value=""', "data-signin-as"]) expect(v).toContain(t);
+    expect(v).toContain("Yes, sign me in"); // the single button when there are no guest groups
+  });
+  it("the Google confirmation is bound to its attempt and the callback reads it from there", () => {
+    expect(src("src/app/api/auth/google/start/route.ts")).toContain("sealMoveForAttempt(state, agreed)");
+    expect(src("src/app/api/auth/google/callback/route.ts")).toContain("moveFromAttempt(attempt.state, attempt.move)");
+    expect(src("src/app/api/auth/google/callback/route.ts")).not.toContain("takeMoveConfirmation");
+  });
+});

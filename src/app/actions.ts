@@ -6,7 +6,7 @@ import { RedirectType } from "next/navigation";
 import { cleanCover } from "@/lib/covers";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
-import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, guestGroupsOnPhone, keepGroupsDropAccount, parseConfirmed, setMoveConfirmation, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
+import { clearMoveConfirmation, forgetThisPhone, getAccount, getMemberships, getMyMemberId, confirmedGuestIds, keepGroupsDropAccount, moveGuestsToAccount, parseConfirmed, setMoveConfirmation, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { headers } from "next/headers";
@@ -700,13 +700,25 @@ export async function requestCode(formData: FormData) {
   redirect(`/signin?${q}`);
 }
 
-// "Move them and continue" before Google: remember which of this phone's guest groups the person agreed to move, for the
-// few minutes Google takes. Only groups this phone really holds as guests are kept, whatever the screen sent.
+// "Move them and continue" before Google: leave a signed, 2-minute note of which of this phone's guest groups the person agreed to
+// move. Only groups this phone really holds as guests are kept, whatever the screen sent. (/api/auth/google/start picks it up.)
 export async function confirmGuestMove(ids: string[]): Promise<{ ok: boolean }> {
-  const agreed = new Set(parseConfirmed(ids));
-  const held = (await guestGroupsOnPhone(50)).map((g) => g.memberId).filter((id) => agreed.has(id));
-  await setMoveConfirmation(held);
+  await setMoveConfirmation(await confirmedGuestIds(ids));
   return { ok: true };
+}
+
+// Cancel on that sheet: the note is thrown away at once.
+export async function cancelGuestMove(): Promise<{ ok: boolean }> {
+  await clearMoveConfirmation();
+  return { ok: true };
+}
+
+// Already signed in, with guest groups still only on this phone ("N groups are only on this phone"): move exactly the ones
+// the person confirmed (and that this phone still holds) into the account.
+export async function moveGuestGroups(ids: string[]): Promise<{ ok: boolean; moved: number }> {
+  if (!(await getAccount())) return { ok: false, moved: 0 };
+  const moved = await moveGuestsToAccount(await confirmedGuestIds(ids));
+  return { ok: true, moved };
 }
 
 export async function verifyCode(formData: FormData) {

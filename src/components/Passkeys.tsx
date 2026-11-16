@@ -75,7 +75,11 @@ export function PasskeySignIn({ back, className, groups = [] }: { back: string; 
     <div>
       <button
         type="button"
-        onClick={() => ask(go)}
+        onClick={() =>
+          ask((ids) => {
+            void go(ids); // the sheet closes now; the phone's own prompt takes over
+          })
+        }
         disabled={busy}
         className={used ? className : "mx-auto block py-2 text-center text-sm text-gray-500 underline underline-offset-4"}
       >

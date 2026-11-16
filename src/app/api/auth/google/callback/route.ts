@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { GOOGLE_COOKIE, checkGoogleClaims, exchangeGoogleCode, googleConfigured, unpackAttempt } from "@/lib/google";
-import { signInAs, takeMoveConfirmation } from "@/lib/identity";
+import { moveFromAttempt, signInAs } from "@/lib/identity";
 import { safePath } from "@/lib/paths";
 
 // Back from Google: check it's the attempt we started, ask Google who it is,
@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
 
   const account = await db.account.upsert({ where: { email: who.email }, create: { email: who.email, name: who.name }, update: {} });
   if (!account.name && who.name) await db.account.update({ where: { id: account.id }, data: { name: who.name } });
-  // Only the groups the person agreed to move before leaving for Google (none if they were never asked).
-  await signInAs(account.id, { confirmed: await takeMoveConfirmation() });
+  // Only the groups the person agreed to move before leaving for Google, sealed into this very attempt (none if they were never asked).
+  await signInAs(account.id, { confirmed: await moveFromAttempt(attempt.state, attempt.move) });
   const res = NextResponse.redirect(new URL(`${back}${back.includes("?") ? "&" : "?"}signedin=1`, req.url), 303);
   res.cookies.delete({ name: GOOGLE_COOKIE, path: "/api/auth/google" });
   res.headers.set("Cache-Control", "no-store");

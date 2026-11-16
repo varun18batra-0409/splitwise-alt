@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { confirmGuestMove } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { cancelGuestMove, confirmGuestMove, moveGuestGroups } from "@/app/actions";
 import { GroupCover } from "@/components/GroupCover";
 import type { CoverChoice } from "@/lib/covers";
 import { trapFocus } from "@/lib/focus-trap";
@@ -11,7 +12,7 @@ import { trapFocus } from "@/lib/focus-trap";
 // no sign-in, nothing moved. "Move them and continue" hands the listed groups on (their ids) and carries on.
 export type GuestGroupRow = { memberId: string; groupId: string; name: string; people: number; cover: { kind: string; src?: string }; letter: string };
 
-function Sheet({ groups, onMove, onCancel }: { groups: GuestGroupRow[]; onMove: () => void; onCancel: () => void }) {
+function Sheet({ groups, onMove, onCancel, busy, error, signedIn }: { groups: GuestGroupRow[]; onMove: () => void; onCancel: () => void; busy: boolean; error: string; signedIn: boolean }) {
   const box = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   // onCancel only clears a ref and a flag, so the first copy is always right; keeping the focus trap from restarting on every render.
@@ -29,9 +30,9 @@ function Sheet({ groups, onMove, onCancel }: { groups: GuestGroupRow[]; onMove: 
         <span aria-hidden className="mx-auto block h-1 w-10 shrink-0 rounded-full bg-fg/20" />
         <div className="min-h-0 flex-1 overflow-y-auto">
           <h2 id="guest-sheet-title" ref={heading} tabIndex={-1} className="mt-4 font-display text-[26px] font-semibold leading-tight tracking-tight outline-none">
-            These groups will move to this account
+            {signedIn ? "Move these groups to your account?" : "These groups will move to this account"}
           </h2>
-          <p className="mt-2 text-[15px] leading-snug text-fg/65">This phone already holds these groups as a guest. If you carry on, they join the account you sign in with.</p>
+          <p className="mt-2 text-[15px] leading-snug text-fg/65">{signedIn ? "This phone holds these groups only as a guest. If you carry on, they join your account." : "This phone already holds these groups as a guest. If you carry on, they join the account you sign in with."}</p>
           <ul className="mt-4 divide-y divide-line rounded-2xl border border-line" data-guest-list>
             {groups.map((g) => (
               <li key={g.memberId} className="flex items-center gap-3 px-3.5 py-3">
@@ -46,10 +47,15 @@ function Sheet({ groups, onMove, onCancel }: { groups: GuestGroupRow[]; onMove: 
             ))}
           </ul>
           <p className="mt-3 text-sm leading-snug text-fg/65">Not your groups? Tap Cancel and hand the phone back.</p>
+          {error && (
+            <p className="mt-3 text-sm text-red-600" role="alert" data-guest-error>
+              {error}
+            </p>
+          )}
         </div>
         <div className="mt-4 space-y-2">
-          <button type="button" onClick={onMove} className="pop block min-h-12 w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas" data-guest-move>
-            Move them and continue
+          <button type="button" onClick={onMove} disabled={busy} className="pop block min-h-12 w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas disabled:opacity-60" data-guest-move>
+            {busy ? "One moment…" : signedIn ? "Move them" : "Move them and continue"}
           </button>
           <button
             type="button"
@@ -65,28 +71,43 @@ function Sheet({ groups, onMove, onCancel }: { groups: GuestGroupRow[]; onMove: 
   );
 }
 
-// Ask first when the phone holds guest groups. `then` runs only after "Move them and continue" (with the listed ids), or at
-// once when there is nothing to ask about (then it gets an empty list: nothing to move).
-export function useGuestCheck(groups: GuestGroupRow[]) {
+// Ask first when the phone holds guest groups. `then` runs only after "Move them and continue" (with the listed ids), or at once when
+// there is nothing to ask about (then it gets an empty list: nothing to move). If `then` fails (throws or rejects), the sheet STAYS
+// open with "Something went wrong. Try again." and nothing carries on. `signedIn`: the "only on this phone" notice (already signed in).
+export function useGuestCheck(groups: GuestGroupRow[], opts: { signedIn?: boolean } = {}) {
   const [open, setOpen] = useState(false);
-  const next = useRef<((ids: string[]) => void) | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const next = useRef<{ then: (ids: string[]) => void | Promise<void>; onCancel?: () => void } | null>(null);
   const ids = groups.map((g) => g.memberId);
-  function ask(then: (ids: string[]) => void) {
-    if (!groups.length) return then([]);
-    next.current = then;
+  function ask(then: (ids: string[]) => void | Promise<void>, o: { onCancel?: () => void } = {}) {
+    if (!groups.length) return void then([]);
+    next.current = { then, onCancel: o.onCancel };
+    setError("");
     setOpen(true);
   }
   const cancel = () => {
-    next.current = null; // Cancel: nothing happens
-    setOpen(false);
-  };
-  const move = () => {
-    const f = next.current;
+    next.current?.onCancel?.(); // Cancel: nothing happens (a Google note, if one was left, is thrown away)
     next.current = null;
+    setError("");
     setOpen(false);
-    f?.(ids);
   };
-  const sheet = open ? <Sheet groups={groups} onMove={move} onCancel={cancel} /> : null;
+  const move = async () => {
+    const f = next.current;
+    if (!f || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await f.then(ids);
+      next.current = null;
+      setOpen(false);
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const sheet = open ? <Sheet groups={groups} onMove={move} onCancel={cancel} busy={busy} error={error} signedIn={Boolean(opts.signedIn)} /> : null;
   return { ask, sheet };
 }
 
@@ -102,10 +123,15 @@ export function GoogleSignInLink({ href, groups, className, children }: { href: 
         onClick={(e) => {
           if (!groups.length) return;
           e.preventDefault();
-          ask(async (ids) => {
-            await confirmGuestMove(ids).catch(() => undefined);
-            window.location.assign(href);
-          });
+          ask(
+            async (ids) => {
+              // If the note can't be left, do NOT carry on to Google: the groups would be left behind.
+              const r = await confirmGuestMove(ids);
+              if (!r?.ok) throw new Error("not saved");
+              window.location.assign(href);
+            },
+            { onCancel: () => void cancelGuestMove().catch(() => undefined) },
+          );
         }}
       >
         {children}
@@ -138,5 +164,47 @@ export function GuardedCodeForm({ action, groups, className, children }: { actio
       </form>
       {sheet}
     </>
+  );
+}
+
+// Already signed in, but guest groups are still only on this phone (the check was skipped, or they came later): opens the same
+// sheet; "Move them" links exactly the listed groups to the account.
+export function GuestMoveButton({ groups, className, children }: { groups: GuestGroupRow[]; className: string; children: ReactNode }) {
+  const router = useRouter();
+  const { ask, sheet } = useGuestCheck(groups, { signedIn: true });
+  return (
+    <>
+      <button
+        type="button"
+        className={className}
+        data-guest-open
+        onClick={() =>
+          ask(async (ids) => {
+            const r = await moveGuestGroups(ids);
+            if (!r?.ok) throw new Error("not moved");
+            router.refresh();
+          })
+        }
+      >
+        {children}
+      </button>
+      {sheet}
+    </>
+  );
+}
+
+// The quiet line on Home: "{N} groups are only on this phone. Move them to your account?"
+export function GuestMoveNotice({ groups }: { groups: GuestGroupRow[] }) {
+  if (!groups.length) return null;
+  const n = groups.length;
+  return (
+    <section aria-label="Groups only on this phone" className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl border border-line px-4 py-2" data-guest-notice>
+      <p className="min-w-0 flex-1 basis-48 text-sm leading-snug text-fg/75">
+        {n === 1 ? "1 group is" : `${n} groups are`} only on this phone. Move {n === 1 ? "it" : "them"} to your account?
+      </p>
+      <GuestMoveButton groups={groups} className="inline-flex min-h-11 items-center px-1 text-sm font-semibold text-fg underline underline-offset-4">
+        Review
+      </GuestMoveButton>
+    </section>
   );
 }

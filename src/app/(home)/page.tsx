@@ -9,7 +9,8 @@ import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
-import { getAccount, getMemberships } from "@/lib/identity";
+import { getAccount, getMemberships, guestGroupsOnPhone } from "@/lib/identity";
+import { GuestMoveNotice } from "@/components/GuestMoveSheet";
 import { PasskeyOffer } from "@/components/Passkeys";
 
 import { loadDeletedGroups } from "@/lib/group-data";
@@ -89,7 +90,7 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew] = await Promise.all([
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew, guestGroups] = await Promise.all([
     loadOverview(memberships, visitorRegion(await headers()).currency),
     loadDeletedGroups(memberships),
     getAccount(),
@@ -99,6 +100,8 @@ export default async function Home({
     getAccount().then((a) => loadInvitations(a)),
     // Postcards that arrived and are unread (none from people you blocked, none still sealed).
     getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
+    // Signed in, but some groups are still only a guest name on this phone (the sign-in check was skipped, or they came later).
+    getAccount().then((a) => (a ? guestGroupsOnPhone() : [])),
   ]);
   const { all, direct, open, closed, common, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
@@ -506,6 +509,9 @@ export default async function Home({
         </div>
         <BellButton className="glass border border-fg/10" />
       </header>
+
+      {/* Signed in, with groups that are only on this phone: a quiet offer to move them (opens the same check as sign-in). */}
+      <GuestMoveNotice groups={guestGroups} />
 
       {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
       {!hasAny && invitationsBlock}

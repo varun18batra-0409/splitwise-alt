@@ -40,6 +40,10 @@ describe("the round trip to Google", () => {
   });
   it("remembers the attempt (state, PKCE, where to go back) and rejects junk", () => {
     expect(unpackAttempt(packAttempt("st", "ver", "/join/abc?x=1"))).toEqual({ state: "st", verifier: "ver", back: "/join/abc?x=1" });
+    // A fourth part carries the sealed "move these groups" confirmation, and comes back out unchanged.
+    expect(unpackAttempt(packAttempt("st", "ver", "/", "payload.sig"))).toEqual({ state: "st", verifier: "ver", back: "/", move: "payload.sig" });
+    expect(unpackAttempt(packAttempt("st", "ver", "/"))?.move).toBeUndefined();
+    expect(unpackAttempt("a.b.c.d.e")).toBeNull();
     expect(unpackAttempt(undefined)).toBeNull();
     expect(unpackAttempt("only.two")).toBeNull();
   });
