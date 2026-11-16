@@ -104,6 +104,9 @@ export async function sendEventPush(eventId: string): Promise<number> {
     if (ev.kind === "payment_claimed") return 0;
     // A pair taking the currency of its first expense isn't news: the expense itself is what the other person is told about.
     if (ev.group.type === "direct" && ev.kind === "currency_changed") return 0;
+    // The payer and the person paid of a payment are told by their own message ("Asha recorded paying you ₹400. If that's wrong, open it to delete it."),
+    // not by this group-wide one, so they are not told twice.
+    const inPayment = await partiesOfEvent(ev);
     // Everyone else still in the group whose settings want this kind of change —
     // never the phone that made the change (even if it's someone else here too).
     const [all, own] = await Promise.all([
@@ -115,9 +118,6 @@ export async function sendEventPush(eventId: string): Promise<number> {
       db.pushSubscription.findMany({ where: { memberId: ev.actorId }, select: { endpoint: true } }),
     ]);
     const actorPhones = new Set(own.map((o) => o.endpoint));
-    // The payer and the person paid of a payment are told by their own message ("Asha recorded paying you ₹400. If that's wrong, open it to delete it."),
-    // not by this group-wide one, so they are not told twice.
-    const inPayment = await partiesOfEvent(ev);
     // Anyone who blocked the person who did this hears nothing about it (the group's money and activity list are unchanged).
     const actorAccountId = (await db.member.findUnique({ where: { id: ev.actorId }, select: { accountId: true } }))?.accountId;
     const blockers = actorAccountId ? await blockersOf(actorAccountId) : new Set<string>();
