@@ -1,0 +1,536 @@
+{
+ "groups": [
+  {
+   "file": "top-1.png",
+   "title": "Top 1: USA cities (West, Midwest, East)",
+   "rows": [
+    {
+     "slot": "New York",
+     "note": "place-newyork",
+     "now": [
+      {
+       "id": "photo-1764344793554-12da6166d940",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "San Francisco",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1501594907352-04cda38ebc29",
+       "page": "https://unsplash.com/fr/photos/golden-gate-bridge-during-daytime-gZXx8lKAb7Y",
+       "desc": "Golden Gate Bridge during daytime"
+      },
+      {
+       "id": "photo-1554107136-57b138ea99df",
+       "page": "https://unsplash.com/fr/photos/maisons-de-painted-ladies-a-san-francisco-HadloobmnQs",
+       "desc": "Painted Ladies houses in San Francisco with the skyline in low sun"
+      },
+      {
+       "id": "photo-1719858403455-9a2582eca805",
+       "page": "https://unsplash.com/fr/photos/une-vue-du-golden-gate-bridge-au-coucher-du-soleil-JdoyKffQ5I8",
+       "desc": "View of the Golden Gate Bridge at sunset"
+      }
+     ]
+    },
+    {
+     "slot": "Los Angeles",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1575555201693-7cd442b8023f",
+       "page": "https://unsplash.com/photos/los-angeles-skyline-with-palm-trees-UZVlSjrIJ3o",
+       "desc": "Palm trees silhouetted against the Los Angeles skyline at golden hour"
+      },
+      {
+       "id": "photo-1609924211018-5526c55bad5b",
+       "page": "https://unsplash.com/photos/hollywood-sign-on-los-angeles-hillside-VJ5i5ARz6jc",
+       "desc": "Hollywood sign on a grassy hillside in Los Angeles"
+      },
+      {
+       "id": "photo-1767681774612-a3062667f6ac",
+       "page": "https://unsplash.com/photos/palm-trees-with-los-angeles-skyline-at-sunset-_TDdZOgzEoU",
+       "desc": "Palm trees with the Los Angeles skyline at sunset"
+      }
+     ]
+    },
+    {
+     "slot": "Las Vegas",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1772314323794-1480138dd3f9",
+       "page": "https://unsplash.com/id/foto/las-vegas-strip-dengan-air-mancur-bellagio-saat-senja-jlTy96QYNRU",
+       "desc": "Las Vegas Strip with the Bellagio fountains at dusk"
+      },
+      {
+       "id": "photo-1787336594993-5c2fbc3fcb50",
+       "page": "https://unsplash.com/id/foto/garis-langit-las-vegas-dengan-pohon-palem-4Yy3bq6JsC8",
+       "desc": "Las Vegas skyline with palms in front and distant mountains"
+      }
+     ]
+    },
+    {
+     "slot": "Miami",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1589083130544-0d6a2926e519",
+       "page": "https://unsplash.com/photos/aerial-view-of-miami-beach-coastline-KDS5lCrj_ew",
+       "desc": "Aerial view of the Miami Beach coastline and high-rises"
+      },
+      {
+       "id": "photo-1605723517503-3cadb5818a0c",
+       "page": "https://unsplash.com/photos/silhouette-of-palm-trees-near-body-of-water-during-sunset-FQjUaIMQF3Q",
+       "desc": "Silhouette of palm trees near water at sunset (Miami search)"
+      },
+      {
+       "id": "photo-1759352642144-8fdef1cc766a",
+       "page": "https://unsplash.com/photos/palm-trees-line-a-sunny-street-with-white-buildings-NfK4SiyIvEw",
+       "desc": "Palm trees lining a sunny street with white buildings (Miami search)"
+      }
+     ]
+    },
+    {
+     "slot": "Chicago",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1776238133864-ec648b403dd0",
+       "page": "https://unsplash.com/fr/photos/la-silhouette-de-la-ville-avec-des-batiments-reflechissant-la-riviere-au-coucher-du-soleil-4qfnJQg5fQc",
+       "desc": "City skyline with buildings reflecting in the river at sunset (Chicago search)"
+      },
+      {
+       "id": "photo-1494522855154-9297ac14b55f",
+       "page": "https://unsplash.com/fr/photos/sculpture-de-la-porte-des-nuages-a-chicago-tnv84LOjes4",
+       "desc": "Cloud Gate at Millennium Park with Chicago towers behind"
+      }
+     ]
+    },
+    {
+     "slot": "Washington DC",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1617581629397-a72507c3de9e",
+       "page": "https://unsplash.com/it/foto/monumento-a-washington-e-fiori-di-ciliegi-PuJc2Sodi94",
+       "desc": "Washington Monument framed by cherry blossoms along the Tidal Basin"
+      },
+      {
+       "id": "photo-1775521037295-86f750e113dd",
+       "page": "https://unsplash.com/it/foto/la-cupola-delledificio-del-campidoglio-degli-stati-uniti-al-tramonto-GMCDmnG08X8",
+       "desc": "US Capitol dome at sunset"
+      },
+      {
+       "id": "photo-1774950343707-1262b410d76f",
+       "page": "https://unsplash.com/it/foto/i-fiori-di-ciliegio-incorniciano-il-memoriale-jefferson-attraverso-il-bacino-di-marea-DokL-AczPtI",
+       "desc": "Cherry blossoms framing the Jefferson Memorial across the Tidal Basin"
+      }
+     ]
+    },
+    {
+     "slot": "Boston",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1565127803082-69dd82351360",
+       "page": "https://unsplash.com/fr/photos/plan-deau-pres-du-paysage-urbain-pendant-la-journee-8nA_iHrxHIo",
+       "desc": "Water near a cityscape in daytime (Boston search)"
+      },
+      {
+       "id": "photo-1573524949339-b830334a31ee",
+       "page": "https://unsplash.com/fr/photos/une-vue-dune-ville-de-lautre-cote-de-leau-SUMtPksZXBE",
+       "desc": "View of a city across the water (Boston search)"
+      }
+     ]
+    },
+    {
+     "slot": "Seattle",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1502175353174-a7a70e73b362",
+       "page": "https://unsplash.com/photos/space-needle-and-seattle-skyline-skUTVJi8-jc",
+       "desc": "Space Needle and Seattle skyline with Mount Rainier in the distance"
+      },
+      {
+       "id": "photo-1589481169991-40ee02888551",
+       "page": "https://unsplash.com/photos/space-needle-and-seattle-skyline-UmEYn_GYqFo",
+       "desc": "Space Needle and skyline with Mount Rainier under a warm orange sky"
+      },
+      {
+       "id": "photo-1779515669613-156880ecdf56",
+       "page": "https://unsplash.com/photos/the-seattle-space-needle-dominates-the-city-skyline-at-dusk-tAg0BTHnw4A",
+       "desc": "Seattle Space Needle dominating the skyline at dusk"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "top-2.png",
+   "title": "Top 2: USA parks, Hawaii and the South",
+   "rows": [
+    {
+     "slot": "Grand Canyon",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1615551043360-33de8b5f410c",
+       "page": "https://unsplash.com/it/foto/fiume-colorado-nel-grand-canyon-ZZnH4GOzDgc",
+       "desc": "Colorado River winding through deep rocky canyons of the Grand Canyon"
+      },
+      {
+       "id": "photo-1527333656061-ca7adf608ae1",
+       "page": "https://unsplash.com/it/foto/fiume-colorado-nel-grand-canyon-XuQGqCBpNGk",
+       "desc": "Colorado River winding through the deep red canyons of the Grand Canyon"
+      },
+      {
+       "id": "photo-1778877763072-533a6faa6ae8",
+       "page": "https://unsplash.com/it/foto/paesaggio-del-grand-canyon-sotto-un-cielo-nuvoloso-e-drammatico-de3FOlxk1_U",
+       "desc": "Grand Canyon landscape under a dramatic cloudy sky"
+      }
+     ]
+    },
+    {
+     "slot": "Yellowstone",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1529439322271-42931c09bce1",
+       "page": "https://unsplash.com/photos/geyser-within-mountain-range-during-daytime-oN3U95O4cag",
+       "desc": "Geyser within a mountain range during daytime (Yellowstone search)"
+      },
+      {
+       "id": "photo-1608233695800-34245ba7274f",
+       "page": "https://unsplash.com/photos/brown-grass-field-near-lake-during-daytime-tAltJgzJBas",
+       "desc": "Brown grass field near a lake (Yellowstone search)"
+      },
+      {
+       "id": "photo-1778704858672-de5d83eca327",
+       "page": "https://unsplash.com/photos/a-lone-bison-grazes-in-a-field-with-mountains-1Mido41gAU8",
+       "desc": "A lone bison grazing in a field with mountains (Yellowstone search)"
+      }
+     ]
+    },
+    {
+     "slot": "Yosemite",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1498429089284-41f8cf3ffd39",
+       "page": "https://unsplash.com/fr/photos/falaises-de-granit-et-cascade-a-yosemite-M6XC789HLe8",
+       "desc": "Granite cliffs and a waterfall above forest, Yosemite National Park"
+      },
+      {
+       "id": "photo-1506744038136-46273834b3fb",
+       "page": "https://unsplash.com/fr/photos/riviere-dans-la-vallee-de-yosemite-en-faible-luminosite-NRQV-hBF10M",
+       "desc": "River through Yosemite Valley with granite cliffs and pines"
+      },
+      {
+       "id": "photo-1472396961693-142e6e269027",
+       "page": "https://unsplash.com/fr/photos/cerfs-dans-la-prairie-de-la-vallee-de-yosemite-UCd78vfC8vU",
+       "desc": "Two deer in a meadow before Half Dome, Yosemite Valley"
+      }
+     ]
+    },
+    {
+     "slot": "Moab / Arches",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1763793927948-7faaa6adb479",
+       "page": "https://unsplash.com/photos/natural-rock-arch-framing-desert-landscape-at-sunset-EBTXvQuVX08",
+       "desc": "Natural rock arch framing a desert landscape at sunset (Arches search)"
+      },
+      {
+       "id": "photo-1785300168599-862002d3a7f2",
+       "page": "https://unsplash.com/photos/golden-hour-light-on-a-desert-arch-and-weathered-tree-dqFALDmG6r8",
+       "desc": "Golden hour light on a desert arch and weathered tree (Arches search)"
+      },
+      {
+       "id": "photo-1602086010043-4db598ce5d16",
+       "page": "https://unsplash.com/photos/brown-rock-formation-under-blue-sky-during-daytime-T1cN5Fkjiv4",
+       "desc": "Brown rock formation under blue sky (Arches search)"
+      }
+     ]
+    },
+    {
+     "slot": "Honolulu / Oahu",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1507876466758-bc54f384809c",
+       "page": "https://unsplash.com/photos/aerial-photography-of-building-near-sea-VxFQCqaI7pk",
+       "desc": "Aerial photo of buildings near the sea (Waikiki search)"
+      },
+      {
+       "id": "photo-1698094276375-2989818836f5",
+       "page": "https://unsplash.com/photos/an-aerial-view-of-a-city-and-the-ocean-7Rn_GksKg3c",
+       "desc": "Aerial view of a city and the ocean (Waikiki search)"
+      },
+      {
+       "id": "photo-1687960506414-5d1b99a7e782",
+       "page": "https://unsplash.com/photos/an-aerial-view-of-a-beach-with-palm-trees-XzB_p17QnfA",
+       "desc": "Aerial view of a beach with palm trees (Waikiki search)"
+      }
+     ]
+    },
+    {
+     "slot": "New Orleans",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1640583430339-f83d93e77413",
+       "page": "https://unsplash.com/photos/a-tall-building-with-a-balcony-and-flowers-on-the-balconies-cyZuN_AViJQ",
+       "desc": "Tall building with a balcony and flowers (New Orleans search)"
+      },
+      {
+       "id": "photo-1568693059993-a239b9cd4957",
+       "page": "https://unsplash.com/photos/brown-and-gray-3-story-building-nUkxLPE5Fto",
+       "desc": "Brown and grey 3-storey building (New Orleans search)"
+      }
+     ]
+    },
+    {
+     "slot": "Nashville",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1606762903097-713bf356b8c2",
+       "page": "https://unsplash.com/de/fotos/gewasser-in-der-nahe-von-stadtgebauden-wahrend-des-sonnenuntergangs-2jSQEuqLi4U",
+       "desc": "Water near city buildings at sunset (Nashville search)"
+      },
+      {
+       "id": "photo-1545419913-775e3e82c7db",
+       "page": "https://unsplash.com/de/fotos/lichter-der-stadt-in-der-morgendammerung-o1Bxf1tX9t0",
+       "desc": "City lights at dawn (Nashville search)"
+      }
+     ]
+    },
+    {
+     "slot": "Charleston",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1623608103477-2b90432a3f85",
+       "page": "https://unsplash.com/photos/people-riding-on-carriage-on-road-during-daytime-126F-Xh3sOo",
+       "desc": "Carriage on a road in the daytime (Charleston search)"
+      },
+      {
+       "id": "photo-1533852990198-bdd4082bf8c0",
+       "page": "https://unsplash.com/photos/cable-stayed-bridge-view-during-golden-hour-q86md0sqdBA",
+       "desc": "Cable-stayed bridge at golden hour (Charleston search)"
+      },
+      {
+       "id": "photo-1623608103491-2cd29188ab76",
+       "page": "https://unsplash.com/photos/yellow-and-blue-concrete-building-ajxP9gEhu30",
+       "desc": "Yellow and blue building (Charleston search)"
+      }
+     ]
+    },
+    {
+     "slot": "San Diego",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1654054413716-0a2986b9cd3d",
+       "page": "https://unsplash.com/photos/a-view-of-the-ocean-from-a-cliff-G1tM14ccTbo",
+       "desc": "View of the ocean from a cliff (La Jolla Cove search)"
+      },
+      {
+       "id": "photo-1546200378-42351b6f4552",
+       "page": "https://unsplash.com/photos/nature-photography-of-waves-crashing-rocky-shore-during-daytime-TgqwMwPuN4I",
+       "desc": "Waves crashing on a rocky shore (La Jolla Cove search)"
+      },
+      {
+       "id": "photo-1615856530122-bfac378b313b",
+       "page": "https://unsplash.com/photos/brown-wooden-dock-on-sea-during-daytime-NQqM9xQgcn8",
+       "desc": "Wooden dock on the sea (La Jolla Cove search)"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "top-3.png",
+   "title": "Top 3: world places the app already has (Now) plus a few candidates",
+   "rows": [
+    {
+     "slot": "London",
+     "note": "place-london",
+     "now": [
+      {
+       "id": "photo-1633357441498-7431babe0cc7",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1520986606214-8b456906c813",
+       "page": "https://unsplash.com/photos/big-ben-london-iP8ElEhqHeY",
+       "desc": "Big Ben, London"
+      },
+      {
+       "id": "photo-1547254002-e65e0179fe9f",
+       "page": "https://unsplash.com/photos/tower-bridge-over-river-thames-london-SJPrbVaHo-Q",
+       "desc": "Aerial Tower Bridge over the Thames at golden hour"
+      }
+     ]
+    },
+    {
+     "slot": "Paris",
+     "note": "cover-paris",
+     "now": [
+      {
+       "id": "photo-1502602898657-3e91760cbb34",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Tokyo",
+     "note": "place-japan is Kyoto",
+     "now": [
+      {
+       "id": "photo-1578469645742-46cae010e5d4",
+       "label": "Now (Kyoto)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1759495051024-cbea2d646b61",
+       "page": "https://unsplash.com/photos/tokyo-tower-stands-tall-over-the-cityscape-at-dusk-kC1WPnjvk68",
+       "desc": "Tokyo Tower standing tall over the cityscape at dusk"
+      },
+      {
+       "id": "photo-1513407030348-c983a97b98d8",
+       "page": "https://unsplash.com/photos/tokyo-tower-illuminated-at-dusk-with-city-skyline-IocJwyqRv3M",
+       "desc": "Tokyo Tower illuminated at dusk with the skyline"
+      }
+     ]
+    },
+    {
+     "slot": "Singapore",
+     "note": "place-singapore",
+     "now": [
+      {
+       "id": "photo-1544625237-5d2ae46de481",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Dubai",
+     "note": "place-dubai",
+     "now": [
+      {
+       "id": "photo-1782078292081-8fb6de1c54df",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Bali",
+     "note": "place-bali",
+     "now": [
+      {
+       "id": "photo-1555400038-63f5ba517a47",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Maldives",
+     "note": "place-maldives",
+     "now": [
+      {
+       "id": "photo-1691853735541-a8f1bdd2cd16",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Santorini",
+     "note": "place-santorini",
+     "now": [
+      {
+       "id": "photo-1580502304784-8985b7eb7260",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Switzerland (Zurich/Interlaken)",
+     "note": "place-switzerland",
+     "now": [
+      {
+       "id": "photo-1723276300410-113696641bab",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Vietnam (Hanoi/Ha Long)",
+     "note": "place-vietnam",
+     "now": [
+      {
+       "id": "photo-1431975071466-2c609dac5956",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Sri Lanka",
+     "note": "place-srilanka",
+     "now": [
+      {
+       "id": "photo-1566296314736-6eaac1ca0cb9",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    },
+    {
+     "slot": "Thailand (Bangkok/Phuket)",
+     "note": "place-thailand",
+     "now": [
+      {
+       "id": "photo-1534008897995-27a23e859048",
+       "label": "Now"
+      }
+     ],
+     "cands": []
+    }
+   ]
+  }
+ ]
+}

@@ -21,6 +21,7 @@ jobs:
           python-version: "3.12"
       - run: pip install pillow
       - run: python3 scripts/photo-sheet.py out
+      - run: python3 scripts/photo-sheet-top.py out
       - name: Push the sheets to the orphan branch
         run: |
           cd out
