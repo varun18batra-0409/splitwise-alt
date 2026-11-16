@@ -680,12 +680,12 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
         const fresh = await tx.bill.findUnique({ where: { id: x.billId }, select: { prepaid: true } });
         if (fresh) await tx.bill.update({ where: { id: x.billId }, data: { prepaid: removePrepaid(fresh.prepaid, x.period, x.expenseId) } });
       }
-      let kept = 0;
+      let billsKept = 0;
       for (const b of info.bills) {
         const now = await tx.bill.findUnique({ where: { id: b.id }, select: { payer: true, rotation: true, split: true, deletedAt: true } });
         if (!now || now.deletedAt) continue;
         if (now.payer !== b.after.payer || now.rotation !== b.after.rotation || now.split !== b.after.split) {
-          kept++;
+          billsKept++;
           continue;
         }
         await tx.bill.update({ where: { id: b.id }, data: b.before });
@@ -718,8 +718,8 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
         kind: "member_rejoined",
         text: `${memberId === actorId ? "moved back in" : `brought ${m.name} back into the flat`} (undo)`,
         details: [
-          ...(info.bills.length - kept > 0 ? ["Bills they paid or took turns on are back as they were"] : []),
-          ...(kept ? [`${kept} bill${kept === 1 ? "" : "s"} changed since kept the newer settings`] : []),
+          ...(info.bills.length - billsKept > 0 ? ["Bills they paid or took turns on are back as they were"] : []),
+          ...(billsKept ? [`${billsKept} bill${billsKept === 1 ? "" : "s"} changed since kept the newer settings`] : []),
           ...(info.deposit ? ["Their deposit is back with them"] : []),
           ...((info.prepaid ?? []).length ? ["Their share of the daily bills was taken off again"] : []),
           ...lines,
