@@ -5,7 +5,7 @@ import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
 import { allow } from "./rate-limit";
 import { deliverNotes } from "./account-notes";
-import { blockedEitherWay, hasBlocked } from "./blocks";
+import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
 import { groupAdminId } from "./group-admin";
 import { randomBytes } from "node:crypto";
 import { validSub } from "./push-subs";
@@ -108,7 +108,9 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   for (const r of knownRows) if (r.accountId && !groupName.has(r.accountId)) groupName.set(r.accountId, r.name);
   const known = await db.account.findMany({ where: { id: { in: [...groupName.keys()] } } });
   const shownName = (a: { id: string; name: string }) => a.name.trim() || groupName.get(a.id) || "Someone";
-  const shown = known.filter((a) => shownName(a).toLowerCase().includes(q));
+  // Blocking works both ways: nobody with a block between them and the searcher is found.
+  const blockedWithMe = me?.accountId ? await blockedEitherWay(me.accountId) : new Set<string>();
+  const shown = known.filter((a) => shownName(a).toLowerCase().includes(q) && !blockedWithMe.has(a.id));
   // Already invited to this group and not joined yet: shown as "Invited".
   const waiting = shown.length ? await db.invite.findMany({ where: { groupId, acceptedAt: null, declinedAt: null, email: { in: shown.map((a) => a.email) } }, select: { email: true } }) : [];
   const invitedEmails = new Set(waiting.map((i) => i.email));
@@ -227,10 +229,10 @@ async function inviteOne(
 
   const link = `${o.origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: memberId })}`;
   const job = async () => {
-    // They are in the group (the money has to work), but if this person has blocked the inviter, nothing reaches them:
+    // They are in the group (the money has to work), but if there is a block between this person and the inviter (either way), nothing reaches them:
     // no email, no alert, no push. (If the lookup fails, nothing does either.) The email still goes through every check and
     // counter, without being sent, so from the outside it looks exactly like a real invite.
-    const blocked = Boolean(o.account && actor.accountId && (await hasBlocked(o.account.id, actor.accountId).catch(() => true)));
+    const blocked = Boolean(o.account && actor.accountId && (await isBlockedEitherWay(o.account.id, actor.accountId).catch(() => true)));
     if (o.mail) {
       await sendMail(
         email,
@@ -242,7 +244,7 @@ async function inviteOne(
     }
     if (blocked) return;
     if (o.account && !o.noAlert) {
-      await deliverNotes([{ accountIds: [o.account.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
+      await deliverNotes([{ accountIds: [o.account.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}`, fromAccountId: actor.accountId ?? undefined }]);
     }
   };
   if (o.later) o.later(job);
@@ -306,6 +308,8 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   if (!actor || actor.leftAt) return { ok: false, error: "Only people in this group can add others." };
   const account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { ok: false, error: "That person isn't on Loopin." };
+  // A block either way: the same reply as for a stranger (never says why), and nothing is written.
+  if (actor.accountId && (await isBlockedEitherWay(actor.accountId, accountId))) return { ok: false, error: "That person isn't on Loopin." };
   const existing = group.members.find((m) => m.accountId === accountId);
   // Only people the actor could have found in search: someone who already has a row in THIS group (inviting a person who left back), or someone
   // who shares another group with the actor. Anyone else gets the same reply as an account that doesn't exist, and nothing is written.
@@ -358,6 +362,11 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
     // Already in the group (or removed from it), or you: the same reply, nothing sent.
     const already = account ? group.members.find((m) => m.accountId === account.id) : undefined;
     if (account && already) {
+      // A block either way: the same quiet reply, and nothing is written (no invitation back, no alert).
+      if (actor?.accountId && (await isBlockedEitherWay(actor.accountId, account.id))) {
+        people.push({ name: wanted, email });
+        continue;
+      }
       // The same quiet reply for everyone. Only the person who looks after the group can bring back someone they removed.
       if (already.removedAt || already.leftAt) {
         // Left on their own, or removed (admin only): invited to their own row. They are not back until they accept.
@@ -469,10 +478,10 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   // whether or not the person blocked the inviter. The invitation is in place either way; if the email can't go (opted out,
   // daily limits, mail not set up) the reply is still the same for everyone.
   const job = async () => {
-    // If that email belongs to someone who blocked the inviter, nothing is sent. The email goes through exactly the same checks and
+    // If that email belongs to someone with a block between them and the inviter (either way), nothing is sent. The email goes through exactly the same checks and
     // counters as a real one but is never handed to the mail service (`suppress`).
     const theirAccount = await db.account.findUnique({ where: { email }, select: { id: true } });
-    const blocked = Boolean(theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true)));
+    const blocked = Boolean(theirAccount && actor.accountId && (await isBlockedEitherWay(theirAccount.id, actor.accountId).catch(() => true)));
     await sendMail(
       email,
       `${actor.name} added you to ${group.name} on Loopin`,

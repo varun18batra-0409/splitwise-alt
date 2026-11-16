@@ -2,6 +2,9 @@ import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { db } from "./db";
 import { allow } from "./rate-limit";
 import { sendMail, mailConfigured } from "./mail";
+import { emailFingerprint, pepper } from "./fingerprint";
+import { markBlocksOfDeleted, reapplyBlocks, dropBlockMarksOf } from "./block-marks";
+import { markRemovals } from "./removal-marks";
 
 // Optional email sign-in with a 6-digit code (also sent as a one-tap link).
 // A code works once, for 15 minutes, with at most 5 tries.
@@ -14,15 +17,12 @@ export function cleanEmail(raw: string): string | null {
   return /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,24}$/.test(e) ? e : null;
 }
 
-function devPepper(): string {
-  if (process.env.VERCEL_ENV === "production") throw new Error("Sign-in is not set up: AUTH_SECRET is missing on the live app.");
-  return "loopin-dev";
+export function hashLoginCode(email: string, code: string): string {
+  return createHash("sha256").update(`${pepper()}:${email}:${code}`).digest("hex");
 }
 
-export function hashLoginCode(email: string, code: string): string {
-  const pepper = process.env.AUTH_SECRET ?? process.env.TURSO_AUTH_TOKEN ?? devPepper();
-  return createHash("sha256").update(`${pepper}:${email}:${code}`).digest("hex");
-}
+// A keyed fingerprint of an email (never the email itself): see fingerprint.ts.
+export { emailFingerprint };
 
 export type CodeResult = { ok: true } | { ok: false; error: string };
 
@@ -34,6 +34,10 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
   const testing = (process.env.MAIL_OUTBOX === "1" && !process.env.VERCEL) || (process.env.VERCEL_ENV === "preview" && /\.test$/i.test(email));
   if (!testing && (!(await allow(`code-ip:${ip}`, 8, 15 * 60, now)) || !(await allow(`code-email:${email}`, 4, 15 * 60, now)))) {
     return { ok: false, error: "Too many codes asked for. Wait 15 minutes and try again." };
+  }
+  // One connection can ask for at most 20 codes a day (any addresses).
+  if (!testing && !(await allow(`code-ip-day:${ip}`, 20, 86_400, now))) {
+    return { ok: false, error: "Too many codes asked for from here today. Try again tomorrow, or sign in with Google or your fingerprint or face above." };
   }
   // At most 12 codes a day for one address (5 tries each): guessing a code stays hopeless.
   if (!testing && !(await allow(`code-email-day:${email}`, 12, 86_400, now))) {
@@ -84,8 +88,26 @@ export async function verifyLoginCode(rawEmail: string, rawCode: string, now = n
   }
   const used = await db.loginCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
   if (used.count !== 1) return { ok: false, error: "That code was already used. Ask for a new one." };
-  const account = await db.account.upsert({ where: { email }, create: { email }, update: {} });
+  const account = await accountForEmail(email);
   return { ok: true, accountId: account.id };
+}
+
+// The account for this verified email, made if it is new. A new account gets back the blocks people had against that address
+// (block-marks.ts), so deleting an account and signing up again does not undo a block.
+export async function accountForEmail(email: string, name?: string) {
+  const found = await db.account.findUnique({ where: { email } });
+  if (found) return found;
+  let made;
+  let created = true;
+  try {
+    made = await db.account.create({ data: { email, ...(name ? { name } : {}) } });
+  } catch {
+    // Someone else made it at the same moment: use theirs.
+    made = await db.account.findUniqueOrThrow({ where: { email } });
+    created = false;
+  }
+  if (created) await reapplyBlocks(made.id, email).catch(() => 0);
+  return made;
 }
 
 // "Delete my account": the email and sign-in codes are removed; group
@@ -118,6 +140,8 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       const goneIds = photoIds.filter((p) => !stillUsed.has(p));
       const goneFiles = (await tx.postcardPhoto.findMany({ where: { id: { in: goneIds } }, select: { blobKey: true } })).map((p) => p.blobKey);
       await queuePhotoDeletes(tx, goneFiles);
+      // Groups that removed this person keep a scrambled note of the email, so signing up again doesn't walk back in (removal-marks.ts).
+      await markRemovals(tx, accountId, acc.email);
       // Each name gets a new grant epoch, so old copies of this phone-only access elsewhere stop working (SEC-01).
       await tx.member.updateMany({ where: { accountId }, data: { accountId: null, grantEpoch: { increment: 1 } } });
       await tx.loginCode.deleteMany({ where: { email: acc.email } });
@@ -140,6 +164,10 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       // Blocks you made or that were made against you go with the account (reports stay: they are the record of what was reported).
       // Messages this account sent to support go with it (reports stay, as they are the record of what was reported).
       await tx.report.deleteMany({ where: { kind: "support", reporterId: accountId } });
+      // Whoever blocked this person keeps a scrambled note of the email (so the block comes back if they sign up again); the notes this
+      // person held as a blocker go with their account.
+      await markBlocksOfDeleted(tx, accountId, acc.email);
+      await dropBlockMarksOf(tx, accountId);
       await tx.block.deleteMany({ where: { OR: [{ blockerId: accountId }, { blockedId: accountId }] } });
       await tx.collectionEntry.updateMany({ where: { accountId }, data: { accountId: "" } });
       await tx.account.delete({ where: { id: accountId } });

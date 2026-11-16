@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { countdownCard, countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
+import { countdownCard, countdownNames, countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
+import { blockedEitherWay } from "@/lib/blocks";
 import { photoData } from "@/lib/share-photo";
 import { loadOgFonts } from "@/lib/og-assets";
 
@@ -19,7 +20,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   if (await isDirectGroup(id)) return new Response("Not found", { status: 404 }); // a pair has no pictures to share
   const myId = await getMyMemberId(id);
-  const group = myId ? await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } }) : null;
+  const group = myId ? await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, select: { id: true, name: true, accountId: true, addedBy: true, seenAt: true, leftAt: true, removedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } }) : null;
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const phase = tripPhase(group.tripStart, group.tripEnd, todayKey(new Date(), await getTimeZone()));
   const words = phase ? countdownWords(group.name, phase) : null;
@@ -27,7 +28,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   // Loopin's own typefaces (Fraunces for the big words), like the app and the other share pictures.
   const [photo, fonts] = await Promise.all([photoData(group, new URL(req.url).origin), loadOgFonts(new URL(req.url).origin)]);
-  const names = group.members.map((m) => m.name.split(" ")[0]);
+  // Blocking works both ways: nobody with a block between them and the viewer is named on the picture.
+  const viewerAccountId = group.members.find((m) => m.id === myId)?.accountId;
+  const blocked = viewerAccountId ? await blockedEitherWay(viewerAccountId) : new Set<string>();
+  const names = countdownNames(group.members, myId!, blocked);
   // Everyone going (a big group wraps onto a few lines; only past 16 people is the rest counted).
   // Everyone going, each as a little name tag (a very big group wraps onto more rows).
   const shown = names.slice(0, 18);

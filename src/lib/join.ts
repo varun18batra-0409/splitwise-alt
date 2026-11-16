@@ -6,6 +6,7 @@ import { freeName } from "./invites";
 import { newInviteCode } from "./group-setup";
 import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { ownMoveOut, undoViewerFor } from "./undo";
+import { removedByEmail } from "./removal-marks";
 
 // Joining a group from its invite link, and making a new link. Pure database
 // work, no redirects, so it can be tested. The actions in app/actions.ts turn
@@ -17,7 +18,7 @@ import { ownMoveOut, undoViewerFor } from "./undo";
 // - Someone who left on their own can rejoin from the link, as before.
 
 // "moved_out": they moved out with Loopin and can still undo it, so the link doesn't quietly put them back (groupId and memberId say where to send them).
-export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name" | "moved_out"; adminName?: string; groupId?: string; memberId?: string };
+export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name" | "moved_out" | "left"; adminName?: string; groupId?: string; memberId?: string };
 export const NAME_NEEDED = "Add your name so the group knows who you are.";
 export type JoinOk = { ok: true; memberId: string };
 export type JoinAccount = { id: string; name: string; email: string };
@@ -37,6 +38,15 @@ export function removedRow(group: Loaded, accountId: string) {
 
 function removedBy(group: Loaded, row: { removedById: string }): string {
   return group.members.find((m) => m.id === row.removedById)?.name ?? pickAdmin(group.members)?.name ?? "";
+}
+
+// Removed by the admin, then deleted their account and signed up again with the same email: the group kept a scrambled note of the
+// address (removal-marks.ts). Only for an account with no row of its own in the group. The admin inviting them back (and them
+// accepting) is the only way in, and clears the note.
+async function removedAfterReSignup(group: Loaded, account: JoinAccount): Promise<JoinFail | null> {
+  if (group.members.some((m) => m.accountId === account.id)) return null;
+  const mark = await removedByEmail(group.id, account.email);
+  return mark ? { ok: false, reason: "removed", adminName: removedBy(group, { removedById: mark.by }) } : null;
 }
 
 // Emails with an open invitation (not joined, not declined) for this name row. Older tokens carried the row id before a dot.
@@ -60,11 +70,16 @@ async function markSeen(memberId: string) {
 }
 
 // "That's me": take over a name someone added before invitations existed.
-export async function joinExisting(code: string, account: JoinAccount, memberId: string, opts: { allowDirect?: boolean } = {}): Promise<JoinOk | JoinFail> {
+// `skipRemovalMark`: only for an invitation the admin sent after the removal (invitations.ts), which clears the note itself.
+export async function joinExisting(code: string, account: JoinAccount, memberId: string, opts: { allowDirect?: boolean; skipRemovalMark?: boolean } = {}): Promise<JoinOk | JoinFail> {
   const group = await loadByCode(code, opts);
   if (!group) return { ok: false, reason: "gone" };
   const gone = removedRow(group, account.id);
   if (gone) return { ok: false, reason: "removed", adminName: removedBy(group, gone) };
+  if (!opts.skipRemovalMark) {
+    const marked = await removedAfterReSignup(group, account);
+    if (marked) return marked;
+  }
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
     await markSeen(mine.id);
@@ -73,13 +88,15 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   const member = group.members.find((m) => m.id === memberId);
   // Only names nobody has claimed yet (and nobody removed), and only one person can win the claim.
   if (!member || member.accountId || member.claimedAt || member.removedAt) return { ok: false, reason: "claimed" };
+  // A name that has left the group can't be taken over (its history is not for a new account to pick up).
+  if (member.leftAt) return { ok: false, reason: "left" };
   // A name someone was invited as (by email) belongs to that invitation: only the invited email can take it.
   const open = await openInviteEmails(group.id, member.id);
   if (open.length && !open.includes(account.email.toLowerCase())) return { ok: false, reason: "claimed" };
   // The name changes owner: in the same write its epoch goes up (an old guest copy of it on another phone stops working) and
   // its notification rows go (that phone stops hearing about it). The callers copy the joiner's own phones onto it afterwards.
   const won = await db.$transaction(async (tx) => {
-    const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
+    const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null, leftAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
     const dropped = w.count === 1 ? (await tx.pushSubscription.deleteMany({ where: { memberId: member.id } })).count : 0;
     return { count: w.count, dropped };
   });
@@ -92,11 +109,15 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
 }
 
 // Join as yourself (your verified account), or come back after leaving on your own.
-export async function joinNew(code: string, account: JoinAccount, typedName: string): Promise<JoinOk | JoinFail> {
+export async function joinNew(code: string, account: JoinAccount, typedName: string, opts: { skipRemovalMark?: boolean } = {}): Promise<JoinOk | JoinFail> {
   const group = await loadByCode(code);
   if (!group) return { ok: false, reason: "gone" };
   const gone = removedRow(group, account.id);
   if (gone) return { ok: false, reason: "removed", adminName: removedBy(group, gone) };
+  if (!opts.skipRemovalMark) {
+    const marked = await removedAfterReSignup(group, account);
+    if (marked) return marked;
+  }
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
     // (Only while the move-out can really still be undone: if it can't, nothing is left to protect and the link rejoins as before.)

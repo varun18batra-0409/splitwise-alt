@@ -202,8 +202,8 @@ describe("SEC-03: collection ticks, checks and undo can't overwrite each other",
   it("the payer undoes during the organiser's confirm: the confirm is refused, no notification, entry back to due at 0", async () => {
     const c = await collection();
     const ravi = c.entry("Ravi");
-    const friend = await account("Ravi on Loopin");
-    expect((await markPaid(c.code, { entryId: ravi, viewerAccountId: friend.id }, "phone-ravi")).ok).toBe(true);
+    const friend = await account("Ravi");
+    expect((await markPaid(c.code, { entryId: ravi, viewerAccountId: friend.id, viewerName: friend.name }, "phone-ravi")).ok).toBe(true);
     const r = await organiserAction(c.code, c.asha.id, { kind: "confirm", entryId: ravi }, { afterRead: async () => void (await undoPaid(c.code, ravi, "phone-ravi")) });
     expect(r).toEqual({ ok: false, error: "This payment changed just now. Check the list again." });
     expect("notify" in r).toBe(false);
@@ -237,8 +237,8 @@ describe("SEC-03: collection ticks, checks and undo can't overwrite each other",
   it("confirm tapped twice at the same moment: one notification in total", async () => {
     const c = await collection();
     const ravi = c.entry("Ravi");
-    const friend = await account("Ravi on Loopin");
-    await markPaid(c.code, { entryId: ravi, viewerAccountId: friend.id }, "phone-ravi");
+    const friend = await account("Ravi");
+    await markPaid(c.code, { entryId: ravi, viewerAccountId: friend.id, viewerName: friend.name }, "phone-ravi");
     const seen: Awaited<ReturnType<typeof organiserAction>>[] = [];
     const outer = await organiserAction(c.code, c.asha.id, { kind: "confirm", entryId: ravi }, {
       afterRead: async () => void seen.push(await organiserAction(c.code, c.asha.id, { kind: "confirm", entryId: ravi })),

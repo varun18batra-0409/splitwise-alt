@@ -4,7 +4,7 @@ import { allow } from "./rate-limit";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
 import { deliverNotes } from "./account-notes";
-import { hasBlocked, isBlockedEitherWay } from "./blocks";
+import { isBlockedEitherWay } from "./blocks";
 import { JOINED } from "./membership";
 import { isSupportedCurrency } from "./money";
 import { cleanNames } from "./names";
@@ -305,7 +305,7 @@ export async function inviteDirectPerson(
   const link = `${origin}/signin?${new URLSearchParams({ e: email, back: "/" })}`;
   const job = async () => {
     // If that email belongs to someone who blocked the inviter, nothing reaches them (the mail runs through its checks, unsent).
-    const blocked = Boolean(theirs && (await hasBlocked(theirs.id, me.id).catch(() => true)));
+    const blocked = Boolean(theirs && (await isBlockedEitherWay(theirs.id, me.id).catch(() => true)));
     await sendMail(
       email,
       `${actorName} shared expenses with you on Loopin`,
@@ -314,7 +314,7 @@ export async function inviteDirectPerson(
       { optOut: true, item: "groups.added", suppress: blocked },
     ).catch(() => false);
     if (blocked || !theirs) return;
-    await deliverNotes([{ accountIds: [theirs.id], kind: "group_invite", title: `${actorName} shared expenses with you`, body: "Tap to join, or choose Not now.", url: "/", tag: `invite-${groupId}` }]).catch(() => undefined);
+    await deliverNotes([{ accountIds: [theirs.id], kind: "group_invite", title: `${actorName} shared expenses with you`, body: "Tap to join, or choose Not now.", url: "/", tag: `invite-${groupId}`, fromAccountId: me.id }]).catch(() => undefined);
   };
   if (later) later(job);
   else await job();

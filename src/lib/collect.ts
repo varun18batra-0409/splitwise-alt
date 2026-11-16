@@ -72,7 +72,7 @@ export async function loadCollection(code: string) {
 }
 
 // Someone says they've paid: their name from the list (or a new one), and how much.
-export async function markPaid(code: string, input: { entryId?: string; name?: string; amount?: string; viewerAccountId?: string }, payerKey: string): Promise<Ok<{ entryId: string }> | Fail> {
+export async function markPaid(code: string, input: { entryId?: string; name?: string; amount?: string; viewerAccountId?: string; viewerName?: string }, payerKey: string): Promise<Ok<{ entryId: string }> | Fail> {
   const c = await loadCollection(code);
   if (!c) return { ok: false, error: "This collection isn’t there any more." };
   if (c.closedAt) return { ok: false, error: `${c.organiser} has closed this collection.` };
@@ -86,8 +86,9 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
     const e = c.entries.find((x) => x.id === input.entryId);
     if (!e) return { ok: false, error: "Pick your name from the list." };
     if (e.status !== "due") return { ok: false, error: `${e.name} is already marked as paid.` };
-    // Ticked by someone signed in to Loopin: they'll hear when it's checked.
-    const who = !e.accountId && input.viewerAccountId && input.viewerAccountId !== c.accountId ? { accountId: input.viewerAccountId } : {};
+    // Ticked by someone signed in to Loopin: they'll hear when it's checked. The entry is linked to their account only when the name
+    // they ticked is theirs (the same name as their account's): ticking someone else's name never ties that entry to you.
+    const who = !e.accountId && input.viewerAccountId && input.viewerAccountId !== c.accountId && input.viewerName && sameName(input.viewerName, e.name) ? { accountId: input.viewerAccountId } : {};
     const done = await db.collectionEntry.updateMany({ where: { id: e.id, status: "due" }, data: { status: "paid", amount, method: c.currency === "INR" && c.upiId ? "upi" : "other", payerKey, paidAt: new Date(), ...who } });
     if (done.count !== 1) return { ok: false, error: `${e.name} is already marked as paid.` };
     return { ok: true, entryId: e.id };
@@ -95,10 +96,11 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
   const name = cleanNames([String(input.name ?? "")])[0];
   if (!name) return { ok: false, error: "Type your name, so the organiser knows who paid." };
   const twin = c.entries.find((x) => sameName(x.name, name));
-  if (twin && twin.status === "due") return markPaid(code, { entryId: twin.id, amount: input.amount, viewerAccountId: input.viewerAccountId }, payerKey);
+  if (twin && twin.status === "due") return markPaid(code, { entryId: twin.id, amount: input.amount, viewerAccountId: input.viewerAccountId, viewerName: input.viewerName }, payerKey);
   if (twin) return { ok: false, error: `${twin.name} is already on the list as paid. Add your surname or initial if you’re someone else.` };
   if (c.entries.length >= MAX_ENTRIES) return { ok: false, error: "This list is full." };
-  const viewer = input.viewerAccountId && input.viewerAccountId !== c.accountId ? input.viewerAccountId : "";
+  // A name typed in is linked to the viewer's account only when it is their own name.
+  const viewer = input.viewerAccountId && input.viewerAccountId !== c.accountId && input.viewerName && sameName(input.viewerName, name) ? input.viewerAccountId : "";
   const e = await db.collectionEntry.create({ data: { collectionId: c.id, name, amount, status: "paid", method: c.currency === "INR" && c.upiId ? "upi" : "other", payerKey, paidAt: new Date(), accountId: viewer } });
   return { ok: true, entryId: e.id };
 }

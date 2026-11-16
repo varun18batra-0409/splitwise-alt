@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { blockedEitherWay } from "./blocks";
 import { coverFor } from "./covers";
 import { netBalances } from "./balances";
 import { pairwiseDebtCount, smartSettle } from "./settle";
@@ -331,8 +332,18 @@ function leaverEventScope(m: { id: string; leftAt: Date | null; removedAt: Date 
   return cut ? { OR: [{ createdAt: { lte: cut.leftAt } }, { touches: { contains: m.id } }] } : {};
 }
 
+// The people in these groups (as member ids) with a block between them and this account, either way round. Their activity is left
+// out of the Alerts bell only; the group's own screens (expenses, balances, Activity) are never changed, so the money still adds up.
+export async function blockedMemberIds(groupIds: string[], accountId: string): Promise<string[]> {
+  if (!groupIds.length) return [];
+  const blocked = await blockedEitherWay(accountId);
+  if (blocked.size === 0) return [];
+  const rows = await db.member.findMany({ where: { groupId: { in: groupIds }, accountId: { in: [...blocked] } }, select: { id: true } });
+  return rows.map((r) => r.id);
+}
+
 // Notifications: things other people did in my groups since I last looked.
-export async function loadNotifications(memberships: Record<string, string>, limit = 50) {
+export async function loadNotifications(memberships: Record<string, string>, limit = 50, accountId?: string | null) {
   const members = await db.member.findMany({
     where: { id: { in: Object.values(memberships) } },
     include: { group: { select: { id: true, name: true, currency: true, type: true, cover: true, coverAt: true, deletedAt: true } } },
@@ -340,9 +351,10 @@ export async function loadNotifications(memberships: Record<string, string>, lim
   // A retired pair (deleted when an invite merged it) has no page any more, so its old updates are left out.
   const valid = members.filter((m) => memberships[m.groupId] === m.id && !(isDirect(m.group) && m.group.deletedAt));
   if (valid.length === 0) return { items: [], unread: 0 };
+  const hidden = accountId ? await blockedMemberIds(valid.map((m) => m.groupId), accountId) : [];
 
   const events = await db.groupEvent.findMany({
-    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, ...leaverEventScope(m) })) },
+    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { notIn: [m.id, ...hidden] }, ...leaverEventScope(m) })) },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
@@ -367,21 +379,22 @@ export async function loadNotifications(memberships: Record<string, string>, lim
   });
 
   const unread = await db.groupEvent.count({
-    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt }, ...leaverEventScope(m) })) },
+    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { notIn: [m.id, ...hidden] }, createdAt: { gt: m.seenEventsAt ?? m.createdAt }, ...leaverEventScope(m) })) },
   });
   return { items, unread };
 }
 
 // Just the number on the Alerts bell (asked on every screen change): two small
 // queries instead of loading the list.
-export async function countUnread(memberships: Record<string, string>): Promise<number> {
+export async function countUnread(memberships: Record<string, string>, accountId?: string | null): Promise<number> {
   const ids = Object.values(memberships);
   if (!ids.length) return 0;
   const members = await db.member.findMany({ where: { id: { in: ids } }, select: { id: true, groupId: true, seenEventsAt: true, createdAt: true, leftAt: true, removedAt: true } });
   const valid = members.filter((m) => memberships[m.groupId] === m.id);
   if (!valid.length) return 0;
+  const hidden = accountId ? await blockedMemberIds(valid.map((m) => m.groupId), accountId) : [];
   return db.groupEvent.count({
-    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt }, ...leaverEventScope(m) })) },
+    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { notIn: [m.id, ...hidden] }, createdAt: { gt: m.seenEventsAt ?? m.createdAt }, ...leaverEventScope(m) })) },
   });
 }
 
@@ -431,7 +444,7 @@ export async function loadSwitchList(memberships: Record<string, string>, curren
 // The number on the Alerts bell: group changes plus personal notes (Collect).
 export async function countAllUnread(memberships: Record<string, string>, accountId?: string | null): Promise<number> {
   const [groups, notes] = await Promise.all([
-    countUnread(memberships),
+    countUnread(memberships, accountId),
     accountId ? db.accountNote.count({ where: { accountId, seenAt: null } }) : Promise.resolve(0),
   ]);
   return groups + notes;

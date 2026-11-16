@@ -57,7 +57,7 @@ import { MemoryPolaroids } from "@/components/MemoryPolaroids";
 import { comingUp } from "@/lib/home/coming-up";
 import { photoSet, placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
-import { unreadPostcards } from "@/lib/blocks";
+import { blockedEitherWay, unreadPostcards } from "@/lib/blocks";
 import { tripEmoji } from "@/lib/countdown";
 import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
@@ -202,7 +202,10 @@ export default async function Home({
   const games = gameRows.filter((gm) => gameVisible(open.find((x) => x.group.id === gm.groupId)?.leaver ?? null, gm));
   // What each story shows: the place's photos, the crew, today's numbers, a game's table.
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
-  const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt).map((m) => (m.id === g.myId ? "You" : first(m.name)));
+  // Blocking works both ways: nobody with a block between them and you is named on a story (the group's own screens are unchanged).
+  const blocked = account ? await blockedEitherWay(account.id) : new Set<string>();
+  const isBlockedMember = (g: (typeof open)[number], id: string) => id !== g.myId && Boolean(blocked.size) && g.group.members.some((m) => m.id === id && m.accountId !== null && blocked.has(m.accountId));
+  const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt && (m.id === g.myId || !(m.accountId && blocked.has(m.accountId)))).map((m) => (m.id === g.myId ? "You" : first(m.name)));
   const moodOf = (name: string) => {
     const e = tripEmoji(name);
     return e === "🌴" ? "beach" : e === "🏔️" || e === "❄️" || e === "🏕️" ? "hills" : e === "🌆" ? "city" : "any";
@@ -215,7 +218,7 @@ export default async function Home({
     const paid = new Map<string, number>();
     for (const e of list) for (const p of payersOf(e)) paid.set(p.memberId, (paid.get(p.memberId) ?? 0) + p.amount);
     const [topId] = [...paid].sort((a, b) => b[1] - a[1])[0] ?? [""];
-    const topName = topId === g.myId ? "You" : first(g.group.members.find((m) => m.id === topId)?.name ?? "");
+    const topName = topId === g.myId ? "You" : isBlockedMember(g, topId) ? "" : first(g.group.members.find((m) => m.id === topId)?.name ?? "");
     const big = [...list].sort((a, b) => b.amount - a.amount)[0];
     return { spent: money(list.reduce((t, e) => t + spentAmount(e), 0)), count: list.length, top: list.length > 1 && topName ? topName : undefined, biggest: list.length > 1 ? { what: big.description, amount: money(big.amount) } : undefined };
   };
@@ -266,7 +269,7 @@ export default async function Home({
         id: gm.id,
         groupId: gm.groupId,
         name: neutralGameText(gm.name),
-        winner: top && top.net > 0 ? name(top.memberId) : "",
+        winner: top && top.net > 0 && !isBlockedMember(grp, top.memberId) ? name(top.memberId) : "",
         won: top && top.net > 0 ? formatMoney(top.net, grp.group.currency) : "",
         youWon: top && top.net > 0 && top.memberId === grp.myId ? formatMoney(top.net, grp.group.currency) : undefined,
         finishedAt: gm.finishedAt ?? gm.createdAt,

@@ -92,7 +92,7 @@ const ICON: Record<string, string> = {
 export default async function Notifications({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const sp = await searchParams;
   const [memberships, tz, account] = await Promise.all([getMemberships(), getTimeZone(), getAccount()]);
-  const [{ items }, notes, invitations] = await Promise.all([loadNotifications(memberships, 100), account ? loadNotes(account.id, 50) : Promise.resolve([]), loadInvitations(account)]);
+  const [{ items }, notes, invitations] = await Promise.all([loadNotifications(memberships, 100, account?.id), account ? loadNotes(account.id, 50) : Promise.resolve([]), loadInvitations(account)]);
   const needs = await loadNeedsYou(memberships, account, invitations.length);
   await Promise.all([markNotificationsSeen(memberships), account ? markNotesSeen(account.id) : null]);
 

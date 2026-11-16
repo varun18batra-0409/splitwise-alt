@@ -98,7 +98,7 @@ export default function Privacy() {
       <h2 className={h}>Reporting and blocking</h2>
       <ul className={ul}>
         <li>On a postcard you got, on a friend’s passport, on a moment in a group you’re in, or on a person in a group’s People screen, you can <strong>Report</strong> it (spam, abusive or something else, with an optional note). Only Loopin sees a report, and we look at it within 24 hours.</li>
-        <li><strong>Block</strong> stops their postcards, passport and nudges reaching you, hides yours from them, and stops notifications about their activity. You’ll still both see shared group expenses, because the money has to add up. You can unblock from You → Privacy & sharing.</li>
+        <li><strong>Block</strong>: blocking works both ways. Neither of you can find or add the other, invite the other, send postcards, passports or nudges, see the other’s passport, Want to go places or moments, or get notifications about the other. You’ll still both see shared group expenses, because the money has to add up. You can unblock from You → Privacy & sharing.</li>
       </ul>
 
       <h2 className={h}>Emails and notifications</h2>
@@ -132,8 +132,9 @@ export default function Privacy() {
         <li>The person who added a moment can delete it, and so can whoever looks after the group. The photo is erased too, and it can’t be brought back. A moment’s photo that was already open on someone’s phone can stay on that phone for up to 30 days.</li>
         <li>A whole group can be deleted from its settings. Whoever deleted it, or looks after it, can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
         <li>
-          “You → Export your data → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the collections you organised, the saved copy of support messages you sent while signed in, and the blocks you made or that were made against you.
+          “You → Export your data → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the collections you organised, the saved copy of support messages you sent while signed in, and the blocks you made. If someone blocked you, their block stays as a scrambled fingerprint of your email (never the email itself), so signing up again doesn’t undo it; it’s erased when they unblock or delete their own account.
         </li>
+        <li>If someone removed from a group deletes their sign-in, we keep a scrambled fingerprint of their email (never the email itself), so the group’s link can’t bring them back. It’s erased with the group.</li>
         <li>Deleting your email also stops notifications on your other phones.</li>
         <li>
           What stays in shared groups: your name in their history, an invitation that holds your email, and a phone number someone else saved for you. They are other people’s shared records, so deleting your account doesn’t rewrite them.

@@ -11,7 +11,7 @@ import { cleanLook, cleanSeal, cleanTouches, reactionOf, wordsAtOf, wordsSizeOf 
 import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { isPrint, isSitePhoto, isStampId, rareFor, rareOpen, HANDS, LETTERINGS, paperOf, inkOf, toneOf } from "@/lib/postcards/catalog";
-import { canSendTo } from "@/lib/postcards/people";
+import { canSendTo, postcardGroupTags } from "@/lib/postcards/people";
 import { fitOf, formatOf, oneSideTooLong, photoSizeOf } from "@/lib/postcards/format";
 import { ownsPostcardPhoto } from "@/lib/postcards/uploads";
 import { myMomentForPostcard } from "@/lib/moments-db";
@@ -71,7 +71,8 @@ export async function sendPostcardAction(f: FormData) {
     front = "print:beach";
   }
 
-  if (!(await allow(`postcard:${me.id}`, 80, 86_400))) fail("That’s a lot of postcards today. Try again tomorrow.");
+  // The limit counts each person a card goes to (a card to 60 people is 60), so one send can't get around the 80 a day.
+  if (!(await allow(`postcard:${me.id}`, 80, 86_400, undefined, to.size))) fail("That’s a lot of postcards today. Try again tomorrow.");
 
   let stamp = isStampId(field(f, "stamp", 20)) ? field(f, "stamp", 20) : "t:airmail";
   // A rare stamp only while it's on issue (a card being sent again keeps it if the original had it).
@@ -114,10 +115,10 @@ export async function sendPostcardAction(f: FormData) {
   const hand = HANDS.some((h) => h.id === field(f, "hand", 20)) ? field(f, "hand", 20) : "caveat";
   const lettering = LETTERINGS.some((l) => l.id === field(f, "lettering", 20)) ? field(f, "lettering", 20) : "classic";
   const address = [0, 1, 2].map((i) => field(f, `addr${i}`, 25).trim());
-  const groupId = field(f, "groupId", 40);
+  // Each card carries the group only if both people are in it (otherwise none).
+  const groupTags = await postcardGroupTags(me.id, field(f, "groupId", 40), [...to]);
   const data = {
     fromId: me.id,
-    groupId,
     front,
     photoId,
     // One side has no words on the front and no address.
@@ -144,7 +145,7 @@ export async function sendPostcardAction(f: FormData) {
   };
   let made: { id: string; toId: string }[];
   try {
-    made = await db.$transaction([...to].map((toId) => db.postcard.create({ data: { ...data, toId }, select: { id: true, toId: true } })));
+    made = await db.$transaction([...to].map((toId) => db.postcard.create({ data: { ...data, toId, groupId: groupTags.get(toId) ?? "" }, select: { id: true, toId: true } })));
   } catch (err) {
     // The cards were not made: a photo stored just for them must not be left behind. But if any postcard
     // does use the photo (the cards were saved and something after that failed), it is never deleted.
