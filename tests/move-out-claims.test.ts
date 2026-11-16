@@ -1,12 +1,10 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 
-// FB-1 / AS-2 / OB-3 (16 Nov line review), with FB-4 and FB-2.
+// FB-1 / AS-2 / OB-3 (16 Nov line review), with FB-4 and FB-2, after the "a person who has left always owes nothing" redesign (Batch A5).
 //
-// FB-1: someone who owed money could move themselves out of the flat, and the debt was marked "paid" with nobody confirming it: the person
-//   owed had no way to say "not received". Now, when the person squaring up is the one PAYING and the person paid has joined (can tap
-//   Confirm received), the final payment is an "I've paid" note (a claim, source "move_out"): it counts only when that person confirms it.
-//   A name nobody has joined can't confirm anything, so that payment is recorded at once, as before.
-// OB-3: the same thing seen from the other side: an admin marks the leaver out when THEY owe the leaver; their payment to the leaver is a note too.
+// The rule: someone who has left owes nothing and is owed nothing. So the final payments of a move-out are recorded as paid straight away and
+// the leaver ends at exactly 0. When the person paid has joined (can tap Confirm received / Not received) and is not the one pressing the
+// button, that payment also asks them (needsOk). "Not received" takes it off and brings the people who left back into the flat.
 // FB-4: the move-out page posts the payments it showed (expectKey); if they changed since, the move-out is refused.
 // FB-2: a bill's freed share is shared only among people still in the flat (someone who moved out earlier keeps exactly what they had).
 // Throwaway database; amounts in paise, every number worked by hand.
@@ -18,7 +16,8 @@ const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
 const { netBalances } = await import("@/lib/balances");
 const { moveOut, moveOutPreview, MOVE_OUT_KEY_CHANGED, MOVE_OUT_WAITING_NOTE, transfersKey } = await import("@/lib/home/moving-db");
-const { confirmClaim, declineClaim, makeClaim } = await import("@/lib/payment-claims");
+const { makeClaim } = await import("@/lib/payment-claims");
+const { confirmPayment, rejectPayment } = await import("@/lib/payment-ok");
 const { undoEvent } = await import("@/lib/undo");
 const { moveOutConfirm } = await import("@/lib/move-confirm");
 const { PAIR_NO_MOVE_OUT } = await import("@/lib/direct-guard");
@@ -83,7 +82,13 @@ async function flat(people: { name: string; joined: boolean }[]) {
   const payments = () => db.payment.findMany({ where: { groupId: g.id, deletedAt: null } });
   const claims = () => db.paymentClaim.findMany({ where: { groupId: g.id }, orderBy: { createdAt: "asc" } });
   const row = (memberId: string) => db.member.findUniqueOrThrow({ where: { id: memberId } });
-  return { gid: g.id, id, expense, billExpense, net, sharesOf, payments, claims, row };
+  // The rule: everyone who has left (or was removed) has a balance of exactly 0.
+  const leaversAtZero = async () => {
+    const nets = await net();
+    const gone = await db.member.findMany({ where: { groupId: g.id, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] } });
+    for (const m of gone) expect(nets[m.id] ?? 0).toBe(0);
+  };
+  return { gid: g.id, id, expense, billExpense, net, sharesOf, payments, claims, row, leaversAtZero };
 }
 const sum = (x: Record<string, number>) => Object.values(x).reduce((a, b) => a + b, 0);
 const out = (gid: string, actor: string, leaver: string, extra: { lastDay?: string; expectKey?: string } = {}, now = NOW) =>
@@ -99,92 +104,85 @@ async function f2() {
 }
 
 describe("FB-1: moving yourself out while you owe someone who has joined", () => {
-  it("1. Asha moves out owing 1200000: no payment, one waiting note Asha -> Ravi, she is marked as left, balances unchanged", async () => {
+  it("1. Asha moves out owing 1200000: one payment Asha -> Ravi that asks Ravi, no note, she is marked as left, balances 0 / 0", async () => {
     const { f, A, R } = await f2();
     const r = await out(f.gid, A, A);
     expect(r.ok).toBe(true);
-    expect(await f.payments()).toHaveLength(0);
-    const cs = await f.claims();
-    expect(cs).toHaveLength(1);
-    expect([cs[0].fromId, cs[0].toId, cs[0].amount, cs[0].status, cs[0].source]).toEqual([A, R, 1200000, "waiting", "move_out"]);
+    const pays = await f.payments();
+    expect(pays.map((p) => [p.fromId, p.toId, p.amount, p.needsOk, p.okAt])).toEqual([[A, R, 1200000, true, null]]);
+    expect(await f.claims()).toHaveLength(0);
     expect((await f.row(A)).leftAt).not.toBeNull();
+    const nets = await f.net();
+    expect(nets).toEqual({ [A]: 0, [R]: 0 });
+    expect(sum(nets)).toBe(0);
+    await f.leaversAtZero();
+    // The history says what happened.
+    const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.gid, kind: "member_left" } });
+    expect(ev.details).toContain("Asha paid Ravi ₹12,000 (Ravi is asked to confirm)");
+    expect(await db.groupEvent.count({ where: { groupId: f.gid, kind: "payment_claimed" } })).toBe(0);
+    expect(await db.groupEvent.count({ where: { groupId: f.gid, kind: "payment_recorded" } })).toBe(1);
+  });
+
+  it("2. Ravi says 'Not received': the payment comes off, Asha is back in the flat owing 1200000, Ravi owed 1200000", async () => {
+    const { f, A, R } = await f2();
+    expect((await out(f.gid, A, A)).ok).toBe(true);
+    const pay = (await f.payments())[0];
+    const r = await rejectPayment(pay.id, R);
+    expect(r).toEqual({ ok: true, eventId: expect.any(String), back: [{ id: A, name: "Asha" }] });
+    expect(await f.payments()).toHaveLength(0);
+    expect((await f.row(A)).leftAt).toBeNull();
     const nets = await f.net();
     expect(nets).toEqual({ [A]: -1200000, [R]: 1200000 });
     expect(sum(nets)).toBe(0);
-    // The history says what happened, in words that don't claim it was paid.
-    const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.gid, kind: "member_left" } });
-    expect(ev.details).toContain("Asha says they paid Ravi ₹12,000 (waiting for Ravi to confirm)");
-    expect(await db.groupEvent.count({ where: { groupId: f.gid, kind: "payment_claimed" } })).toBe(1);
-    expect(await db.groupEvent.count({ where: { groupId: f.gid, kind: "payment_recorded" } })).toBe(0);
+    await f.leaversAtZero();
   });
 
-  it("2. Ravi says 'Not received': the note is declined, nothing was paid, balances unchanged", async () => {
+  it("3. Ravi confirms instead: the payment is confirmed, balances stay 0 / 0, and Asha stays out", async () => {
     const { f, A, R } = await f2();
     expect((await out(f.gid, A, A)).ok).toBe(true);
-    const c = (await f.claims())[0];
-    expect((await declineClaim(c.id, R)).ok).toBe(true);
-    expect((await f.claims())[0].status).toBe("declined");
-    expect(await f.payments()).toHaveLength(0);
-    expect(await f.net()).toEqual({ [A]: -1200000, [R]: 1200000 });
-  });
-
-  it("3. Ravi confirms instead: one payment of 1200000, confirmed, balances 0 / 0 (Asha has left, and ends at 0: allowed)", async () => {
-    const { f, A, R } = await f2();
-    expect((await out(f.gid, A, A)).ok).toBe(true);
-    const c = (await f.claims())[0];
-    expect((await confirmClaim(c.id, R)).ok).toBe(true);
+    const pay = (await f.payments())[0];
+    expect((await confirmPayment(pay.id, R)).ok).toBe(true);
     const pays = await f.payments();
     expect(pays).toHaveLength(1);
     expect([pays[0].fromId, pays[0].toId, pays[0].amount, pays[0].needsOk, pays[0].okAt !== null]).toEqual([A, R, 1200000, true, true]);
     const nets = await f.net();
     expect(nets).toEqual({ [A]: 0, [R]: 0 });
     expect(sum(nets)).toBe(0);
+    expect((await f.row(A)).leftAt).not.toBeNull();
+    await f.leaversAtZero();
   });
 
-  it("4. Ravi is only a name (no account, never joined): nobody could confirm, so the payment is recorded at once, no note, balances 0 / 0 (unchanged behaviour)", async () => {
+  it("4. Ravi is only a name (no account, never joined): nobody could confirm, so the payment is recorded without a question, balances 0 / 0 (unchanged behaviour)", async () => {
     const f = await flat([{ name: "Asha", joined: true }, { name: "Ravi", joined: false }]);
     const [A, R] = [f.id("Asha"), f.id("Ravi")];
     await f.expense("Groceries", 1200000, R, [[A, 1200000]]);
     expect((await out(f.gid, A, A)).ok).toBe(true);
     const pays = await f.payments();
-    expect(pays.map((p) => [p.fromId, p.toId, p.amount])).toEqual([[A, R, 1200000]]);
+    expect(pays.map((p) => [p.fromId, p.toId, p.amount, p.needsOk])).toEqual([[A, R, 1200000, false]]);
     expect(await f.claims()).toHaveLength(0);
     expect(await f.net()).toEqual({ [A]: 0, [R]: 0 });
   });
 
-  it("5. OB-3: Varun marks Asha out when Varun owes HER 80000: a note Varun -> Asha, not a counted payment; Asha (who has left) confirms: 0 / 0", async () => {
+  it("5. OB-3: Varun marks Asha out when Varun owes HER 80000: a counted payment Varun -> Asha that asks her, both at 0; Asha (who has left) says Not received: she is back at +80000, Varun -80000", async () => {
     const f = await flat([{ name: "Asha", joined: true }, { name: "Varun", joined: true }]);
     const [A, V] = [f.id("Asha"), f.id("Varun")];
     await f.expense("Cab", 80000, A, [[V, 80000]]); // Asha +80000, Varun -80000
     expect(await f.net()).toEqual({ [A]: 80000, [V]: -80000 });
     expect((await out(f.gid, V, A)).ok).toBe(true);
-    expect(await f.payments()).toHaveLength(0);
-    const cs = await f.claims();
-    expect(cs.map((c) => [c.fromId, c.toId, c.amount, c.status])).toEqual([[V, A, 80000, "waiting"]]);
-    expect(await f.net()).toEqual({ [A]: 80000, [V]: -80000 });
-    expect((await confirmClaim(cs[0].id, A)).ok).toBe(true); // the receiver confirms even though she has left
+    const pays = await f.payments();
+    expect(pays.map((p) => [p.fromId, p.toId, p.amount, p.needsOk, p.okAt])).toEqual([[V, A, 80000, true, null]]);
+    expect(await f.claims()).toHaveLength(0);
     expect(await f.net()).toEqual({ [A]: 0, [V]: 0 });
+    await f.leaversAtZero();
+    const r = await rejectPayment(pays[0].id, A); // the receiver answers even though she has left
+    expect(r.ok).toBe(true);
+    expect((await f.row(A)).leftAt).toBeNull();
+    const nets = await f.net();
+    expect(nets).toEqual({ [A]: 80000, [V]: -80000 });
+    expect(sum(nets)).toBe(0);
   });
 
-  it("6. two people are owed: Asha owes Ravi 40000 and Meera 30000 -> two notes; each confirm brings her closer to 0 and never past it", async () => {
-    const f = await flat([{ name: "Asha", joined: true }, { name: "Ravi", joined: true }, { name: "Meera", joined: true }]);
-    const [A, R, M] = [f.id("Asha"), f.id("Ravi"), f.id("Meera")];
-    await f.expense("Milk", 40000, R, [[A, 40000]]);
-    await f.expense("Gas", 30000, M, [[A, 30000]]);
-    expect(await f.net()).toEqual({ [A]: -70000, [R]: 40000, [M]: 30000 });
-    expect((await out(f.gid, A, A)).ok).toBe(true);
-    const cs = await f.claims();
-    expect(cs.map((c) => [c.fromId, c.toId, c.amount]).sort()).toEqual([[A, R, 40000], [A, M, 30000]].sort());
-    expect(await f.payments()).toHaveLength(0);
-    const toRavi = cs.find((c) => c.toId === R)!;
-    const toMeera = cs.find((c) => c.toId === M)!;
-    expect((await confirmClaim(toRavi.id, R)).ok).toBe(true); // Asha -70000 -> -30000: closer to 0, allowed for a move-out note
-    expect(await f.net()).toEqual({ [A]: -30000, [R]: 0, [M]: 30000 });
-    expect((await confirmClaim(toMeera.id, M)).ok).toBe(true);
-    const done = await f.net();
-    expect(done).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
-    expect(sum(done)).toBe(0);
-  });
+  // (Test 6, "paying two people one at a time", is gone: nobody leaves owing, so there is nothing to pay one person at a time.)
 
   it("7. a waiting 'I've paid' already involves the person: the move-out is refused, nothing changes (and the preview says so)", async () => {
     const { f, A, R } = await f2();
@@ -202,7 +200,7 @@ describe("FB-1: moving yourself out while you owe someone who has joined", () =>
     expect(await out(g2.f.gid, g2.A, g2.A)).toEqual({ ok: false, error: MOVE_OUT_WAITING_NOTE });
   });
 
-  it("the preview and the confirm question say the payment waits for the person paid (and plain payments keep their old words)", async () => {
+  it("the preview and the confirm question say which payments ask the person paid (and plain payments keep their old words)", async () => {
     const { f, A, R } = await f2();
     const p = await moveOutPreview(f.gid, A, "2026-11-10", NOW, A);
     if (!p.ok) throw new Error(p.error);
@@ -211,24 +209,25 @@ describe("FB-1: moving yourself out while you owe someone who has joined", () =>
     const nameOf = (id: string) => (id === A ? "You" : "Ravi");
     const money = (x: number) => `₹${x / 100}`;
     expect(moveOutConfirm({ leaverName: "you", payments: [{ from: A, to: R, amount: 1200000, waits: true }], nameOf, money })).toBe(
-      "Final payments: You pay Ravi ₹12000 (Ravi confirms it before it counts). Everyone is told. Mark yourself as moved out?",
+      "Final payments: You pay Ravi ₹12000 (Ravi is asked to confirm it). They are recorded as paid and everyone is told. If a payment isn’t received, you come back into the flat until it’s sorted. Mark yourself as moved out?",
     );
     expect(moveOutConfirm({ leaverName: "you", payments: [{ from: A, to: R, amount: 1200000 }], nameOf, money })).toBe(
       "Final payments: You pay Ravi ₹12000. They are recorded as paid and everyone is told. Mark yourself as moved out?",
     );
-    // Seen by someone else (no `actorId`): nothing waits, as the actor isn't the one paying.
-    const other = await moveOutPreview(f.gid, A, "2026-11-10", NOW);
+    // Seen by someone else (Ravi is the one confirming): he is the person paid, so nothing asks him.
+    const other = await moveOutPreview(f.gid, A, "2026-11-10", NOW, R);
     if (!other.ok) throw new Error(other.error);
     expect(other.waits).toEqual([]);
   });
 });
 
-describe("FB-1: the full flat (rent, Wi-Fi, a note, undo)", () => {
+describe("FB-1: the full flat (rent, Wi-Fi, a payment, undo)", () => {
   // Meera, Ravi, Asha: Rent 900000 paid by Meera (300000 each); Wi-Fi 100000 paid by Asha (33334 / 33333 / 33333).
   //   Before: Meera +566666, Ravi -333333, Asha -233333.
   //   Asha moves out on 10 Nov (10 of 30 days): she keeps floor(300000 x 10 / 30) = 100000 of the rent and floor(33333 x 10 / 30) = 11111 of Wi-Fi.
   //   Rent: 200000 freed, 100000 each to Meera and Ravi. Wi-Fi: 22222 freed, split 33334 : 33333 -> Meera 11111, Ravi 11111 (Ravi has the larger remainder).
-  //   After: Meera +455555, Ravi -444444, Asha -11111, and the note Asha -> Meera 11111 (Meera is the only one owed).
+  //   Before her payment: Meera +455555, Ravi -444444, Asha -11111. She pays Meera 11111 (Meera is the only one owed):
+  //   After: Meera +444444, Ravi -444444, Asha 0.
   async function world() {
     const f = await flat([{ name: "Meera", joined: true }, { name: "Ravi", joined: true }, { name: "Asha", joined: true }]);
     const [M, R, S] = [f.id("Meera"), f.id("Ravi"), f.id("Asha")];
@@ -239,16 +238,17 @@ describe("FB-1: the full flat (rent, Wi-Fi, a note, undo)", () => {
     if (!r.ok) throw new Error(r.error);
     expect(await f.sharesOf(rent.id)).toEqual({ [M]: 400000, [R]: 400000, [S]: 100000 });
     expect(await f.sharesOf(wifi.id)).toEqual({ [M]: 44445, [R]: 44444, [S]: 11111 });
-    expect(await f.net()).toEqual({ [M]: 455555, [R]: -444444, [S]: -11111 });
-    expect((await f.claims()).map((c) => [c.fromId, c.toId, c.amount, c.status])).toEqual([[S, M, 11111, "waiting"]]);
-    expect(await f.payments()).toHaveLength(0);
+    expect(await f.net()).toEqual({ [M]: 444444, [R]: -444444, [S]: 0 });
+    expect((await f.payments()).map((p) => [p.fromId, p.toId, p.amount, p.needsOk])).toEqual([[S, M, 11111, true]]);
+    expect(await f.claims()).toHaveLength(0);
+    await f.leaversAtZero();
     return { f, M, R, S, rent, wifi, moveOutEventId: r.eventId! };
   }
 
-  it("8a. Asha undoes before anyone confirms: the note is withdrawn, shares are back (300000 x 3 and 33334 / 33333 / 33333), balances are the starting ones", async () => {
+  it("8a. Asha undoes before anyone answers: the payment is taken off, shares are back (300000 x 3 and 33334 / 33333 / 33333), balances are the starting ones", async () => {
     const { f, M, R, S, rent, wifi, moveOutEventId } = await world();
     expect((await undoEvent(moveOutEventId, S)).ok).toBe(true);
-    expect((await f.claims())[0].status).toBe("withdrawn");
+    expect(await f.payments()).toHaveLength(0);
     expect(await f.sharesOf(rent.id)).toEqual({ [M]: 300000, [R]: 300000, [S]: 300000 });
     expect(await f.sharesOf(wifi.id)).toEqual({ [M]: 33334, [R]: 33333, [S]: 33333 });
     const back = await f.net();
@@ -256,22 +256,34 @@ describe("FB-1: the full flat (rent, Wi-Fi, a note, undo)", () => {
     expect(sum(back)).toBe(0);
     expect((await f.row(S)).leftAt).toBeNull();
     const rejoined = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.gid, kind: "member_rejoined" } });
-    expect(rejoined.details).toContain("Taken back: Asha said they paid Meera ₹111.11");
+    expect(rejoined.details).toContain("Taken off: Asha paid Meera ₹111.11");
   });
 
-  it("8b. Meera confirms first, then Asha undoes: the payment stays (real money); shares go back; Meera +555555, Ravi -333333, Asha -222222", async () => {
+  it("8b. Meera confirms first, then Asha undoes: the payment still comes off; shares go back; Meera +566666, Ravi -333333, Asha -233333", async () => {
     const { f, M, R, S, rent, wifi, moveOutEventId } = await world();
-    const c = (await f.claims())[0];
-    expect((await confirmClaim(c.id, M)).ok).toBe(true);
+    const pay = (await f.payments())[0];
+    expect((await confirmPayment(pay.id, M)).ok).toBe(true);
     expect(await f.net()).toEqual({ [M]: 444444, [R]: -444444, [S]: 0 });
     expect((await undoEvent(moveOutEventId, S)).ok).toBe(true);
-    expect((await f.claims())[0].status).toBe("confirmed"); // not withdrawn
-    expect(await f.payments()).toHaveLength(1); // its payment stays
+    expect(await f.payments()).toHaveLength(0);
     expect(await f.sharesOf(rent.id)).toEqual({ [M]: 300000, [R]: 300000, [S]: 300000 });
     expect(await f.sharesOf(wifi.id)).toEqual({ [M]: 33334, [R]: 33333, [S]: 33333 });
     const after = await f.net();
-    expect(after).toEqual({ [M]: 555555, [R]: -333333, [S]: -222222 }); // the start, less Asha's 11111 that Meera confirmed getting
+    expect(after).toEqual({ [M]: 566666, [R]: -333333, [S]: -233333 });
     expect(sum(after)).toBe(0);
+  });
+
+  it("8c. Meera says Not received: Asha is back at -11111 (Meera +455555, Ravi -444444), and her move-out can no longer be undone", async () => {
+    const { f, M, R, S, moveOutEventId } = await world();
+    const pay = (await f.payments())[0];
+    const r = await rejectPayment(pay.id, M);
+    expect(r.ok).toBe(true);
+    expect((await f.row(S)).leftAt).toBeNull();
+    const nets = await f.net();
+    expect(nets).toEqual({ [M]: 455555, [R]: -444444, [S]: -11111 });
+    expect(sum(nets)).toBe(0);
+    expect((await undoEvent(moveOutEventId, S)).ok).toBe(false); // she is already back in the flat
+    expect(await f.net()).toEqual({ [M]: 455555, [R]: -444444, [S]: -11111 });
   });
 });
 
@@ -292,7 +304,8 @@ describe("FB-4: the move-out refuses payments that are not the ones the person s
     if (!again.ok) throw new Error(again.error);
     expect(again.payments).toEqual([{ from: A, to: R, amount: 1230000 }]);
     expect((await out(f.gid, A, A, { expectKey: again.expectKey })).ok).toBe(true);
-    expect((await f.claims()).map((c) => c.amount)).toEqual([1230000]);
+    expect((await f.payments()).map((x) => x.amount)).toEqual([1230000]);
+    expect(await f.net()).toEqual({ [A]: 0, [R]: 0 });
   });
 
   it("an empty key is a key too (a square person has no payments), and no key at all (older callers) skips the check", async () => {
@@ -327,7 +340,7 @@ describe("FB-2: the freed share of a bill goes only to people still in the flat"
     expect((await out(f.gid, A, C, {}, NOW20)).ok).toBe(true);
     expect(await f.sharesOf(rent.id)).toEqual({ [A]: 1490909, [B]: 1242425, [C]: 266666 });
     expect(await total()).toBe(3000000);
-    // C owed 266666: he pays A (recorded at once: C is not the actor and nobody can confirm a plain name's side): C 0, A +1509091 - 266666 = +1242425.
+    // C owed 266666: he pays A (recorded at once: A is both the one doing it and the one paid, so nobody is asked): C 0, A +1509091 - 266666 = +1242425.
     expect(await f.net()).toEqual({ [A]: 1242425, [B]: -1242425, [C]: 0 });
 
     // B leaves on 20 Nov (actor A): keeps floor(1242425 x 20 / 30) = 828283; 414142 freed -> ALL to A (C has left): A 1905051. C stays at 266666.
@@ -338,8 +351,10 @@ describe("FB-2: the freed share of a bill goes only to people still in the flat"
     const done = await f.net();
     expect(done).toEqual({ [A]: 0, [B]: 0, [C]: 0 });
     expect(sum(done)).toBe(0);
-    const pays = (await f.payments()).map((p) => [p.fromId, p.toId, p.amount]).sort();
-    expect(pays).toEqual([[C, A, 266666], [B, A, 828283]].sort());
+    const pays = (await f.payments()).map((p) => [p.fromId, p.toId, p.amount, p.needsOk]).sort();
+    // A is both the one doing it and the one paid, and A has not joined: nobody is asked.
+    expect(pays).toEqual([[C, A, 266666, false], [B, A, 828283, false]].sort());
+    await f.leaversAtZero();
   });
 });
 

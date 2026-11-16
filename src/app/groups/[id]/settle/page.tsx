@@ -30,6 +30,7 @@ import { getTimeZone } from "@/lib/tz";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
+import { notReceivedDone, notReceivedQuestion } from "@/lib/payment-words";
 import { planSettleRow, settleMainAction, settleRowFacts, tripEnded } from "@/lib/settle-row";
 import { claimsWaitingFor, declinedNote, myDeclinedClaims, myWaitingClaims } from "@/lib/payment-claims";
 import { claimPaidAction, confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
@@ -44,7 +45,7 @@ export default async function GroupSettle({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ paid?: string; error?: string; did?: string; undone?: string; ok?: string; notgot?: string; claimed?: string; withdrawn?: string; declined?: string; overclaim?: string; over?: string; pay?: string }>;
+  searchParams: Promise<{ paid?: string; error?: string; did?: string; undone?: string; ok?: string; notgot?: string; back?: string; claimed?: string; withdrawn?: string; declined?: string; overclaim?: string; over?: string; pay?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -274,8 +275,12 @@ export default async function GroupSettle({
 
       {sp.ok === "1" && <Notice params={["ok"]} className="mb-4">Confirmed ✓ It’s in the balances, and they’ll see it.</Notice>}
       {sp.notgot === "1" && !sp.undone && (
-        <Notice params={["notgot"]} className="mb-4">
-          Taken off the balances, and they’ll see you haven’t received it.
+        <Notice params={["notgot", "back"]} className="mb-4">
+          {notReceivedDone({
+            others: (sp.back ?? "").split(",").filter((id) => id && id !== myId).map((id) => group.members.find((m) => m.id === id)?.name ?? "").filter(Boolean),
+            iBack: (sp.back ?? "").split(",").includes(myId),
+            groupName: group.name,
+          })}
         </Notice>
       )}
 
@@ -362,7 +367,7 @@ export default async function GroupSettle({
                   </form>
                   <form action={rejectPaymentAction}>
                     <input type="hidden" name="paymentId" value={p.id} />
-                    <ConfirmButton message={`Haven’t received ${money(p.amount)} from ${p.from.name}? It comes off the balances (you can undo).`} className={QUIET}>
+                    <ConfirmButton message={notReceivedQuestion({ amount: money(p.amount), fromName: p.from.name, fromLeft: Boolean(p.from.leftAt || p.from.removedAt), iLeft, groupName: group.name })} className={QUIET}>
                       Not received
                     </ConfirmButton>
                   </form>

@@ -192,8 +192,6 @@ export type MoveOutUndo = {
     receiverBefore: { amount: number; status: string };
     receiverAfter: { amount: number; status: string };
   };
-  // The "I've paid" notes the move-out made (the leaver, or whoever marked them out, says they paid): taken back by the undo while still waiting.
-  claims?: { id: string; fromId: string; toId: string; amount: number }[];
   // What the move-out did to the money, so the undo can take all of it back (add-only: missing = recorded before full undo existed).
   money?: {
     currency: string;

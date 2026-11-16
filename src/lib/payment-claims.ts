@@ -7,7 +7,7 @@ import { formatMoney } from "./money";
 import { createPayment } from "./payments";
 import { withRetry } from "./once";
 import { needsOkFor } from "./payment-ok";
-import { claimConfirmBreaks, GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
+import { GroupChanged, leaverBalanceBreaks, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 
 // "I've paid" claims. Ravi says he paid Asha. That is a claim, NOT a payment:
 // it never changes a balance. It waits for Asha's "Confirm received", which
@@ -15,8 +15,7 @@ import { claimConfirmBreaks, GroupChanged, groupChangedText, guardGroup, ledgerI
 // closes the claim and nothing else changes. See prisma/schema.prisma (PaymentClaim).
 
 export type ClaimStatus = "waiting" | "confirmed" | "declined" | "withdrawn" | "covered" | "expired";
-// "move_out": made by the move-out screen when the person paying is the one moving out (or the one marking them out): the person paid confirms it.
-export type ClaimSource = "link" | "app" | "move_out";
+export type ClaimSource = "link" | "app";
 
 export type ClaimResult =
   | { ok: true; claimId: string; already?: boolean; eventId?: string; paymentId?: string; amount?: number }
@@ -41,6 +40,16 @@ function pushToReceiver(toId: string, p: { title: string; body: string; url: str
 
 // What the payer is told when the person paid says "Not received" (the push and the note on their Settle up row).
 export const declinedNote = (toName: string, amount: number, currency: string) => `${toName} hasn’t received your ${formatMoney(amount, currency)} yet. Check your payment app.`;
+
+// Someone who had left was put back into the group because a payment was marked "Not received": they are told (the history line is separate).
+export function tellBroughtBack(c: { groupId: string; groupName: string; memberId: string; receiverName: string; amountText: string; paymentId: string; receiverId?: string }) {
+  pushToReceiver(
+    c.memberId,
+    { title: `💬 ${c.groupName}`, body: `${c.receiverName} hasn’t received your ${c.amountText}, so you’re back in ${c.groupName} until it’s sorted.`, url: `/groups/${c.groupId}/settle`, tag: `brought-back-${c.paymentId}-${c.memberId}` },
+    "payments.answered",
+    c.receiverId,
+  );
+}
 
 // Say "I paid". `amount` is what's owed between the pair right now; it is worked
 // out here (never taken from the caller), so only the real debt can be claimed.
@@ -183,16 +192,12 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
     // so a payer who owes two people can't have a claim to one pass as if it were a claim to the other.
     // Worked out here, inside the write, so a change made since the page loaded can't slip past.
     const ledger = await ledgerInTx(tx, claim.groupId);
-    // Someone who has left may only end with the balance they had, or 0 (a move-out's own note may also bring them closer to 0, never past it).
+    // Someone who has left may only end with the balance they had, or 0.
     // Asked first: there is no point asking "more than owed?" about a note that can't be confirmed at all.
-    const gone = await claimConfirmBreaks(tx, claim.groupId, { fromId: claim.fromId, toId: claim.toId, amount: claim.amount, source: claim.source });
+    const claimedPayment = { id: `claim-${claim.id}`, fromId: claim.fromId, toId: claim.toId, amount: claim.amount };
+    const gone = await leaverBalanceBreaks(tx, claim.groupId, [claim.fromId, claim.toId], (l) => ({ ...l, payments: [...l.payments, claimedPayment] }));
     if (gone.length) throw new LeaverClaim(gone[0]);
-    // A move-out's note squares the leaver up with everyone they owe, so it is checked against what they owe in total and what the
-    // receiver is owed (a smart-settle plan may route it differently, which must not look like "more than owed").
-    const owes =
-      claim.source === "move_out"
-        ? Math.min(Math.max(0, -(ledger.net[claim.fromId] ?? 0)), Math.max(0, ledger.net[claim.toId] ?? 0))
-        : ledger.transfers.find((t) => t.from === claim.fromId && t.to === claim.toId)?.amount ?? 0;
+    const owes = ledger.transfers.find((t) => t.from === claim.fromId && t.to === claim.toId)?.amount ?? 0;
     if (claim.amount > owes && !o.over) throw new OverClaim(claim.amount - owes);
     const moved = await tx.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "confirmed", slot: claim.id, decidedAt: new Date(), decidedById: myMemberId } });
     if (moved.count !== 1) return null; // somebody else got there first: record nothing

@@ -10,7 +10,6 @@ import { netBalances } from "@/lib/balances";
 import { smartSettle } from "@/lib/settle";
 import { loadGroupView } from "@/lib/group-data";
 import { scopeForLeaver } from "@/lib/left-view";
-import { confirmClaim } from "@/lib/payment-claims";
 
 // Undoing a move-out takes back EVERYTHING the move-out did: the person, the bills' shares, the deposit and the square-up payments.
 // Throwaway database, amounts in paise, every number worked by hand.
@@ -26,12 +25,12 @@ import { confirmClaim } from "@/lib/payment-claims";
 //          Meera 22222 x 33334 / 66667 = 11111.2 -> 11111, Ravi 11110.8 -> 11110, the 1 left over goes to the bigger remainder (Ravi)
 //          -> Meera 33334 + 11111 = 44445, Ravi 33333 + 11111 = 44444, Asha 11111 (sum 100000)
 //   After the re-split:    Meera +500000 - 44445 = +455555, Ravi -400000 - 44444 = -444444, Asha -100000 + 100000 - 11111 = -11111   (sum 0)
-//   Square-up: Asha owes Meera 11111. CHANGED 16 Nov (FB-1 / AS-2): Asha is the one paying and Meera has joined, so this is no longer a
-//   payment counted on Asha's word. It is an "I've paid" note (Asha -> Meera 11111, waiting) that counts only when Meera confirms it.
-//   Until then nothing is paid: Meera +455555, Ravi -444444, Asha -11111. (Before the change this test expected a counted payment and Asha at 0.)
-//   Meera confirms: Meera 444444, Ravi -444444, Asha 0.
-//   Undo: shares exactly 300000 x 3 and 33334 / 33333 / 33333, the waiting note taken back (withdrawn) -> the "before" balances again.
-//   (If Meera had already confirmed, her confirmed payment stays: it is real money. See tests/move-out-claims.test.ts.)
+//   Square-up: Asha owes Meera 11111. CHANGED 16 Nov (A5): someone who has left always owes nothing, so the payment Asha -> Meera 11111
+//   is recorded straight away (and Meera, who has joined, is asked "Confirm received / Not received": needsOk, not yet confirmed).
+//   After the move-out: Meera +444444, Ravi -444444, Asha 0.
+//   Meera says "Not received": the payment comes off and Asha is back in the flat: Meera +455555, Ravi -444444, Asha -11111.
+//   Undo (Asha, without Meera saying Not received; also after Meera confirmed): shares exactly 300000 x 3 and 33334 / 33333 / 33333, the payment
+//   taken off -> the "before" balances again: Meera +566666, Ravi -333333, Asha -233333.
 //   Settling those: Ravi pays Meera 333333, Asha pays Meera 233333 -> everyone 0.
 
 vi.mock("next/headers", () => ({
@@ -118,16 +117,15 @@ describe("undoing a move-out takes everything back", () => {
     const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
     expect(r.eventId).toBe(ev.id);
     expect(r.payments).toEqual([{ from: f.S, to: f.M, amount: 11111 }]); // the final payment worked out...
-    expect(r.claims).toEqual([{ from: f.S, to: f.M, amount: 11111 }]); // ...is a note for Meera to confirm, not a counted payment
-    expect(await db.payment.count({ where: { groupId: f.g.id } })).toBe(0);
-    const note = await db.paymentClaim.findFirstOrThrow({ where: { groupId: f.g.id } });
-    expect([note.fromId, note.toId, note.amount, note.status, note.source]).toEqual([f.S, f.M, 11111, "waiting", "move_out"]);
+    expect((await db.paymentClaim.count({ where: { groupId: f.g.id } }))).toBe(0); // ...is a counted payment, not a note...
+    const sq = await db.payment.findMany({ where: { groupId: f.g.id } });
+    expect(sq.map((x) => [x.fromId, x.toId, x.amount, x.needsOk, x.okAt])).toEqual([[f.S, f.M, 11111, true, null]]); // ...that asks Meera
 
     // After the re-split and the square-up payment.
     expect(await f.sharesOf(f.rent.e.id)).toEqual({ [f.M]: 400000, [f.R]: 400000, [f.S]: 100000 });
     expect(await f.sharesOf(f.wifi.e.id)).toEqual({ [f.M]: 44445, [f.R]: 44444, [f.S]: 11111 });
     const moved = await f.nets();
-    expect(moved).toEqual({ [f.M]: 455555, [f.R]: -444444, [f.S]: -11111 }); // Asha still owes Meera 11111 until Meera confirms
+    expect(moved).toEqual({ [f.M]: 444444, [f.R]: -444444, [f.S]: 0 }); // Asha left at exactly 0
     expect(sum(moved)).toBe(0);
     expect((await db.bill.findUniqueOrThrow({ where: { id: f.wifi.b.id } })).payer).toBe(f.M); // handed on (the first one still here)
 
@@ -143,9 +141,8 @@ describe("undoing a move-out takes everything back", () => {
       expect(row).toMatchObject({ splitType: "equal", forMode: "everyone" });
       expect(row.shares.reduce((a, s) => a + s.amount, 0)).toBe(row.amount);
     }
-    // The waiting note is taken back (withdrawn, nothing was ever paid); the Wi-Fi bill is Asha's to pay again.
-    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: note.id } })).status).toBe("withdrawn");
-    expect(await db.payment.count({ where: { groupId: f.g.id } })).toBe(0);
+    // The square-up payment is taken off; the Wi-Fi bill is Asha's to pay again.
+    expect(await db.payment.count({ where: { groupId: f.g.id, deletedAt: null } })).toBe(0);
     expect((await db.bill.findUniqueOrThrow({ where: { id: f.wifi.b.id } })).payer).toBe(f.S);
     // The deposit: Asha's 3000000 back, held, with nobody; Meera's handed-over share is gone; Ravi's is untouched.
     const dep = await db.depositShare.findMany({ where: { deposit: { groupId: f.g.id } } });
@@ -153,7 +150,7 @@ describe("undoing a move-out takes everything back", () => {
     expect(dep.find((x) => x.memberId === f.M)).toBeUndefined();
     expect(dep.find((x) => x.memberId === f.R)).toMatchObject({ amount: 3000000, status: "held" });
     // The move-out's lines in Activity are marked undone with it.
-    for (const e of await db.groupEvent.findMany({ where: { groupId: f.g.id, kind: { in: ["member_left", "expense_edited", "payment_claimed"] } } })) {
+    for (const e of await db.groupEvent.findMany({ where: { groupId: f.g.id, kind: { in: ["member_left", "expense_edited", "payment_recorded"] } } })) {
       expect(e.undoneAt).not.toBeNull();
     }
     // The balances are the "before" ones, and add to 0.
@@ -162,7 +159,7 @@ describe("undoing a move-out takes everything back", () => {
     expect(sum(back)).toBe(0);
     // The undo's own line says what came back.
     const rejoined = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_rejoined" } });
-    expect(rejoined.details).toContain("Taken back: Asha said they paid Meera ₹111.11");
+    expect(rejoined.details).toContain("Taken off: Asha paid Meera ₹111.11");
     expect(rejoined.details).toContain("move-out undone");
     // Settling up from there: Ravi pays Meera 333333, Asha pays Meera 233333, and everyone is 0.
     const plan = smartSettle(back).sort((a, b) => a.from.localeCompare(b.from));
@@ -180,7 +177,7 @@ describe("undoing a move-out takes everything back", () => {
     const view = (await loadGroupView(f.g.id, { viewer: f.S }))!;
     expect(view.leaver).not.toBeNull();
     expect(view.group.events.map((e) => e.id)).toContain(ev.id);
-    expect(view.group.events.find((e) => e.id === ev.id)!.details).toContain("Asha says they paid Meera"); // a waiting note (was "Asha paid Meera" before 16 Nov)
+    expect(view.group.events.find((e) => e.id === ev.id)!.details).toContain("Asha paid Meera ₹111.11 (Meera is asked to confirm)"); // a counted payment that asks Meera
     // canUndo with each viewer: Asha yes, Meera no (only Asha can undo leaving the group).
     const events = await db.groupEvent.findMany({ where: { groupId: f.g.id, createdAt: { gte: ev.createdAt } } });
     expect(canUndo(ev, events, new Date(), await undoViewerFor(f.g.id, f.S)).ok).toBe(true);
@@ -227,8 +224,7 @@ describe("undoing a move-out takes everything back", () => {
     expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
     expect((await db.groupEvent.findUniqueOrThrow({ where: { id: ev.id } })).undoneAt).toBeNull();
     expect(await db.groupEvent.count({ where: { groupId: f.g.id, undoneAt: { not: null } } })).toBe(0);
-    expect(await db.payment.count({ where: { groupId: f.g.id } })).toBe(0); // (no payment: Asha's square-up is a waiting note)
-    expect((await db.paymentClaim.findFirstOrThrow({ where: { groupId: f.g.id } })).status).toBe("waiting"); // and the refused undo left it waiting
+    expect(await db.payment.count({ where: { groupId: f.g.id, deletedAt: null } })).toBe(1); // Asha's square-up payment is still counted: the refused undo left it
   });
 });
 
@@ -331,9 +327,8 @@ describe("a move-out's own lines are undone with the move-out, never alone (M2)"
     const before = { nets: await f.nets(), rent: await f.sharesOf(f.rent.e.id), wifi: await f.sharesOf(f.wifi.e.id) };
     const edit = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "expense_edited", expenseId: f.rent.e.id } });
     expect(await undoEvent(edit.id, f.R)).toEqual({ ok: false, error: "This was part of Asha’s move-out. Undo the move-out instead." });
-    // (Asha's square-up is a note now, not a payment line: its line has no Undo of its own.)
-    const noteLine = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "payment_claimed" } });
-    expect(await undoEvent(noteLine.id, f.R)).toEqual({ ok: false, error: "This change can’t be undone." });
+    const payLine = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "payment_recorded" } });
+    expect(await undoEvent(payLine.id, f.R)).toEqual({ ok: false, error: "This was part of Asha’s move-out. Undo the move-out instead." });
     expect({ nets: await f.nets(), rent: await f.sharesOf(f.rent.e.id), wifi: await f.sharesOf(f.wifi.e.id) }).toEqual(before);
     expect(await db.groupEvent.count({ where: { groupId: f.g.id, undoneAt: { not: null } } })).toBe(0);
     expect((await db.member.findUniqueOrThrow({ where: { id: f.S } })).leftAt).not.toBeNull();
@@ -411,9 +406,7 @@ describe("which move-out is still there to undo (L2, L3)", () => {
     await ashaMovesOut(f);
     const old = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.g.id, kind: "member_left" } });
     expect((await setMemberLeft(f.g.id, f.S, f.S, false)).ok).toBe(true); // Rejoin without undoing
-    // Asha owes Meera 11111 (a waiting note) until Meera confirms it; then Asha is square (0), so she may leave the plain way.
-    const note = await db.paymentClaim.findFirstOrThrow({ where: { groupId: f.g.id, status: "waiting" } });
-    expect((await confirmClaim(note.id, f.M)).ok).toBe(true);
+    // Asha is square (0: her square-up payment counts), so she may leave the plain way.
     expect((await setMemberLeft(f.g.id, f.S, f.S, true)).ok).toBe(true);
     const viewer = await undoViewerFor(f.g.id, f.S);
     expect(await ownMoveOut(f.g.id, viewer, new Date())).toBeNull();

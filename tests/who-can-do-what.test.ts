@@ -388,17 +388,16 @@ describe("the flat: move-out and deposit", () => {
     return r.ok && (await db.member.findUniqueOrThrow({ where: { id: w.rows.zed } })).leftAt !== null;
   }));
 
-  // FB-1 (16 Nov review): moving yourself out while you owe someone no longer marks the debt as paid on your word. It is an "I've paid"
-  // note that the person paid confirms. Meera owes Asha 4000 (Asha +4000, Meera -4000), so Meera moving herself out leaves a note and no
-  // payment. (Asha moving herself out is owed money instead: the payment is Meera's to Asha and is recorded as before, so only Meera is "true".)
-  // Before this change the same click recorded a counted payment, which the other person could not refuse.
-  it("move yourself out owing money: a note for the person paid, no payment (Meera only)", () => table("move-out-owing", ["member"], async (_p, w) => {
+  // A5 (16 Nov): someone who has left always owes nothing. Meera owes Asha 4000 (Asha +4000, Meera -4000), so Meera moving herself out records a
+  // payment Meera -> Asha 4000 straight away (Meera leaves at 0) and asks Asha ("Confirm received / Not received"): needsOk, not confirmed, no note.
+  // (Asha moving herself out is owed money instead: the payment is Meera's to Asha and is recorded as before, so only Meera is "true".)
+  it("move yourself out owing money: a counted payment that asks the person paid, no note (Meera only)", () => table("move-out-owing", ["member"], async (_p, w) => {
     const actor = await actorOf(w);
-    const before = await db.payment.count({ where: { groupId: w.id, deletedAt: null } });
     const r = await moveOut(w.id, actor, { leaverId: actor, lastDay: new Date().toISOString().slice(0, 10), requestKey: `wcdw-mo-${++counter}-${stamp}-abcdefgh` });
     if (!r.ok) return false;
-    const claim = await db.paymentClaim.findFirst({ where: { groupId: w.id, fromId: actor, toId: w.rows.asha, status: "waiting", source: "move_out", amount: 4000 } });
-    return claim !== null && (await db.payment.count({ where: { groupId: w.id, deletedAt: null } })) === before;
+    const pay = await db.payment.findFirst({ where: { groupId: w.id, deletedAt: null, fromId: actor, toId: w.rows.asha, amount: 4000, needsOk: true, okAt: null } });
+    const notes = await db.paymentClaim.count({ where: { groupId: w.id } });
+    return pay !== null && notes === 0 && (await db.member.findUniqueOrThrow({ where: { id: actor } })).leftAt !== null;
   }));
 
   it("record the deposit", () => table("deposit", JOINED_ACTIVE, async (_p, w) => {

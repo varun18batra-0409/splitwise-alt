@@ -2,8 +2,8 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 
 // "I've paid" notes (claims): two rules tightened on 16 Nov (line review).
 //   MB-2: someone who has LEFT can't be moved by a confirm. Confirming a note records a payment, so if the payer or the person paid has left, the
-//         payment may only leave their balance where it was, or at 0. (A note made by a move-out has one narrow extra allowance, tested in
-//         tests/move-out-claims.test.ts.) A note that can't be confirmed is closed ("expired") so it doesn't hang around.
+//         payment may only leave their balance where it was, or at 0 (no exceptions: a move-out no longer makes notes, see
+//         tests/move-out-claims.test.ts). A note that can't be confirmed is closed ("expired") so it doesn't hang around.
 //   MB-7: a payment closes a waiting note as "covered" only when it is AT LEAST the note's amount. A smaller one used to close the whole note,
 //         so the rest could never be confirmed. And when a covering payment is taken off ("Not received", delete), the note is waiting again.
 // Throwaway database; paise, worked out by hand. Cast: Asha (A), Ravi (R), Meera (M), all joined.
@@ -88,22 +88,18 @@ describe("MB-2: confirming a note can't move someone who has left", () => {
     expect(await w.payCount()).toBe(1);
   });
 
-  it("a PART note for a leaver (20000 of -50000 would leave -30000) is refused unless a move-out made it: only 'move_out' notes may bring a leaver closer to 0", async () => {
+  it("a PART note for a leaver (20000 of -50000 would leave -30000) is refused: a leaver may only end where they were, or at 0 (no exception for any note)", async () => {
     const w = await world(50000);
     await db.member.update({ where: { id: w.r }, data: { leftAt: new Date() } });
     const part = await db.paymentClaim.create({ data: { groupId: w.gid, fromId: w.r, toId: w.a, amount: 20000, currency: "INR", source: "app", status: "waiting", slot: "" } });
     expect(await confirmClaim(part.id, w.a, { over: true })).toEqual({ ok: false, error: "Ravi has left the group, so this can’t be confirmed." });
     expect(await w.status(part.id)).toBe("expired");
     expect(await w.net()).toEqual({ [w.a]: 50000, [w.r]: -50000, [w.m]: 0 });
-    // The same part note made by a move-out is allowed: -50000 + 20000 = -30000, closer to 0 on the same side.
-    const mo = await db.paymentClaim.create({ data: { groupId: w.gid, fromId: w.r, toId: w.a, amount: 20000, currency: "INR", source: "move_out", status: "waiting", slot: "" } });
-    expect((await confirmClaim(mo.id, w.a)).ok).toBe(true);
-    expect(await w.net()).toEqual({ [w.a]: 30000, [w.r]: -30000, [w.m]: 0 });
-    // ...but a move-out note that goes PAST 0 is refused: 40000 on top of -30000 would leave Ravi at +10000.
-    const past = await db.paymentClaim.create({ data: { groupId: w.gid, fromId: w.r, toId: w.a, amount: 40000, currency: "INR", source: "move_out", status: "waiting", slot: "" } });
+    // A note that goes PAST 0 is refused too: 70000 on a leaver at -50000 would leave Ravi at +20000.
+    const past = await db.paymentClaim.create({ data: { groupId: w.gid, fromId: w.r, toId: w.a, amount: 70000, currency: "INR", source: "app", status: "waiting", slot: "" } });
     expect((await confirmClaim(past.id, w.a, { over: true })).ok).toBe(false);
     expect(await w.status(past.id)).toBe("expired");
-    expect(await w.net()).toEqual({ [w.a]: 30000, [w.r]: -30000, [w.m]: 0 });
+    expect(await w.net()).toEqual({ [w.a]: 50000, [w.r]: -50000, [w.m]: 0 });
   });
 
   it("nobody has left: nothing changes (a normal confirm)", async () => {

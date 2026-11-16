@@ -882,14 +882,16 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(src).toMatch(/on=\{!byItem && \(showOnly/);
   });
 
-  it("N4: 'Not received' on B's ₹300 payment to C is refused once B has left: B stays at 0", async () => {
+  it("N4 (A5): 'Not received' on B's ₹300 payment to C once B has left now works: B is brought back at -30000, C +30000", async () => {
     const g = await make(["B", "C"]);
     await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi"); // B owes C 30000
     const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // B pays: 0 / 0
     await db.member.update({ where: { id: g.ids.B }, data: { leftAt: new Date() } });
-    expect(await rejectPayment(pay.id, g.ids.C)).toEqual({ ok: false, error: "B has left the group, so this can't be changed here. Ask them to rejoin first." });
-    expect((await db.payment.findUniqueOrThrow({ where: { id: pay.id } })).deletedAt).toBeNull();
-    expect(await net(g.id)).toEqual({ [g.ids.B]: 0, [g.ids.C]: 0 });
+    const r = await rejectPayment(pay.id, g.ids.C);
+    expect(r).toMatchObject({ ok: true, back: [{ id: g.ids.B, name: "B" }] });
+    expect((await db.payment.findUniqueOrThrow({ where: { id: pay.id } })).deletedAt).not.toBeNull();
+    expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.B } })).leftAt).toBeNull();
+    expect(await net(g.id)).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
   });
 
   it("N4: 'Not received' still works when nobody involved has left (B owes C 30000 again)", async () => {

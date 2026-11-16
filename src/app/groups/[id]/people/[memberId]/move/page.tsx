@@ -222,7 +222,7 @@ export default async function MoveOutPage({
               {Name(leaver.id)} stay{leaver.id === myId ? "" : "s"} in the history and leave{leaver.id === myId ? "" : "s"} the bills after {niceDate(lastDay)}.
               <br />
               {p.waits.length > 0 || p.waitsWithDaily.length > 0
-                ? "A payment to someone who has joined counts once they confirm it. Any other payment is recorded as paid. Everyone is told."
+                ? `The payments above are recorded as paid. Anyone paid who is on Loopin is asked to confirm; if they say it wasn’t received, ${leaver.id === myId ? "you are" : `${leaver.name} is`} back in the flat until it’s sorted. Everyone is told.`
                 : "The payments above are recorded as paid. Everyone is told."}
             </p>
           </div>
