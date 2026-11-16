@@ -8,7 +8,7 @@ import type { Season } from "./banner";
 //  2. Your month in numbers.
 //  3. A bill due in the next 5 days (right after the month).
 //  4. A postcard: "A postcard is waiting" when some are, otherwise the "Send a postcard" card (real photo and keepsake when we have the photo).
-//  5. Your trip passport ("N countries and counting" / "Where have you been?"), with your own stamps.
+//  5. Your trip passport ("N countries and counting", "1 country and counting" / "Where have you been?" with none), with your own stamps.
 //  6. The festival or holiday for the visitor's country, only inside its dates (seasonNow in banner.ts).
 // Memories is its own section on Home, not a card here. No trip photos, "just back" or group cards.
 
@@ -125,9 +125,9 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     kind: "card",
     tone: "teal",
     eyebrow: "Your trip passport",
-    title: n > 1 ? `${n} countries and counting` : "Where have you been?",
+    title: n > 1 ? `${n} countries and counting` : n === 1 ? "1 country and counting" : "Where have you been?",
     text:
-      n > 1
+      n >= 1
         ? `${x.passportAbroad !== undefined && x.passportAbroad < n ? `${x.passportAbroad} abroad, plus home. ` : ""}Flip through your stamps, or see where friends who share theirs have been.`
         : "Tick the countries you’ve been to and get your stamps.",
     button: "Open your passport",
