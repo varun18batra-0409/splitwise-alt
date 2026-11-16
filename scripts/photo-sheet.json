@@ -1,142 +1,649 @@
 {
-  "groups": [
+ "groups": [
+  {
+   "file": "sheet-1-tokyo-london-senegal.png",
+   "title": "Sheet 1: Tokyo (place-japan), London (place-london, also GB), Senegal (country-sn)",
+   "rows": [
     {
-      "file": "sheet-1-tokyo-london-senegal.png",
-      "title": "Sheet 1: Tokyo (place-japan), London (place-london, also GB), Senegal (country-sn)",
-      "rows": [
-        {"slot": "place-japan", "note": "Tokyo header currently shows Kyoto",
-         "now": [{"id": "photo-1578469645742-46cae010e5d4", "label": "Now (1st)"}, {"id": "photo-1707474893587-a37a9cf1b555", "label": "Now (fallback)"}],
-         "cands": [
-          {"id": "photo-1707473323036-f89a88017cee", "page": "https://unsplash.com/photos/the-sun-is-setting-over-a-city-with-tall-buildings-RcWlHJp4HsQ", "desc": "Sun setting over Tokyo's tall buildings from Shibuya Sky (Jan)"},
-          {"id": "photo-1513407030348-c983a97b98d8", "page": "https://unsplash.com/photos/tokyo-tower-illuminated-at-dusk-with-city-skyline-IocJwyqRv3M", "desc": "Tokyo Tower illuminated at dusk with the city skyline"},
-          {"id": "photo-1606044466411-207a9a49711f", "page": "https://unsplash.com/photos/tokyo-tower-at-night-in-tokyo-3-esk8zPwPY", "desc": "Tokyo Tower glowing orange above the dark blue cityscape of Minato"},
-          {"id": "photo-1759495051024-cbea2d646b61", "page": "https://unsplash.com/photos/tokyo-tower-stands-tall-over-the-cityscape-at-dusk-kC1WPnjvk68", "desc": "Tokyo Tower standing tall over the cityscape at dusk"}
-         ]},
-        {"slot": "place-london", "note": "also the GB country tile",
-         "now": [{"id": "photo-1633357441498-7431babe0cc7", "label": "Now"}],
-         "cands": [
-          {"id": "photo-1547254002-e65e0179fe9f", "page": "https://unsplash.com/photos/tower-bridge-over-river-thames-london-SJPrbVaHo-Q", "desc": "Aerial view of Tower Bridge spanning the Thames at golden hour"},
-          {"id": "photo-1520986606214-8b456906c813", "page": "https://unsplash.com/photos/big-ben-london-iP8ElEhqHeY", "desc": "Big Ben, London"},
-          {"id": "photo-1488747279002-c8523379faaa", "page": "https://unsplash.com/photos/red-double-decker-bus-passing-palace-of-westminster-london-during-daytime-tZDtyUrYrFU", "desc": "Red double-decker bus passing the Palace of Westminster"},
-          {"id": "photo-1513026705753-bc3fffca8bf4", "page": "https://unsplash.com/photos/tower-bridge-and-river-thames-in-london-q140lHKzXZY", "desc": "Aerial view of Tower Bridge and the Thames at night"}
-         ]},
-        {"slot": "country-sn", "note": "Senegal",
-         "now": [{"id": "photo-1577259855408-c14a7b107540", "label": "Now (1st)"}, {"id": "photo-1583495506658-50a3587f792e", "label": "Now (2nd)"}],
-         "cands": [
-          {"id": "photo-1761471420566-5ca748e79afc", "page": "https://unsplash.com/it/foto/barche-da-pesca-colorate-ormeggiate-in-un-porto-con-palme-3CHwHTZGJiU", "desc": "Colourful fishing boats moored in a harbour with palms (Senegal search)"},
-          {"id": "photo-1637166514815-8b923a08f8e8", "page": "https://unsplash.com/photos/a-view-of-a-hill-with-a-statue-on-top-of-it-W9XDGeJDnL0", "desc": "A hill with a statue on top of it (Dakar search)"},
-          {"id": "photo-1758061290793-c8df7171bbb1", "page": "https://unsplash.com/photos/narrow-street-lined-with-colorful-buildings-and-flowers-mR4c4ha9TdQ", "desc": "Narrow street lined with colourful buildings and flowers (Dakar search)"},
-          {"id": "photo-1780770281153-dd29447c868d", "page": "https://unsplash.com/it/foto/molte-barche-da-pesca-colorate-attraccavano-in-un-porto-molto-trafficato-3e6S9cCD79s", "desc": "Many colourful fishing boats docked in a busy harbour"}
-         ]}
-      ]
+     "slot": "place-japan",
+     "note": "Tokyo header currently shows Kyoto",
+     "now": [
+      {
+       "id": "photo-1578469645742-46cae010e5d4",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1707474893587-a37a9cf1b555",
+       "label": "Now (fallback)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1707473323036-f89a88017cee",
+       "page": "https://unsplash.com/photos/the-sun-is-setting-over-a-city-with-tall-buildings-RcWlHJp4HsQ",
+       "desc": "Sun setting over Tokyo's tall buildings from Shibuya Sky (Jan)"
+      },
+      {
+       "id": "photo-1513407030348-c983a97b98d8",
+       "page": "https://unsplash.com/photos/tokyo-tower-illuminated-at-dusk-with-city-skyline-IocJwyqRv3M",
+       "desc": "Tokyo Tower illuminated at dusk with the city skyline"
+      },
+      {
+       "id": "photo-1606044466411-207a9a49711f",
+       "page": "https://unsplash.com/photos/tokyo-tower-at-night-in-tokyo-3-esk8zPwPY",
+       "desc": "Tokyo Tower glowing orange above the dark blue cityscape of Minato"
+      },
+      {
+       "id": "photo-1759495051024-cbea2d646b61",
+       "page": "https://unsplash.com/photos/tokyo-tower-stands-tall-over-the-cityscape-at-dusk-kC1WPnjvk68",
+       "desc": "Tokyo Tower standing tall over the cityscape at dusk"
+      }
+     ]
     },
     {
-      "file": "sheet-2-slovakia-poland-zambia-zimbabwe.png",
-      "title": "Sheet 2: Slovakia (SK), Poland (PL), Zambia (ZM), Zimbabwe (ZW)",
-      "rows": [
-        {"slot": "country-sk", "note": "Slovakia (3 current candidates, first 2 shown)",
-         "now": [{"id": "photo-1672580402077-c6e7fd2da87e", "label": "Now (1st)"}, {"id": "photo-1568616388664-1e37d8376363", "label": "Now (2nd)"}],
-         "cands": [
-          {"id": "photo-1466940219795-c670f475e59f", "page": "https://unsplash.com/photos/black-building-in-front-of-mountain-during-golden-hour-pmH_Y4Qetrk", "desc": "Mountain hut at golden hour, Tery's chata, High Tatras, Slovakia"},
-          {"id": "photo-1761473774133-4d39629ac575", "page": "https://unsplash.com/photos/red-tram-on-city-street-with-castle-in-background-FtVGoCJ1NEc", "desc": "Red tram on a street with the castle behind, Bratislava"},
-          {"id": "photo-1504637624891-3a5b76e8f5d4", "page": "https://unsplash.com/photos/photo-of-mountain-during-golden-hour-npzTODbN64s", "desc": "Mountain during golden hour, Ostredok, Blatnica, Slovakia"},
-          {"id": "photo-1643897016322-64ae7dbca62c", "page": "https://unsplash.com/photos/a-waterfall-is-coming-down-the-side-of-a-mountain-F8DhQnOczZU", "desc": "Waterfall down a mountainside, Janosikove diery, Terchova, Slovakia"}
-         ]},
-        {"slot": "country-pl", "note": "Poland",
-         "now": [{"id": "photo-1697821829707-1eacd5fd468b", "label": "Now (1st)"}, {"id": "photo-1577133192629-5140c5371590", "label": "Now (2nd)"}],
-         "cands": [
-          {"id": "photo-1783444327817-bca4a85e1c22", "page": "https://unsplash.com/de/fotos/historischer-stadtplatz-mit-farbenfrohen-gebauden-und-vielen-menschen-9Uru3kw2AIg", "desc": "Historic town square with colourful buildings (Warsaw search)"},
-          {"id": "photo-1636903364559-0dfc358abd94", "page": "https://unsplash.com/photos/a-view-of-a-city-square-with-a-clock-tower-in-the-background-2lK0291iNHI", "desc": "City square with a clock tower in the background (Krakow search)"},
-          {"id": "photo-1783444329030-fb0afdb10051", "page": "https://unsplash.com/de/fotos/warschauer-stadtbild-bei-sonnenuntergang-mit-goldenem-licht-auf-wolkenkratzern-SI8H2lRaM-E", "desc": "Warsaw cityscape at sunset, golden light on skyscrapers"},
-          {"id": "photo-1670166819528-aadfddc48070", "page": "https://unsplash.com/photos/a-large-city-with-a-clock-tower-t-SSPRyqo7c", "desc": "A large city with a clock tower (Krakow search)"}
-         ]},
-        {"slot": "country-zm", "note": "Zambia (now shows Victoria Falls, same as ZW)",
-         "now": [{"id": "photo-1666732566977-8805c13a6ce2", "label": "Now (1st)"}, {"id": "photo-1627347456206-d3df7d8484b0", "label": "Now (2nd)"}],
-         "cands": [
-          {"id": "photo-1533631278779-d722ded4c7df", "page": "https://unsplash.com/photos/elephant-of-body-of-water-near-forest-K2lLtnwe5VM", "desc": "Elephant by the water near forest (Zambia search)"},
-          {"id": "photo-1623000015590-b29a22ec1f34", "page": "https://unsplash.com/photos/brown-elephant-on-green-grass-field-near-body-of-water-during-daytime-xWeYRjnQPsQ", "desc": "Brown elephant on green grass near water (Zambia search)"},
-          {"id": "photo-1629261185806-97ba668eb7ed", "page": "https://unsplash.com/photos/brown-lioness-on-gray-sand-during-daytime-pcB9hKDkBwc", "desc": "Brown lioness on grey sand (Zambia search)"}
-         ]},
-        {"slot": "country-zw", "note": "Zimbabwe (now shows Victoria Falls)",
-         "now": [{"id": "photo-1643231939579-7df8aa7a7f9c", "label": "Now (1st)"}, {"id": "photo-1634179412263-19d96377c1a2", "label": "Now (2nd)"}],
-         "cands": [
-          {"id": "photo-1670259317136-ef2f10074c21", "page": "https://unsplash.com/photos/a-large-waterfall-with-trees-in-the-background--q_1O9QNvPk", "desc": "Large waterfall with trees, Victoria Falls, Zimbabwe (Eden Constantino)"},
-          {"id": "photo-1670259251163-7936ad552e7b", "page": "https://unsplash.com/photos/a-couple-of-elephants-stand-near-each-other-p9rEwFcRQvk", "desc": "A couple of elephants standing near each other, Victoria Falls, Zimbabwe"},
-          {"id": "photo-1759164882609-58b00ec3b09a", "page": "https://unsplash.com/id/foto/air-terjun-victoria-saat-matahari-terbit-dengan-dedaunan-hijau-subur-x-tYGWDu1Sc", "desc": "Victoria Falls at sunrise with lush green foliage"}
-         ]}
-      ]
+     "slot": "place-london",
+     "note": "also the GB country tile",
+     "now": [
+      {
+       "id": "photo-1633357441498-7431babe0cc7",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1547254002-e65e0179fe9f",
+       "page": "https://unsplash.com/photos/tower-bridge-over-river-thames-london-SJPrbVaHo-Q",
+       "desc": "Aerial view of Tower Bridge spanning the Thames at golden hour"
+      },
+      {
+       "id": "photo-1520986606214-8b456906c813",
+       "page": "https://unsplash.com/photos/big-ben-london-iP8ElEhqHeY",
+       "desc": "Big Ben, London"
+      },
+      {
+       "id": "photo-1488747279002-c8523379faaa",
+       "page": "https://unsplash.com/photos/red-double-decker-bus-passing-palace-of-westminster-london-during-daytime-tZDtyUrYrFU",
+       "desc": "Red double-decker bus passing the Palace of Westminster"
+      },
+      {
+       "id": "photo-1513026705753-bc3fffca8bf4",
+       "page": "https://unsplash.com/photos/tower-bridge-and-river-thames-in-london-q140lHKzXZY",
+       "desc": "Aerial view of Tower Bridge and the Thames at night"
+      }
+     ]
     },
     {
-      "file": "sheet-3-snow-mussoorie-corbett-kerala.png",
-      "title": "Sheet 3: cover-snow, place-mussoorie, place-corbett, place-kerala-2",
-      "rows": [
-        {"slot": "cover-snow", "note": "weak/generic",
-         "now": [{"id": "photo-1464822759023-fed622ff2c3b", "label": "Now (1st)"}, {"id": "photo-1483728642387-6c3bdd6c93e5", "label": "Now (2nd)"}],
-         "cands": [
-          {"id": "photo-1483921020237-2ff51e8e4b22", "page": "https://unsplash.com/photos/mountains-covered-with-snow-d3pTF3r_hwY", "desc": "Mountains covered with snow"},
-          {"id": "photo-1465220183275-1faa863377e3", "page": "https://unsplash.com/photos/snowy-mountain-JVtcrWcbj1c", "desc": "Snowy mountain"},
-          {"id": "photo-1512273222628-4daea6e55abb", "page": "https://unsplash.com/photos/snow-covered-mountain-during-daytime-W4o1oWx0k0g", "desc": "Snow covered mountain during daytime"},
-          {"id": "photo-1454496522488-7a8e488e8606", "page": "https://unsplash.com/photos/ama-dablam-peak-in-nepal-mountains-9wg5jCEPBsw", "desc": "Snow-covered peak of Ama Dablam above a mountain range in Nepal"}
-         ]},
-        {"slot": "place-mussoorie", "note": "weak/generic",
-         "now": [{"id": "photo-1713026665246-843d870d1cdc", "label": "Now"}],
-         "cands": [
-          {"id": "photo-1700219799575-026e6f2f69aa", "page": "https://unsplash.com/photos/a-view-of-a-mountain-range-with-a-tree-in-the-foreground-1gsdrpGG-dE", "desc": "Hills, sunrise sky and forest, Mussoorie, Uttarakhand (Raju Kumar)"},
-          {"id": "photo-1637387568999-92c68bdee212", "page": "https://unsplash.com/ko/%EC%82%AC%EC%A7%84/%EC%82%B0%EC%9D%84-%EB%B0%B0%EA%B2%BD%EC%9C%BC%EB%A1%9C-%ED%95%9C-%EC%96%B8%EB%8D%95-%EC%9C%84%EC%9D%98-%EB%A7%88%EC%9D%84-uV7UxLPnruU", "desc": "Hilltop village with mountains behind, Mussoorie (sahil yadav)"},
-          {"id": "photo-1651307110965-8340722facc0", "page": "https://unsplash.com/ko/%EC%82%AC%EC%A7%84/%EB%86%92%EC%9D%80-%EA%B3%A0%EB%8F%84%EC%97%90%EC%84%9C-%EB%B0%94%EB%9D%BC%EB%B3%B8-%EB%8F%84%EC%8B%9C%EC%9D%98-%EB%AA%A8%EC%8A%B5-Fn8joMxNY5U", "desc": "View of the town from Dalai Hills, Mussoorie (Kashish Lamba)"},
-          {"id": "photo-1538245204686-fd7887eb57ec", "page": "https://unsplash.com/photos/LIpmU17QNN0", "desc": "Mussoorie viewpoints with clouds over the mountains (Parij Borgohain)"}
-         ]},
-        {"slot": "place-corbett", "note": "weak/generic",
-         "now": [{"id": "photo-1653545607843-3411d02bc569", "label": "Now"}],
-         "cands": [
-          {"id": "photo-1573663209453-93f1875e5a7b", "page": "https://unsplash.com/photos/adult-tiger-tSC_gnIVsQA", "desc": "Adult tiger, Jim Corbett National Park, Ramnagar"},
-          {"id": "photo-1573663181145-3c20a59aac0c", "page": "https://unsplash.com/photos/a-close-up-of-a-large-cat-with-trees-in-the-background-GVQ9pZb-fpE", "desc": "Close-up of a large cat, trees behind, Jim Corbett National Park"}
-         ]},
-        {"slot": "place-kerala-2", "note": "2nd Kerala photo",
-         "now": [{"id": "photo-1602590745208-870366224847", "label": "Now"}],
-         "cands": [
-          {"id": "photo-1593693411515-c20261bcad6e", "page": "https://unsplash.com/photos/houseboat-on-alappuzha-backwaters-ii0oWs5abCo", "desc": "Traditional houseboat on the palm-lined backwaters of Alappuzha"},
-          {"id": "photo-1455157823797-3019317cbcf0", "page": "https://unsplash.com/photos/green-tea-plantations-in-misty-hills-ySQXoZLAsmc", "desc": "Rolling green tea plantations under low fog (Munnar hills search)"},
-          {"id": "photo-1593693401060-9fc28cf9e368", "page": "https://unsplash.com/photos/brown-wooden-boat-on-body-of-water-near-green-palm-trees-during-daytime-ayFW56Rz5Cs", "desc": "Wooden boat on water near green palm trees (Alleppey search)"},
-          {"id": "photo-1661174607003-d9d36388c916", "page": "https://unsplash.com/photos/a-boat-on-the-water-with-vembanad-in-the-background-3rtFVq1oA9o", "desc": "A boat on the water with Vembanad in the background"}
-         ]}
-      ]
-    },
-    {
-      "file": "sheet-4-duplicates.png",
-      "title": "Sheet 4: duplicates (second slot of each pair; first slot shown as 'Other slot')",
-      "rows": [
-        {"slot": "place-jaipur-5", "note": "same as jaipur-2 (Jal Mahal)",
-         "now": [{"id": "photo-1714562555125-3c8d050d5d2d", "label": "Now (jaipur-5)"}, {"id": "photo-1661924326425-c14a6426d989", "label": "Other slot (jaipur-2)"}],
-         "cands": [
-          {"id": "photo-1599661046289-e31897846e41", "page": "https://unsplash.com/photos/amber-fort-zigzagging-paths-in-jaipur-ZgbzOZW9U3o", "desc": "People walking along zigzagging paths at Amber Fort, Jaipur"},
-          {"id": "photo-1705861144929-91df892af5d6", "page": "https://unsplash.com/photos/a-view-of-a-castle-from-a-distance-8oCgUgo_hBU", "desc": "A view of a castle from a distance (Amer Fort search)"},
-          {"id": "photo-1524309784716-6a4be8299c7f", "page": "https://unsplash.com/photos/structure-under-clear-sky-w3CyGs-keEM", "desc": "Structure under clear sky (Amer Fort search)"},
-          {"id": "photo-1650355719397-a6f09db66464", "page": "https://unsplash.com/photos/a-large-building-with-a-fountain-in-the-middle-of-it-gyveQB-LU7w", "desc": "Large building with a fountain in the middle (Amer Fort search)"}
-         ]},
-        {"slot": "place-dubai-5", "note": "same as dubai-3 (Burj Al Arab)",
-         "now": [{"id": "photo-1546412414-e1885259563a", "label": "Now (dubai-5)"}, {"id": "photo-1518684079-3c830dcef090", "label": "Other slot (dubai-3)"}],
-         "cands": [
-          {"id": "photo-1580674684081-7617fbf3d745", "page": "https://unsplash.com/photos/white-and-gray-high-rise-buildings-near-body-of-water-during-daytime-QJKEa9n3yN8", "desc": "White and grey high-rises near water, daytime (Dubai towers search)"},
-          {"id": "photo-1768463852019-4881a17a1c0e", "page": "https://unsplash.com/photos/a-boat-sails-on-water-with-city-skyscrapers-at-sunset-fbv1cPWR1j0", "desc": "A boat sails on water with city skyscrapers at sunset (Dubai)"},
-          {"id": "photo-1559717201-fbb671ff56b7", "page": "https://unsplash.com/photos/burj-khalifa-skyline-in-dubai-DcyL0IoCY0A", "desc": "Burj Khalifa over the illuminated Dubai skyline at night"},
-          {"id": "photo-1786991810391-e28ee367c3aa", "page": "https://unsplash.com/photos/atlantis-the-royal-resort-in-dubai-to8TlBSHjvU", "desc": "Aerial view of Atlantis The Royal on the Palm Jumeirah, Dubai"}
-         ]},
-        {"slot": "place-udaipur-2", "note": "same scene as udaipur",
-         "now": [{"id": "photo-1615836245337-f5b9b2303f10", "label": "Now (udaipur-2)"}, {"id": "photo-1589901164570-f9de6556e1c1", "label": "Other slot (udaipur)"}],
-         "cands": [
-          {"id": "photo-1634720564985-5cf184d8eca9", "page": "https://unsplash.com/photos/a-boat-on-a-river-near-a-city-Nbxgkrfq_WQ", "desc": "A boat on Lake Pichola near the city, Udaipur"},
-          {"id": "photo-1642312063130-4e055c0d2152", "page": "https://unsplash.com/photos/a-large-white-building-sitting-on-top-of-a-body-of-water-WO2KGa9G4tA", "desc": "Large white palace on the water, Udaipur (page: Queen Padmini Palace)"}
-         ]},
-        {"slot": "place-ladakh-4", "note": "same as ladakh-3",
-         "now": [{"id": "photo-1617824077360-7a77db40aae1", "label": "Now (ladakh-4)"}, {"id": "photo-1581793745862-99fde7fa73d2", "label": "Other slot (ladakh-3)"}],
-         "cands": [
-          {"id": "photo-1566323124805-757e5c41d37c", "page": "https://unsplash.com/photos/a-river-flowing-under-a-bridge-surrounded-by-mountains-f8tGje5BkpQ", "desc": "River flowing under a bridge surrounded by mountains (Leh Ladakh)"},
-          {"id": "photo-1593118845043-359e5f628214", "page": "https://unsplash.com/photos/blue-yellow-and-red-textile-on-gray-sand-near-lake-and-mountain-during-daytime-MrW_AqAFNR0", "desc": "Colourful textile on grey sand near a lake and mountain (Leh Ladakh)"},
-          {"id": "photo-1695876670020-e2c2ac5a21ce", "page": "https://unsplash.com/photos/a-large-white-building-sitting-on-the-side-of-a-mountain-3_tD7q0wVh0", "desc": "Large white building on the side of a mountain (Leh Ladakh)"},
-          {"id": "photo-1600242466690-c1c04f081762", "page": "https://unsplash.com/photos/green-trees-near-brown-mountain-under-white-clouds-during-daytime-v1oGBUnXVDs", "desc": "Green trees near brown mountain under white clouds (Leh Ladakh)"}
-         ]}
-      ]
+     "slot": "country-sn",
+     "note": "Senegal",
+     "now": [
+      {
+       "id": "photo-1577259855408-c14a7b107540",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1583495506658-50a3587f792e",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1761471420566-5ca748e79afc",
+       "page": "https://unsplash.com/it/foto/barche-da-pesca-colorate-ormeggiate-in-un-porto-con-palme-3CHwHTZGJiU",
+       "desc": "Colourful fishing boats moored in a harbour with palms (Senegal search)"
+      },
+      {
+       "id": "photo-1637166514815-8b923a08f8e8",
+       "page": "https://unsplash.com/photos/a-view-of-a-hill-with-a-statue-on-top-of-it-W9XDGeJDnL0",
+       "desc": "A hill with a statue on top of it (Dakar search)"
+      },
+      {
+       "id": "photo-1758061290793-c8df7171bbb1",
+       "page": "https://unsplash.com/photos/narrow-street-lined-with-colorful-buildings-and-flowers-mR4c4ha9TdQ",
+       "desc": "Narrow street lined with colourful buildings and flowers (Dakar search)"
+      },
+      {
+       "id": "photo-1780770281153-dd29447c868d",
+       "page": "https://unsplash.com/it/foto/molte-barche-da-pesca-colorate-attraccavano-in-un-porto-molto-trafficato-3e6S9cCD79s",
+       "desc": "Many colourful fishing boats docked in a busy harbour"
+      }
+     ]
     }
-  ]
+   ]
+  },
+  {
+   "file": "sheet-2-slovakia-poland-zambia-zimbabwe.png",
+   "title": "Sheet 2: Slovakia (SK), Poland (PL), Zambia (ZM), Zimbabwe (ZW)",
+   "rows": [
+    {
+     "slot": "country-sk",
+     "note": "Slovakia (3 current candidates, first 2 shown)",
+     "now": [
+      {
+       "id": "photo-1672580402077-c6e7fd2da87e",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1568616388664-1e37d8376363",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1466940219795-c670f475e59f",
+       "page": "https://unsplash.com/photos/black-building-in-front-of-mountain-during-golden-hour-pmH_Y4Qetrk",
+       "desc": "Mountain hut at golden hour, Tery's chata, High Tatras, Slovakia"
+      },
+      {
+       "id": "photo-1761473774133-4d39629ac575",
+       "page": "https://unsplash.com/photos/red-tram-on-city-street-with-castle-in-background-FtVGoCJ1NEc",
+       "desc": "Red tram on a street with the castle behind, Bratislava"
+      },
+      {
+       "id": "photo-1504637624891-3a5b76e8f5d4",
+       "page": "https://unsplash.com/photos/photo-of-mountain-during-golden-hour-npzTODbN64s",
+       "desc": "Mountain during golden hour, Ostredok, Blatnica, Slovakia"
+      },
+      {
+       "id": "photo-1643897016322-64ae7dbca62c",
+       "page": "https://unsplash.com/photos/a-waterfall-is-coming-down-the-side-of-a-mountain-F8DhQnOczZU",
+       "desc": "Waterfall down a mountainside, Janosikove diery, Terchova, Slovakia"
+      }
+     ]
+    },
+    {
+     "slot": "country-pl",
+     "note": "Poland",
+     "now": [
+      {
+       "id": "photo-1697821829707-1eacd5fd468b",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1577133192629-5140c5371590",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1783444327817-bca4a85e1c22",
+       "page": "https://unsplash.com/de/fotos/historischer-stadtplatz-mit-farbenfrohen-gebauden-und-vielen-menschen-9Uru3kw2AIg",
+       "desc": "Historic town square with colourful buildings (Warsaw search)"
+      },
+      {
+       "id": "photo-1636903364559-0dfc358abd94",
+       "page": "https://unsplash.com/photos/a-view-of-a-city-square-with-a-clock-tower-in-the-background-2lK0291iNHI",
+       "desc": "City square with a clock tower in the background (Krakow search)"
+      },
+      {
+       "id": "photo-1783444329030-fb0afdb10051",
+       "page": "https://unsplash.com/de/fotos/warschauer-stadtbild-bei-sonnenuntergang-mit-goldenem-licht-auf-wolkenkratzern-SI8H2lRaM-E",
+       "desc": "Warsaw cityscape at sunset, golden light on skyscrapers"
+      },
+      {
+       "id": "photo-1670166819528-aadfddc48070",
+       "page": "https://unsplash.com/photos/a-large-city-with-a-clock-tower-t-SSPRyqo7c",
+       "desc": "A large city with a clock tower (Krakow search)"
+      }
+     ]
+    },
+    {
+     "slot": "country-zm",
+     "note": "Zambia (now shows Victoria Falls, same as ZW)",
+     "now": [
+      {
+       "id": "photo-1666732566977-8805c13a6ce2",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1627347456206-d3df7d8484b0",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1533631278779-d722ded4c7df",
+       "page": "https://unsplash.com/photos/elephant-of-body-of-water-near-forest-K2lLtnwe5VM",
+       "desc": "Elephant by the water near forest (Zambia search)"
+      },
+      {
+       "id": "photo-1623000015590-b29a22ec1f34",
+       "page": "https://unsplash.com/photos/brown-elephant-on-green-grass-field-near-body-of-water-during-daytime-xWeYRjnQPsQ",
+       "desc": "Brown elephant on green grass near water (Zambia search)"
+      },
+      {
+       "id": "photo-1629261185806-97ba668eb7ed",
+       "page": "https://unsplash.com/photos/brown-lioness-on-gray-sand-during-daytime-pcB9hKDkBwc",
+       "desc": "Brown lioness on grey sand (Zambia search)"
+      }
+     ]
+    },
+    {
+     "slot": "country-zw",
+     "note": "Zimbabwe (now shows Victoria Falls)",
+     "now": [
+      {
+       "id": "photo-1643231939579-7df8aa7a7f9c",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1634179412263-19d96377c1a2",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1670259317136-ef2f10074c21",
+       "page": "https://unsplash.com/photos/a-large-waterfall-with-trees-in-the-background--q_1O9QNvPk",
+       "desc": "Large waterfall with trees, Victoria Falls, Zimbabwe (Eden Constantino)"
+      },
+      {
+       "id": "photo-1670259251163-7936ad552e7b",
+       "page": "https://unsplash.com/photos/a-couple-of-elephants-stand-near-each-other-p9rEwFcRQvk",
+       "desc": "A couple of elephants standing near each other, Victoria Falls, Zimbabwe"
+      },
+      {
+       "id": "photo-1759164882609-58b00ec3b09a",
+       "page": "https://unsplash.com/id/foto/air-terjun-victoria-saat-matahari-terbit-dengan-dedaunan-hijau-subur-x-tYGWDu1Sc",
+       "desc": "Victoria Falls at sunrise with lush green foliage"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "sheet-3-snow-mussoorie-corbett-kerala.png",
+   "title": "Sheet 3: cover-snow, place-mussoorie, place-corbett, place-kerala-2",
+   "rows": [
+    {
+     "slot": "cover-snow",
+     "note": "weak/generic",
+     "now": [
+      {
+       "id": "photo-1464822759023-fed622ff2c3b",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1483728642387-6c3bdd6c93e5",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1483921020237-2ff51e8e4b22",
+       "page": "https://unsplash.com/photos/mountains-covered-with-snow-d3pTF3r_hwY",
+       "desc": "Mountains covered with snow"
+      },
+      {
+       "id": "photo-1465220183275-1faa863377e3",
+       "page": "https://unsplash.com/photos/snowy-mountain-JVtcrWcbj1c",
+       "desc": "Snowy mountain"
+      },
+      {
+       "id": "photo-1512273222628-4daea6e55abb",
+       "page": "https://unsplash.com/photos/snow-covered-mountain-during-daytime-W4o1oWx0k0g",
+       "desc": "Snow covered mountain during daytime"
+      },
+      {
+       "id": "photo-1454496522488-7a8e488e8606",
+       "page": "https://unsplash.com/photos/ama-dablam-peak-in-nepal-mountains-9wg5jCEPBsw",
+       "desc": "Snow-covered peak of Ama Dablam above a mountain range in Nepal"
+      }
+     ]
+    },
+    {
+     "slot": "place-mussoorie",
+     "note": "weak/generic",
+     "now": [
+      {
+       "id": "photo-1713026665246-843d870d1cdc",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1700219799575-026e6f2f69aa",
+       "page": "https://unsplash.com/photos/a-view-of-a-mountain-range-with-a-tree-in-the-foreground-1gsdrpGG-dE",
+       "desc": "Hills, sunrise sky and forest, Mussoorie, Uttarakhand (Raju Kumar)"
+      },
+      {
+       "id": "photo-1637387568999-92c68bdee212",
+       "page": "https://unsplash.com/ko/%EC%82%AC%EC%A7%84/%EC%82%B0%EC%9D%84-%EB%B0%B0%EA%B2%BD%EC%9C%BC%EB%A1%9C-%ED%95%9C-%EC%96%B8%EB%8D%95-%EC%9C%84%EC%9D%98-%EB%A7%88%EC%9D%84-uV7UxLPnruU",
+       "desc": "Hilltop village with mountains behind, Mussoorie (sahil yadav)"
+      },
+      {
+       "id": "photo-1651307110965-8340722facc0",
+       "page": "https://unsplash.com/ko/%EC%82%AC%EC%A7%84/%EB%86%92%EC%9D%80-%EA%B3%A0%EB%8F%84%EC%97%90%EC%84%9C-%EB%B0%94%EB%9D%BC%EB%B3%B8-%EB%8F%84%EC%8B%9C%EC%9D%98-%EB%AA%A8%EC%8A%B5-Fn8joMxNY5U",
+       "desc": "View of the town from Dalai Hills, Mussoorie (Kashish Lamba)"
+      },
+      {
+       "id": "photo-1538245204686-fd7887eb57ec",
+       "page": "https://unsplash.com/photos/LIpmU17QNN0",
+       "desc": "Mussoorie viewpoints with clouds over the mountains (Parij Borgohain)"
+      }
+     ]
+    },
+    {
+     "slot": "place-corbett",
+     "note": "weak/generic",
+     "now": [
+      {
+       "id": "photo-1653545607843-3411d02bc569",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1573663209453-93f1875e5a7b",
+       "page": "https://unsplash.com/photos/adult-tiger-tSC_gnIVsQA",
+       "desc": "Adult tiger, Jim Corbett National Park, Ramnagar"
+      },
+      {
+       "id": "photo-1573663181145-3c20a59aac0c",
+       "page": "https://unsplash.com/photos/a-close-up-of-a-large-cat-with-trees-in-the-background-GVQ9pZb-fpE",
+       "desc": "Close-up of a large cat, trees behind, Jim Corbett National Park"
+      }
+     ]
+    },
+    {
+     "slot": "place-kerala-2",
+     "note": "2nd Kerala photo",
+     "now": [
+      {
+       "id": "photo-1602590745208-870366224847",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1593693411515-c20261bcad6e",
+       "page": "https://unsplash.com/photos/houseboat-on-alappuzha-backwaters-ii0oWs5abCo",
+       "desc": "Traditional houseboat on the palm-lined backwaters of Alappuzha"
+      },
+      {
+       "id": "photo-1455157823797-3019317cbcf0",
+       "page": "https://unsplash.com/photos/green-tea-plantations-in-misty-hills-ySQXoZLAsmc",
+       "desc": "Rolling green tea plantations under low fog (Munnar hills search)"
+      },
+      {
+       "id": "photo-1593693401060-9fc28cf9e368",
+       "page": "https://unsplash.com/photos/brown-wooden-boat-on-body-of-water-near-green-palm-trees-during-daytime-ayFW56Rz5Cs",
+       "desc": "Wooden boat on water near green palm trees (Alleppey search)"
+      },
+      {
+       "id": "photo-1661174607003-d9d36388c916",
+       "page": "https://unsplash.com/photos/a-boat-on-the-water-with-vembanad-in-the-background-3rtFVq1oA9o",
+       "desc": "A boat on the water with Vembanad in the background"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "sheet-4-duplicates.png",
+   "title": "Sheet 4: duplicates (second slot of each pair; first slot shown as 'Other slot')",
+   "rows": [
+    {
+     "slot": "place-jaipur-5",
+     "note": "same as jaipur-2 (Jal Mahal)",
+     "now": [
+      {
+       "id": "photo-1714562555125-3c8d050d5d2d",
+       "label": "Now (jaipur-5)"
+      },
+      {
+       "id": "photo-1661924326425-c14a6426d989",
+       "label": "Other slot (jaipur-2)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1599661046289-e31897846e41",
+       "page": "https://unsplash.com/photos/amber-fort-zigzagging-paths-in-jaipur-ZgbzOZW9U3o",
+       "desc": "People walking along zigzagging paths at Amber Fort, Jaipur"
+      },
+      {
+       "id": "photo-1705861144929-91df892af5d6",
+       "page": "https://unsplash.com/photos/a-view-of-a-castle-from-a-distance-8oCgUgo_hBU",
+       "desc": "A view of a castle from a distance (Amer Fort search)"
+      },
+      {
+       "id": "photo-1524309784716-6a4be8299c7f",
+       "page": "https://unsplash.com/photos/structure-under-clear-sky-w3CyGs-keEM",
+       "desc": "Structure under clear sky (Amer Fort search)"
+      },
+      {
+       "id": "photo-1650355719397-a6f09db66464",
+       "page": "https://unsplash.com/photos/a-large-building-with-a-fountain-in-the-middle-of-it-gyveQB-LU7w",
+       "desc": "Large building with a fountain in the middle (Amer Fort search)"
+      }
+     ]
+    },
+    {
+     "slot": "place-dubai-5",
+     "note": "same as dubai-3 (Burj Al Arab)",
+     "now": [
+      {
+       "id": "photo-1546412414-e1885259563a",
+       "label": "Now (dubai-5)"
+      },
+      {
+       "id": "photo-1518684079-3c830dcef090",
+       "label": "Other slot (dubai-3)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1580674684081-7617fbf3d745",
+       "page": "https://unsplash.com/photos/white-and-gray-high-rise-buildings-near-body-of-water-during-daytime-QJKEa9n3yN8",
+       "desc": "White and grey high-rises near water, daytime (Dubai towers search)"
+      },
+      {
+       "id": "photo-1768463852019-4881a17a1c0e",
+       "page": "https://unsplash.com/photos/a-boat-sails-on-water-with-city-skyscrapers-at-sunset-fbv1cPWR1j0",
+       "desc": "A boat sails on water with city skyscrapers at sunset (Dubai)"
+      },
+      {
+       "id": "photo-1559717201-fbb671ff56b7",
+       "page": "https://unsplash.com/photos/burj-khalifa-skyline-in-dubai-DcyL0IoCY0A",
+       "desc": "Burj Khalifa over the illuminated Dubai skyline at night"
+      },
+      {
+       "id": "photo-1786991810391-e28ee367c3aa",
+       "page": "https://unsplash.com/photos/atlantis-the-royal-resort-in-dubai-to8TlBSHjvU",
+       "desc": "Aerial view of Atlantis The Royal on the Palm Jumeirah, Dubai"
+      }
+     ]
+    },
+    {
+     "slot": "place-udaipur-2",
+     "note": "same scene as udaipur",
+     "now": [
+      {
+       "id": "photo-1615836245337-f5b9b2303f10",
+       "label": "Now (udaipur-2)"
+      },
+      {
+       "id": "photo-1589901164570-f9de6556e1c1",
+       "label": "Other slot (udaipur)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1634720564985-5cf184d8eca9",
+       "page": "https://unsplash.com/photos/a-boat-on-a-river-near-a-city-Nbxgkrfq_WQ",
+       "desc": "A boat on Lake Pichola near the city, Udaipur"
+      },
+      {
+       "id": "photo-1642312063130-4e055c0d2152",
+       "page": "https://unsplash.com/photos/a-large-white-building-sitting-on-top-of-a-body-of-water-WO2KGa9G4tA",
+       "desc": "Large white palace on the water, Udaipur (page: Queen Padmini Palace)"
+      }
+     ]
+    },
+    {
+     "slot": "place-ladakh-4",
+     "note": "same as ladakh-3",
+     "now": [
+      {
+       "id": "photo-1617824077360-7a77db40aae1",
+       "label": "Now (ladakh-4)"
+      },
+      {
+       "id": "photo-1581793745862-99fde7fa73d2",
+       "label": "Other slot (ladakh-3)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1566323124805-757e5c41d37c",
+       "page": "https://unsplash.com/photos/a-river-flowing-under-a-bridge-surrounded-by-mountains-f8tGje5BkpQ",
+       "desc": "River flowing under a bridge surrounded by mountains (Leh Ladakh)"
+      },
+      {
+       "id": "photo-1593118845043-359e5f628214",
+       "page": "https://unsplash.com/photos/blue-yellow-and-red-textile-on-gray-sand-near-lake-and-mountain-during-daytime-MrW_AqAFNR0",
+       "desc": "Colourful textile on grey sand near a lake and mountain (Leh Ladakh)"
+      },
+      {
+       "id": "photo-1695876670020-e2c2ac5a21ce",
+       "page": "https://unsplash.com/photos/a-large-white-building-sitting-on-the-side-of-a-mountain-3_tD7q0wVh0",
+       "desc": "Large white building on the side of a mountain (Leh Ladakh)"
+      },
+      {
+       "id": "photo-1600242466690-c1c04f081762",
+       "page": "https://unsplash.com/photos/green-trees-near-brown-mountain-under-white-clouds-during-daytime-v1oGBUnXVDs",
+       "desc": "Green trees near brown mountain under white clouds (Leh Ladakh)"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "sheet-5-second-pass.png",
+   "title": "Sheet 5: second pass - Corbett, Udaipur-2, Zambia, Senegal",
+   "rows": [
+    {
+     "slot": "place-corbett",
+     "note": "tiger / sal forest wanted",
+     "now": [
+      {
+       "id": "photo-1653545607843-3411d02bc569",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1506779946949-49847699b34b",
+       "page": "https://unsplash.com/photos/closeup-photography-of-bengal-tiger-1C37Xzf5cf8",
+       "desc": "Closeup of a Bengal tiger (page gives no location)"
+      },
+      {
+       "id": "photo-1700562556421-8b96fdd43898",
+       "page": "https://unsplash.com/photos/a-tiger-standing-in-a-field-with-trees-in-the-background-OhtREEDbxGo",
+       "desc": "Tiger yawning in a field with trees; Ranthambore, Rajasthan (not Corbett)"
+      },
+      {
+       "id": "photo-1573663209453-93f1875e5a7b",
+       "page": "https://unsplash.com/photos/adult-tiger-tSC_gnIVsQA",
+       "desc": "Page title 'adult tiger', Jim Corbett (looks like a leopard)"
+      }
+     ]
+    },
+    {
+     "slot": "place-udaipur-2",
+     "note": "City Palace / Jag Mandir, clear",
+     "now": [
+      {
+       "id": "photo-1615836245337-f5b9b2303f10",
+       "label": "Now"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1700985959163-ed9aa14a99bd",
+       "page": "https://unsplash.com/photos/a-tall-building-with-a-clock-on-the-side-of-it-ZArhAxOL1QM",
+       "desc": "Page tags: Udaipur, City Palace, Udaipur Lake (Jinish Shah)"
+      },
+      {
+       "id": "photo-1655106606416-f65f790cff66",
+       "page": "https://unsplash.com/photos/a-building-with-a-large-archway-adm8BTKBkTc",
+       "desc": "Old heritage chhatri at Jagmandir Island Palace, Udaipur"
+      },
+      {
+       "id": "photo-1672664655323-4fb951c4f173",
+       "page": "https://unsplash.com/ja/%E5%86%99%E7%9C%9F/unOwcWa6cbs",
+       "desc": "Udaipur, Rajasthan; tags: colourful, old, golden, buildings (Vishwas Johari)"
+      }
+     ]
+    },
+    {
+     "slot": "country-zm",
+     "note": "Zambia's own places",
+     "now": [
+      {
+       "id": "photo-1666732566977-8805c13a6ce2",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1627347456206-d3df7d8484b0",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1759143861174-74eb31f4ecab",
+       "page": "https://unsplash.com/photos/elephants-drinking-water-from-a-muddy-puddle-in-savanna-WEjppL8FwxY",
+       "desc": "Herd of elephants drinking at a water hole at golden hour, South Luangwa NP, Zambia"
+      },
+      {
+       "id": "photo-1746875918867-3e9ecaef19ae",
+       "page": "https://unsplash.com/photos/two-giraffes-cross-the-dirt-road-with-a-car-tWsKSIg2gxM",
+       "desc": "Two giraffes crossing a dirt road, South Luangwa NP, Zambia"
+      },
+      {
+       "id": "photo-1746719874157-d1e93ce6ca8b",
+       "page": "https://unsplash.com/photos/a-leopard-relaxes-on-a-tree-branch-rFpghUo4SQM",
+       "desc": "Leopard on a tree, South Luangwa NP, Zambia"
+      }
+     ]
+    },
+    {
+     "slot": "country-sn",
+     "note": "Gor\u00e9e / Dakar monument",
+     "now": [
+      {
+       "id": "photo-1577259855408-c14a7b107540",
+       "label": "Now (1st)"
+      },
+      {
+       "id": "photo-1583495506658-50a3587f792e",
+       "label": "Now (2nd)"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1758061290793-c8df7171bbb1",
+       "page": "https://unsplash.com/photos/narrow-street-lined-with-colorful-buildings-and-flowers-mR4c4ha9TdQ",
+       "desc": "'Green street on Ile de Goree', Dakar, Senegal"
+      },
+      {
+       "id": "photo-1758061298787-667ae2a9d67c",
+       "page": "https://unsplash.com/photos/pink-building-with-palm-trees-and-boat-on-water-JwWRuR0t_4s",
+       "desc": "Pink building with palm trees and a boat on water (Dakar search)"
+      },
+      {
+       "id": "photo-1637166514815-8b923a08f8e8",
+       "page": "https://unsplash.com/photos/a-view-of-a-hill-with-a-statue-on-top-of-it-W9XDGeJDnL0",
+       "desc": "Hill with a statue on top, Dakar, Senegal (sunset)"
+      },
+      {
+       "id": "photo-1690323223790-4df744a1a033",
+       "page": "https://unsplash.com/photos/a-view-of-a-city-from-a-high-point-of-view-IbhDrmssndU",
+       "desc": "View of Dakar from the African Renaissance Monument (Karen Nash)"
+      }
+     ]
+    }
+   ]
+  }
+ ]
 }
