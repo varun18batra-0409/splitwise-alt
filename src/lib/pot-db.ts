@@ -32,6 +32,17 @@ async function openGame(tx: Tx, group: { id: string; currency: string }, gameId:
   await claimOpenGame(tx, gameId);
 }
 
+// The name of an open (not deleted) game this person has money in: any live take, return or adjustment of theirs. null = none.
+// Leaving or being removed while in one would leave their chips in a game the result can't be worked out for.
+export async function openGameFor(client: Db, groupId: string, memberId: string): Promise<string | null> {
+  const g = await client.potGame.findFirst({
+    where: { groupId, status: "open", deletedAt: null, moves: { some: { memberId, deletedAt: null } } },
+    select: { name: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  return g ? g.name : null;
+}
+
 async function mergePlayers(tx: Tx, gameId: string, ids: string[]): Promise<void> {
   const now = await tx.potGame.findUnique({ where: { id: gameId }, select: { players: true } });
   const have = parsePlayers(now?.players ?? "[]");

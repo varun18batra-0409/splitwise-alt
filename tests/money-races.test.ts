@@ -945,7 +945,7 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(l.net).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
   });
 
-  // L1: a move-out charge (Ravi's share 20800, paid by Asha) is exempt only for Ravi.
+  // L1: a move-out charge (Ravi's share 20800, paid by Asha): nobody who has left is exempt (D3-1).
   async function chargeFlat() {
     const g = await make(["Asha", "Ravi", "Meera"]);
     const charge = await addExpense(g.id, g.ids.Asha, 20800, [[g.ids.Ravi, 20800]], "Milk (Ravi’s share)");
@@ -954,10 +954,13 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     return { ...g, charge };
   }
 
-  it("L1: only Ravi has left: deleting his move-out charge is allowed (the exempt case: he ends at +20800)", async () => {
+  it("L1 (D3-1): only Ravi has left: deleting his move-out charge is refused too (no exception any more: he would end at +20800); nothing changes, balances stay 0/0/0", async () => {
     const g = await chargeFlat();
     await db.member.update({ where: { id: g.ids.Ravi }, data: { leftAt: new Date() } });
-    expect((await setExpenseDeleted(g.charge.id, g.ids.Meera, true)).ok).toBe(true);
+    expect(await setExpenseDeleted(g.charge.id, g.ids.Meera, true)).toEqual({ ok: false, error: "Ravi has left the group, so this can't be deleted. Ask them to rejoin first." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: g.charge.id } })).deletedAt).toBeNull();
+    const l = await db.$transaction((tx) => ledgerInTx(tx, g.id));
+    expect(l.net).toEqual({ [g.ids.Asha]: 0, [g.ids.Ravi]: 0, [g.ids.Meera]: 0 });
   });
 
   it("L1: Asha (the payer) also left: deleting the charge would put her at −20800 (paid 20800 back, no expense): refused", async () => {

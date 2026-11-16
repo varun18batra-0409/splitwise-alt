@@ -47,6 +47,8 @@ export default async function MoveOutPage({
   const name = (mid: string) => (mid === myId ? "you" : group.members.find((m) => m.id === mid)?.name ?? "someone");
   const Name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const others = group.members.filter((m) => !m.leftAt && m.id !== leaver.id);
+  const memberName = (mid: string) => group.members.find((m) => m.id === mid)?.name ?? "someone";
+  const handovers = p.ok ? p.handovers.map((h) => ({ amount: h.amount, sharerName: memberName(h.sharerId), billName: h.billName, toName: memberName(h.to) })) : [];
   const payList = (list: { from: string; to: string; amount: number }[]) =>
     list.length === 0 ? (
       <p className="text-sm text-gray-500">
@@ -213,8 +215,8 @@ export default async function MoveOutPage({
           <div>
             <MoveOutButton
               className={primaryButtonClass}
-              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments.map((t) => ({ ...t, waits: p.waits.includes(`${t.from}>${t.to}`) })), nameOf: Name, money })}
-              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily.map((t) => ({ ...t, waits: p.waitsWithDaily.includes(`${t.from}>${t.to}`) })), nameOf: Name, money }) : undefined}
+              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments.map((t) => ({ ...t, waits: p.waits.includes(`${t.from}>${t.to}`) })), nameOf: Name, money, handovers })}
+              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily.map((t) => ({ ...t, waits: p.waitsWithDaily.includes(`${t.from}>${t.to}`) })), nameOf: Name, money, handovers }) : undefined}
             >
               Settle {leaver.id === myId ? "up" : leaver.name} &amp; mark as moved out
             </MoveOutButton>

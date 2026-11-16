@@ -23,12 +23,5 @@ export async function chargeLock(client: PrismaClient | Prisma.TransactionClient
   return null;
 }
 
-// The leavers a move-out daily charge was made for: the member ids (`m`) on this expense's entries in any bill's prepaid
-// list, whatever the month's status. Empty if it isn't a move-out charge.
-export async function moveOutLeavers(client: PrismaClient | Prisma.TransactionClient, groupId: string, expenseId: string): Promise<string[]> {
-  const bills = await client.bill.findMany({ where: { groupId, prepaid: { contains: expenseId } }, select: { prepaid: true } });
-  return bills.flatMap((b) => Object.values(parsePrepaid(b.prepaid)).flatMap((list) => list.filter((x) => x.e === expenseId).map((x) => x.m)));
-}
-
 export const chargeLockedText = (bill: string, status?: ChargeLock["status"]) =>
   status === "covered" ? `This month’s ${bill} was already covered, so this charge stays.` : `This was counted in this month’s ${bill}. Edit ${bill} instead.`;
