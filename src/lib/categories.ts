@@ -99,6 +99,8 @@ const WEAK = new Set(["night market", "class", "kitchen", "driver", "tempo", "je
 // Single words long enough to be worth typo-matching ("dinner", "petrol", "groceries").
 const FUZZY = KEYWORDS.filter((k) => /^[a-z]+$/.test(k.word) && k.word.length >= 4);
 const KNOWN = new Set(KEYWORDS.map((k) => k.word));
+// The order the exact words are tried in (strong ones, then the weak place words), worked out once rather than for every name.
+const KEYWORDS_IN_ORDER = [...KEYWORDS.filter((k) => !WEAK.has(k.word)), ...KEYWORDS.filter((k) => WEAK.has(k.word))];
 
 // Real English words that look like typos of a keyword but aren't
 // ("rest" ≠ "rent", "full" ≠ "fuel"). They're never "corrected".
@@ -126,6 +128,41 @@ export function editDistance(a: string, b: string): number {
   return d[a.length][b.length];
 }
 
+// The same count as editDistance when it is `limit` or less, and limit + 1 when it is more. Only the cells close to the diagonal can matter
+// for a small limit, and it stops as soon as a whole row is already over, so a typo check against hundreds of keywords stays fast.
+let rowA = new Int32Array(64), rowB = new Int32Array(64), rowC = new Int32Array(64);
+export function editDistanceWithin(a: string, b: string, limit: number): number {
+  const n = a.length, m = b.length, over = limit + 1;
+  if (Math.abs(n - m) > limit) return over;
+  if (m + 1 > rowA.length) {
+    rowA = new Int32Array(m + 1);
+    rowB = new Int32Array(m + 1);
+    rowC = new Int32Array(m + 1);
+  }
+  let prev2 = rowA, prev = rowB, cur = rowC;
+  prev2.fill(over, 0, m + 1);
+  for (let j = 0; j <= m; j++) prev[j] = j <= limit ? j : over;
+  for (let i = 1; i <= n; i++) {
+    cur.fill(over, 0, m + 1);
+    cur[0] = i <= limit ? i : over;
+    let rowMin = cur[0];
+    const hi = Math.min(m, i + limit);
+    for (let j = Math.max(1, i - limit); j <= hi; j++) {
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      if (v > over) v = over;
+      cur[j] = v;
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > limit) return over;
+    const t = prev2;
+    prev2 = prev;
+    prev = cur;
+    cur = t;
+  }
+  return Math.min(prev[m], over);
+}
+
 export type CategoryGuess = {
   category: string;
   // Set when a word looked misspelled: e.g. { wrong: "Dinnr", right: "Dinner" }.
@@ -143,7 +180,7 @@ export function analyzeName(name: string): CategoryGuess {
   //    "Night market dinner" is Food, "Mall" alone is Shopping.
   let best: { category: string; index: number; length: number } | null = null;
   let strong = false;
-  for (const k of [...KEYWORDS.filter((k) => !WEAK.has(k.word)), ...KEYWORDS.filter((k) => WEAK.has(k.word))]) {
+  for (const k of KEYWORDS_IN_ORDER) {
     if (strong && WEAK.has(k.word)) break; // weak words only compete with each other
     const m = k.re.exec(text);
     if (!m) continue;
@@ -182,7 +219,8 @@ export function analyzeName(name: string): CategoryGuess {
     let found: { word: string; category: string; dist: number } | null = null;
     for (const k of FUZZY) {
       const limit = k.word.length >= 8 ? 2 : 1;
-      const dist = Math.min(editDistance(w, k.word), stem.length >= 4 ? editDistance(stem, k.word) : 99);
+      // Only whether it is within the limit matters (anything further is over the limit and ignored), so the quick bounded count is used: same answers, much faster.
+      const dist = Math.min(editDistanceWithin(w, k.word, limit), stem.length >= 4 ? editDistanceWithin(stem, k.word, limit) : 99);
       if (dist <= limit && (found === null || dist < found.dist || (dist === found.dist && k.word.length > found.word.length))) {
         found = { word: k.word, category: k.category, dist };
       }

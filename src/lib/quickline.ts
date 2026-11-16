@@ -43,6 +43,12 @@ export function parseQuickLine(text: string, members: QuickMember[], myId: strin
   const first = (n: string) => norm(n.split(" ")[0]);
   const firstCount = new Map<string, number>();
   for (const m of members) firstCount.set(first(m.name), (firstCount.get(first(m.name)) ?? 0) + 1);
+  // Which word is the amount. With several numbers ("Dinner for 4 2400", "2 beers 600") the small ones are counts: a number with a
+  // currency sign or a "k" ("₹240", "1.2k") wins, else the largest, else the first. The others stay in the name.
+  const candidates = toks.map((t, i) => ({ i, amount: amountOf(t), marked: /^[₹$£€¥]|^(rs\.?|inr|usd)|k$/i.test(t) })).filter((c) => c.amount !== null);
+  const marked = candidates.filter((c) => c.marked);
+  const pool = marked.length ? marked : candidates;
+  const amountAt = pool.reduce<(typeof pool)[number] | null>((best, c) => (best === null || Number(c.amount) > Number(best.amount) ? c : best), null)?.i ?? -1;
   type Tok = { word: string; kind: "amount" | "person" | "paid" | "by" | "with" | "for" | "except" | "all" | "filler" | "text"; id?: string; amount?: string; len: number };
   const out: Tok[] = [];
   for (let i = 0; i < toks.length; ) {
@@ -61,7 +67,7 @@ export function parseQuickLine(text: string, members: QuickMember[], myId: strin
       const a = amountOf(toks[i]);
       if (byFirst) matched = { word: toks[i], kind: "person", id: byFirst.id, len: 1 };
       else if (ME.has(w)) matched = { word: toks[i], kind: "person", id: myId, len: 1 };
-      else if (a && !out.some((t) => t.kind === "amount")) matched = { word: toks[i], kind: "amount", amount: a, len: 1 };
+      else if (a && i === amountAt) matched = { word: toks[i], kind: "amount", amount: a, len: 1 };
       else if (PAID.has(w)) matched = { word: toks[i], kind: "paid", len: 1 };
       else if (BY.has(w)) matched = { word: toks[i], kind: "by", len: 1 };
       else if (WITH.has(w)) matched = { word: toks[i], kind: "with", len: 1 };

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { importFromSplitwise } from "@/app/actions";
 import { GROUP_TYPES, type GroupType } from "@/lib/group-types";
-import { MAX_IMPORT_BYTES, balancesOf, planRow, previewText } from "@/lib/splitwise-csv";
+import { MAX_IMPORT_BYTES, balanceGapText, balancesOf, planRow, previewText } from "@/lib/splitwise-csv";
 import { detectFormat, parseImport, type ColumnMap, type Detected } from "@/lib/import-formats";
 import { POPULAR_CURRENCIES } from "@/lib/money";
 import { inputClass, primaryButtonClass } from "./ui";
@@ -46,7 +46,9 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
   const parsed = useMemo(() => (detected?.ok ? parseImport(text, { map: map ?? undefined, currency }) : null), [detected, text, map, currency]);
   const ok = parsed?.ok ? parsed : null;
   const preview = ok ? previewText(ok) : null;
-  const matches = ok?.expected ? ok.expected.every((x, i) => x === balancesOf(ok.rows.map(planRow), ok.people.length)[i]) : null;
+  const net = ok?.expected ? balancesOf(ok.rows.map(planRow), ok.people.length) : null;
+  const matches = ok?.expected && net ? ok.expected.every((x, i) => x === net[i]) : null;
+  const gapText = ok?.expected && net ? balanceGapText(ok.expected, net, ok.people, ok.currency) : null;
   // You: picked from your name, until you pick someone else.
   const guessedMe = ok
     ? (() => {
@@ -95,7 +97,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
               value={map.split}
               onChange={(e) => setMap({ ...map, split: e.target.value as ColumnMap["split"] })}
             >
-              <option value="everyone">Equally between everyone</option>
+              <option value="everyone">Equally between everyone who paid</option>
               <option value="column">Equally between the people named in a column</option>
               <option value="shares">Each person has their own column with their share</option>
             </SelectField>
@@ -171,7 +173,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
               ))}
             </ul>
             {matches === true && <p className="mt-2 text-emerald-700">✓ Matches the file’s own balances</p>}
-            {matches === false && <p className="mt-2 text-amber-700">Balances differ slightly from the file’s own total (rounding). Check after importing.</p>}
+            {matches === false && gapText && <p className="mt-2 text-amber-700">{gapText}</p>}
             {ok.otherCurrencies.length > 0 && (
               <p className="mt-2 text-amber-700">
                 Lines in {ok.otherCurrencies.join(", ")} are left out: Loopin brings over one currency per group. You can add them after, in their own currency.

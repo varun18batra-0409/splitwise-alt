@@ -149,6 +149,11 @@ export function parseSplitwiseCsv(text: string): SwParsed {
       const big = n.reduce((bi, x, i) => (Math.abs(x) > Math.abs(n[bi]) ? i : bi), 0);
       n[big] -= off;
     }
+    // The rounding can leave nothing at all (yen 0.5 / -0.5 → 0 / 0): check again, so no empty expense is ever planned.
+    if (n.every((x) => x === 0)) {
+      skipped.push({ line, reason: "it didn’t change anyone’s balance" });
+      continue;
+    }
     const date = /^\d{4}-\d{2}-\d{2}/.exec((cells[0] ?? "").trim())?.[0] ?? "";
     const category = (cells[2] ?? "").trim();
     rows.push({
@@ -221,6 +226,25 @@ export function balancesOf(plans: PlannedLine[], people: number): number[] {
     }
   }
   return net;
+}
+
+// When the balances worked out from the lines differ from the file's own "Total balance" row: the real size of the biggest gap, in words.
+// null when they match. A gap of a few minor units (5 or less) can be rounding; anything bigger comes from lines that were left out or a
+// wrong column choice, and is never called rounding.
+export function balanceGapText(expected: number[], net: number[], people: string[], currency: string): string | null {
+  let worst = -1;
+  let gap = 0;
+  expected.forEach((x, i) => {
+    const g = Math.abs(x - (net[i] ?? 0));
+    if (g > gap) {
+      gap = g;
+      worst = i;
+    }
+  });
+  if (worst < 0) return null;
+  const size = formatMoney(gap, currency);
+  if (gap <= 5) return `Balances differ a little from the file’s own total (${people[worst]} by ${size}, probably rounding). Check after importing.`;
+  return `Balances don’t match the file’s own total: ${people[worst]} is out by ${size}. Lines left out, or a wrong column choice, can cause this. Check before importing.`;
 }
 
 // Splitwise's categories → Loopin's (falls back to guessing from the name).
