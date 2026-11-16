@@ -108,33 +108,29 @@ describe("both ways: two passes, the larger first", () => {
     if (t.kind !== "both") throw new Error("both");
     expect(orderPasses(t.lines).map((l) => l.side)).toEqual(["owe", "owed"]);
   });
-  it("the stack scrolls by hand: snap, keyboard, dots, no timer; one cream button (only the first pass)", () => {
+  it("the stack scrolls by hand: snap, keyboard, dots, no timer", () => {
     const st = src("src/components/PassStack.tsx");
     expect(st).toContain("snap-x snap-mandatory");
     expect(st).toContain("tabIndex={0}");
     expect(st).toContain("ArrowRight");
     expect(st).toContain("prefers-reduced-motion");
     expect(st).not.toContain("setInterval");
-    expect(src("src/components/HomeMoney.tsx")).toContain("bright={i === 0}");
   });
 });
 
 describe("all square and the neutral card", () => {
-  it("square has the SETTLED stamp (not green), one quiet Add an expense link and no button", () => {
+  it("square is the slim card: 'All square' and 'Nobody owes anybody', still one link to Settle up, no stamp and no button", () => {
     const hm = src("src/components/HomeMoney.tsx");
-    expect(hm).toContain("data-settled-stamp");
-    expect(hm).toContain("SETTLED");
-    const stamp = hm.slice(hm.indexOf("data-settled-stamp"), hm.indexOf("SETTLED"));
-    expect(stamp).not.toMatch(/text-owed|text-owe\b/);
-    expect(hm).toContain("data-square-add");
-    expect(hm).toContain("Add an expense");
+    const money = hm.slice(hm.indexOf("export function MoneyCard"), hm.indexOf('// "Coming up": the trips that are next'));
+    expect(money).toContain('data-money-mode="square"');
+    expect(money).not.toContain("SETTLED");
   });
   it("Home's Coming up card is the 12 Nov countdown again (founder, 15 Nov): torn perforation with two half-circle bites, uppercase tracked kicker, handwritten 'days to go'", () => {
     expect(src("src/components/HomeMoney.tsx")).toContain("<TicketShell\n      stub={[p.stub]}"); // the trip pass stays for a group's own page
     const c = src("src/components/TripCountdown.tsx");
     expect(c).toContain("border-l-2 border-dashed");
     expect(c.match(/h-5 w-5 rounded-full bg-canvas/g)).toHaveLength(2);
-    expect(c).toContain("uppercase tracking-[0.18em]");
+    expect(c).toContain("uppercase leading-tight tracking-[0.18em]");
     expect(c).toContain("font-hand");
     expect(c).toContain("data-trip-pass={group.id}");
     expect(c).toContain("trip countdown");

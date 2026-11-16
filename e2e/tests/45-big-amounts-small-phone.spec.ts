@@ -53,24 +53,25 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   const bina = await signUp("Bina", testEmail("big-bina"));
   const cara = await signUp("Cara", testEmail("big-cara"));
   const [A, B, C] = [await (await contextFor(browser, asha)).newPage(), await (await contextFor(browser, bina)).newPage(), await (await contextFor(browser, cara)).newPage()];
-  // Group 1: Asha pays, so Bina owes her. Group 2: Cara pays, so Asha owes Cara. That makes Home's ticket two-sided.
+  // Group 1: Asha pays, so Bina owes her ₹6,17,283.94. Group 2: Cara pays a small bill (₹100, so Asha owes ₹50). Home's slim card shows the NET:
+  // 617283.94 - 50.00 = ₹6,17,233.94 owed to Asha (the two are never shown as separate cards any more).
   const g1 = await createGroup(A, groupName("Big one"));
   await joinGroup(B, g1.invite, g1.path);
   await addEqualExpense(A, g1.path, "Villa", "1234567.88");
   const g2 = await createGroup(A, groupName("Big two"));
   await joinGroup(C, g2.invite, g2.path);
-  await addEqualExpense(C, g2.path, "Boat", "1234567.88");
+  await addEqualExpense(C, g2.path, "Boat", "100");
 
   const ctx = await browser.newContext({ storageState: asha.storageState, viewport: { width: W, height: H } });
   await allowTestCopy(ctx);
   const page = await ctx.newPage();
 
-  // Home: the card says "both", each line's amount is whole and fully visible.
+  // Home: the one slim card says the net, whole and fully visible.
   await page.goto("/");
   await settled(page);
   const card = page.locator("[data-balance-card]").first();
-  await expect(card).toHaveAttribute("data-ticket", "both");
-  await expect(card).toContainText("₹6,17,283.94"); // Home is exact too
+  await expect(card).toHaveAttribute("data-ticket", "net");
+  await expect(card).toContainText("₹6,17,233.94"); // Home is exact too
   await fullyVisible(page, "[data-balance-card] [data-net-balance]", "Home ticket amount");
   expect(await noSidewaysScroll(page), "Home does not scroll sideways").toBeLessThanOrEqual(1);
 
