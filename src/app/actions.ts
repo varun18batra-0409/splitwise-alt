@@ -41,6 +41,7 @@ import { hasLeft, LEFT_ERROR } from "@/lib/active";
 import { parseWas, saveAllSettings } from "@/lib/settings-save";
 import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
+import { flashUrl } from "@/lib/flash";
 
 
 export async function createGroup(formData: FormData) {
@@ -98,7 +99,7 @@ function photoFrom(v: FormDataEntryValue | null): Uint8Array<ArrayBuffer> | unde
 export async function importFromSplitwise(formData: FormData) {
   const account = await getAccount();
   if (!account) redirect(`/signin?${new URLSearchParams({ back: "/import" })}`);
-  if (!(await allow(`import:${(await originAndIp()).ip}`, 10, 3600))) redirect(`/import?error=${encodeURIComponent("Lots of imports from here in the last hour. Wait a bit and try again.")}`);
+  if (!(await allow(`import:${(await originAndIp()).ip}`, 10, 3600))) redirect(await flashUrl(`/import?error=${encodeURIComponent("Lots of imports from here in the last hour. Wait a bit and try again.")}`));
   const r = await importSplitwise(account, {
     text: String(formData.get("csv") ?? ""),
     groupName: String(formData.get("groupName") ?? ""),
@@ -107,7 +108,7 @@ export async function importFromSplitwise(formData: FormData) {
     map: readColumnMap(String(formData.get("map") ?? "")),
     currency: String(formData.get("currency") ?? "") || undefined,
   });
-  if (!r.ok) redirect(`/import?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/import?error=${encodeURIComponent(r.error)}`));
   await setMyMemberId(r.groupId, r.meMemberId);
   await copyPushTo(account.id, r.meMemberId);
   redirect(`/groups/${r.groupId}?${new URLSearchParams({ imported: `${r.expenses}.${r.payments}.${r.matches === false ? "off" : r.matches ? "ok" : "na"}` })}`);
@@ -148,7 +149,7 @@ async function memberContext(groupId: string) {
   const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: group.id } }) : null;
   if (!me) redirect("/private");
   // Adding and inviting people is for people still in the group.
-  if (me.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to add or invite people.")}`);
+  if (me.leftAt) redirect(await flashUrl(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to add or invite people.")}`));
   return { group, me };
 }
 
@@ -157,25 +158,25 @@ async function memberContext(groupId: string) {
 export async function addPerson(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { origin, ip } = await originAndIp();
-  if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
+  if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(await flashUrl(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`));
   const r = await addRegistered(group.id, me.id, String(formData.get("accountId") ?? ""), origin, { later: (job) => after(job) });
   // Someone brought back who has their own account is only invited: they rejoin when they accept ("back" tells the screen to say so).
   const q = r.ok
     ? new URLSearchParams({ invited: JSON.stringify([[r.name, ""]]), ...(r.invitedBack ? { back: "1" } : r.eventId ? { did: r.eventId } : {}) })
     : new URLSearchParams({ error: r.error });
-  redirect(`/groups/${group.id}/invite?${q}`);
+  redirect(await flashUrl(`/groups/${group.id}/invite?${q}`));
 }
 
 // Invite by email: they are in the group at once as a name, and invited.
 export async function invitePeople(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { origin, ip } = await originAndIp();
-  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`);
+  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(await flashUrl(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`));
   const r = await inviteByEmail(group.id, me.id, String(formData.get("emails") ?? ""), origin, { later: (job) => after(job) });
   const q = new URLSearchParams();
   if (r.people.length) q.set("invited", JSON.stringify(r.people.map((p) => [p.name, p.email])));
   if (r.bad.length) q.set("error", `Couldn’t invite: ${r.bad.join(", ")}`);
-  redirect(`/groups/${group.id}/invite?${q}`);
+  redirect(await flashUrl(`/groups/${group.id}/invite?${q}`));
 }
 
 // Joining from an invitation (link, QR, contact message or email). Needs a
@@ -219,7 +220,7 @@ export async function joinAsNew(formData: FormData) {
   // Someone whose move-out can still be undone is not quietly put back in: People explains and offers Undo my move-out.
   if (!r.ok && r.reason === "moved_out" && r.groupId && r.memberId) {
     await setMyMemberId(r.groupId, r.memberId);
-    redirect(`/groups/${r.groupId}/people?error=${encodeURIComponent(MOVED_OUT_REJOIN_TEXT)}`);
+    redirect(await flashUrl(`/groups/${r.groupId}/people?error=${encodeURIComponent(MOVED_OUT_REJOIN_TEXT)}`));
   }
   if (!r.ok) joinRefused(code, r);
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
@@ -238,9 +239,9 @@ export async function answerInvitation(formData: FormData) {
     // Their move-out can still be undone: People explains it, instead of quietly giving that up.
     if (!r.ok && r.movedOut) {
       await setMyMemberId(r.movedOut.groupId, r.movedOut.memberId);
-      redirect(`/groups/${r.movedOut.groupId}/people?error=${encodeURIComponent(r.error)}`);
+      redirect(await flashUrl(`/groups/${r.movedOut.groupId}/people?error=${encodeURIComponent(r.error)}`));
     }
-    if (!r.ok) redirect(`/?error=${encodeURIComponent(r.error)}`);
+    if (!r.ok) redirect(await flashUrl(`/?error=${encodeURIComponent(r.error)}`));
     await setMyMemberId(r.groupId, r.memberId);
     redirect(`/groups/${r.groupId}`);
   }
@@ -254,7 +255,7 @@ export async function makeNewInviteLink(formData: FormData) {
   const myId = await getMyMemberId(groupId);
   if (!myId) redirect("/private");
   const r = await newInviteLink(groupId, myId);
-  redirect(`/groups/${groupId}/invite${r.ok ? "?newlink=1" : `?error=${encodeURIComponent(r.error)}`}`);
+  redirect(await flashUrl(`/groups/${groupId}/invite${r.ok ? "?newlink=1" : `?error=${encodeURIComponent(r.error)}`}`));
 }
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
@@ -305,7 +306,7 @@ async function toggleExpense(formData: FormData, deleted: boolean) {
   const expenseId = String(formData.get("expenseId") ?? "");
   const r = await setExpenseDeleted(expenseId, await getMyMemberId(groupId), deleted);
   const q = r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`;
-  redirect(`/groups/${groupId}?tab=activity&${q}`);
+  redirect(await flashUrl(`/groups/${groupId}?tab=activity&${q}`));
 }
 
 // Delete a settle-up payment. Only the payer and the person paid can (even if they have left: they come back owing it). History keeps it.
@@ -315,7 +316,7 @@ export async function removePayment(formData: FormData) {
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
   const r = await deletePayment(paymentId, memberships[groupId], { memberships });
-  redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
+  redirect(await flashUrl(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`));
 }
 
 // Bring back a deleted settle-up payment (the payer or the person paid; the person paid alone if they took it off themselves).
@@ -324,7 +325,7 @@ export async function restorePayment(formData: FormData) {
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
   const r = await setPaymentDeleted(paymentId, memberships[groupId], false, { memberships });
-  redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
+  redirect(await flashUrl(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`));
 }
 
 // Undo (or redo) any change in a group. `back` says which page to return to.
@@ -335,11 +336,11 @@ export async function undoChange(formData: FormData) {
   const memberships = await getMemberships();
   const r = await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships });
   const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
-  if (back === "home") redirect(`/?${q}&g=${groupId}`);
-  if (back === "people") redirect(`/groups/${groupId}/people?${q}`);
-  if (back === "settle") redirect(`/groups/${groupId}/settle?${q}`);
-  if (/^pot:[A-Za-z0-9_-]{6,40}$/.test(back)) redirect(`/groups/${groupId}/pot/${back.slice(4)}?${q}`);
-  redirect(`/groups/${groupId}?tab=${back === "balances" ? "balances" : "activity"}&${q}`);
+  if (back === "home") redirect(await flashUrl(`/?${q}&g=${groupId}`));
+  if (back === "people") redirect(await flashUrl(`/groups/${groupId}/people?${q}`));
+  if (back === "settle") redirect(await flashUrl(`/groups/${groupId}/settle?${q}`));
+  if (/^pot:[A-Za-z0-9_-]{6,40}$/.test(back)) redirect(await flashUrl(`/groups/${groupId}/pot/${back.slice(4)}?${q}`));
+  redirect(await flashUrl(`/groups/${groupId}?tab=${back === "balances" ? "balances" : "activity"}&${q}`));
 }
 
 // Looks up today's exchange rate when a currency is picked (not on every keystroke).
@@ -375,7 +376,7 @@ export async function updateSharingSettings(formData: FormData) {
   const weights: Record<string, string> = {};
   for (const [k, v] of formData.entries()) if (k.startsWith("w_")) weights[k.slice(2)] = String(v);
   const r = await updateSharing(groupId, myId, { type: String(formData.get("type") ?? ""), weights });
-  if (!r.ok) redirect(`/groups/${groupId}/settings?error=${encodeURIComponent(r.error)}#sharing`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/settings?error=${encodeURIComponent(r.error)}#sharing`));
   redirect(`/groups/${groupId}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
@@ -409,7 +410,7 @@ export async function updateGroupSettings(formData: FormData) {
   // Trip dates (trip groups only): the countdown on Home and the group.
   if (group.type === "trip" && formData.has("tripStart")) {
     const trip = await setTripDates(group.id, myId, String(formData.get("tripStart") ?? ""), String(formData.get("tripEnd") ?? ""), dayKey(new Date(), await getTimeZone()));
-    if (!trip.ok) redirect(`${back}?${new URLSearchParams({ error: trip.error })}`);
+    if (!trip.ok) redirect(await flashUrl(`${back}?${new URLSearchParams({ error: trip.error })}`));
   }
   // Where the trip went (for the trip passport): as typed, and a country from the list.
   if (group.type === "trip" && formData.has("tripPlace")) {
@@ -472,7 +473,7 @@ export async function saveGroupSettings(formData: FormData) {
     },
     dayKey(new Date(), await getTimeZone()),
   );
-  if (!r.ok) redirect(`${back}?${new URLSearchParams({ error: r.code && r.code !== "conflict" ? r.code : r.error })}`);
+  if (!r.ok) redirect(await flashUrl(`${back}?${new URLSearchParams({ error: r.code && r.code !== "conflict" ? r.code : r.error })}`));
   if (r.convertTo) redirect(`${back}?convert=${r.convertTo}`);
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
@@ -488,7 +489,7 @@ export async function convertGroupCurrency(formData: FormData) {
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (!(await isGroupAdmin(group.id, myId))) redirect(`/groups/${group.id}/settings?error=admin`);
   const r = await changeGroupCurrency(group.id, myId, currency, rate);
-  if (!r.ok) redirect(`/groups/${group.id}/settings?convert=${currency}&error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${group.id}/settings?convert=${currency}&error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
@@ -501,7 +502,7 @@ export async function setGroupClosed(formData: FormData) {
   if (group.type === "direct") redirect(`/people/${group.id}`); // a pair is never closed or reopened
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
-  if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?error=${encodeURIComponent(LEFT_ERROR)}`);
+  if (await hasLeft(group.id, myId)) redirect(await flashUrl(`/groups/${group.id}?error=${encodeURIComponent(LEFT_ERROR)}`));
 
   let did = "";
   if (group.closed !== closed) {
@@ -553,31 +554,31 @@ export async function recordCustomPayment(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (group.closed) redirect(`/groups/${group.id}`);
-  if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(LEFT_ERROR)}`);
+  if (await hasLeft(group.id, myId)) redirect(await flashUrl(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(LEFT_ERROR)}`));
 
-  const back = (error: string) =>
-    redirect(
+  const back = async (error: string): Promise<never> =>
+    redirect(await flashUrl(
       potGame
         ? `/groups/${group.id}/pot/${potGame}?${new URLSearchParams({ error })}`
         : fromSettle
         ? `/groups/${group.id}/settle?${new URLSearchParams({ error })}`
         : `/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, error })}`,
-    );
+    ));
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name;
-  if (!nameOf(fromId) || !nameOf(toId)) back("Pick who paid and who they paid.");
-  if (fromId === toId) back("Pick two different people.");
+  if (!nameOf(fromId) || !nameOf(toId)) await back("Pick who paid and who they paid.");
+  if (fromId === toId) await back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
-  if (amount === null || amount <= 0) back(amountError(amountText, group.currency));
+  if (amount === null || amount <= 0) await back(amountError(amountText, group.currency));
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
   const fp = fingerprintOf("pay-custom", group.id, fromId, toId, amount, potGame, fromSettle);
   const ks = await keyState(key, fp);
-  if (ks.state === "stale") back(STALE_KEY_ERROR);
+  if (ks.state === "stale") await back(STALE_KEY_ERROR);
   if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
 
   // More than they (or the person paid) can owe each other (often a typo with an extra zero): asked once, checked inside the write.
   const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && formData.get("over") !== "1" });
-  if (r.kind === "refused") back(r.error);
+  if (r.kind === "refused") await back(r.error);
   if (r.kind === "over") redirect(overpayHref(group.id, { from: fromId, to: toId, amount: amountText, owes: String(r.limit), side: r.side }, fromSettle));
   redirect(r.kind === "done" && r.did ? `${done}&did=${r.did}` : done);
 }
@@ -595,25 +596,25 @@ async function peopleContext(formData: FormData) {
   return { groupId, memberId, myId };
 }
 
-function backToPeople(groupId: string, r: { ok: true; eventId?: string } | { ok: false; error: string }): never {
+async function backToPeople(groupId: string, r: { ok: true; eventId?: string } | { ok: false; error: string }): Promise<never> {
   const q = r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`;
-  redirect(`/groups/${groupId}/people${q ? `?${q}` : ""}`);
+  redirect(await flashUrl(`/groups/${groupId}/people${q ? `?${q}` : ""}`));
 }
 
 export async function renamePerson(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
-  backToPeople(groupId, await renameMember(groupId, myId, memberId, String(formData.get("name") ?? "")));
+  await backToPeople(groupId, await renameMember(groupId, myId, memberId, String(formData.get("name") ?? "")));
 }
 
 export async function removePerson(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
   if (await isPairGroup(groupId)) redirect(`/people/${groupId}`); // a pair always keeps its two people (the lib refuses too)
-  if (!(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
+  if (!(await isGroupAdmin(groupId, myId))) await backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
   const row = await db.member.findFirst({ where: { id: memberId, groupId }, select: { accountId: true } });
   // Someone with an account, or anyone already in expenses or payments, is removed but kept in the history
   // (they can't rejoin on their own). A name that was never used is deleted completely.
-  if (row?.accountId || (await isMemberUsed(memberId))) backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, true));
-  backToPeople(groupId, await removeMembers(groupId, myId, [memberId], false));
+  if (row?.accountId || (await isMemberUsed(memberId))) await backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, true));
+  await backToPeople(groupId, await removeMembers(groupId, myId, [memberId], false));
 }
 
 export async function setPersonLeft(formData: FormData) {
@@ -624,20 +625,20 @@ export async function setPersonLeft(formData: FormData) {
     const row = await db.member.findFirst({ where: { id: memberId, groupId }, select: { accountId: true } });
     if (row?.accountId) {
       const { origin, ip } = await originAndIp();
-      if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${groupId}/people?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
+      if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(await flashUrl(`/groups/${groupId}/people?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`));
       const r = await addRegistered(groupId, myId, row.accountId, origin, { later: (job) => after(job) });
-      redirect(`/groups/${groupId}/people${r.ok ? "?invitedBack=1" : `?error=${encodeURIComponent(r.error)}`}`);
+      redirect(await flashUrl(`/groups/${groupId}/people${r.ok ? "?invitedBack=1" : `?error=${encodeURIComponent(r.error)}`}`));
     }
   }
   // Rejoining yourself after a move-out Loopin recorded (bills, deposit, square-up payments) would leave all of that as it is: the person is
   // pointed to "Undo my move-out" first. "Rejoin without undoing" (plain=1, behind a confirmation) is the deliberate way past it.
   if (memberId === myId && formData.get("left") !== "1" && formData.get("plain") !== "1" && (await ownMoveOut(groupId, await undoViewerFor(groupId, myId), new Date()))?.check.ok) {
-    backToPeople(groupId, { ok: false, error: MOVED_OUT_REJOIN_TEXT });
+    await backToPeople(groupId, { ok: false, error: MOVED_OUT_REJOIN_TEXT });
   }
   // You can always leave or rejoin yourself. Taking someone else out is for whoever looks after the group; any member can bring back
   // someone who left on their own (only a person the admin removed needs the admin: setMemberLeft checks that).
-  if (memberId !== myId && formData.get("left") === "1" && !(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
-  backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, formData.get("left") === "1"));
+  if (memberId !== myId && formData.get("left") === "1" && !(await isGroupAdmin(groupId, myId))) await backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
+  await backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, formData.get("left") === "1"));
 }
 
 // "We settled outside the app": record every Smart Settle payment and close the group.
@@ -649,7 +650,7 @@ export async function settleEverything(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
-  if (!r.ok) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`));
   redirect(`/?closed=1&did=${r.eventId}&g=${group.id}`);
 }
 
@@ -697,7 +698,7 @@ export async function requestCode(formData: FormData) {
   if (mode) q.set("mode", mode);
   if (r.ok) q.set("sent", "1");
   else q.set("error", r.error);
-  redirect(`/signin?${q}`);
+  redirect(await flashUrl(`/signin?${q}`));
 }
 
 export async function verifyCode(formData: FormData) {
@@ -706,10 +707,10 @@ export async function verifyCode(formData: FormData) {
   const testing = (process.env.MAIL_OUTBOX === "1" && !process.env.VERCEL) || (process.env.VERCEL_ENV === "preview" && /\.test$/i.test(email.trim()));
   const { ip } = await originAndIp();
   if (!testing && (!(await allow(`verify-ip:${ip}`, 30, 900)) || !(await allow(`verify-email:${email.trim().toLowerCase()}`, 10, 900)))) {
-    redirect(`/signin?${new URLSearchParams({ e: email, back, sent: "1", error: "Too many tries. Wait 15 minutes and ask for a new code." })}`);
+    redirect(await flashUrl(`/signin?${new URLSearchParams({ e: email, back, sent: "1", error: "Too many tries. Wait 15 minutes and ask for a new code." })}`));
   }
   const r = await verifyLoginCode(email, String(formData.get("code") ?? ""));
-  if (!r.ok) redirect(`/signin?${new URLSearchParams({ e: email, back, sent: "1", error: r.error, n: String(formData.get("name") ?? "") })}`);
+  if (!r.ok) redirect(await flashUrl(`/signin?${new URLSearchParams({ e: email, back, sent: "1", error: r.error, n: String(formData.get("name") ?? "") })}`));
   const name = cleanNames([String(formData.get("name") ?? "")])[0];
   if (name) await db.account.updateMany({ where: { id: r.accountId, name: "" }, data: { name } });
   await signInAs(r.accountId);
@@ -837,10 +838,10 @@ async function isDoubleTap(groupId: string, fromId: string, toId: string, amount
 export async function invitePersonByEmail(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { origin, ip } = await originAndIp();
-  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`);
+  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(await flashUrl(`/groups/${group.id}/people?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`));
   const { inviteToClaim } = await import("@/lib/invites");
   const r = await inviteToClaim(group.id, me.id, String(formData.get("memberId") ?? ""), String(formData.get("email") ?? ""), origin, { later: (job) => after(job) });
-  redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ invited: r.email }) : new URLSearchParams({ error: r.error })}`);
+  redirect(await flashUrl(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ invited: r.email }) : new URLSearchParams({ error: r.error })}`));
 }
 
 // People → a name with an open invitation → Cancel invitation (the admin, or the person who sent it).
@@ -854,12 +855,12 @@ export async function cancelInvite(formData: FormData) {
     if (!myPairId) redirect("/private");
     const { cancelDirectInvite } = await import("@/lib/direct-db");
     const r = await cancelDirectInvite(pairId, myPairId);
-    redirect(`/people/${pairId}${r.ok ? "" : `?${new URLSearchParams({ error: r.error })}`}`);
+    redirect(await flashUrl(`/people/${pairId}${r.ok ? "" : `?${new URLSearchParams({ error: r.error })}`}`));
   }
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { cancelInvitation } = await import("@/lib/invites");
   const r = await cancelInvitation(group.id, me.id, String(formData.get("memberId") ?? ""));
-  redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ cancelled: "1" }) : new URLSearchParams({ error: r.error })}`);
+  redirect(await flashUrl(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ cancelled: "1" }) : new URLSearchParams({ error: r.error })}`));
 }
 
 // You → Sign-in & devices → Remove (only your own passkeys).

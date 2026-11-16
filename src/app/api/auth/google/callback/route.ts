@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { GOOGLE_COOKIE, checkGoogleClaims, exchangeGoogleCode, googleConfigured, unpackAttempt } from "@/lib/google";
 import { signInAs } from "@/lib/identity";
 import { safePath } from "@/lib/paths";
+import { flashUrl } from "@/lib/flash";
 
 // Back from Google: check it's the attempt we started, ask Google who it is,
 // then sign in to the account with that email (made if it's new).
@@ -11,8 +12,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const attempt = unpackAttempt(req.cookies.get(GOOGLE_COOKIE)?.value);
   const back = safePath(attempt?.back);
-  const fail = (error: string) => {
-    const res = NextResponse.redirect(new URL(`/signin?${new URLSearchParams({ back, error })}`, req.url), 303);
+  const fail = async (error: string) => {
+    const res = NextResponse.redirect(new URL(await flashUrl(`/signin?${new URLSearchParams({ back, error })}`), req.url), 303);
     res.cookies.delete({ name: GOOGLE_COOKIE, path: "/api/auth/google" });
     return res;
   };

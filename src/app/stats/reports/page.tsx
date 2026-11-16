@@ -4,6 +4,7 @@ import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { resolveReportAction } from "@/app/safety-actions";
 import { removeReportedMomentAction } from "@/app/moment-actions";
+import { maskEmail } from "@/lib/stats";
 import { REASON_LABELS, loadReportsForOwner, openLabel } from "@/lib/reports";
 
 export const metadata = { title: "Reports", robots: { index: false } };
@@ -18,7 +19,7 @@ export default async function Reports() {
   const rows = [...reports, ...support];
   const ids = [...new Set(rows.flatMap((r) => [r.reporterId, r.targetAccountId]).filter(Boolean))];
   const people = ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }) : [];
-  const who = new Map(people.map((p) => [p.id, `${p.name || "No name"} (${p.email})`]));
+  const who = new Map(people.map((p) => [p.id, `${p.name || "No name"} (${maskEmail(p.email)})`]));
   // Which reported moments still exist (the author may have deleted theirs; the report stays open so it is still seen).
   const momentIds = [...new Set(rows.filter((r) => r.kind === "moment").map((r) => r.targetId))];
   const alive = new Set(momentIds.length ? (await db.moment.findMany({ where: { id: { in: momentIds } }, select: { id: true } })).map((m) => m.id) : []);

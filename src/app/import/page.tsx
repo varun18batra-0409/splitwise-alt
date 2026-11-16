@@ -3,12 +3,14 @@ import { getAccount } from "@/lib/identity";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { SplitwiseImport } from "@/components/SplitwiseImport";
 import { ChevronDown } from "@/components/icons";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { title: "Bring a group over from another app" };
 
 // Import a group from another app's exported spreadsheet (CSV).
 export default async function ImportPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await searchParams;
+  const sp = await searchParams;
+  const notes = await readNotes(sp, "/import");
   const account = await getAccount();
 
   return (
@@ -49,7 +51,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
       </details>
 
       <div className="mt-6">
-        {error && <ErrorNote>{error.slice(0, 200)}</ErrorNote>}
+        {notes.error && <ErrorNote>{notes.error.slice(0, 200)}</ErrorNote>}
         {account ? (
           <SplitwiseImport yourName={account.name ?? ""} />
         ) : (

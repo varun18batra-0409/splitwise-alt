@@ -12,6 +12,7 @@ import { postcardPeople } from "@/lib/postcards/people";
 import { myPostcardUploads } from "@/lib/postcards/uploads";
 import { myMomentsForPostcard } from "@/lib/moments-db";
 import { Composer } from "./Composer";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { title: "Write a postcard", robots: { index: false } };
 
@@ -19,6 +20,7 @@ export const metadata = { title: "Write a postcard", robots: { index: false } };
 // (or the country, for a trip abroad), the country's stamp and the people in it.
 export default async function NewPostcardPage({ searchParams }: { searchParams: Promise<{ group?: string; to?: string; from?: string; error?: string }> }) {
   const sp = await searchParams;
+  const notes = await readNotes(sp, "/postcards/new");
   const back = `/postcards/new?${new URLSearchParams({ ...(sp.group ? { group: sp.group } : {}), ...(sp.to ? { to: sp.to } : {}), ...(sp.from ? { from: sp.from } : {}) })}`;
   const me = await getAccount();
   if (!me) redirect(`/signin?back=${encodeURIComponent(back)}`);
@@ -101,7 +103,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
       <Composer
         title={again ? "Reuse this card" : "Write a postcard"}
         backHref={again ? `/postcards/${again.id}` : g ? `/groups/${g.id}` : "/postcards"}
-        error={sp.error}
+        error={notes.error}
         uploads={uploads}
         moments={moments}
         tripCountry={cc}

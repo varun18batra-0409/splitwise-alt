@@ -4,12 +4,15 @@ import { PageHeader, inputClass, secondaryButtonClass } from "@/components/ui";
 import { savePayWays } from "@/app/pay-actions";
 import { getAccount } from "@/lib/identity";
 import { visitorRegion } from "@/lib/region";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { title: "How friends pay you", robots: { index: false } };
 
 // You, How friends pay you: a Pay button on Settle up for anyone who owes you.
 export default async function PayDetailsPage({ searchParams }: { searchParams: Promise<{ pay?: string; payError?: string }> }) {
-  const { pay: payState, payError } = await searchParams;
+  const sp = await searchParams;
+  const { pay: payState } = sp;
+  const notes = await readNotes(sp, "/account/pay");
   const account = await getAccount();
   if (!account) redirect("/signin?back=/account/pay");
   return (
@@ -24,9 +27,9 @@ export default async function PayDetailsPage({ searchParams }: { searchParams: P
             Saved.
           </p>
         )}
-        {payState === "error" && payError && (
+        {payState === "error" && notes.payError && (
           <p role="alert" className="mt-3 text-sm text-red-400">
-            {payError.slice(0, 160)}
+            {notes.payError.slice(0, 160)}
           </p>
         )}
         <form action={savePayWays} className="mt-4 space-y-3">

@@ -26,6 +26,7 @@ import { inviteMemberId, waitingNote } from "@/lib/invites";
 import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
 import { DateField } from "@/components/DateField";
+import { readNotes } from "@/lib/flash";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -38,6 +39,7 @@ export default async function PeoplePage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/people`);
   await bounceIfDirect(id, sp); // a pair of two people has no group screens: its person page instead (messages travel with it)
   const data = await loadGroup(id, { viewer: await getMyMemberId(id) });
   if (!data) notFound();
@@ -282,7 +284,7 @@ export default async function PeoplePage({
   return (
     <>
       <PageHeader title="People" back={`/groups/${group.id}?tab=balances`} />
-      {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
       {sp.cancelled && (
         <Notice tone="success" params={["cancelled"]} className="mb-4">
           Invitation cancelled. The name stays in the group, and can be claimed with “That’s me” or invited again.
@@ -294,9 +296,9 @@ export default async function PeoplePage({
           <span className="block text-sm" data-invited-back>They’ll rejoin when they accept. Nothing about the money changes.</span>
         </Notice>
       )}
-      {sp.invited && (
+      {notes.invited && (
         <Notice tone="success" params={["invited"]} className="mb-4">
-          {invitedNotice(sp.invited.slice(0, 80))} When they join, they take over their name with its expenses.
+          {invitedNotice(notes.invited.slice(0, 80))} When they join, they take over their name with its expenses.
         </Notice>
       )}
 

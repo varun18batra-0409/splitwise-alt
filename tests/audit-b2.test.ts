@@ -148,7 +148,7 @@ describe("audit 7: adding by email someone who left on their own", () => {
     expect(inv.memberId).toBe(t.meeraId);
     expect(inv.token.length).toBeGreaterThanOrEqual(20);
     expect((await db.member.findUniqueOrThrow({ where: { id: t.meeraId } })).leftAt).not.toBeNull(); // not back until she taps Join
-    expect(await db.outbox.count({ where: { to: t.meera.email, subject: { contains: "added you to Trip i7" } } })).toBe(1);
+    expect(await db.outbox.count({ where: { to: t.meera.email, subject: "You've been added to a group on Loopin" } })).toBe(1);
 
     await signedInAs(t.meera.id);
     const list = await loadInvitations(t.meera);

@@ -10,6 +10,7 @@ import { readPayLink, type PayLinkState } from "@/lib/pay-link";
 import { iPaidAction, undoIPaidAction } from "@/app/pay-link-actions";
 import { PAYMENT_LINE } from "@/lib/money";
 import { ChevronDown } from "@/components/icons";
+import { readNotes } from "@/lib/flash";
 
 // The "I've paid" page: the link inside a Remind message. Whoever owes opens
 // it (no sign-in), pays in their UPI app, and taps "I've paid". It counts straight
@@ -46,6 +47,7 @@ function Mark({ tone }: { tone: "ok" | "rest" }) {
 export default async function PayLinkPage({ params, searchParams }: Props) {
   const { token } = await params;
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/p/${token}`);
   const s = await readPayLink(token);
 
   const header = (
@@ -80,7 +82,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
   return (
     <>
       {header}
-      {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
       {s.kind === "owes" ? <Owes s={s} money={money} to={to} from={from} token={token} undone={Boolean(sp.undone)} /> : <Done s={s} money={money} to={to} from={from} token={token} justPaid={Boolean(sp.paid)} />}
       <p className="mt-10 text-center text-xs leading-relaxed text-fg/55">
         {PAYMENT_LINE}

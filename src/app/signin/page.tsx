@@ -10,6 +10,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonC
 import { BackIcon, iconButtonClass } from "@/components/icons";
 import { GoogleG } from "@/components/GoogleG";
 import { placePhoto } from "@/lib/places";
+import { readNotes } from "@/lib/flash";
 
 // Optional sign-in: type your email, get a 6-digit code, type it here.
 // Your groups then follow you to a new phone or the installed app.
@@ -19,11 +20,12 @@ export default async function SignIn({
   searchParams: Promise<{ e?: string; sent?: string; error?: string; back?: string; mode?: string; n?: string }>;
 }) {
   const sp = await searchParams;
+  const notes = await readNotes(sp, "/signin");
   const back = safePath(sp.back);
   if (await getAccount()) redirect("/account");
   const email = (sp.e ?? "").slice(0, 254);
   const sent = sp.sent === "1" && email;
-  const error = sp.error?.slice(0, 200);
+  const error = notes.error?.slice(0, 200);
   const name = (sp.n ?? "").slice(0, 40);
 
   return (

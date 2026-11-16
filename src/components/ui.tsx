@@ -59,7 +59,7 @@ export const secondaryButtonClass =
 
 export function ErrorNote({ children }: { children: React.ReactNode }) {
   return (
-    <Notice key={typeof children === "string" ? children : undefined} tone="error" params={["error"]} className="mb-4">
+    <Notice key={typeof children === "string" ? children : undefined} tone="error" params={["error", "et", "es"]} className="mb-4">
       {children}
     </Notice>
   );

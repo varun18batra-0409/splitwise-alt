@@ -8,6 +8,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { returnDeposit, saveDeposit } from "@/app/bill-actions";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { leaverOf } from "@/lib/left-view-db";
+import { readNotes } from "@/lib/flash";
 
 // The flat's security deposit: who put in what, and getting it back.
 // It's kept on record only — never part of the balances.
@@ -21,6 +22,7 @@ export default async function DepositPage({
   const { id } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/deposit`);
   const group = await db.group.findUnique({
     where: { id },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] }, deposit: { include: { shares: true } } },
@@ -43,7 +45,7 @@ export default async function DepositPage({
   return (
     <>
       <PageHeader title="Deposit" back={`/groups/${group.id}`} />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       {sp.saved && <Notice tone="success" params={["saved"]} className="mb-4">Saved.</Notice>}
       {sp.returned && <Notice tone="success" params={["returned"]} className="mb-4">Marked as returned. The amounts are in Activity.</Notice>}
 

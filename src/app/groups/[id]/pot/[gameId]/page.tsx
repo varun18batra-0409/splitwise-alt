@@ -23,6 +23,7 @@ import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionC
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
 import { SelectField } from "@/components/SelectField";
+import { readNotes } from "@/lib/flash";
 
 // One game of Game night: chips in and took home, live; then who came out ahead,
 // who came out behind and who pays whom. Settling up happens in the group, as always.
@@ -36,6 +37,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const { id, gameId } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/pot/${gameId}`);
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
@@ -158,7 +160,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   return (
     <>
       <PageHeader title={neutralGameText(game.name)} back={`/groups/${group.id}?tab=games`} />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 200)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 200)}</ErrorNote>}
       {sp.started && (
         <Notice tone="success" params={["started"]} className="mb-4">
           Game on! Put chips in for everyone below. Anyone in the group can add to it.

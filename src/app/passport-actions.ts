@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { countryOf } from "@/lib/geo";
 import { parseHandPlaces } from "@/lib/passport";
+import { flashUrl } from "@/lib/flash";
 
 const field = (f: FormData, k: string) => String(f.get(k) ?? "");
 
@@ -13,7 +14,7 @@ export async function addPlacesAction(f: FormData) {
   const a = await getAccount();
   if (!a) redirect("/signin?back=/passport");
   const picked = [...new Set(f.getAll("country").map((v) => String(v).toUpperCase()).filter((c) => countryOf(c)))].slice(0, 300);
-  if (!picked.length) redirect(`/passport?${new URLSearchParams({ error: "Tick at least one country." })}#been`);
+  if (!picked.length) redirect(await flashUrl(`/passport?${new URLSearchParams({ error: "Tick at least one country." })}#been`));
   const list = parseHandPlaces(a.places);
   const before = list.length;
   for (const c of picked) if (!list.some((p) => p.c === c)) list.push({ c });
@@ -72,7 +73,7 @@ export async function nudgePassportAction(f: FormData) {
   const r = await canSeePassport(a.id, to);
   if (!r.ok) redirect(back);
   const { allow } = await import("@/lib/rate-limit");
-  if (!(await allow(`passport-nudge:${a.id}:${to}`, 1, 30 * 86_400))) redirect(`${back}?${new URLSearchParams({ error: "You nudged them recently. Give it a few weeks." })}`);
+  if (!(await allow(`passport-nudge:${a.id}:${to}`, 1, 30 * 86_400))) redirect(await flashUrl(`${back}?${new URLSearchParams({ error: "You nudged them recently. Give it a few weeks." })}`));
   const me = (a.name || "A friend").trim().split(/\s+/)[0];
   await db.accountNote.create({
     data: { accountId: to, kind: "passport_nudge", title: `${me} wants to see where you’ve been 🌍`, body: "Add the countries you’ve visited to your trip passport", url: "/passport#been" },

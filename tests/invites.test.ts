@@ -108,7 +108,7 @@ describe("adding people", () => {
     expect(inv.declinedAt).toBeNull();
     const ev = await db.groupEvent.findFirst({ where: { groupId: g2, kind: "members_added" } });
     expect(ev?.text).toBe("added Joey to the group");
-    expect(await db.outbox.count({ where: { to: mail("joey"), subject: { contains: "added you to Euro trip" } } })).toBe(1);
+    expect(await db.outbox.count({ where: { to: mail("joey"), subject: "You've been added to a group on Loopin" } })).toBe(1);
     expect(await db.accountNote.count({ where: { accountId: joey, kind: "group_invite" } })).toBe(1);
     // Asked again before he joined: the same name, a fresh invitation (no second Joey).
     const again = await addRegistered(g2, meG2, joey, "https://loopin.test");
@@ -153,10 +153,10 @@ describe("adding people", () => {
     // Nothing is sent to someone who is already in, or to yourself.
     for (const k of ["existing", "own"] as const) {
       expect(await db.invite.count({ where: { groupId: g2, email: cases[k] } }), k).toBe(0);
-      expect(await db.outbox.count({ where: { to: cases[k], subject: { contains: "Euro trip" } } }), k).toBe(0);
+      expect(await db.outbox.count({ where: { to: cases[k], subject: "You've been added to a group on Loopin" } }), k).toBe(0);
     }
     // The invitation email goes to both new people; the Alerts note + phone push only to the one with an account.
-    for (const k of ["registered", "unknown"] as const) expect(await db.outbox.count({ where: { to: cases[k], subject: { contains: "added you to Euro trip" } } }), k).toBe(1);
+    for (const k of ["registered", "unknown"] as const) expect(await db.outbox.count({ where: { to: cases[k], subject: "You've been added to a group on Loopin" } }), k).toBe(1);
     expect(await db.accountNote.count({ where: { accountId: rancho, kind: "group_invite" } })).toBe(1);
     expect(await db.accountNote.count({ where: { kind: "group_invite", accountId: { in: [stranger] } } })).toBe(0);
     const sent = await db.outbox.findFirstOrThrow({ where: { to: cases.unknown } });

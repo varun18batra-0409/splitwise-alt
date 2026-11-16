@@ -3,6 +3,7 @@ import { db } from "./db";
 import { allow } from "./rate-limit";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
+import { mailSafe } from "./mail-safe";
 import { deliverNotes } from "./account-notes";
 import { hasBlocked, isBlockedEitherWay } from "./blocks";
 import { JOINED } from "./membership";
@@ -10,7 +11,9 @@ import { isSupportedCurrency } from "./money";
 import { cleanNames } from "./names";
 import { copyPushTo, freeName, inviteMailOk, INVITE_EMAILS_PER_DAY, newInviteToken, shownNameFor } from "./invites";
 import { changeGroupCurrency } from "./group-changes";
-import { accountPairKey, DIRECT, localPairKey, NOT_DIRECT, pairName, redirectIfDirect } from "./direct";
+import { accountPairKey, DIRECT, localPairKey, NOT_DIRECT, isDirect, pairName, redirectTarget } from "./direct";
+import { redirect as redirectTo } from "next/navigation";
+import { NOTE_KEYS, NOTE_SIGNATURE_PARAMS, readNotes, signedQuery } from "./flash";
 
 // The database side of expenses with one person (see direct.ts). A pair is a hidden two-member Group of type "direct".
 // Nothing here writes money: expenses and payments go through the ordinary group code.
@@ -158,9 +161,15 @@ export async function prepareDirectSave(groupId: string, myId: string, currency:
 }
 
 // For pages a pair must not show: one small read, then the person's page instead (see redirectIfDirect).
-export async function bounceIfDirect(groupId: string, query: Record<string, string | string[] | undefined> = {}): Promise<void> {
+// Messages in the address were signed for the screen they arrived on (`fromPath`), so they are signed again for the person's page.
+export async function bounceIfDirect(groupId: string, query: Record<string, string | string[] | undefined> = {}, fromPath = `/groups/${groupId}`): Promise<void> {
   const g = await db.group.findUnique({ where: { id: groupId }, select: { id: true, type: true } });
-  if (g) redirectIfDirect(g, query);
+  if (!g || !isDirect(g)) return;
+  const notes = await readNotes(query, fromPath);
+  const rest = { ...query };
+  for (const k of [...NOTE_KEYS, ...NOTE_SIGNATURE_PARAMS]) delete rest[k];
+  const to = redirectTarget(g, rest);
+  redirectTo(Object.keys(notes).length ? await signedQuery(to, notes) : to);
 }
 
 // For image routes: a pair has none (404).
@@ -306,11 +315,12 @@ export async function inviteDirectPerson(
   const job = async () => {
     // If that email belongs to someone who blocked the inviter, nothing reaches them (the mail runs through its checks, unsent).
     const blocked = Boolean(theirs && (await hasBlocked(theirs.id, me.id).catch(() => true)));
+    const by = mailSafe(actorName, "Someone"); // links and addresses are taken out of a chosen name; the subject is fixed
     await sendMail(
       email,
-      `${actorName} shared expenses with you on Loopin`,
-      `${actorName} shared expenses with you on Loopin.\n\nSign in to see them: ${link}`,
-      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actorName)}</strong> shared expenses with you on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">See them</a></p></div>`,
+      "Expenses shared with you on Loopin",
+      `${by} shared expenses with you on Loopin.\n\nSign in to see them: ${link}`,
+      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(by)}</strong> shared expenses with you on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">See them</a></p></div>`,
       { optOut: true, item: "groups.added", suppress: blocked },
     ).catch(() => false);
     if (blocked || !theirs) return;

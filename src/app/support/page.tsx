@@ -1,12 +1,14 @@
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { contactSupportAction } from "@/app/safety-actions";
 import { supportEmail } from "@/lib/support";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { title: "Contact support", robots: { index: false } };
 
 // Where "Contact support" lands when no support email is set: a short message that goes to the person who runs Loopin.
 export default async function SupportPage({ searchParams }: { searchParams: Promise<{ sent?: string; error?: string }> }) {
   const sp = await searchParams;
+  const notes = await readNotes(sp, "/support");
   const email = supportEmail();
   return (
     <>
@@ -25,7 +27,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         </div>
       ) : (
         <form action={contactSupportAction} className="space-y-4">
-          {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+          {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
           <p className="text-sm text-gray-500">Something wrong, or a question? Tell us and we’ll look.</p>
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-600">Your message</span>

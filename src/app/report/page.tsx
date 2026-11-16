@@ -7,12 +7,14 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/compone
 import { SafetyLinks } from "@/components/SafetyLinks";
 import { reportAction } from "@/app/safety-actions";
 import { REASON_LABELS, REPORT_KINDS, REPORT_REASONS, resolveReportTarget } from "@/lib/reports";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { title: "Report", robots: { index: false } };
 
 // A short form: what's wrong, and an optional note. After sending, a thank-you and the option to block.
 export default async function ReportPage({ searchParams }: { searchParams: Promise<{ kind?: string; id?: string; back?: string; done?: string; error?: string }> }) {
   const sp = await searchParams;
+  const notes = await readNotes(sp, "/report");
   const kind = sp.kind ?? "";
   const id = sp.id ?? "";
   const back = safePath(sp.back || "/account");
@@ -42,7 +44,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title={kind === "moment" ? "Report this moment" : `Report ${first}`} back={back} />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       <p className="mb-5 text-pretty text-sm text-gray-500">Tell us what’s wrong. Only Loopin sees this, not {first}.</p>
       <form action={reportAction} className="group space-y-5">
         <input type="hidden" name="kind" value={kind} />

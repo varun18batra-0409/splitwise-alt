@@ -1,14 +1,15 @@
 // Speed numbers from phones: the screen's shape without ids, and milliseconds.
+import { hideSecrets } from "./log-paths";
 
 const KINDS = new Set(["nav", "submit", "search", "load"]);
 
 // "/groups/cm1abc…/expenses/cm2…/edit" → "/groups/:id/expenses/:id/edit"
 export function routeShape(path: string): string {
   return (
-    path
+    hideSecrets(path)
       .split("?")[0]
       .split("/")
-      .map((s) => (/^[a-z0-9]{20,}$/i.test(s) || /^[0-9a-f-]{32,36}$/i.test(s) || /^\d+$/.test(s) || /@/.test(s) || (s.length >= 6 && /\d/.test(s)) ? ":id" : s.replace(/[^a-z0-9-]/gi, "").slice(0, 30)))
+      .map((s) => (s === ":code" ? s : /^[a-z0-9]{20,}$/i.test(s) || /^[0-9a-f-]{32,36}$/i.test(s) || /^\d+$/.test(s) || /@/.test(s) || (s.length >= 6 && /\d/.test(s)) ? ":id" : s.replace(/[^a-z0-9-]/gi, "").slice(0, 30)))
       .join("/")
       .slice(0, 80) || "/"
   );

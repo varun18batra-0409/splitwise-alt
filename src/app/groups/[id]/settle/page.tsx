@@ -33,6 +33,7 @@ import { waitingForMe } from "@/lib/payment-ok";
 import { notReceivedDone, notReceivedQuestion } from "@/lib/payment-words";
 import { planSettleRow, settleMainAction, settleRowFacts, tripEnded } from "@/lib/settle-row";
 import { confirmPaymentAction, markAllPaidAction, rejectPaymentAction } from "@/app/pay-actions";
+import { readNotes } from "@/lib/flash";
 
 // Settle up inside one group: the fewest payments that clear every debt.
 // Each can be recorded in full with one tap, or for a smaller amount
@@ -49,7 +50,8 @@ export default async function GroupSettle({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  await bounceIfDirect(id, sp); // a pair of two people has no group screens: its person page instead (messages travel with it)
+  const notes = await readNotes(sp, `/groups/${id}/settle`);
+  await bounceIfDirect(id, sp, `/groups/${id}/settle`); // a pair of two people has no group screens: its person page instead (messages travel with it)
   // What the page shows comes from the database's own sums, not from loading every expense: the settle buttons
   // below recompute the plan on the full data and compare (planKey is the same on both).
   const data = await loadGroupSettle(id, await getMyMemberId(id));
@@ -216,7 +218,7 @@ export default async function GroupSettle({
         {paymentCount + transfers.length > 0 && <SettleProgress pct={settledPct} />}
       </div>
 
-      {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
       {sp.paid === "all" && !sp.undone && <Notice params={["paid"]} className="mb-4">All marked paid ✓ The group stays open.</Notice>}
       {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-4">Payment recorded. Balances updated, and they’re told.</Notice>}
       {group.closed && <div className="mb-4 rounded-[20px] border border-line bg-white px-4 py-3 text-sm text-fg/70">This group is closed. Reopen it to record payments.</div>}

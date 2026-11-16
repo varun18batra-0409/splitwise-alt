@@ -15,6 +15,7 @@ import { leaverOf } from "@/lib/left-view-db";
 import { MoveOutButton } from "@/components/MoveOutButton";
 import { moveOutConfirm } from "@/lib/move-confirm";
 import { DateField } from "@/components/DateField";
+import { readNotes } from "@/lib/flash";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
@@ -30,6 +31,7 @@ export default async function MoveOutPage({
   const { id, memberId } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/people/${memberId}/move`);
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
@@ -71,7 +73,7 @@ export default async function MoveOutPage({
   return (
     <>
       <PageHeader title={title} back={`/groups/${group.id}/people`} />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
 
       {/* Changing the day reloads the numbers below. */}
       <form method="get" className="mb-7 flex items-end gap-2 border-y border-line py-3.5" data-allow-repeat="1">

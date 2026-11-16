@@ -20,6 +20,7 @@ import { createGroupFor } from "@/lib/group-setup";
 import { addRegistered, freeName } from "@/lib/invites";
 import { headers } from "next/headers";
 import { after } from "next/server";
+import { flashUrl } from "@/lib/flash";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
@@ -56,7 +57,7 @@ export async function saveBill(formData: FormData) {
     amt: perPerson(formData, "a_"),
   });
   const back = billId ? `/groups/${groupId}/bills/${billId}` : `/groups/${groupId}/bills/new`;
-  if (!r.ok) redirect(`${back}?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`${back}?error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${groupId}?tab=bills&saved=bill`);
 }
 
@@ -64,7 +65,7 @@ export async function changeBill(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const billId = String(formData.get("billId") ?? "");
   const r = await billCommand(groupId, await me(groupId), billId, String(formData.get("command") ?? ""));
-  if (!r.ok) redirect(`/groups/${groupId}/bills/${billId}?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/bills/${billId}?error=${encodeURIComponent(r.error)}`));
   redirect(formData.get("command") === "stop" ? `/groups/${groupId}?tab=bills` : `/groups/${groupId}/bills/${billId}?saved=1`);
 }
 
@@ -72,7 +73,7 @@ export async function toggleMissedDay(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const billId = String(formData.get("billId") ?? "");
   const r = await toggleMissedDayFor(groupId, await me(groupId), billId, String(formData.get("period") ?? ""), Number(formData.get("day")));
-  if (!r.ok) redirect(`/groups/${groupId}/bills/${billId}?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/bills/${billId}?error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${groupId}/bills/${billId}#calendar`);
 }
 
@@ -81,7 +82,7 @@ export async function toggleMissedDay(formData: FormData) {
 export async function listAdd(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const r = await addListItem(groupId, await me(groupId), String(formData.get("text") ?? ""));
-  redirect(`/groups/${groupId}?tab=list${r.ok ? "" : `&error=${encodeURIComponent(r.error)}`}`);
+  redirect(await flashUrl(`/groups/${groupId}?tab=list${r.ok ? "" : `&error=${encodeURIComponent(r.error)}`}`));
 }
 
 export async function listToggle(formData: FormData) {
@@ -100,7 +101,7 @@ export async function listBuy(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const key = cleanKey(formData.get("rid")) ?? `buy-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const r = await buyListItems(groupId, await me(groupId), String(formData.get("amount") ?? ""), key);
-  if (!r.ok) redirect(`/groups/${groupId}?tab=list&error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}?tab=list&error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${groupId}?tab=list&bought=1`);
 }
 
@@ -117,7 +118,7 @@ export async function saveBudgets(formData: FormData) {
   const amounts: Record<string, string> = {};
   for (const [k, v] of formData.entries()) if (k.startsWith("b_")) amounts[k.slice(2)] = String(v);
   const r = await saveBudgetsFor(groupId, await me(groupId), amounts);
-  if (!r.ok) redirect(`/groups/${groupId}/budgets?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/budgets?error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${groupId}`);
 }
 
@@ -152,13 +153,13 @@ export async function moveOutAction(formData: FormData) {
   if (await isPairGroup(groupId)) redirect(`/people/${groupId}`);
   // You can move yourself out; moving someone else out is for whoever looks after the flat.
   if (myId && leaverId !== myId && !(await isGroupAdmin(groupId, myId))) {
-    redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent("Only the person moving out, or whoever looks after this flat, can do this.")}`);
+    redirect(await flashUrl(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent("Only the person moving out, or whoever looks after this flat, can do this.")}`));
   }
   // The final payments the page showed (with or without the daily charges, as ticked). Missing = a form from before this check: look again.
   const addDaily = formData.get("addDaily") === "1";
   const expectKey = formData.get(addDaily ? "expectKeyDaily" : "expectKey");
   if (expectKey === null) {
-    redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(MOVE_OUT_KEY_CHANGED)}`);
+    redirect(await flashUrl(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(MOVE_OUT_KEY_CHANGED)}`));
   }
   const r = await moveOut(groupId, myId, {
     leaverId,
@@ -168,7 +169,7 @@ export async function moveOutAction(formData: FormData) {
     expectKey: String(expectKey),
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   });
-  if (!r.ok) redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(r.error)}`));
   // `did`: the move-out's own line, so the person who moved out (or whoever marked them) gets the Undo bar.
   redirect(`/groups/${groupId}?tab=activity${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
@@ -178,14 +179,14 @@ export async function saveDeposit(formData: FormData) {
   const amounts: Record<string, string> = {};
   for (const [k, v] of formData.entries()) if (k.startsWith("d_")) amounts[k.slice(2)] = String(v);
   const r = await saveDepositFor(groupId, await me(groupId), { heldBy: String(formData.get("heldBy") ?? ""), amounts });
-  if (!r.ok) redirect(`/groups/${groupId}/deposit?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/deposit?error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${groupId}/deposit?saved=1`);
 }
 
 export async function returnDeposit(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const r = await returnDepositFor(groupId, await me(groupId), String(formData.get("deductions") ?? ""));
-  if (!r.ok) redirect(`/groups/${groupId}/deposit?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/deposit?error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${groupId}/deposit?returned=1`);
 }
 
@@ -200,7 +201,7 @@ export async function saveGoal(formData: FormData) {
     target: String(formData.get("target") ?? ""),
     byDate: String(formData.get("byDate") ?? ""),
   });
-  if (!r.ok) redirect(`/groups/${groupId}/goals/${goalId ?? "new"}?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashUrl(`/groups/${groupId}/goals/${goalId ?? "new"}?error=${encodeURIComponent(r.error)}`));
   redirect(`/groups/${groupId}/goals/${r.id}`);
 }
 
@@ -215,7 +216,7 @@ export async function addGoalEntry(formData: FormData) {
     // No usable key (the field was empty): none, so the server's double-tap guard applies instead of a made-up key.
     cleanKey(formData.get("rid")),
   );
-  redirect(`/groups/${groupId}/goals/${goalId}${r.ok ? "?added=1" : `?error=${encodeURIComponent(r.error)}`}`);
+  redirect(await flashUrl(`/groups/${groupId}/goals/${goalId}${r.ok ? "?added=1" : `?error=${encodeURIComponent(r.error)}`}`));
 }
 
 export async function deleteGoal(formData: FormData) {

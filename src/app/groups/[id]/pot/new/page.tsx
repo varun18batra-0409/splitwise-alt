@@ -7,12 +7,14 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/compone
 import { startGameAction } from "@/app/pot-actions";
 import { POT_GAMES } from "@/lib/pot";
 import { GAME_NOTE } from "@/lib/game-words";
+import { readNotes } from "@/lib/flash";
 
 // Start a game: what you're playing and who's at the table.
 export default async function NewGamePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; first?: string }> }) {
   const { id } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/pot/new`);
   const group = await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
@@ -23,7 +25,7 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHeader title="Start a game" back={`/groups/${group.id}`} />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       {sp.first && (
         <p className="-mt-3 mb-5 rounded-[14px] border border-[#26262c] bg-[#16161a] px-4 py-3 text-sm text-fg">
           Your Game night is ready. Add the players below: just their names is fine, nobody has to join Loopin.

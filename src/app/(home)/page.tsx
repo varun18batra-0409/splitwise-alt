@@ -63,6 +63,7 @@ import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
 import { daysBetween } from "@/lib/countdown";
 import { parsePlayers, potSummary } from "@/lib/pot";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { alternates: { canonical: "/" } };
 
@@ -86,7 +87,9 @@ export default async function Home({
     collection?: string;
   }>;
 }) {
-  const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
+  const sp = await searchParams;
+  const { closed: justClosed, did, g: didGroup, undone, deleted, signedin, moved, collection } = sp;
+  const { error } = await readNotes(sp, "/");
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
   const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew] = await Promise.all([
@@ -469,7 +472,7 @@ export default async function Home({
   return (
     <>
       {undoBar && <UndoBar key={undoBar.eventId} {...undoBar} back="home" redo={undone === "1"} />}
-      {error && <Notice tone="error" params={["error"]} className="mb-4">{error}</Notice>}
+      {error && <Notice tone="error" params={["error", "et", "es"]} className="mb-4">{error}</Notice>}
       {notice && (
         <Notice params={["signedin", "moved", "deleted", "collection"]} className="mb-4">
           {notice}

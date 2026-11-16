@@ -22,6 +22,7 @@ import { WantToGoTab } from "@/components/want/WantToGoTab";
 import { PassportStats } from "@/components/PassportStats";
 import { StampCard } from "@/components/BeenCard";
 import { LockIcon, ShareIcon } from "@/components/PassportIcons";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { title: "Your trip passport", robots: { index: false } };
 
@@ -31,6 +32,7 @@ export const metadata = { title: "Your trip passport", robots: { index: false } 
 
 export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string; sent?: string; tab?: string; book?: string; all?: string; open?: string; wished?: string; full?: string }> }) {
   const sp = await searchParams;
+  const notes = await readNotes(sp, "/passport");
   const account = await getAccount();
   if (!account)
     return (
@@ -93,7 +95,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       </div>
       <PassportTabs tab={tab} />
 
-      {sp.error && <ErrorNote>{sp.error.slice(0, 120)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 120)}</ErrorNote>}
       {sp.sent && (
         <Notice params={["sent"]} className="mb-4">
           Sent to {Number(sp.sent) === 1 ? "1 person" : `${Number(sp.sent)} people`} in Loopin.

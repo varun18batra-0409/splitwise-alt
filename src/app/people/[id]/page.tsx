@@ -24,6 +24,7 @@ import { BackIcon, iconButtonClass } from "@/components/icons";
 import { inputClass, primaryButtonClass } from "@/components/ui";
 import { BIG_OUTLINE } from "@/lib/settle-ui";
 import { STALE_KEY_ERROR } from "@/lib/once";
+import { readNotes } from "@/lib/flash";
 
 // A person you share expenses with directly (no group): who owes whom, a way to settle, and the history between the two of you.
 // Only the two of you can open it (a name nobody else has joined is visible to its owner alone). It never mentions any group.
@@ -34,6 +35,7 @@ type SP = { settle?: string; paid?: string; ok?: string; notgot?: string; invite
 export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const { id } = await params;
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/people/${id}`);
   const g = await db.group.findUnique({ where: { id }, select: { id: true, type: true, deletedAt: true } });
   if (!g || g.deletedAt) notFound();
   if (g.type !== "direct") redirect(`/groups/${id}`);
@@ -148,7 +150,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       {sp.settle === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
       {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-3">Payment recorded.</Notice>}
       {sp.invited === "1" && <Notice tone="success" params={["invited"]} className="mb-3">Invitation sent.</Notice>}
-      {sp.error && <Notice tone="error" params={["error"]} className="mb-3">{sp.error.slice(0, 300)}</Notice>}
+      {notes.error && <Notice tone="error" params={["error", "et", "es"]} className="mb-3">{notes.error.slice(0, 300)}</Notice>}
       {sp.undone === "1" && !showUndo && <Notice tone="success" params={["undone"]} className="mb-3">Undone.</Notice>}
 
       {/* Who owes whom, exactly, in this pair's own currency. */}
@@ -233,17 +235,17 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               </form>
             </div>
           ) : (
-            <details open={Boolean(sp.inviteError)}>
+            <details open={Boolean(notes.inviteError)}>
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[15px] font-medium [&::-webkit-details-marker]:hidden">
                 Invite {name} by email
                 <span aria-hidden className="text-fg/60">›</span>
               </summary>
               <form action={inviteDirect} className="mt-2 space-y-3">
                 <input type="hidden" name="groupId" value={group.id} />
-                <input name="email" type="email" inputMode="email" required maxLength={200} placeholder="name@example.com" aria-label={`${name}'s email`} autoComplete="off" defaultValue={sp.inviteError ? (sp.email ?? "").slice(0, 200) : ""} aria-invalid={sp.inviteError ? true : undefined} aria-describedby={sp.inviteError ? "invite-error" : undefined} className={inputClass} />
-                {sp.inviteError && (
+                <input name="email" type="email" inputMode="email" required maxLength={200} placeholder="name@example.com" aria-label={`${name}'s email`} autoComplete="off" defaultValue={notes.inviteError ? (sp.email ?? "").slice(0, 200) : ""} aria-invalid={notes.inviteError ? true : undefined} aria-describedby={notes.inviteError ? "invite-error" : undefined} className={inputClass} />
+                {notes.inviteError && (
                   <p id="invite-error" role="alert" className="text-[14px] leading-snug text-fg" data-invite-error>
-                    {sp.inviteError.slice(0, 300)}
+                    {notes.inviteError.slice(0, 300)}
                   </p>
                 )}
                 <p className="text-[13.5px] leading-snug text-fg/60">They’ll see your shared expenses once they join. Until then only you can.</p>
