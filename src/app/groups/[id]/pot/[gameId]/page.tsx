@@ -16,7 +16,7 @@ import { isGroupAdmin, pickAdmin } from "@/lib/group-admin";
 import { canRunGame, gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
-import { canUndo } from "@/lib/undo";
+import { canUndo, originAtDb, paymentsForUndo } from "@/lib/undo";
 import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
 import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, outlineButtonClass, SettleRow } from "@/components/SettleRow";
@@ -71,7 +71,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   // Undo right after Mark paid / Mark all paid.
   const justDid = sp.did && /^[A-Za-z0-9_-]{6,40}$/.test(sp.did) ? await db.groupEvent.findFirst({ where: { id: sp.did, groupId: group.id } }) : null;
   const newer = justDid ? await db.groupEvent.findMany({ where: { groupId: group.id, createdAt: { gte: justDid.createdAt } } }) : [];
-  const showUndo = Boolean(justDid && canUndo(justDid, newer, new Date(), { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members }).ok);
+  const showUndo = Boolean(justDid && canUndo(justDid, newer, new Date(), { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members, payments: await paymentsForUndo(group.id, justDid.undo) }, await originAtDb(justDid)).ok);
 
   const form = (action: (f: FormData) => Promise<void>, label: string, cls: string, confirm?: string, extra?: React.ReactNode) => (
     <form action={action}>

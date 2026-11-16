@@ -183,20 +183,29 @@ describe("FB-1: moving yourself out while you owe someone who has joined", () =>
 
   // (Test 6, "paying two people one at a time", is gone: nobody leaves owing, so there is nothing to pay one person at a time.)
 
-  it("7. a waiting 'I've paid' already involves the person: the move-out is refused, nothing changes (and the preview says so)", async () => {
+  it("7. an older waiting 'I've paid' does not block the move-out: it is closed inside it, with a history line, and the square-up is unchanged", async () => {
     const { f, A, R } = await f2();
-    // An older note still waiting (no new ones are made any more): written straight into the table.
-    await db.paymentClaim.create({ data: { groupId: f.gid, fromId: A, toId: R, amount: 1200000, currency: "INR", source: "app", status: "waiting", slot: "" } });
+    // An older note still waiting (no new ones are made any more): written straight into the table. Asha says she paid Ravi 40000 (400.00).
+    await db.paymentClaim.create({ data: { groupId: f.gid, fromId: A, toId: R, amount: 40000, currency: "INR", source: "app", status: "waiting", slot: "" } });
+    const pv = await moveOutPreview(f.gid, A, "2026-11-10", NOW, A);
+    expect(pv.ok).toBe(true);
     const r = await out(f.gid, A, A);
-    expect(r).toEqual({ ok: false, error: MOVE_OUT_WAITING_NOTE });
-    expect((await f.row(A)).leftAt).toBeNull();
-    expect(await f.claims()).toHaveLength(1);
-    expect(await f.payments()).toHaveLength(0);
-    expect(await moveOutPreview(f.gid, A, "2026-11-10", NOW, A)).toEqual({ ok: false, error: MOVE_OUT_WAITING_NOTE });
-    // Also when the note is the other way round (Ravi says he paid Asha): it involves her too.
+    expect(r.ok).toBe(true);
+    expect((await f.row(A)).leftAt).not.toBeNull();
+    // The note never counted: Asha still pays the whole 1200000 she owed (not 1160000), and both end at 0.
+    const pays = await f.payments();
+    expect(pays.map((p) => [p.fromId, p.toId, p.amount])).toEqual([[A, R, 1200000]]);
+    expect(await f.net()).toEqual({ [A]: 0, [R]: 0 });
+    const notes = await f.claims();
+    expect(notes).toHaveLength(1);
+    expect(notes[0].status).toBe("expired");
+    const lines = await db.groupEvent.findMany({ where: { groupId: f.gid, kind: "payment_note_closed" } });
+    expect(lines.map((l) => l.text)).toEqual(["Asha’s older “I’ve paid ₹400.00” was closed by the move-out. Record it again if it was paid."]);
+    // Also when the note is the other way round (Ravi says he paid Asha): it involves her too, and is closed the same way.
     const g2 = await f2();
     await db.paymentClaim.create({ data: { groupId: g2.f.gid, fromId: g2.R, toId: g2.A, amount: 100, currency: "INR", source: "app", status: "waiting", slot: "" } });
-    expect(await out(g2.f.gid, g2.A, g2.A)).toEqual({ ok: false, error: MOVE_OUT_WAITING_NOTE });
+    expect((await out(g2.f.gid, g2.A, g2.A)).ok).toBe(true);
+    expect((await g2.f.claims())[0].status).toBe("expired");
   });
 
   it("the preview and the confirm question say which payments ask the person paid (and plain payments keep their old words)", async () => {

@@ -586,7 +586,7 @@ describe("17. kept from Batch A", () => {
   it("the waiting-note block, FB-4's key, FB-2's eligible list, MB-1/MB-7's reopening and the removed leaver exceptions", () => {
     const moving = readFileSync("src/lib/home/moving-db.ts", "utf8");
     expect(moving).toContain("MOVE_OUT_WAITING_NOTE");
-    expect(moving).toContain("waitingNoteFor(");
+    expect(moving).toContain("waitingNotesFor(");
     expect(moving).toContain("MOVE_OUT_KEY_CHANGED");
     expect(moving).toContain("proRataShares(e.shares, leaverId, days, daysInMonth(period), weights, stillHere)"); // FB-2
     expect(moving).toContain("resplitAlready(");

@@ -122,10 +122,10 @@ function waitsFor(flat: Flat, actorId: string, t: Transfer): boolean {
 // The final payments as one comparable text: the move-out page posts it, and the move-out refuses if it is not what would be recorded now.
 export const transfersKey = (ts: Transfer[]) => ts.map((t) => `${t.from}>${t.to}:${t.amount}`).sort().join("|");
 
-// Is an "I've paid" note waiting that involves this person (as payer or as the one paid)?
-async function waitingNoteFor(client: Client, groupId: string, memberId: string): Promise<boolean> {
-  const row = await client.paymentClaim.findFirst({ where: { groupId, status: "waiting", OR: [{ fromId: memberId }, { toId: memberId }] }, select: { id: true } });
-  return Boolean(row);
+// Older "I've paid" notes still waiting that involve this person (as payer or as the one paid). No screen can answer a note any more, so a
+// move-out does not stop for one: it closes it (closeOldNotes) and says so in the history.
+async function waitingNotesFor(client: Client, groupId: string, memberId: string) {
+  return client.paymentClaim.findMany({ where: { groupId, status: "waiting", OR: [{ fromId: memberId }, { toId: memberId }] }, select: { id: true, fromId: true, amount: true, currency: true } });
 }
 
 function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[], charges: Charge[] = []) {
@@ -173,7 +173,6 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
   const bad = checkDay(lastDay, now);
   if (bad) return { ok: false, error: bad } as Fail;
-  if (await waitingNoteFor(db, groupId, leaverId)) return { ok: false, error: MOVE_OUT_WAITING_NOTE } as Fail;
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
   const p = plan(flat, leaverId, lastDay, bills);
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
@@ -244,7 +243,6 @@ export async function moveOut(
   const name = (id: string) => flat.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, flat.currency);
   if (input.expectKey !== undefined && input.expectKey !== transfersKey(p.payments)) return { ok: false, error: MOVE_OUT_KEY_CHANGED };
-  if (await waitingNoteFor(db, groupId, leaver.id)) return { ok: false, error: MOVE_OUT_WAITING_NOTE };
 
   const netBefore = netBalances(flat.members.map((m) => m.id), flat.expenses, flat.payments);
   await opts.afterRead?.();
@@ -259,8 +257,6 @@ export async function moveOut(
       // (Someone who joined meanwhile with nothing owed either way is not a change.)
       const sig = (n: Record<string, number>) => JSON.stringify(Object.entries(n).filter(([, v]) => v !== 0).sort(([a], [b]) => a.localeCompare(b)));
       if (sig(netNow) !== sig(netBefore)) throw new Error("BALANCES_CHANGED");
-      // A note involving the leaver was made meanwhile: sort that out first (it would otherwise be closed silently).
-      if (await waitingNoteFor(tx, groupId, leaver.id)) throw new Error("WAITING_NOTE");
       // Someone who left earlier may only end with the balance they had, or 0: what this move-out changes (the re-split, the daily
       // charges, and the final payments) must not move theirs.
       const stuck = await leaverBalanceBreaks(tx, groupId, flat.members.filter((m) => m.id !== leaver.id).map((m) => m.id), (l) => ({
@@ -275,6 +271,13 @@ export async function moveOut(
       }));
       if (stuck.length) throw new LeaverBreak(stuck[0], "changed here");
       await claimKey(tx, input.requestKey, "moved", fp);
+      // An older "I've paid" note that is still waiting (one the conversion could not convert, or that was put back to waiting) is closed
+      // as "expired", with a line saying so, in this same transaction. It never counted, so the square-up payments are unaffected.
+      for (const n of await waitingNotesFor(tx, groupId, leaver.id)) {
+        const closed = await tx.paymentClaim.updateMany({ where: { id: n.id, status: "waiting" }, data: { status: "expired", slot: n.id, decidedAt: new Date(), decidedById: actorId } });
+        if (closed.count !== 1) continue;
+        await logEvent(tx, { groupId, actorId, kind: "payment_note_closed", text: `${name(n.fromId)}’s older “I’ve paid ${formatMoney(n.amount, n.currency)}” was closed by the move-out. Record it again if it was paid.`, touches: [] });
+      }
       // Claim the move-out first: if two people confirm it at the same moment,
       // only the first one goes through (the second finds them already gone).
       const claimed = await tx.member.updateMany({ where: { id: leaver.id, leftAt: null }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });
@@ -434,7 +437,6 @@ export async function moveOut(
     if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof LeaverBreak) return { ok: false, error: err.message };
-    if (msg.includes("WAITING_NOTE")) return { ok: false, error: MOVE_OUT_WAITING_NOTE };
     if (msg.includes("BALANCES_CHANGED") || msg.includes("NOT_SQUARE")) return { ok: false, error: "Balances just changed. Check the move-out again." };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     if (msg.includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };

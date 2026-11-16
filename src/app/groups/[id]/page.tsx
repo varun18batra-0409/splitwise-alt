@@ -8,7 +8,7 @@ import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner
 import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
 import { bounceIfDirect } from "@/lib/direct-db";
-import { canUndo, ownMoveOut } from "@/lib/undo";
+import { canUndo, originAtDb, ownMoveOut } from "@/lib/undo";
 import { passportZone } from "@/lib/passport";
 import { UndoBar } from "@/components/UndoBar";
 import { buildGroupView, type GroupEvent } from "./_components/view";
@@ -183,7 +183,7 @@ export default async function GroupPage({
     undoEvents = leaver ? ((await loadGroupView(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did);
   }
   const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
-  const showUndo = justDid && (v.leaverChecks.get(justDid.id) ?? canUndo(justDid, undoEvents, new Date(), v.undoViewer)).ok;
+  const showUndo = justDid && (v.leaverChecks.get(justDid.id) ?? canUndo(justDid, undoEvents, new Date(), v.undoViewer, noHistory ? await originAtDb(justDid) : undefined)).ok; // (the 10 minutes count from the original recording, as on the server)
   // Someone who moved out themselves (not removed) can undo it from here: the line and whether the server would allow it right now.
   const ownMove = leaver && !leaver.removed ? await ownMoveOut(group.id, v.undoViewer, new Date()) : null;
 

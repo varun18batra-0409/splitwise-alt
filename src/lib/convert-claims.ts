@@ -150,6 +150,11 @@ async function expireOne(c: ClaimRow, reason: Reason, now: Date): Promise<Change
   });
 }
 
+async function putNoteBack(tx: Tx, claimId: string, expect: string, eventId: string | undefined, fromId: string, now: Date) {
+  await tx.paymentClaim.updateMany({ where: { id: claimId, status: expect }, data: { status: "waiting", slot: "", paymentId: "", decidedAt: null, decidedById: "" } });
+  if (eventId) await tx.groupEvent.updateMany({ where: { id: eventId, undoneAt: null }, data: { undoneAt: now, undoneById: fromId } });
+}
+
 // Put a conversion back (the undo file lists the ids it made). Converted notes: the payment is taken off the same safe way as when the payer
 // deletes it (the group must be open, and anyone who has left comes back owing so they stay at 0) and the note waits again, unless another note
 // for the same pair is waiting now (only one may wait) or the payment can't be taken off now (counted as skipped). Closed notes: the note
@@ -186,16 +191,16 @@ export async function undoConvertedClaims(changes: Change[], o: { apply: boolean
     }
     if (ch.kind === "converted" && ch.paymentId) {
       // The payer deletes it: the group checks, the closed check, leavers brought back owing, deletedById set (payment-change.ts).
-      const r = await changePayment(ch.paymentId, c.fromId, true);
-      if (!r.ok) {
-        skipped++;
+      // The note goes back to waiting INSIDE that same transaction (opts.inside), so a crash can never leave the payment gone and the note
+      // still "covered" (a rerun would skip it for good).
+      const r = await changePayment(ch.paymentId, c.fromId, true, { inside: (tx) => putNoteBack(tx, c.id, expect, ch.eventId, c.fromId, now) });
+      if (!r.ok || (await db.paymentClaim.count({ where: { id: c.id, status: expect } }))) {
+        skipped++; // (the second case: someone else took the payment off first, so the hook never ran and the note was not touched)
         continue;
       }
+    } else {
+      await db.$transaction((tx) => putNoteBack(tx, c.id, expect, ch.eventId, c.fromId, now));
     }
-    await db.$transaction(async (tx) => {
-      await tx.paymentClaim.updateMany({ where: { id: c.id, status: expect }, data: { status: "waiting", slot: "", paymentId: "", decidedAt: null, decidedById: "" } });
-      if (ch.eventId) await tx.groupEvent.updateMany({ where: { id: ch.eventId, undoneAt: null }, data: { undoneAt: now, undoneById: c.fromId } });
-    });
     putBack++;
   }
   return { apply: o.apply, putBack, skipped };

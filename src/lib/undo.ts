@@ -107,7 +107,7 @@ export function originAtOf(ev: { undo: string; createdAt: Date }, all: { undo: s
 }
 
 // The same, reading the group's whole history (the server cannot trust a short list).
-async function originAtDb(ev: { groupId: string; undo: string; createdAt: Date }): Promise<Date> {
+export async function originAtDb(ev: { groupId: string; undo: string; createdAt: Date }): Promise<Date> {
   const u = parseUndo(ev.undo);
   const firstId = u && (u.type === "payment_delete" || u.type === "payment_restore" ? u.paymentId : u.type === "payments_set" || u.type === "settle_all" ? u.paymentIds[0] : undefined);
   if (!firstId) return ev.createdAt;
@@ -264,12 +264,14 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
 }
 
 // Can this viewer undo this change right now? The screens and the server both ask this.
-export function canUndo(ev: EventLike, all: EventLike[], now: Date, viewer: UndoViewer): CanUndo {
+// `originAt`: screens that load only the latest lines pass the original recording time (originAtDb), so they time the recorder's
+// 10 minutes from the same moment the server does. Without it the history given is used.
+export function canUndo(ev: EventLike, all: EventLike[], now: Date, viewer: UndoViewer, originAt?: Date): CanUndo {
   const refused = viewerRefusal(ev, viewer);
   if (refused) return { ok: false, reason: refused };
   const history = historyCheck(ev, all, (id) => viewer.members.find((m) => m.id === id)?.name);
   if (!history.ok) return history;
-  const no = actorRefusal(ev, viewer, now, originAtOf(ev, all));
+  const no = actorRefusal(ev, viewer, now, originAt ?? originAtOf(ev, all));
   return no ? { ok: false, reason: no } : { ok: true };
 }
 

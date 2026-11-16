@@ -35,7 +35,7 @@ import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
 import { moveOutPaymentIds } from "@/lib/payment-change";
 import { gameVisible, stillIn } from "@/lib/left-view";
-import { canUndo, paymentsForUndo } from "@/lib/undo";
+import { canUndo, originAtDb, paymentsForUndo } from "@/lib/undo";
 import { isGroupAdmin } from "@/lib/group-admin";
 import { UndoBar } from "@/components/UndoBar";
 import { BellButton } from "@/components/BellButton";
@@ -120,7 +120,7 @@ export default async function Home({
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
     const viewer = { id: myId, isAdmin: await isGroupAdmin(didGroup, myId), closed: grp.group.closed, members: grp.group.members, payments: ev ? await paymentsForUndo(didGroup, ev.undo) : [] };
-    if (ev && canUndo(ev, events, new Date(), viewer).ok) {
+    if (ev && canUndo(ev, events, new Date(), viewer, await originAtDb(ev)).ok) {
       const actor = ev.actorId === myId ? "You" : grp.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
       undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)} · ${grp.group.name}`, groupId: didGroup, eventId: ev.id };
     }

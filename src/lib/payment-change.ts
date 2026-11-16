@@ -116,6 +116,7 @@ export type ChangeOpts = {
   recorderOk?: boolean; // the caller checked: this person recorded it for others and is inside the 10-minute Undo window
   noLeavers?: boolean; // the sign-in-free pay link: refuse (inside the same transaction) if either person has left or been removed, so it never brings anyone back
   afterRead?: () => Promise<void>; // tests only: runs after the reads and before the write begins
+  inside?: (tx: Tx) => Promise<void>; // runs in the SAME transaction, only once this payment really was changed (one payment, not across groups)
 };
 
 // Delete (deleted = true) or bring back (deleted = false) one payment.
@@ -172,6 +173,7 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
       if (deleted) moved = (await tx.payment.updateMany({ where: { id: payment.id, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actorId } })).count === 1;
       else moved = (await restorePayments(tx, [payment.id], actorId!)).length === 1;
       if (!moved) return { eventId: "", back: [] };
+      await opts.inside?.(tx);
       const eventId = await logEvent(tx, {
         groupId: payment.groupId,
         actorId: actorId!,

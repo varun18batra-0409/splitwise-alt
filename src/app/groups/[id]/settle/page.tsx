@@ -16,7 +16,7 @@ import { eventsFrom, loadGroup, loadGroupSettle } from "@/lib/group-data";
 import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { applySettleMin } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
-import { canUndo, leaverUndoChecks, paymentsForUndo } from "@/lib/undo";
+import { canUndo, leaverUndoChecks, originAtDb, paymentsForUndo } from "@/lib/undo";
 import { isGroupAdmin } from "@/lib/group-admin";
 import { recordCustomPayment, settleEverything, undoChange } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -74,7 +74,7 @@ export default async function GroupSettle({
   // (payments: who is in the payment this change is about, since only the payer and the person paid may undo it; whoever recorded it for others may for 10 minutes)
   const undoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members, payments: justDid ? await paymentsForUndo(group.id, justDid.undo) : [] };
   const leaverChecks = data.leaver && !data.leaver.removed ? await leaverUndoChecks(group.id, undoViewer, new Date()) : null; // a leaver's own move-out: judged on the full history
-  const showUndo = justDid && (leaverChecks?.get(justDid.id) ?? canUndo(justDid, undoEvents, new Date(), undoViewer)).ok;
+  const showUndo = justDid && (leaverChecks?.get(justDid.id) ?? canUndo(justDid, undoEvents, new Date(), undoViewer, await originAtDb(justDid))).ok; // (the 10 minutes count from the original recording, as on the server)
 
   // How each person here likes to be paid (from their You page), my own account, and the flat move-out payments waiting for my
   // "Got it / Not received" (the only payments that still ask; every other payment counts at once).
