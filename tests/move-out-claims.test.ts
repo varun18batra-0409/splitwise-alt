@@ -202,7 +202,7 @@ describe("FB-1: moving yourself out while you owe someone who has joined", () =>
     expect(notes).toHaveLength(1);
     expect(notes[0].status).toBe("expired");
     const lines = await db.groupEvent.findMany({ where: { groupId: f.gid, kind: "payment_note_closed" } });
-    expect(lines.map((l) => l.text)).toEqual(["Asha’s older “I’ve paid ₹400.00” was closed by the move-out. Record it again if it was paid."]);
+    expect(lines.map((l) => l.text)).toEqual(["Asha’s older “I’ve paid ₹400” was closed by the move-out. Record it again if it was paid."]);
     // Also when the note is the other way round (Ravi says he paid Asha): it involves her too, and is closed the same way.
     const g2 = await f2();
     await db.paymentClaim.create({ data: { groupId: g2.f.gid, fromId: g2.R, toId: g2.A, amount: 100, currency: "INR", source: "app", status: "waiting", slot: "" } });

@@ -273,7 +273,7 @@ describe("8: the Settle up page asks canUndo, with the viewer and the payment, w
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(`${__dirname}/../src/app/groups/[id]/settle/page.tsx`, "utf8");
     expect(src).toMatch(/const undoViewer = \{ id: myId, isAdmin: await isGroupAdmin\(group\.id, myId\), closed: group\.closed, members: group\.members, payments: justDid \? await paymentsForUndo\(group\.id, justDid\.undo\) : \[\] \};/);
-    expect(src).toMatch(/const showUndo = justDid && \(leaverChecks\?\.get\(justDid\.id\) \?\? canUndo\(justDid, undoEvents, new Date\(\), undoViewer\)\)\.ok;/);
+    expect(src).toMatch(/const showUndo = justDid && \(leaverChecks\?\.get\(justDid\.id\) \?\? canUndo\(justDid, undoEvents, new Date\(\), undoViewer, await originAtDb\(justDid\)\)\)\.ok;/); // the 10 minutes count from the original recording
     expect(src).not.toMatch(/\?\.leftAt && canUndo/);
   });
 });
