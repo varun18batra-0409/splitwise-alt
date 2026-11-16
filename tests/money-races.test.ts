@@ -19,6 +19,7 @@ import { settleAcrossCore } from "@/lib/cross-settle-db";
 import { applySettleAll, markAllPaid, planKey, setPaymentsDeleted, settleAllAndClose } from "@/lib/settle-all";
 import { loadGroup } from "@/lib/group-data";
 import { createPayment } from "@/lib/payments";
+import { markAsMoveOut } from "./helpers/move-out-marks";
 import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, GAME_FINISHED, loadGame, markGamePaid, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 import { parsePlayers, potSummary } from "@/lib/pot";
 import type { RateAnswer } from "@/lib/rate-cache";
@@ -804,16 +805,21 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect((await net(g.id))[g.ids.C]).toBe(-30000);
   });
 
-  it("N10: undoing 'settle everything' is refused when a leaver is involved (C paid 30000 and left; undo would leave C at −30000)", async () => {
+  it("N10 (changed in Batch C): undoing 'settle everything' when a leaver is involved brings the leaver back owing (C paid 30000 and left)", async () => {
     const g = await make(["A", "C"]);
     await addExpense(g.id, g.ids.A, 60000, [[g.ids.A, 30000], [g.ids.C, 30000]], "Dinner");
     expect((await settleAllAndClose(g.id, g.ids.A, planKey((await loadGroup(g.id))!.transfers))).ok).toBe(true); // C → A 30000, closed
     const ids = (await db.payment.findMany({ where: { groupId: g.id } })).map((p) => p.id);
     await db.member.update({ where: { id: g.ids.C }, data: { leftAt: new Date() } });
-    expect(await applySettleAll(g.id, g.ids.A, ids, false)).toEqual({ ok: false, error: "C has left the group, so this can't be undone." });
-    expect((await db.group.findUniqueOrThrow({ where: { id: g.id } })).closed).toBe(true);
-    expect(await db.payment.count({ where: { groupId: g.id, deletedAt: null } })).toBe(1);
-    expect((await net(g.id))[g.ids.C]).toBe(0);
+    // By hand: Dinner 60000 paid by A, 30000 each: A +30000, C -30000. The payment C -> A 30000 makes both 0. Taken off: A +30000, C -30000 again,
+    // and C (who left) is brought back into the group owing it, so the balances still add up to 0.
+    expect((await applySettleAll(g.id, g.ids.A, ids, false)).ok).toBe(true);
+    expect((await db.group.findUniqueOrThrow({ where: { id: g.id } })).closed).toBe(false);
+    expect(await db.payment.count({ where: { groupId: g.id, deletedAt: null } })).toBe(0);
+    expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.C } })).leftAt).toBeNull();
+    const back = await net(g.id);
+    expect(back).toEqual({ [g.ids.A]: 30000, [g.ids.C]: -30000 });
+    expect(Object.values(back).reduce((x, y) => x + y, 0)).toBe(0);
   });
 
   it("N10: redo of 'Mark all paid' is refused after C paid by hand and left (old 30000 coming back = C at +30000)", async () => {
@@ -886,10 +892,11 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(src).toMatch(/on=\{!byItem && \(showOnly/);
   });
 
-  it("N4 (A5): 'Not received' on B's ₹300 payment to C once B has left now works: B is brought back at -30000, C +30000", async () => {
+  it("N4 (A5): 'Not received' on B's ₹300 move-out payment to C once B has left works: B is brought back at -30000, C +30000", async () => {
     const g = await make(["B", "C"]);
     await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi"); // B owes C 30000
     const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // B pays: 0 / 0
+    await markAsMoveOut(g.id, g.ids.B, [pay.id]); // Not received exists only for a flat move-out's final payment
     await db.member.update({ where: { id: g.ids.B }, data: { leftAt: new Date() } });
     const r = await rejectPayment(pay.id, g.ids.C);
     expect(r).toMatchObject({ ok: true, back: [{ id: g.ids.B, name: "B" }] });
@@ -898,11 +905,13 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(await net(g.id)).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
   });
 
-  it("N4: 'Not received' still works when nobody involved has left (B owes C 30000 again)", async () => {
+  it("N4: an ordinary payment has no 'Not received' any more; C (the person paid) deletes it instead: B owes C 30000 again", async () => {
     const g = await make(["B", "C"]);
     await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi");
-    const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000);
-    expect((await rejectPayment(pay.id, g.ids.C)).ok).toBe(true);
+    const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // counts at once: 0 / 0
+    expect(await rejectPayment(pay.id, g.ids.C)).toEqual({ ok: false, error: "This payment already counts. If it’s wrong, delete it from the activity." });
+    expect(await net(g.id)).toEqual({ [g.ids.B]: 0, [g.ids.C]: 0 });
+    expect((await setPaymentDeleted(pay.id, g.ids.C, true)).ok).toBe(true);
     expect(await net(g.id)).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
   });
 

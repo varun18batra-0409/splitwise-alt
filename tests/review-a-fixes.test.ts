@@ -124,19 +124,24 @@ describe("4. taking a payment off puts the debt back (no old notes involved any 
 describe("5. the Undo check mirrors the server for a payment the person paid deleted themselves", () => {
   const T0 = new Date("2026-11-10T06:00:00.000Z");
   const members = [
+    { id: "asha", name: "Asha", accountId: "a0", leftAt: null, removedAt: null },
     { id: "ravi", name: "Ravi", accountId: "a1", leftAt: null, removedAt: null },
     { id: "meera", name: "Meera", accountId: "a2", leftAt: null, removedAt: null },
   ];
   const ev = { id: "e1", kind: "payment_deleted", text: "deleted the payment Asha → Ravi (₹400)", actorId: "ravi", undo: JSON.stringify({ type: "payment_restore", paymentId: "p1" }), undoneAt: null, expenseId: null, paymentId: "p1", createdAt: T0 };
-  const viewer = (id: string, withPayments: boolean) => ({ id, isAdmin: false, closed: false, members, ...(withPayments ? { payments: [{ id: "p1", toId: "ravi", deletedById: "ravi" }] } : {}) });
+  const viewer = (id: string, withPayments: boolean) => ({ id, isAdmin: false, closed: false, members, ...(withPayments ? { payments: [{ id: "p1", fromId: "asha", toId: "ravi", deletedById: "ravi" }] } : {}) });
   it("Meera is told only Ravi can bring it back; Ravi is not; without the payment list the old words-only check lets it through (the server still refuses)", () => {
     expect(actorRefusal(ev as never, viewer("meera", true) as never, T0)).toBe(receiverOnlyText("Ravi"));
     expect(actorRefusal(ev as never, viewer("ravi", true) as never, T0)).toBeNull();
     expect(actorRefusal(ev as never, viewer("meera", false) as never, T0)).toBeNull();
   });
-  it("a payment somebody else deleted can be brought back by anyone in the group", () => {
-    const v = { ...viewer("meera", false), payments: [{ id: "p1", toId: "ravi", deletedById: "meera" }] };
-    expect(actorRefusal({ ...ev, actorId: "meera" } as never, v as never, T0)).toBeNull();
+  it("a payment the payer deleted can be brought back by the payer or the person paid; Meera, who is in neither, is told who can change it", () => {
+    const p = { id: "p1", fromId: "asha", toId: "ravi", deletedById: "asha" };
+    const v = (id: string) => ({ ...viewer(id, false), payments: [p] });
+    const e = { ...ev, actorId: "asha" };
+    expect(actorRefusal(e as never, v("asha") as never, T0)).toBeNull();
+    expect(actorRefusal(e as never, v("ravi") as never, T0)).toBeNull();
+    expect(actorRefusal(e as never, v("meera") as never, T0)).toBe("Only Asha or Ravi can change this payment.");
   });
 });
 

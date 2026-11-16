@@ -134,16 +134,22 @@ describe("MB-1: only the person who was paid can bring a refused payment back", 
     expect(await w.net()).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
   });
 
-  it("regression: a payment someone ELSE deleted (Meera) can still be restored by Ravi, by Undo or by Restore", async () => {
+  it("regression: a payment the PAYER deleted (Ravi) can be restored by Ravi (Undo or Restore) and by Asha; Meera, who is in neither, can't delete it", async () => {
     const w = await world();
-    const deleted = await setPaymentDeleted(w.pay.id, w.m, true);
+    // Only the payer and the person paid may delete a payment (Batch C): Meera is refused, nothing moves.
+    expect(await setPaymentDeleted(w.pay.id, w.m, true)).toEqual({ ok: false, error: "Only Ravi or Asha can change this payment." });
+    expect(await w.net()).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
+    const deleted = await setPaymentDeleted(w.pay.id, w.r, true); // Ravi takes back his own payment
     if (!deleted.ok || !deleted.eventId) throw new Error("setup failed");
     expect(await w.net()).toEqual({ [w.a]: 200000, [w.r]: -200000, [w.m]: 0 });
-    expect((await undoEvent(deleted.eventId, w.r)).ok).toBe(true); // Ravi undoes Meera's delete
+    expect((await undoEvent(deleted.eventId, w.r)).ok).toBe(true); // Ravi undoes it
     expect(await w.net()).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
-    // And again with the Restore button path.
-    expect((await setPaymentDeleted(w.pay.id, w.m, true)).ok).toBe(true);
+    // And again with the Restore button path, by Ravi and then by Asha (the person paid may always bring it back).
+    expect((await setPaymentDeleted(w.pay.id, w.r, true)).ok).toBe(true);
     expect((await setPaymentDeleted(w.pay.id, w.r, false)).ok).toBe(true);
+    expect(await w.net()).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
+    expect((await setPaymentDeleted(w.pay.id, w.r, true)).ok).toBe(true);
+    expect((await setPaymentDeleted(w.pay.id, w.a, false)).ok).toBe(true);
     expect(await w.net()).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
   });
 

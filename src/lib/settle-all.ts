@@ -112,7 +112,7 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
   if (apply && group.closed) return { ok: false, error: "The group is already closed." };
   // Only the people in each payment can take them off or put them back (whoever recorded them for others, for 10 minutes: undo.ts).
-  const noParty = await paymentsPartyRefusal(db, groupId, paymentIds, actorId, opts.recorderOk);
+  const noParty = await paymentsPartyRefusal(db, groupId, paymentIds, actorId, opts.recorderOk, apply);
   if (noParty) return { ok: false, error: noParty };
   let eventId: string;
   await opts.afterRead?.();
@@ -254,7 +254,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   // Only the people in each payment can take them off or put them back (whoever recorded them for others, for 10 minutes: undo.ts).
-  const noParty = await paymentsPartyRefusal(db, groupId, paymentIds, actorId, opts.recorderOk);
+  const noParty = await paymentsPartyRefusal(db, groupId, paymentIds, actorId, opts.recorderOk, !deleted);
   if (noParty) return { ok: false, error: noParty };
   let eventId: string;
   await opts.afterRead?.();

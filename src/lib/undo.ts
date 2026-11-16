@@ -195,6 +195,14 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): stri
     if (holder && ev.actorId !== actorId) return `Only the person who made that change can undo it. You can add ${holder.name} again with Add people.`;
     if (holder && !putBackOpen(ev.createdAt, now)) return lateRecreateText(holder.name);
   }
+  // The person paid said "Not received" (or deleted the payment themselves): only they can bring it back, so nobody can overrule them.
+  // Lines written before the flag existed are recognised by their words. (The server also reads the payment itself: setPaymentDeleted.)
+  if (payload.type === "payment_restore" && ev.actorId !== actorId) {
+    // Older lines have no flag: the payment itself says whether the person paid took it off (deletedById is the receiver).
+    const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
+    const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START))) || (pay ? onlyReceiverCanBringBack(pay, actorId) : false);
+    if (byReceiver) return receiverOnlyText(find(pay?.toId ?? ev.actorId ?? "")?.name ?? "the person who was paid");
+  }
   // Only the payer and the person paid can take a payment off or put it back, and only for payments the screen knows about (the server
   // reads the payment itself). Someone who recorded it for others (Mark paid, Mark all paid, Settle everything) may Undo it for 10 minutes.
   const recorder = ev.actorId === actorId && putBackOpen(ev.createdAt, now);
@@ -205,14 +213,6 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): stri
   if (!recorder && (payload.type === "payments_set" || payload.type === "settle_all")) {
     const pays = payload.paymentIds.map((id) => viewer.payments?.find((x) => x.id === id));
     if (pays.every((x) => x) && !pays.every((x) => x!.fromId === actorId || x!.toId === actorId)) return "Only the people in each payment can take these off.";
-  }
-  // The person paid said "Not received" (or deleted the payment themselves): only they can bring it back, so nobody can overrule them.
-  // Lines written before the flag existed are recognised by their words. (The server also reads the payment itself: setPaymentDeleted.)
-  if (payload.type === "payment_restore" && ev.actorId !== actorId) {
-    // Older lines have no flag: the payment itself says whether the person paid took it off (deletedById is the receiver).
-    const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
-    const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START))) || (pay ? onlyReceiverCanBringBack(pay, actorId) : false);
-    if (byReceiver) return receiverOnlyText(find(pay?.toId ?? ev.actorId ?? "")?.name ?? "the person who was paid");
   }
   // A closed group refuses these undos on the server (reopen it first), so the screen never offers them.
   if (payload.type === "member_set" && payload.moveOut && payload.data.leftAt === null && viewer.closed) return CLOSED_MOVE_OUT_TEXT;

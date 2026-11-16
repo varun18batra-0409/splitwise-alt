@@ -58,7 +58,7 @@ describe("download my data: the extra parts", () => {
     expect(extra.collections.find((c) => c.organiser)).toMatchObject({ title: "Farewell gift", people: 3, paid: 2, checked: 1 });
     expect(extra.collections.find((c) => !c.organiser)).toMatchObject({ title: "Class party", yours: "You said you paid" });
     expect(extra.settings.find((s) => s.setting === "Collection notifications")?.status).toBe("Off");
-    expect(extra.settings.find((s) => s.setting === "Someone says they paid you")?.status).toBe("Off");
+    expect(extra.settings.find((s) => s.setting === "Someone records a payment with you")?.status).toBe("Off");
     expect(extra.settings.find((s) => s.setting === "Someone adds an expense")?.status).toBe("On");
     expect(extra.settings.find((s) => s.setting.startsWith("Phone notifications in MD trip"))?.status).toBe("Off");
 

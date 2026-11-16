@@ -127,6 +127,8 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
   }
   if (payment.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
+  // A payment the person paid took off can only be brought back by them: anyone else (even a non-party) is told that, in those words.
+  if (!deleted && payment.deletedAt && onlyReceiverCanBringBack(payment, actorId)) return { ok: false, error: receiverOnlyText(payment.to.name) };
   if (!opts.recorderOk) {
     const no = partyRefusal({ fromId: payment.fromId, toId: payment.toId, fromName: payment.from.name, toName: payment.to.name }, actorId);
     if (no) return { ok: false, error: no };
@@ -134,7 +136,6 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
   // Deleting your own payment after you left is allowed (you come back owing it); bringing one back is not.
   if (!deleted && (await hasLeft(payment.groupId, actorId))) return { ok: false, error: LEFT_ERROR };
   if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };
-  if (!deleted && onlyReceiverCanBringBack(payment, actorId)) return { ok: false, error: receiverOnlyText(payment.to.name) };
   const amountText = formatMoney(payment.amount, payment.group.currency);
   await opts.afterRead?.();
   let out: { eventId: string; back: BroughtBack[] };
@@ -331,7 +332,13 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
 }
 
 // Undo / redo of "Mark all paid" or "Settle everything": the actor must be a party to EVERY payment (or the recorder inside the window).
-export async function paymentsPartyRefusal(client: Db, groupId: string, ids: string[], actorId: string, recorderOk = false): Promise<string | null> {
+// `restoring`: this is a Redo. A payment the person paid took off can only be brought back by them, whoever else asks (the recorder too).
+export async function paymentsPartyRefusal(client: Db, groupId: string, ids: string[], actorId: string, recorderOk = false, restoring = false): Promise<string | null> {
+  if (restoring) {
+    const taken = await client.payment.findMany({ where: { id: { in: ids }, groupId, deletedAt: { not: null } }, select: { toId: true, deletedById: true, to: { select: { name: true } } } });
+    const first = taken.find((p) => onlyReceiverCanBringBack(p, actorId));
+    if (first) return receiverOnlyText(first.to.name);
+  }
   if (recorderOk) return null;
   const rows = await client.payment.findMany({ where: { id: { in: ids }, groupId }, select: { fromId: true, toId: true } });
   return rows.every((p) => p.fromId === actorId || p.toId === actorId) ? null : "Only the people in each payment can take these off.";

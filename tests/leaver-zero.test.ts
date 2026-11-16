@@ -327,13 +327,16 @@ describe("9. H1: nobody but the person paid can bring a refused payment back", (
     expect((await markAllPaid(w.gid, M, [{ from: A, to: R, amount: 40000 }], "", true)).ok).toBe(true);
     const ids = (await w.payments()).map((p) => p.id);
     expect(ids).toHaveLength(1);
-    expect((await setPaymentsDeleted(w.gid, M, ids, true)).ok).toBe(true);
+    // Meera recorded it for others, so she may Undo it (and Redo it) inside the 10 minutes: recorderOk is what the Undo button passes.
+    expect((await setPaymentsDeleted(w.gid, M, ids, true, { recorderOk: true })).ok).toBe(true);
     expect(await w.net()).toEqual({ [A]: -40000, [R]: 40000, [M]: 0 });
     expect((await recordPaymentCore({ groupId: w.gid, fromId: A, toId: R, amount: 40000, currency: "INR", myId: A, key: key(), fp: `fp-${key()}`, warnOver: false })).ok).toBe(true); // Asha's own "I've paid" counts at once
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     expect((await leave(w, A)).ok).toBe(true);
-    const redo = await setPaymentsDeleted(w.gid, M, ids, false);
-    expect(redo.ok).toBe(false); // refused (Asha has left, and it would count her 40000 twice)
+    const redo = await setPaymentsDeleted(w.gid, M, ids, false, { recorderOk: true });
+    expect(redo.ok).toBe(false); // refused even inside Meera's window: Asha has left, and it would count her 40000 twice
+    // Without the recorder window, Meera (not in the payment) is refused for that reason instead.
+    expect(await setPaymentsDeleted(w.gid, M, ids, false)).toEqual({ ok: false, error: "Only the people in each payment can take these off." });
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     expect((await w.row(A)).leftAt).not.toBeNull();
     await w.check();
@@ -351,7 +354,7 @@ describe("9. H1: nobody but the person paid can bring a refused payment back", (
     expect(await w.net()).toEqual({ [A]: -40000, [R]: 40000, [M]: 0 });
     await w.check();
     // (c) Meera's undo of that Mark all paid does not overwrite who took it off: it is still Ravi.
-    expect((await setPaymentsDeleted(w.gid, M, [pay.id], true)).ok).toBe(true);
+    expect((await setPaymentsDeleted(w.gid, M, [pay.id], true, { recorderOk: true })).ok).toBe(true);
     expect((await db.payment.findUniqueOrThrow({ where: { id: pay.id } })).deletedById).toBe(R);
     expect(await w.net()).toEqual({ [A]: -40000, [R]: 40000, [M]: 0 });
     await w.check();
@@ -393,8 +396,10 @@ describe("10. H2: the expense behind a leaver's payment can't be changed under h
     }, M, rate1);
     expect(edit.ok).toBe(false);
     expect(!edit.ok && edit.error).toContain("Asha has left the group");
+    // Only the payer and the person paid can delete a payment (Batch C): Meera is neither, so she is told so. (Deleting is never refused
+    // because someone left: Asha or Ravi deleting it brings Asha back owing, which is what Ravi's Not received below does.)
     const del = await setPaymentDeleted(pay.id, M, true);
-    expect(del).toEqual({ ok: false, error: "Asha has left the group, so this can't be deleted. Ask them to rejoin first." });
+    expect(del).toEqual({ ok: false, error: "Only Asha or Ravi can change this payment." });
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     await w.check();
 
