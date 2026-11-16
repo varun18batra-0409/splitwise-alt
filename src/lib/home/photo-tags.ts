@@ -49,6 +49,11 @@ export const PHOTO_TAGS: Record<string, string[]> = {
   "place-thailand": ["island", "sea", "boat"], "place-thailand-2": ["island", "sunset"], "place-thailand-3": ["temple"], "place-thailand-4": ["boat", "cliffs"], "place-thailand-5": ["temple"], "place-thailand-6": ["night", "street"],
   "place-udaipur": ["palace", "lake"], "place-udaipur-2": ["palace", "lake", "boat"],
   "place-varanasi": ["river", "boat"], "place-varanasi-2": ["river", "boat"],
+  // Top destinations: only what the pick notes say is in the photo.
+  "place-san-francisco": ["bridge"], "place-los-angeles": ["palms", "skyline"], "place-las-vegas": ["skyline"], "place-miami": ["beach"],
+  "place-chicago": ["skyline", "river"], "place-washington-dc": ["monument", "blossom"], "place-boston": ["skyline"], "place-seattle": ["skyline", "mountains"],
+  "place-honolulu-oahu": ["beach", "mountains"], "place-orlando": ["lake"], "place-alaska": ["mountains", "sea"], "place-phoenix": ["mountains"],
+  "place-lisbon": ["bridge"], "place-porto": ["bridge", "sunset"], "place-seoul": ["monument"],
   "place-vietnam": ["sea", "boat", "cliffs"], "place-vietnam-2": ["sunset", "skyline"], "place-vietnam-3": ["lake", "cliffs"],
 };
 
