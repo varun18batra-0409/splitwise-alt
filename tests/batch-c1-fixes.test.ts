@@ -38,7 +38,7 @@ const { encodeSession, today } = await import("@/lib/session");
 const { eraseGroups } = await import("@/lib/purge");
 const { netBalances } = await import("@/lib/balances");
 const { createPayment } = await import("@/lib/payments");
-const { setPaymentsDeleted } = await import("@/lib/settle-all");
+const { setPaymentsDeleted, settleAllAndClose, applySettleAll, planKey } = await import("@/lib/settle-all");
 const { payLinkFor, readPayLink, recordLinkPayment, owedInTx } = await import("@/lib/pay-link");
 const { addRegistered, inviteToClaim, searchPeople } = await import("@/lib/invites");
 const { overpayHref, differentAmountHref } = await import("@/lib/money");
@@ -342,5 +342,27 @@ describe("N6: Paid a different amount? keeps the way back", () => {
     expect(row).toContain("differentAmountHref(groupId, fromId, toId, amountInput)");
     const pay = readFileSync(`${__dirname}/../src/app/groups/[id]/pay/page.tsx`, "utf8");
     expect(pay).toContain('back={fromSettle ? `/groups/${group.id}/settle`');
+  });
+});
+
+describe("Redo of “settle everything” tells the payer and the person paid (review of the merge, low)", () => {
+  it("after Undo then Redo, Ravi is told about both payments and Meera about hers; the group is square and closed", async () => {
+    // Auditor's story: Ravi → Asha 30000 and Ravi → Meera 30000 settle everything.
+    const w = await auditorWorld();
+    const plan = planKey([{ from: w.r, to: w.a, amount: 30000 }, { from: w.r, to: w.m, amount: 30000 }] as Parameters<typeof planKey>[0]);
+    expect((await settleAllAndClose(w.gid, w.a, plan)).ok).toBe(true);
+    const ids = (await db.payment.findMany({ where: { groupId: w.gid, deletedAt: null }, select: { id: true } })).map((x) => x.id);
+    expect(ids.length).toBe(2);
+    expect((await applySettleAll(w.gid, w.a, ids, false, { recorderOk: true })).ok).toBe(true);
+    await Promise.all(state.tasks.splice(0));
+    state.pushes.length = 0;
+    expect((await applySettleAll(w.gid, w.a, ids, true, { recorderOk: true })).ok).toBe(true);
+    await Promise.all(state.tasks.splice(0));
+    const told = state.pushes.filter((x) => x.p.url.includes("open=")).flatMap((x) => x.ids);
+    expect(told.filter((id) => id === w.r).length).toBe(2);
+    expect(told.filter((id) => id === w.m).length).toBe(1);
+    expect(told.includes(w.a)).toBe(false); // the one who redid it isn't told about her own action
+    expect(await net(w.gid)).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
+    expect((await db.group.findUnique({ where: { id: w.gid } }))!.closed).toBe(true);
   });
 });
