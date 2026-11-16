@@ -27,6 +27,7 @@ export type BillInput = {
 export async function saveBillFor(groupId: string, actorId: string, input: BillInput, now = new Date()): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   const actor = group.members.find((m) => m.id === actorId && !m.leftAt);
   if (!actor) return { ok: false, error: "Only people in this group can set up bills." };
   const active = group.members.filter((m) => !m.leftAt);

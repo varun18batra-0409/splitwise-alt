@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { PassportIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
@@ -12,6 +13,7 @@ export const metadata = { title: "Passport", robots: { index: false } };
 // Back leading here again). Someone who isn't on Loopin yet has no passport.
 export default async function MemberPassport({ params }: { params: Promise<{ id: string; memberId: string }> }) {
   const { id, memberId } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const myId = await getMyMemberId(id);
   if (!myId) redirect(await privatePath(id));
   const them = /^[A-Za-z0-9_-]{6,40}$/.test(memberId) ? await db.member.findUnique({ where: { id: memberId }, select: { groupId: true, name: true, accountId: true } }) : null;

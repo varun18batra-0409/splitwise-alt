@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { NOT_DIRECT } from "./direct"; // a pair of two people is not "sharing a group"
 import { JOINED, isPending } from "./membership";
 import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
 import { buildPassport, parseHandPlaces, passportShared, passportZone, undatedTripDay, wentOnTrip, type PassportTrip } from "./passport";
@@ -157,7 +158,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
 // who's on Loopin: the people whose passports you can open. Deleted groups don't count.
 export async function passportFriends(accountId: string) {
   // (Your own row must be joined too: a group someone added you to but you never opened shows you nobody.)
-  const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
+  const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } }, select: { groupId: true }, take: 500 });
   if (!mine.length) return [];
   const others = await db.member.findMany({
     // Someone added straight in by another person counts once they've opened that group.
@@ -184,7 +185,7 @@ export async function canSeePassport(viewerAccountId: string, ownerAccountId: st
   // A block between the two (either way round) closes the door; it looks the same as not sharing a group.
   if (await isBlockedEitherWay(viewerAccountId, ownerAccountId)) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
   const shared = await db.member.findFirst({
-    where: { accountId: ownerAccountId, ...COUNTS, group: { deletedAt: null, members: { some: { accountId: viewerAccountId, ...COUNTS } } } },
+    where: { accountId: ownerAccountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: viewerAccountId, ...COUNTS } } } },
     select: { name: true },
   });
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };

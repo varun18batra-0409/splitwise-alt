@@ -43,7 +43,10 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const game = await db.potGame.findFirst({ where: { resultId: e.id, groupId: group.id }, select: { id: true } });
   if (game) redirect(`/groups/${group.id}/pot/${game.id}`);
 
-  const back = `/groups/${group.id}?tab=activity`;
+  // A pair (expenses with one person): its person page, a plain cover, no place photo.
+  const other = group.type === "direct" ? group.members.find((m) => m.id !== myId) : undefined;
+  const pair = other ? { otherId: other.id, otherName: other.name } : undefined;
+  const back = pair ? `/people/${group.id}` : `/groups/${group.id}?tab=activity`;
   const receipt = await db.receipt.findFirst({ where: { groupId: group.id, expenseId: e.id }, select: { id: true } });
   const savedItems = await db.expenseItem.findMany({ where: { expenseId: e.id }, orderBy: { position: "asc" } });
   const digits = currencyInfo(e.originalCurrency).decimals;
@@ -80,8 +83,8 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     <SheetPage
       title="Edit expense"
       back={back}
-      cover={coverFor(group)}
-      photo={group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
+      cover={pair ? { kind: "plain" } : coverFor(group)}
+      photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
       uid={group.id}
       letter={group.name}
     >
@@ -100,7 +103,8 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         initial={initial}
         weights={groupWeights}
         splitName={splitNameFor(group.type)}
-        spin={group.type !== "pot"}
+        spin={!pair && group.type !== "pot"}
+        pair={pair}
       />
 
       <form action={deleteExpense} className="mt-10 border-t border-gray-100 pt-6">
@@ -110,7 +114,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
           Deleting removes it from balances and charts. It stays in the history, and you can restore it.
         </p>
         <ConfirmButton
-          message={`Delete “${e.description}”? Everyone in the group will be notified.`}
+          message={pair ? `Delete “${e.description}”? ${pair.otherName} will be notified.` : `Delete “${e.description}”? Everyone in the group will be notified.`}
           className="mx-auto block min-h-11 px-4 py-2 text-center text-sm text-fg/75 underline underline-offset-4 active:text-fg"
         >
           Delete expense

@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
@@ -24,6 +25,7 @@ export default async function GoalPage({
   searchParams: Promise<{ error?: string; added?: string }>;
 }) {
   const { id, goalId } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();

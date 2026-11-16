@@ -44,8 +44,12 @@ model Group {
   tripEnd      String    @default("") // trip groups: last day; "" = same as the start
   tripPlace    String    @default("") // trip groups: where to ("Goa", "Bangkok, Phuket"); "" = guessed from the name
   tripCountry  String    @default("") // trip groups: the country (ISO code, "IN"); "" = guessed
+  // Direct pairs (type "direct") only: which two people, so there is only ever one history per pair.
+  // "acc:<lower account id>|acc:<higher account id>" when both have accounts; "local:<owner account id>|<name trimmed, spaces collapsed, lower case>"
+  // for a name only the owner sees. Null for every ordinary group. Added later: nullable, existing rows untouched.
+  pairKey      String?   @unique
 
-  bills      Bill[]
+  bills     Bill[]
   listItems  ListItem[]
   budgets    Budget[]
   goals      Goal[]

@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { loadGroup } from "@/lib/group-data";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
@@ -14,6 +15,7 @@ export const metadata = { title: "Wrapped", robots: { index: false } };
 // everyone's award. Made for trips, works for any group.
 export default async function WrappedPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const data = await loadGroup(id, { events: false, viewer: await getMyMemberId(id) });
   if (!data) notFound();
   const { group, expenses, transfers } = data;

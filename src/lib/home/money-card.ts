@@ -50,8 +50,10 @@ export function moneyLabel(x: { mode: MoneyMode; acrossCurrencies?: boolean; peo
 // `parts`: each group's payment between you and them (memberId = their member id there; amount in `currency`, the same
 // currency as the total, so parts of one entry are comparable). Used to pick the group to remind them in.
 export type MoneyPart = { groupId: string; memberId: string; amount: number; iPay: boolean };
-export type MoneyPerson = { key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean; parts: MoneyPart[] };
+// `rowKey`: only for someone you share expenses with directly ("direct:<pair id>"): their card on Settle is "direct-<pair id>".
+export type MoneyPerson = { key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean; parts: MoneyPart[]; rowKey?: string };
 export type PeopleGroup = {
+  direct?: boolean; // a pair (expenses with one person): kept apart from groups even for the same person, never netted with them
   groupId: string;
   groupName: string;
   currency: string;
@@ -59,6 +61,22 @@ export type PeopleGroup = {
   members: { id: string; name: string; phone: string; accountId?: string | null }[];
   transfers: { from: string; to: string; amount: number }[];
 };
+
+// A pair as a one-person "group" for moneyPeople: its single payment is the pair's balance, in the pair's own currency.
+export function pairPeopleGroup(e: { groupId: string; currency: string; myId: string; other: { id: string; name: string; accountId: string | null }; net: number }): PeopleGroup {
+  return {
+    direct: true,
+    groupId: e.groupId,
+    groupName: "Direct",
+    currency: e.currency,
+    myId: e.myId,
+    members: [
+      { id: e.myId, name: "You", phone: "" },
+      { id: e.other.id, name: e.other.name, phone: "", accountId: e.other.accountId },
+    ],
+    transfers: e.net > 0 ? [{ from: e.other.id, to: e.myId, amount: e.net }] : e.net < 0 ? [{ from: e.myId, to: e.other.id, amount: -e.net }] : [],
+  };
+}
 
 // Everyone on the matching side ("owe": people you pay; "owed": people who pay you), largest first.
 // Amounts are positive minor units. Together (one currency) they add up to that side's total.
@@ -83,8 +101,9 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
       const currency = conv === null ? g.currency : common;
       const amount = conv === null ? t.amount : conv;
       const key = resolve(personKey(other, g.groupId, regionForGroup(g)));
-      const slot = `${key}|${currency}`;
-      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0 };
+      // A pair and a group with the same person are separate entries: what you owe in one is never taken off what you are owed in the other.
+      const slot = `${key}|${currency}|${g.direct ? "d" : "g"}`;
+      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0, ...(g.direct ? { rowKey: `direct:${g.groupId}` } : {}) };
       e.signed += iPay ? -amount : amount;
       e.parts.push({ groupId: g.groupId, memberId: other.id, amount, iPay });
       e.approx ||= conv !== null && g.currency !== common;
@@ -179,6 +198,7 @@ export function personButtonLabel(verb: "Pay" | "Remind", first: string, amount?
 // Where "Pay" goes: the person's row on the all-groups Settle up (/settle#pay-key, scrolled to). A part with no saved
 // exchange rate has no row there, so it goes to that group's own Settle up.
 export function payHref(p: MoneyPerson, common: string): string {
+  if (p.rowKey) return `/settle#direct-${p.rowKey.slice(7)}`; // a person you share expenses with directly: their own card
   if (p.currency === common) return `/settle#${settleRowId("pay", p.key)}`;
   const part = [...p.parts].filter((x) => x.iPay).sort((a, b) => b.amount - a.amount)[0];
   return part ? `/groups/${part.groupId}/settle` : "/settle#pay";
@@ -280,6 +300,13 @@ export function crowdWord(types: string[]): "flatmates" | "people" {
   return types.length > 0 && types.every((t) => t === "home") ? "flatmates" : "people";
 }
 
+// "flatmates" only when EVERY person on this side comes from a home group. A person from a direct pair (or from a group we can't
+// find) makes it "people": nothing is skipped when counting, so one such person is enough.
+export function crowdOf(people: MoneyPerson[], groups: { id: string; type?: string }[]): "flatmates" | "people" {
+  const types = people.map((p) => (p.rowKey?.startsWith("direct:") ? "direct" : p.parts.length === 0 ? "" : p.parts.every((x) => groups.find((g) => g.id === x.groupId)?.type === "home") ? "home" : "other"));
+  return crowdWord(types);
+}
+
 // The two ends of the route line. First names only (the card is narrow); you are always "You".
 export function routeEnds(side: "owe" | "owed", firstNames: string[], crowd: "flatmates" | "people"): { from: string; to: string } {
   const them = firstNames.length === 1 ? firstNames[0] : `${firstNames.length} ${side === "owed" ? crowd : "people"}`;
@@ -378,10 +405,12 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
   const top = people[0];
   const count = people.length;
   const total = sideTotal(entries);
-  const types = people.flatMap((p) => p.parts.map((x) => groups.find((g) => g.id === x.groupId)?.type ?? "")).filter(Boolean);
-  const crowd = crowdWord(types);
+  const crowd = crowdOf(people, groups);
   const name = count === 1 ? firstName(top.name) : `${count} ${side === "owed" ? crowd : "people"}`;
-  const peopleHref = side === "owe" ? "/settle#pay" : "/settle#remind";
+  // "To pay" / "To receive" only hold group people. When everyone on this side is a person you share expenses with directly,
+  // the list that has their rows is "With people directly".
+  const allDirect = people.every((p) => p.rowKey?.startsWith("direct:"));
+  const peopleHref = allDirect ? "/settle#direct" : side === "owe" ? "/settle#pay" : "/settle#remind";
   const remind = count === 1 ? remindHref(top) : null;
   const action: TicketAction =
     side === "owe"
@@ -472,7 +501,7 @@ export function homeTicket(x: {
     const side = owe ? "owe" : "owed";
     const line = ticketLine(side, owe ? x.owe : x.owed, x.common, x.groups, false);
     const first = distinctPeople(owe ? x.owe : x.owed).map((p) => firstName(p.name));
-    const crowd = line.count > 1 ? crowdWord(distinctPeople(owe ? x.owe : x.owed).flatMap((p) => p.parts.map((q) => x.groups.find((g) => g.id === q.groupId)?.type ?? "")).filter(Boolean)) : "people";
+    const crowd = line.count > 1 ? crowdOf(distinctPeople(owe ? x.owe : x.owed), x.groups) : "people";
     return { kind: "one", line, mark, context, ...routeEnds(side, first, crowd) };
   }
   // Nobody to name (it evens out, or the people can't be told apart): the card's own total with a way to Settle up.
@@ -562,4 +591,74 @@ export function sinceLastPayment(
   const fresh = expenses.filter((e) => !e.deletedAt && e.createdAt.getTime() > last).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   const first = fresh[0];
   return { since: first ? dayOf(first.spentAt ?? first.createdAt) : null, items: fresh.length };
+}
+
+// ---- Home's slim "Net" card ----
+// ONE slim card (founder, 16 Nov): the NET of everything you're owed minus everything you owe, groups and non-group (direct pairs) together,
+// with at most two small lines under it ("Group +₹22,916", "Non-group −₹600"). This combining happens only on Home: Settle up and every other
+// screen keep groups and pairs apart. Each item is one group's balance for you (what Home's total already counts) or one pair's balance,
+// in its own currency; positive = you're owed. Conversion uses the same saved rates as Home's total (toCommon); a currency with no saved rate
+// is never added into another: the card then shows each currency on its own, exactly as the old card's total did, and no split lines.
+export type NetItem = { currency: string; net: number; direct: boolean };
+export type NetCardLine = { kind: "group" | "direct"; sign: "+" | "−"; amount: number; text: string };
+export type NetCard =
+  | { kind: "square"; label: string; text: string; href: "/settle"; aria: string }
+  | { kind: "net"; tone: "owed" | "owe" | "plain"; label: string; amount: string; value: number | null; approx: boolean; lines: NetCardLine[]; href: "/settle"; aria: string };
+
+export function homeNetCard(x: { items: NetItem[]; common: string; toCommon: (amount: number, currency: string) => number | null }): NetCard {
+  const open = x.items.filter((i) => i.net !== 0);
+  if (open.length === 0) {
+    return { kind: "square", label: "All square", text: "Nobody owes anybody", href: "/settle", aria: "All square. Nobody owes anybody. Open Settle up" };
+  }
+  const sum = { group: 0, direct: 0 };
+  const approxKind = { group: false, direct: false };
+  let approx = false;
+  let allConverted = true;
+  for (const i of open) {
+    const abs = Math.abs(i.net);
+    const c = i.currency === x.common ? abs : x.toCommon(abs, i.currency);
+    if (c === null) {
+      allConverted = false;
+      continue;
+    }
+    const k = i.direct ? "direct" : "group";
+    if (i.currency !== x.common) {
+      approx = true;
+      approxKind[k] = true;
+    }
+    sum[k] += i.net > 0 ? c : -c;
+  }
+  if (!allConverted) {
+    // Some currency has no saved rate: each currency on its own ("₹500 · €20"), the way the old total showed it.
+    const per = new Map<string, number>();
+    for (const i of open) per.set(i.currency, (per.get(i.currency) ?? 0) + i.net);
+    const entries = [...per].filter(([, n]) => n !== 0);
+    const dirs = new Set(entries.map(([, n]) => (n > 0 ? "+" : "−")));
+    if (entries.length === 0) {
+      return { kind: "net", tone: "plain", label: "Net · evens out", amount: formatMoney(0, x.common), value: null, approx: false, lines: [], href: "/settle", aria: "Net, it evens out. Open Settle up" };
+    }
+    if (dirs.size > 1) {
+      const amount = entries.map(([c, n]) => `${n > 0 ? "+" : "−"}${formatMoney(Math.abs(n), c)}`).join(" · ");
+      return { kind: "net", tone: "plain", label: "Net · across currencies", amount, value: null, approx: false, lines: [], href: "/settle", aria: `Net, across currencies ${amount}. Open Settle up` };
+    }
+    const owed = entries[0][1] > 0;
+    const amount = entries.map(([c, n]) => formatMoney(Math.abs(n), c)).join(" · ");
+    const say = owed ? "you’re owed" : "you owe";
+    return { kind: "net", tone: owed ? "owed" : "owe", label: `Net · ${say}`, amount, value: null, approx: false, lines: [], href: "/settle", aria: `Net, ${say} ${amount}. Open Settle up` };
+  }
+  const value = sum.group + sum.direct;
+  const tone = value > 0 ? "owed" : value < 0 ? "owe" : "plain";
+  const amount = `${approx ? "≈ " : ""}${formatMoney(Math.abs(value), x.common)}`;
+  const say = tone === "owed" ? "you’re owed" : tone === "owe" ? "you owe" : "evens out";
+  const line = (kind: "group" | "direct"): NetCardLine => {
+    const v = sum[kind];
+    const sign = v > 0 ? "+" : "−";
+    return { kind, sign, amount: v, text: `${kind === "group" ? "Group" : "Non-group"} ${approxKind[kind] ? "≈ " : ""}${sign}${formatMoney(Math.abs(v), x.common)}` };
+  };
+  // Both kinds must have something (a line that nets to 0 is hidden); with only one left it would just repeat the net, so none show.
+  const lines = sum.group !== 0 && sum.direct !== 0 ? [line("group"), line("direct")] : [];
+  // Screen readers hear the Group / Non-group split too (the link's label replaces what is inside it).
+  const split = lines.length ? ` ${lines.map((l) => l.text).join(", ")}.` : "";
+  const aria = tone === "plain" ? `Net, it evens out.${split} Open Settle up` : `Net, ${say} ${amount}.${split} Open Settle up`;
+  return { kind: "net", tone, label: `Net · ${say}`, amount, value, approx, lines, href: "/settle", aria };
 }

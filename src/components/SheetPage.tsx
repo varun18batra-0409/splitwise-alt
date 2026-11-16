@@ -1,6 +1,7 @@
 import Link from "@/components/Link";
 import { GroupCover } from "@/components/GroupCover";
-import { BackIcon } from "@/components/icons";
+import { BackIcon, iconButtonClass } from "@/components/icons";
+import { Initial } from "@/components/SettleUp";
 import type { CoverChoice } from "@/lib/covers";
 
 // A form that slides up over its group: the group's picture, dimmed, along the top, and the
@@ -12,6 +13,7 @@ export function SheetPage({
   photo,
   uid,
   letter,
+  person,
   children,
 }: {
   title: string;
@@ -20,8 +22,23 @@ export function SheetPage({
   photo?: string;
   uid: string;
   letter?: string;
+  person?: string; // a pair: no picture and no big letter, just a compact header with this person's initial
   children: React.ReactNode;
 }) {
+  if (person) {
+    return (
+      <>
+        <header className="mb-6 flex items-center gap-3">
+          <Link href={back} aria-label="Back" className={iconButtonClass}>
+            <BackIcon size={20} />
+          </Link>
+          <Initial name={person} size={40} />
+          <h1 className="line-clamp-2 min-w-0 flex-1 text-balance break-words font-display text-[22px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
+        </header>
+        <div className="pb-8">{children}</div>
+      </>
+    );
+  }
   return (
     <>
       <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[150px] overflow-hidden" aria-hidden>

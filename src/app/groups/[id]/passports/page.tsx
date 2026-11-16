@@ -1,4 +1,5 @@
 import { PassportCompare } from "@/components/PassportCompare";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { LockIcon } from "@/components/PassportIcons";
@@ -20,6 +21,7 @@ export const metadata = { title: "Our passports", robots: { index: false } };
 // that's still happening.
 export default async function GroupPassports({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const myId = await getMyMemberId(id);
   if (!myId) redirect(await privatePath(id));
   const group = await db.group.findUnique({

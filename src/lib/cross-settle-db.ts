@@ -40,17 +40,21 @@ export async function settleAcrossCore(
   if (ks.state === "done") return "done";
 
   // What is needed to word the payments (read now; whether they are still right is decided inside the write).
-  const info = new Map<string, { currency: string; names: Map<string, string>; receivers: Map<string, { id: string; accountId: string | null; claimedAt: Date | null }> }>();
+  const info = new Map<string, { direct: boolean; currency: string; names: Map<string, string>; receivers: Map<string, { id: string; accountId: string | null; claimedAt: Date | null }> }>();
   for (const p of parts) {
     const myId = memberships[String(p.groupId)];
     const g = myId
-      ? await db.group.findUnique({ where: { id: String(p.groupId) }, select: { deletedAt: true, closed: true, currency: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true } } } })
+      ? await db.group.findUnique({ where: { id: String(p.groupId) }, select: { deletedAt: true, closed: true, currency: true, type: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true } } } })
       : null;
     if (!g || !myId) return "error";
     if (g.deletedAt || g.closed || (await hasLeft(p.groupId, myId))) return "changed";
     if (!(p.fromId === myId || p.toId === myId)) return "changed";
-    info.set(p.groupId, { currency: g.currency, names: new Map(g.members.map((m) => [m.id, m.name])), receivers: new Map(g.members.map((m) => [m.id, m])) });
+    info.set(p.groupId, { direct: g.type === "direct", currency: g.currency, names: new Map(g.members.map((m) => [m.id, m.name])), receivers: new Map(g.members.map((m) => [m.id, m])) });
   }
+
+  // A pair (expenses with one person) is settled on its own, never together with another group: with a pair among several parts
+  // nothing is recorded anywhere.
+  if (parts.length > 1 && [...info.values()].some((c) => c.direct)) return "error";
 
   await opts.afterRead?.();
   const sorted = [...parts].sort((a, b) => a.groupId.localeCompare(b.groupId)); // always the same order, so two settles can't wait on each other
@@ -74,7 +78,7 @@ export async function settleAcrossCore(
               actorId: myId,
               undo: { type: "payment_delete", paymentId: pay.id },
               kind: "payment_recorded",
-              text: `${paymentText(myId, p.fromId, p.toId, c.names.get(p.fromId) ?? "Someone", c.names.get(p.toId) ?? "Someone", formatMoney(p.amount, c.currency))} (Smart Settle across groups)`,
+              text: `${paymentText(myId, p.fromId, p.toId, c.names.get(p.fromId) ?? "Someone", c.names.get(p.toId) ?? "Someone", formatMoney(p.amount, c.currency))}${c.direct ? "" : " (Smart Settle across groups)"}`,
               paymentId: pay.id,
             });
           }

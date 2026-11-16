@@ -22,8 +22,10 @@ export const NAME_NEEDED = "Add your name so the group knows who you are.";
 export type JoinOk = { ok: true; memberId: string };
 export type JoinAccount = { id: string; name: string; email: string };
 
-async function loadByCode(code: string) {
+// A pair of two people (type "direct") has no join link: its code is never shown, and nothing finds it unless `allowDirect` (never set by a page).
+export async function loadByCode(code: string, opts: { allowDirect?: boolean } = {}) {
   const group = await db.group.findUnique({ where: { inviteCode: code }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
+  if (group?.type === "direct" && !opts.allowDirect) return null;
   return group && !group.deletedAt ? group : null;
 }
 type Loaded = NonNullable<Awaited<ReturnType<typeof loadByCode>>>;
@@ -58,8 +60,8 @@ async function markSeen(memberId: string) {
 }
 
 // "That's me": take over a name someone added before invitations existed.
-export async function joinExisting(code: string, account: JoinAccount, memberId: string): Promise<JoinOk | JoinFail> {
-  const group = await loadByCode(code);
+export async function joinExisting(code: string, account: JoinAccount, memberId: string, opts: { allowDirect?: boolean } = {}): Promise<JoinOk | JoinFail> {
+  const group = await loadByCode(code, opts);
   if (!group) return { ok: false, reason: "gone" };
   const gone = removedRow(group, account.id);
   if (gone) return { ok: false, reason: "removed", adminName: removedBy(group, gone) };
@@ -140,6 +142,7 @@ export const NEW_LINK_ADMIN_ONLY = "Only the person who looks after this group c
 export async function newInviteLink(groupId: string, actorId: string): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, leftAt: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: "This is just between two people, so there is no invite link." };
   const me = group.members.find((m) => m.id === actorId);
   if (!me) return { ok: false, error: "Only people in this group can do this." };
   if (me.leftAt || !(await isGroupAdmin(groupId, actorId))) return { ok: false, error: NEW_LINK_ADMIN_ONLY };

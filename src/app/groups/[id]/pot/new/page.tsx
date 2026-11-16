@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
@@ -10,6 +11,7 @@ import { GAME_NOTE } from "@/lib/game-words";
 // Start a game: what you're playing and who's at the table.
 export default async function NewGamePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; first?: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
   const group = await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();

@@ -108,26 +108,22 @@ describe("both ways: two passes, the larger first", () => {
     if (t.kind !== "both") throw new Error("both");
     expect(orderPasses(t.lines).map((l) => l.side)).toEqual(["owe", "owed"]);
   });
-  it("the stack scrolls by hand: snap, keyboard, dots, no timer; one cream button (only the first pass)", () => {
+  it("the stack scrolls by hand: snap, keyboard, dots, no timer", () => {
     const st = src("src/components/PassStack.tsx");
     expect(st).toContain("snap-x snap-mandatory");
     expect(st).toContain("tabIndex={0}");
     expect(st).toContain("ArrowRight");
     expect(st).toContain("prefers-reduced-motion");
     expect(st).not.toContain("setInterval");
-    expect(src("src/components/HomeMoney.tsx")).toContain("bright={i === 0}");
   });
 });
 
 describe("all square and the neutral card", () => {
-  it("square has the SETTLED stamp (not green), one quiet Add an expense link and no button", () => {
+  it("square is the slim card: 'All square' and 'Nobody owes anybody', still one link to Settle up, no stamp and no button", () => {
     const hm = src("src/components/HomeMoney.tsx");
-    expect(hm).toContain("data-settled-stamp");
-    expect(hm).toContain("SETTLED");
-    const stamp = hm.slice(hm.indexOf("data-settled-stamp"), hm.indexOf("SETTLED"));
-    expect(stamp).not.toMatch(/text-owed|text-owe\b/);
-    expect(hm).toContain("data-square-add");
-    expect(hm).toContain("Add an expense");
+    const money = hm.slice(hm.indexOf("export function MoneyCard"), hm.indexOf('// "Coming up": the trips that are next'));
+    expect(money).toContain('data-money-mode="square"');
+    expect(money).not.toContain("SETTLED");
   });
   it("Home's Coming up card is the 12 Nov countdown again (founder, 15 Nov): torn perforation with two half-circle bites, uppercase tracked kicker, handwritten 'days to go'", () => {
     expect(src("src/components/HomeMoney.tsx")).toContain("<TicketShell\n      stub={[p.stub]}"); // the trip pass stays for a group's own page
@@ -175,22 +171,21 @@ describe("a calmer Home", () => {
     expect(home).toContain("homeHighlights(");
     expect(home).toContain("data-month-card");
   });
-  it("the bottom of Home: Before you go (nothing without an upcoming trip of known weather), then the sliding row only when it has cards", () => {
-    expect(home).toContain("{beforeCard && <BeforeYouGo");
+  it("the bottom of Home: ONE sliding row (weather first, month, bill, postcard, passport, festival); no separate Before you go section", () => {
+    expect(home).not.toContain("<BeforeYouGo");
+    expect(home).not.toContain("data-before-you-go");
+    expect(home).toContain("weather: weatherCard");
     expect(home).toContain("{highlights.length > 0 && (");
     expect(home.indexOf("{highlights.length > 0 && (")).toBeLessThan(home.indexOf("<HomeBanner>"));
-    const b = src("src/components/BeforeYouGo.tsx");
-    expect(b).toContain("data-before-you-go");
-    expect(b).toContain("Before you go");
-    expect(b).toContain("font-display");
-    expect(b).toContain("↗");
-    expect(b).not.toContain("<Image");
-    expect(b).toContain("<WeatherIcon");
-    // No trip photos on the sliding cards.
+    // The weather card draws its sun / cloud / rain / snow with WeatherIcon; the passport and postcard cards use a real photo with a keepsake.
     const hc = src("src/components/HighlightCard.tsx");
-    for (const gone of ["next/image", "<Image", "Keepsake", "h.photo", "GroupCover", "scene"]) expect(hc, gone).not.toContain(gone);
-    // The inputs for the removed cards are gone from the page.
-    for (const gone of ["justBack", "keepsakeStamps", "skipWeather", "scenes:", "passportCountries"]) expect(home, gone).not.toContain(gone);
+    expect(hc).toContain("<WeatherIcon");
+    expect(hc).toContain("Keepsake");
+    expect(hc).toContain("PassportKeepsake");
+    expect(hc).not.toContain("GroupCover");
+    // The passport card's inputs are fed from the page; the old trip-photo inputs stay gone.
+    for (const want of ["keepsakeStamps", "scenes:", "passportCountries"]) expect(home, want).toContain(want);
+    for (const gone of ["justBack", "skipWeather"]) expect(home, gone).not.toContain(gone);
   });
   it("the Also line: Manali in 40 days; two trips and a third say 'and 1 more'", () => {
     expect(alsoLine([])).toBe("");
@@ -210,7 +205,6 @@ describe("a calmer Home", () => {
       'aria-labelledby="home-groups-h"',
       "<MemoryPolaroids",
       "{/* Latest */}",
-      "<BeforeYouGo card={beforeCard} />",
       "<HomeBanner>",
     ];
     order.forEach((x, i) => {

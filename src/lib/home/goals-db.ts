@@ -14,6 +14,7 @@ async function member(groupId: string, actorId: string) {
 export async function saveGoalFor(groupId: string, actorId: string, input: { goalId?: string; name: string; target: string; byDate: string }): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!(await member(groupId, actorId))) return { ok: false, error: "Only people in this group can do this." };
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 40);
   if (!name) return { ok: false, error: "Give the goal a name, like “Bali in March”." };

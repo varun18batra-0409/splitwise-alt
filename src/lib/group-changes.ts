@@ -9,6 +9,8 @@ import { GroupChanged } from "./money-guard";
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string; needsRate?: true };
 
+export const PAIR_NO_SETTINGS = "This is just between two people, so it has no settings to change.";
+
 // Rename the group and/or change its card markup. Logged for everyone.
 export async function updateGroupBasics(
   groupId: string,
@@ -19,6 +21,7 @@ export async function updateGroupBasics(
   const c = opts?.tx ?? db;
   const group = await c.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: PAIR_NO_SETTINGS }; // a pair has no name or settings to change
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
   if (await hasLeft(groupId, actorId, c)) return { ok: false, error: LEFT_ERROR };
   const name = changes.name?.trim().replace(/\s+/g, " ").slice(0, 60);
@@ -84,12 +87,15 @@ class Refused extends Error {
 // (an expense added meanwhile), nothing is changed and `needsRate` says the caller must ask for a real rate.
 // `afterRead` is for tests only: it runs after the group has been read and before the write begins (the gap in which
 // someone else can add an expense).
-export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean; afterRead?: () => Promise<void> }): Promise<Result> {
+// quiet (only with expectEmpty, so there is no money to account for): no history line, so nobody is told and there is nothing to undo.
+export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean; quiet?: boolean; afterRead?: () => Promise<void> }): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
     include: { expenses: { include: { shares: true } }, payments: true, members: { select: { id: true } } },
   });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  // A pair's currency is fixed by its first expense: the only way in is the empty-pair path (expectEmpty), which writes nothing once money is there.
+  if (group.type === "direct" && !opts?.expectEmpty) return { ok: false, error: PAIR_NO_SETTINGS };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!isSupportedCurrency(newCurrency)) return { ok: false, error: "Pick a currency from the list." };
@@ -138,7 +144,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
 
   await opts?.afterRead?.();
   try {
-  const eventId = await db.$transaction(async (tx) => {
+  const eventId: string | undefined = await db.$transaction(async (tx) => {
     // First a write that only matches if the group is still as read (same currency, not deleted; closed is fine here):
     // it takes the write lock, so every count below is current and no other money save can slip in until we commit.
     // (Money saves do the same with guardGroup, so one of the two always loses cleanly.)
@@ -190,6 +196,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     }
     await writeOtherMoney(tx, otherAfter);
     await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency, settleMin: otherAfter.settleMin } });
+    if (opts?.quiet && opts.expectEmpty) return undefined;
     return logEvent(tx, {
       groupId,
       actorId,

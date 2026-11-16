@@ -46,6 +46,23 @@ async function shot(name: string, path: string, prepare?: (p: Page) => Promise<v
   }
 }
 
+// One card of Home's sliding row, on its own: the row is brought into view and paused, then moved straight to card n (no click,
+// so the floating tab bar can't get in the way). A row with fewer cards: nothing is saved for the missing ones.
+async function rowCard(name: string, n: number) {
+  await shot(name, "/", async (p) => {
+    const row = p.locator('section[aria-roledescription="carousel"]').first();
+    await row.scrollIntoViewIfNeeded();
+    const pause = p.getByRole("button", { name: /Pause the highlights/ });
+    if (await pause.count()) await pause.click({ force: true });
+    const total = await row.locator('[aria-roledescription="slide"]').count();
+    if (n > total) throw new Error(`only ${total} cards`);
+    await row.locator("div.snap-x").first().evaluate((el, i) => el.scrollTo({ left: i * el.clientWidth, behavior: "auto" }), n - 1);
+    await p.waitForTimeout(700);
+    await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await p.waitForTimeout(300);
+  }, false);
+}
+
 const g = `/groups/${demo.trip.id}`;
 await shot("01-home", "/");
 await shot("02-group-activity", `${g}?tab=activity`);
@@ -253,6 +270,75 @@ if (!desktop && !hosted) {
   if (other && was) await db.member.update({ where: { id: other.id }, data: { name: was } }).catch(() => undefined);
   await page.setViewportSize(screen);
 }
+// Expenses with one person (no group), at 390 and 320 wide: the choice, the picker, Add expense with them, the person's page, and Settle.
+// A throwaway account with a name-only person who owes it ₹600. Local database only.
+if (!desktop && !hosted) {
+  const { db } = await import("../src/lib/db");
+  const { ensureLocalPair } = await import("../src/lib/direct-db");
+  const me = await db.account.create({ data: { email: `shots-direct-${Date.now()}@uat.loopin.test`, name: "Asha" } });
+  const pair = await ensureLocalPair({ id: me.id }, "Rohan", { currency: "INR", myName: "Asha" });
+  if (pair.ok) {
+    await db.expense.create({
+      data: {
+        groupId: pair.groupId, description: "Lunch", splitType: "equal", amount: 120000, originalAmount: 120000, convertedAmount: 120000,
+        originalCurrency: "INR", baseCurrency: "INR", paidById: pair.myId, createdById: pair.myId,
+        shares: { create: [{ memberId: pair.myId, amount: 60000 }, { memberId: pair.otherId, amount: 60000 }] },
+      },
+    });
+    const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+    await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: me.id, v: 0 }), url: base }]);
+    const p = await c.newPage();
+    for (const w of [390, 320] as const) {
+      await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+      for (const [n, path] of [
+        ["home", "/"],
+        ["choice", "/add"],
+        ["picker", "/add/person"],
+        ["add", `/groups/${pair.groupId}/add`],
+        ["person", `/people/${pair.groupId}`],
+        ["settle", "/settle"],
+      ] as const) {
+        try {
+          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await p.waitForTimeout(500);
+          await p.screenshot({ path: `${out}/direct${w}-${n}.png`, fullPage: true });
+          console.log(`  ✓ direct${w}-${n}`);
+        } catch (e) {
+          console.log(`  ✗ direct${w}-${n}`, String(e).split("\n")[0]);
+        }
+      }
+    }
+    // Home with BOTH kinds of money, so the slim card shows its Group and Non-group lines:
+    // in a flat, Asha paid 4583200 split with Kabir (Kabir owes her 2291600); Rohan (non-group) owes her 60000. Net +2351600.
+    const flat = await db.group.create({
+      data: {
+        name: "Flat 402", type: "home", currency: "INR", inviteCode: `shotsboth${Date.now().toString(36)}`,
+        members: { create: [{ name: "Asha", accountId: me.id, claimedAt: new Date() }, { name: "Kabir" }] },
+      },
+      include: { members: true },
+    });
+    const [asha, kabir] = [flat.members.find((m) => m.name === "Asha")!, flat.members.find((m) => m.name === "Kabir")!];
+    await db.expense.create({
+      data: {
+        groupId: flat.id, description: "Rent", splitType: "equal", amount: 4583200, originalAmount: 4583200, convertedAmount: 4583200,
+        originalCurrency: "INR", baseCurrency: "INR", paidById: asha.id, createdById: asha.id,
+        shares: { create: [{ memberId: asha.id, amount: 2291600 }, { memberId: kabir.id, amount: 2291600 }] },
+      },
+    });
+    for (const w of [390, 320] as const) {
+      await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+      try {
+        await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+        await p.waitForTimeout(500);
+        await p.screenshot({ path: `${out}/direct${w}-home-both.png`, fullPage: false });
+        console.log(`  ✓ direct${w}-home-both`);
+      } catch (e) {
+        console.log(`  ✗ direct${w}-home-both`, String(e).split("\n")[0]);
+      }
+    }
+    await c.close();
+  }
+}
 // Home's money card in every state (phones only). The demo data only shows one of them, so this puts the viewer's money into each
 // state in turn, takes Home at 390, 360 and 320, then puts everything back. How:
 //   - the viewer's live expenses and payments in the three open groups (trip, flat, couple) are soft-deleted (deletedAt set), so every
@@ -271,7 +357,8 @@ if (!desktop && !hosted) {
   const flat = await members(flatId);
   const [V, A, R, M] = ["Varun", "Asha", "Ravi", "Meera"].map((n) => trip.get(n)!);
   const [FV, FK] = ["Varun", "Kabir"].map((n) => flat.get(n)!);
-  const card = () => page.getByRole("region", { name: "Your money" });
+  // The slim Net card is one link (a region no more): found by its hook.
+  const card = () => page.locator("[data-balance-card]").first();
   const read = async () => {
     await page.setViewportSize(screen);
     await page.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
@@ -299,16 +386,17 @@ if (!desktop && !hosted) {
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
   // (The card has no photo any more, so no stray letter ends the text.)
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
+    // The slim Net card says the net of groups and non-group together. These states only add group expenses, so no "Group / Non-group" lines show.
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "net", has: /^net \| Net · you owe ₹54,122$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "net", has: /^net \| Net · you’re owed ₹22,916$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people$/ }],
-    // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir You owe ₹4,200 To Asha( · .+?)? Review & settle$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "net", has: /^net \| Net · you’re owed ₹31,480$/ }],
+    // Money both ways, in two groups: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat). The card now NETS them: 2291600 - 420000 = 1871600 paise = ₹18,716 owed to him.
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "net", has: /^net \| Net · you’re owed ₹18,716$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| All square Nobody owes anybody$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -330,7 +418,7 @@ if (!desktop && !hosted) {
         await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
         await shot(`n${w}-home-state-${name}`, "/");
       }
-      // A long first name on the narrowest phone: the card says "To Bhagyalakshmi · …" (wrapping between words, never mid-word) and the amount stays whole.
+      // A long first name on the narrowest phone (the slim card names nobody now; kept so the before/after set stays the same).
       if (name === "owe") {
         const asha = await db.member.findUnique({ where: { id: A } });
         await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });
@@ -367,24 +455,11 @@ await shot("68-home-first-screen", "/", async (p) => {
 if (wide) await page.setViewportSize(wide);
 // The whole Home at 390 (greeting, stories, money card, Coming up, groups, memories, latest, the month card).
 await shot("69-home-full", "/");
-// "Before you go" and the sliding cards under it (postcards waiting, a bill due, the month; the demo may have only one or none), at 390 and
+// The one sliding row (weather for your next trip, the month, a bill due, a postcard, your passport, the festival when it is on), at 390 and
 // on the narrowest phone (320). Each card is picked by its dot when there are dots.
 for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
   if (w) await page.setViewportSize({ width: w, height: 640 });
-  await shot(`${prefix}-home-before-you-go`, "/", async (p) => {
-    await p.locator("[data-before-you-go]").first().scrollIntoViewIfNeeded();
-    await p.waitForTimeout(300);
-  }, false);
-  for (const n of [1, 2, 3]) {
-    await shot(`${prefix}-home-card-${n}`, "/", async (p) => {
-      const pause = p.getByRole("button", { name: /Pause the highlights/ });
-      if (await pause.count()) await pause.click();
-      const dot = p.getByRole("button", { name: new RegExp(`^Show ${n} of`) });
-      if (await dot.count()) await dot.click();
-      await p.locator("[data-highlight], [data-month-card]").first().scrollIntoViewIfNeeded();
-      await p.waitForTimeout(900);
-    }, false);
-  }
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`${prefix}-home-card-${n}`, n);
   if (w) await page.setViewportSize(wide ?? screen);
 }
 // Collect: the organiser's screens, then what someone opening the link sees.
@@ -443,6 +518,11 @@ if (!hosted) {
       console.log("✗ 82-place-photos", String(e).split("\n")[0]);
     }
   }
+  // The sliding row again, now that a trip in 12 days exists: its weather card comes first.
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`69w-home-row-${n}`, n);
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`n320-69w-home-row-${n}`, n);
+  await page.setViewportSize(screen);
   await shot("72-home-collecting", "/");
   await shot("76-home-countdown", "/", undefined, false);
   await shot("91-home-share-sheet", "/", async (p) => {

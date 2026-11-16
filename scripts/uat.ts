@@ -1334,62 +1334,40 @@ async function main() {
     await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on the money card (label, the exact amount once, “To N people · Group” line, faces, ONE full-width cream button, no photo; no tint, no route or plane, no “Add expense”), nothing under it (what needs you is in Updates behind the bell), then Your groups and the bottom bar, which keeps its “+”", async () => {
+  await step(V, "Home", "Home opens on ONE slim Net card (about 80px: “Net · you’re owed/you owe” and the net amount once, “Group” and “Non-group” lines only when both exist, or “All square” + “Nobody owes anybody”), the whole card is one link to Settle up with no buttons inside, no photo or tint; nothing under it (what needs you is in Updates behind the bell)", async () => {
     await go(V, "/");
-    const money = V.getByRole("region", { name: "Your money" });
-    await money.locator("[data-net-balance]").first().waitFor();
-    const kind = await money.getAttribute("data-ticket"); // square | neutral | one | both
+    const money = V.locator("[data-balance-card]").first();
+    await money.waitFor();
+    const kind = await money.getAttribute("data-ticket"); // square | net
     const tone = await money.getAttribute("data-tone");
-    const text = (await money.innerText()).replace(/\s+/g, " ");
-    assert(!/Add expense/.test(text), "the money card still has an Add expense button");
+    const text = (await money.innerText()).replace(/\s+/g, " ").trim();
+    assert(!/Add expense|Remind|Review & settle/.test(text), `the money card still has a button's words: ${text}`);
     assert(!/Coming back to you|You owe, to /.test(text), `the money card still has the old wording: ${text}`);
+    // The whole card is ONE link to Settle up, with no button, link or photo inside it.
+    assert((await money.evaluate((el) => el.tagName)) === "A" && (await money.getAttribute("href")) === "/settle", "the money card is not one link to /settle");
+    assert((await money.locator("a, button, img, [data-money-action], [data-money-people], [data-route], [data-mark]").count()) === 0, "the money card has something inside it besides words");
     // Calm dark card: no gradient wash and no coloured border, whatever the state.
     const look = await money.evaluate((el) => ({ bg: getComputedStyle(el).backgroundImage, border: getComputedStyle(el).borderTopWidth }));
     assert(look.bg === "none" && look.border === "0px", `the money card is tinted or outlined (${look.bg}, ${look.border})`);
-    const keys = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
-    const labels = await money.locator("[data-money-action]").allInnerTexts();
+    const name = (await money.getAttribute("aria-label")) ?? "";
     if (kind === "square") {
-      // All square: the same pass with a SETTLED stamp and one quiet "Add an expense" link, no button.
-      assert(tone === "square" && keys === "" && /All square/.test(text) && /Nobody owes anybody/.test(text), `all-square card: ${tone} ${keys} ${text}`);
-      assert((await money.locator("[data-settled-stamp]").count()) === 1, "the all-square pass has no SETTLED stamp");
-      assert((await money.getByRole("link").count()) === 1 && (await money.locator("[data-square-add]").count()) === 1, "the all-square pass should have only the quiet Add an expense link");
-      assert((await money.locator("[data-money-people]").count()) === 0, "the money card names people when nothing is owed");
-    } else if (kind === "neutral") {
-      assert(keys === "settle" && /^Settle up$/.test(labels[0].trim()), `neutral card buttons: ${keys}`);
-    } else if (kind === "one") {
-      // One person or several: the label, the amount once, "To N people · Group" (or "From ...") and one button. No route codes or plane on Home.
-      assert((await money.locator("[data-route], [data-route-from], [data-route-to], [data-mark]").count()) === 0, "Home's money card still has a route or plane");
-      assert(/^(You owe|You’re owed)\b/.test(text), `the card should start with its label: ${text}`);
-      assert(tone === "owe" ? /^You owe\b/.test(text) : /^You’re owed\b/.test(text), `the label doesn't match the ${tone} card: ${text}`);
-      assert(/\b(To|From) (\d+ people|\S+)( · .+?)?( |$)/.test(text), `the card has no "To N people · Group" line: ${text}`);
-      assert((await money.locator("[data-card-photo], img").count()) === 0, "the money card still has a photo");
-      const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
-      assert(/[₹$€£]\s?\d/.test(amount), `the amount is "${amount}"`);
-      assert(text.split(amount).length === 2, `the amount "${amount}" is repeated on the card: ${text}`);
-      assert((await money.locator("[data-money-action]").count()) === 1, "the card should have exactly one button");
-      const label = labels[0].trim();
-      const href = (await money.locator("[data-money-action]").getAttribute("href")) ?? "";
-      assert(keys === (tone === "owe" ? "pay" : "remind"), `main button is "${label}" (${keys}) on a ${tone} card`);
-      if (tone === "owe") {
-        assert(label === "Review & settle", `the owe button says "${label}"`);
-        assert(/^\/settle#pay-/.test(href) || /^\/groups\/[^/]+\/settle$/.test(href), `Review & settle goes to ${href}`);
-      } else {
-        assert(/^Remind (\S+|\d+ people)$/.test(label), `Remind button says "${label}"`);
-        assert(/^\/groups\/[^/]+\/remind\?from=/.test(href) || href === "/settle#remind", `Remind goes to ${href}`);
-      }
-      const who = money.locator("[data-money-people]");
-      if (await who.count()) {
-        assert((await who.boundingBox())!.height >= 44, "the faces link is under 44px tall");
-        assert(/^\/settle(#|$)/.test((await who.getAttribute("href")) ?? ""), "the faces link doesn't go to Settle up");
-      }
+      assert(tone === "square" && text === "All square Nobody owes anybody", `all-square card: ${tone} ${text}`);
+      assert(/^All square/.test(name), `all-square card's name: ${name}`);
     } else {
-      // Both ways: two lines, each with its own small button; never netted into one amount.
-      assert(keys === "pay,remind", `both-ways buttons: ${keys}`);
-      assert((await money.locator("[data-ticket-line]").count()) === 2, "both ways should be two lines");
-      assert(/^Review & settle$/.test(labels.find((_, i) => keys.split(",")[i] === "pay")?.trim() ?? "") && /^Remind\b/.test(labels.find((_, i) => keys.split(",")[i] === "remind")?.trim() ?? ""), `both-ways button words: ${labels.join("|")}`);
-      assert((await money.locator("[data-card-photo], img").count()) === 0, "the both-ways cards still have a photo");
-      assert((await money.locator("[data-route-from]").count()) === 0, "Home's cards still have a route");
-      assert((await money.locator("[data-money-action][data-emphasis='bright']").count()) === 1, "both-ways card should have one bright button");
+      assert(kind === "net", `unknown money card kind ${kind}`);
+      // Never says All square while money is open: a net card always has a figure.
+      assert(!/All square/.test(text), `the card says All square while money is open: ${text}`);
+      assert(/^Net · /.test(text), `the card should start with "Net ·": ${text}`);
+      const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
+      assert(/\d/.test(amount), `the amount is "${amount}"`);
+      assert(text.split(amount).length === 2 || /^[+−]/.test(amount), `the net amount "${amount}" is repeated on the card: ${text}`);
+      if (tone === "owe" || tone === "owed") {
+        assert(tone === "owe" ? /^Net · you owe\b/.test(text) : /^Net · you’re owed\b/.test(text), `the label doesn't match the ${tone} card: ${text}`);
+        assert(name.startsWith(`Net, ${tone === "owe" ? "you owe" : "you’re owed"} `) && name.endsWith("Open Settle up"), `the card's spoken name is "${name}"`);
+      }
+      // Group / Non-group lines: only both together, each with a sign and a figure.
+      const lines = await money.locator("[data-net-line]").allInnerTexts();
+      assert(lines.length === 0 || (lines.length === 2 && /^Group .*[+−]/.test(lines[0]) && /^Non-group .*[+−]/.test(lines[1])), `the Group / Non-group lines are: ${lines.join(" | ")}`);
     }
     // Home has no "what needs you" line or section: that lives in Updates behind the bell (the claim to confirm is checked there, around "Needs you").
     assert((await V.locator("[data-needs-you]").count()) === 0, "Home still has a separate Needs you section");
@@ -1407,26 +1385,17 @@ async function main() {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 375, height: 667 });
     await go(V, "/");
-    const card = V.getByRole("region", { name: "Your money" });
+    const card = V.locator("[data-balance-card]").first();
     await card.waitFor();
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
-    const limit = (await card.getAttribute("data-ticket")) === "both" ? 330 : 290; // the card: label, amount, who and where, faces, button (both ways add the dots)
-    assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
-    for (const b of await card.locator("[data-money-action]").all()) {
-      const bb = (await b.boundingBox())!;
-      assert(bb.height >= 40 && bb.y + bb.height <= 667, `a money button (a 40px pill with a 48px tap area) is ${Math.round(bb.height)}px tall, ending at ${Math.round(bb.y + bb.height)}`);
-    }
-    const emphasis = await card.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-emphasis")));
-    assert(emphasis.filter((e) => e === "bright").length === 1, `money buttons emphasis: ${emphasis.join(",")}`);
+    // The slim Net card: about 80px (at 320 the Group / Non-group lines may drop under the amount, so a little more).
+    assert(box.height <= 120, `the money card is ${Math.round(box.height)}px tall (should be about 80)`);
     // At least the first group card starts above the bottom bar.
     const nav = (await V.getByRole("navigation", { name: "Main" }).boundingBox())!;
     const first = (await V.locator("[data-group-card]").first().boundingBox())!;
     assert(first.y < nav.y, `the first group card starts at ${Math.round(first.y)}px, under the bottom bar (${Math.round(nav.y)}px)`);
-    for (const b of await card.locator("[data-money-action]").all()) {
-      const bb = (await b.boundingBox())!;
-      assert(bb.y + bb.height <= nav.y + 1, `a money button ends at ${Math.round(bb.y + bb.height)}px, under the bottom bar (${Math.round(nav.y)}px)`);
-    }
+    assert(box.y + box.height <= nav.y + 1, `the money card ends at ${Math.round(box.y + box.height)}px, under the bottom bar (${Math.round(nav.y)}px)`);
     // Founder, 15 Nov: “+ New group” and TWO whole polaroids fit the first screen (as in the mockup); a third, if any, is just off to the right.
     assert(first.width >= 90 && first.width <= 152, `a group card is ${Math.round(first.width)}px wide (two should fit beside “+ New group”)`);
     const newCard = (await V.locator("[data-group-card-new]").boundingBox())!;
@@ -1561,7 +1530,7 @@ async function main() {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 320, height: 640 });
     await go(V, "/");
-    const card = V.getByRole("region", { name: "Your money" });
+    const card = V.locator("[data-balance-card]").first();
     await card.waitFor();
     for (const w of [320, 360, 390]) {
       await V.setViewportSize({ width: w, height: 700 });
@@ -1570,11 +1539,10 @@ async function main() {
       const over = (await card.evaluate((el) => {
         const bad: string[] = [];
         const cr = el.getBoundingClientRect();
-        if (cr.right > window.innerWidth + 0.5 || (!el.hasAttribute("data-pass-stack") && el.scrollWidth > el.clientWidth + 1)) bad.push("card");
-        el.querySelectorAll("[data-money-action], [data-money-people], [data-net-balance]").forEach((e) => {
-          if (e.closest("[data-pass-stack] li:not(:first-child)")) return; // the next pass waits off to the side of the stack
-          const r = e.getBoundingClientRect();
-          const name = e.getAttribute("data-money-action") || (e.hasAttribute("data-net-balance") ? "amount" : "people");
+        if (cr.right > window.innerWidth + 0.5 || el.scrollWidth > el.clientWidth + 1) bad.push("card");
+        el.querySelectorAll("[data-net-balance], [data-net-line], [data-net-label], [data-ticket-context]").forEach((e) => {
+                    const r = e.getBoundingClientRect();
+          const name = e.hasAttribute("data-net-balance") ? "amount" : e.hasAttribute("data-net-line") ? "line" : "text";
           if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) bad.push(name);
           // The amount is never the thing that is cut: it fits its own box.
           if (e.hasAttribute("data-net-balance") && (e as HTMLElement).scrollWidth > (e as HTMLElement).clientWidth + 1) bad.push("amount cut");
@@ -1585,7 +1553,7 @@ async function main() {
       assert((await V.evaluate("document.documentElement.scrollWidth <= window.innerWidth")) as boolean, `Home scrolls sideways at ${w}px`);
       assert((await card.locator("[data-card-photo], img").count()) === 0, `at ${w}px the money card still has a photo`);
       const amounts = await card.locator("[data-net-balance]").allInnerTexts();
-      assert(amounts.every((t) => /[\d]/.test(t) || /All square/.test(t)) && amounts.every((t) => !t.includes("…")), `at ${w}px an amount is cut: ${amounts.join(" | ")}`);
+      assert(amounts.every((t) => /[\d]/.test(t)) && amounts.every((t) => !t.includes("…")), `at ${w}px an amount is cut: ${amounts.join(" | ")}`);
       const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
       assert(bg === "none", `the money card has a wash at ${w}px: ${bg}`);
     }
@@ -1609,13 +1577,13 @@ async function main() {
     // Story labels: one line, at most 10 characters.
     for (const t of await V.locator("[data-story-label]").allInnerTexts()) assert([...t.trim()].length <= 10, `a story label is too long: ${t}`);
   });
-  await step(V, "Home", "The sliding cards at the bottom (under “Before you go”): only postcards waiting, a bill due soon, the festival card for where you are and the month, so 0 to 4 of them, no two the same, each with words and a button that goes somewhere, no trip photos; none: no row", async () => {
+  await step(V, "Home", "The ONE sliding row: weather for your next trip first, then the month, a bill due soon, a postcard, your passport and the festival when it is on, so 2 to 6 of them, no two the same, each with words and a button that goes somewhere, with no trip photos", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');
     const n = await slides.count();
-    assert(n <= 4, `${n} cards`);
-    assert((await V.locator('[aria-roledescription="slide"] img').count()) === 0, "a sliding card still has a photo");
-    for (const t of await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) assert(!/Wish they were here|spent today|payments? squares? it|stamp in your passport|Who’s booking what|While you’re in|countries and counting|Where to next/.test(t), `an old trip or filler card is back: ${t}`);
+    assert(n >= 2 && n <= 6, `${n} cards`);
+    if ((await V.locator("[data-weather-art]").count()) > 0) assert((await slides.first().locator("[data-weather-art]").count()) === 1, "the weather card is not the first card");
+    for (const t of await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) assert(!/Wish they were here|spent today|payments? squares? it|Who’s booking what|While you’re in|Where to next/.test(t), `an old trip or filler card is back: ${t}`);
     assert((await V.locator('[aria-roledescription="slide"]').filter({ hasText: "Coming from another app" }).count()) === 0, "the switching card is back on Home");
     const texts = await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.replace(/\s+/g, " ").trim()));
     assert(new Set(texts).size === texts.length, `the same card twice: ${texts.join(" / ")}`);
@@ -3243,15 +3211,18 @@ async function main() {
     const meta = ((await card.locator("[data-trip-meta]").innerText()) ?? "").replace(/\s+/g, " ").trim();
     assert(/^\d{1,2} [A-Z][a-z]+( \d{4})? · \d+ (people|person)$/.test(meta), `the meta line says “${meta}”`);
     assert((await card.locator("[data-trip-meta] svg").count()) === 1, "the meta line has no dashed curve and pin");
-    // Before you go: ONE card for the soonest trip that has not started, with its usual weather and no photo; a link into the trip.
-    const before = V.locator("[data-before-you-go]");
-    if (await before.count()) {
-      assert((await before.count()) === 1, "Before you go should be one card");
-      await before.getByRole("heading", { name: "Before you go" }).waitFor();
-      assert(/ · SEASONAL WEATHER$/.test((await before.locator("[data-before-eyebrow]").innerText()).trim()), "the Before you go heading line is wrong");
-      assert(/^Usually \d+° by day, \d+° at night$/.test((await before.locator("[data-before-title]").innerText()).trim()), "the Before you go temperatures are wrong");
-      assert((await before.locator("img").count()) === 0, "Before you go has a photo");
-      assert(/^\/groups\//.test((await before.locator("[data-before-open]").getAttribute("href")) ?? ""), "Open the trip goes elsewhere");
+    // The sliding row's FIRST card is the weather for the soonest trip that has not started (no separate Before you go section), with no trip photo; a link into the trip.
+    assert((await V.locator("[data-before-you-go]").count()) === 0, "Home still has a separate Before you go section");
+    const weather = V.locator('[data-highlight^="weather-"]');
+    if (await weather.count()) {
+      assert((await weather.count()) === 1, "the row should have one weather card");
+      const firstId = await V.locator("[data-highlight], [data-month-card]").first().getAttribute("data-highlight");
+      assert(/^weather-/.test(firstId ?? ""), "the weather card is not first in the sliding row");
+      const words = ((await weather.textContent()) ?? "").replace(/\s+/g, " ");
+      assert(/ · SEASONAL WEATHER/.test(words), "the weather card's heading line is wrong");
+      assert(/Usually \d+° by day, \d+° at night/.test(words), "the weather card's temperatures are wrong");
+      assert((await weather.locator("img").count()) === 0, "the weather card has a photo");
+      assert(/^\/groups\//.test((await weather.locator("a").first().getAttribute("href")) ?? ""), "Open the trip goes elsewhere");
     }
   });
 

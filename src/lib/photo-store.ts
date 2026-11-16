@@ -159,7 +159,7 @@ export async function replaceGroupPhoto(
   return db.$transaction(async (tx) => {
     // Checked again here, inside the step that saves: the group may have been deleted, or this person removed or gone, since the
     // page checked (the upload takes a while). Nothing changes then, and the caller drops the uploaded file.
-    const live = await tx.group.findFirst({ where: { id: groupId, deletedAt: null, members: { some: { id: data.createdById, leftAt: null, removedAt: null } } }, select: { id: true } });
+    const live = await tx.group.findFirst({ where: { id: groupId, deletedAt: null, type: { not: "direct" }, members: { some: { id: data.createdById, leftAt: null, removedAt: null } } }, select: { id: true } });
     if (!live) return false;
     let oldKey = "";
     if (seen) {

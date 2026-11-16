@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_DIRECT } from "@/lib/direct"; // a pair of two people is not "sharing a group"
 import { JOINED } from "@/lib/membership";
 import { blockedEitherWay } from "@/lib/blocks";
 
@@ -13,7 +14,7 @@ export type PostcardGroup = { id: string; name: string; type: string; people: { 
 
 export async function postcardPeople(accountId: string): Promise<PostcardGroup[]> {
   const mine = await db.member.findMany({
-    where: { accountId, ...COUNTS, group: { deletedAt: null } },
+    where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } },
     select: { group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...COUNTS }, select: { accountId: true, name: true } } } } },
   });
   const groups = mine.map((m) => m.group).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

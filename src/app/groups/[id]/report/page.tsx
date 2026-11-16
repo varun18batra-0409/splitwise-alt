@@ -1,4 +1,5 @@
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
+import { bounceIfDirect } from "@/lib/direct-db";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId, privatePath } from "@/lib/identity";
@@ -17,6 +18,7 @@ export const metadata = { title: "Trip report" };
 // The trip in numbers, to look back on and share (a picture plus text, never a link).
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const myId = await getMyMemberId(id);
   const data = await loadGroup(id, { events: false, viewer: await getMyMemberId(id) });
   if (!data) notFound();

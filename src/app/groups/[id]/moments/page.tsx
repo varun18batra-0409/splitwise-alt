@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getTimeZone } from "@/lib/tz";
@@ -24,6 +25,7 @@ const place = (name: string) => name.replace(/\s+trip$/i, "").trim() || name;
 // Only people in the group get here (a stranger, or a signed-out phone, gets "not found"); someone who left sees what was added before they left.
 export default async function MomentsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ removed?: string }> }) {
   const { id } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
   const viewer = await loadMomentViewer(id);
   if (!canOpenMoments(viewer) || viewer.groupType !== "trip") notFound();

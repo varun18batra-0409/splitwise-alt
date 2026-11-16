@@ -8,6 +8,7 @@ import { hideLaterNotes, isAboutMeLeaving, leaverCut, membersAsOf, ownShareDetai
 import { leaverEvents, readableWhere, touchedAfter } from "./left-view-db";
 import { netBalancesDb, settleDataDb } from "./balances-db";
 import type { Prisma } from "@prisma/client";
+import { isDirect, NOT_DIRECT } from "./direct";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
 const active = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r) => !r.deletedAt);
@@ -116,9 +117,10 @@ export async function eventsFrom(groupId: string, eventId: string, take = 500) {
 }
 
 // For the home screen: every group this phone belongs to, with my balance in each.
-export async function loadMyGroups(memberships: Record<string, string>) {
+// Pairs (type "direct") are left out unless `includeDirect` (only "My data", so it stays complete).
+export async function loadMyGroups(memberships: Record<string, string>, opts: { includeDirect?: boolean } = {}) {
   const groups = await db.group.findMany({
-    where: { id: { in: Object.keys(memberships) }, deletedAt: null },
+    where: { id: { in: Object.keys(memberships) }, deletedAt: null, ...(opts.includeDirect ? {} : NOT_DIRECT) },
     include: {
       members: { select: { id: true, name: true, phone: true, leftAt: true, removedAt: true, accountId: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { include: { shares: true }, orderBy: { createdAt: "desc" } },
@@ -165,7 +167,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
 // loadMyGroups stays as it is for the other screens.
 export async function loadMyGroupsLean(memberships: Record<string, string>) {
   const groups = await db.group.findMany({
-    where: { id: { in: Object.keys(memberships) }, deletedAt: null },
+    where: { id: { in: Object.keys(memberships) }, deletedAt: null, ...NOT_DIRECT },
     omit: { inviteCode: true, joinWeight: true },
     include: {
       members: { select: { id: true, name: true, phone: true, leftAt: true, removedAt: true, accountId: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
@@ -238,9 +240,10 @@ export async function loadGroupSettle(id: string, viewer?: string | null) {
 // Balances are added up by the database (balances-db.ts); counts, totals and dates come from grouped queries.
 // `expenseCount` / `paymentCount` count what is not deleted (and, for someone who left, what they may see).
 // `readable`: for someone who left, the filters for the rows they may read (Home's Latest uses them); null otherwise.
-export async function loadMyGroupsLight(memberships: Record<string, string>) {
+// Pairs (type "direct") are left out unless `includeDirect`: only overview.ts asks for them, and splits them off again.
+export async function loadMyGroupsLight(memberships: Record<string, string>, opts: { includeDirect?: boolean } = {}) {
   const groups = await db.group.findMany({
-    where: { id: { in: Object.keys(memberships) }, deletedAt: null },
+    where: { id: { in: Object.keys(memberships) }, deletedAt: null, ...(opts.includeDirect ? {} : NOT_DIRECT) },
     omit: { inviteCode: true, joinWeight: true },
     include: { members: { select: { id: true, name: true, phone: true, leftAt: true, removedAt: true, accountId: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
     orderBy: { createdAt: "desc" },
@@ -332,9 +335,10 @@ function leaverEventScope(m: { id: string; leftAt: Date | null; removedAt: Date 
 export async function loadNotifications(memberships: Record<string, string>, limit = 50) {
   const members = await db.member.findMany({
     where: { id: { in: Object.values(memberships) } },
-    include: { group: { select: { id: true, name: true, currency: true, type: true, cover: true, coverAt: true } } },
+    include: { group: { select: { id: true, name: true, currency: true, type: true, cover: true, coverAt: true, deletedAt: true } } },
   });
-  const valid = members.filter((m) => memberships[m.groupId] === m.id);
+  // A retired pair (deleted when an invite merged it) has no page any more, so its old updates are left out.
+  const valid = members.filter((m) => memberships[m.groupId] === m.id && !(isDirect(m.group) && m.group.deletedAt));
   if (valid.length === 0) return { items: [], unread: 0 };
 
   const events = await db.groupEvent.findMany({
@@ -354,9 +358,10 @@ export async function loadNotifications(memberships: Record<string, string>, lim
     return {
       event: e,
       actorName: actors.find((a) => a.id === e.actorId)?.name ?? "Someone",
-      groupName: me.group.name,
+      groupName: isDirect(me.group) ? "Direct" : me.group.name,
       myName: me.name,
-      groupCover: coverFor(me.group),
+      groupCover: coverFor(isDirect(me.group) ? { ...me.group, cover: "plain", coverAt: null } : me.group),
+      direct: isDirect(me.group),
       unread: e.createdAt > seen,
     };
   });
@@ -390,7 +395,7 @@ export const RESTORE_DAYS = 30;
 export async function loadDeletedGroups(memberships: Record<string, string>, now = new Date()) {
   const since = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
   const groups = await db.group.findMany({
-    where: { id: { in: Object.keys(memberships) }, deletedAt: { gt: since } },
+    where: { id: { in: Object.keys(memberships) }, deletedAt: { gt: since }, ...NOT_DIRECT },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true } } },
     orderBy: { deletedAt: "desc" },
   });
@@ -412,7 +417,7 @@ export async function loadSwitchList(memberships: Record<string, string>, curren
   const ids = Object.keys(memberships).filter((id) => id !== currentId);
   if (ids.length === 0) return [];
   const groups = await db.group.findMany({
-    where: { id: { in: ids }, closed: false, deletedAt: null, members: { some: { id: { in: Object.values(memberships) } } } },
+    where: { id: { in: ids }, closed: false, deletedAt: null, ...NOT_DIRECT, members: { some: { id: { in: Object.values(memberships) } } } },
     select: { id: true, name: true, createdAt: true, type: true, cover: true, coverAt: true },
   });
   const latest = await db.groupEvent.groupBy({ by: ["groupId"], where: { groupId: { in: groups.map((g) => g.id) } }, _max: { createdAt: true } });

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import { canDeleteMoment, canReactToMoment, canReportMoment, loadMomentViewer } from "@/lib/moments-access";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 // group), and Report and Block. Anyone who may not see it gets "not found", the same as a moment that doesn't exist.
 export default async function MomentPage({ params, searchParams }: { params: Promise<{ id: string; momentId: string }>; searchParams: Promise<{ from?: string; g?: string }> }) {
   const { id, momentId } = await params;
+  await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const { from: cameFrom, g: filter } = (await searchParams) ?? {};
   const away = memoriesBack(cameFrom, filter); // "/" from Home, "/memories" from the Memories page, else null
   const viewer = await loadMomentViewer(id);

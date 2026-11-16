@@ -5,15 +5,16 @@ import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
 import { allow } from "./rate-limit";
 import { deliverNotes } from "./account-notes";
-import { hasBlocked } from "./blocks";
+import { blockedEitherWay, hasBlocked } from "./blocks";
 import { groupAdminId } from "./group-admin";
 import { randomBytes } from "node:crypto";
 import { validSub } from "./push-subs";
+import { DIRECT, NOT_DIRECT } from "./direct";
 
 // Invite and "added you" emails one person can send in a day. The whole app's
 // daily email allowance is small, so one person (or a spammer) can't use it up.
 export const INVITE_EMAILS_PER_DAY = 20;
-const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow(`invite-mail:${actor.accountId || actor.id}`, INVITE_EMAILS_PER_DAY, 86_400);
+export const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow(`invite-mail:${actor.accountId || actor.id}`, INVITE_EMAILS_PER_DAY, 86_400);
 
 // Adding people to a group. Someone added by email (or found by name on Loopin) is in the group at
 // once as a name, so they can be split with, and is invited: they see the group on their own
@@ -31,12 +32,12 @@ export function inviteRowLabel(invite: { email: string; invitedById: string }, v
 
 // The name the search showed for this person: their own name, else their name in a group the two of you share.
 // Never anything made from their email (adding someone from search must not leak the start of it).
-async function shownNameFor(account: { id: string; name: string }, actorAccountId: string | null | undefined): Promise<string> {
+export async function shownNameFor(account: { id: string; name: string }, actorAccountId: string | null | undefined): Promise<string> {
   const own = account.name.trim();
   if (own) return own;
   if (actorAccountId) {
     const row = await db.member.findFirst({
-      where: { accountId: account.id, ...JOINED, group: { deletedAt: null, members: { some: { accountId: actorAccountId, ...JOINED } } } },
+      where: { accountId: account.id, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: actorAccountId, ...JOINED } } } },
       select: { name: true },
       orderBy: { createdAt: "asc" },
     });
@@ -66,7 +67,7 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
     db.member.findMany({ where: { groupId, accountId: { not: null } }, select: { accountId: true, leftAt: true, removedAt: true } }),
     // People you share a group with, both really joined (someone added straight in who hasn't opened it isn't offered yet).
     db.member.findMany({
-      where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
+      where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { ...NOT_DIRECT, members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
       // Their name in a group we share, used when they haven't set a name of their own (never the start of their email).
       select: { accountId: true, name: true },
       orderBy: { createdAt: "asc" },
@@ -91,6 +92,30 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   // "Add" for any email (on Loopin → added; not yet → invited), so nobody can check who has an account.
   // Don't offer the person searching (they're already in the group).
   return out.filter((f) => f.accountId !== me?.accountId).slice(0, 8);
+}
+
+// People on Loopin you share an open group with (both really joined, neither left or removed), not blocked either way:
+// the only people "With a person" offers besides your existing pairs. Their name is their own, else their name in a group you share
+// (never anything made from an email). Pairs themselves never count as sharing a group.
+export async function knownPeople(accountId: string): Promise<{ accountId: string; name: string }[]> {
+  const mine = await db.member.findMany({
+    where: { accountId, ...JOINED, leftAt: null, removedAt: null, group: { ...NOT_DIRECT, deletedAt: null, closed: false } },
+    select: { groupId: true },
+  });
+  if (!mine.length) return [];
+  const others = await db.member.findMany({
+    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null }, ...JOINED, leftAt: null, removedAt: null },
+    select: { accountId: true, name: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const groupName = new Map<string, string>();
+  for (const r of others) if (r.accountId && r.accountId !== accountId && !groupName.has(r.accountId)) groupName.set(r.accountId, r.name);
+  if (!groupName.size) return [];
+  const [accounts, blocked] = await Promise.all([db.account.findMany({ where: { id: { in: [...groupName.keys()] } }, select: { id: true, name: true } }), blockedEitherWay(accountId)]);
+  return accounts
+    .filter((a) => !blocked.has(a.id))
+    .map((a) => ({ accountId: a.id, name: a.name.trim() || groupName.get(a.id)?.trim() || "Someone" }))
+    .sort((x, y) => x.name.localeCompare(y.name));
 }
 
 // Give a new member the phone notifications this person already turned on elsewhere.
@@ -204,6 +229,8 @@ async function loadInviteGroup(groupId: string, actorId: string) {
   return { group, actor };
 }
 
+// Nobody is added to, or invited into, a pair of two people.
+export const PAIR_NO_INVITE = "This is just between two people, so nobody else can be added.";
 export const alreadyInvitedAs = (name: string) => `That email is already invited as ${name}. Cancel that first.`;
 const isAdmin = async (groupId: string, memberId: string) => (await groupAdminId(groupId)) === memberId;
 // Someone WITH AN ACCOUNT who left on their own, or whom the admin removed, is never put back by somebody else: they are sent an
@@ -248,6 +275,7 @@ async function inviteBackTo(
 export async function addRegistered(groupId: string, actorId: string, accountId: string, origin: string, opts: { later?: Later } = {}): Promise<Result> {
   const { group, actor } = await loadInviteGroup(groupId, actorId);
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === DIRECT) return { ok: false, error: PAIR_NO_INVITE };
   if (!actor || actor.leftAt) return { ok: false, error: "Only people in this group can add others." };
   const account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { ok: false, error: "That person isn't on Loopin." };
@@ -277,6 +305,10 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
   const people: { name: string; email: string }[] = [];
   const bad: string[] = [];
   if (!group || group.deletedAt || !actor || actor.leftAt) return { people, bad };
+  if (group.type === DIRECT) {
+    bad.push(PAIR_NO_INVITE);
+    return { people, bad };
+  }
   const parts = [...new Set(rawEmails.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean))].slice(0, 20);
   for (const p of parts) {
     const email = cleanEmail(p);
@@ -370,6 +402,7 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   const actor = group?.members.find((m) => m.id === actorId && !m.leftAt);
   const member = group?.members.find((m) => m.id === memberId && !m.leftAt && !m.removedAt);
   if (!group || group.deletedAt || !actor) return { ok: false, error: "Only people in this group can invite." };
+  if (group.type === DIRECT) return { ok: false, error: PAIR_NO_INVITE };
   if (!member || member.accountId || member.claimedAt) return { ok: false, error: "That person is already on Loopin." };
   // A name that already has an open invitation can be changed by the admin or by the person who sent it (the same people who can
   // cancel it), not by any member: otherwise anyone could point it at their own address and take the name over.

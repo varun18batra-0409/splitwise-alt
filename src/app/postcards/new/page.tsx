@@ -32,7 +32,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
   const again = found && theirs ? { ...found, message: "", address: "[]", place: "", front: found.front === "own" ? "print:beach" : found.front, photoId: found.front === "own" ? "" : found.photoId, groupId: "" } : found;
   if (again && !sp.group && again.groupId) sp.group = again.groupId;
   const g = sp.group
-    ? await db.group.findFirst({ where: { id: sp.group, deletedAt: null, members: { some: { accountId: me.id } } }, select: { id: true, name: true, type: true, tripPlace: true, tripCountry: true } })
+    ? await db.group.findFirst({ where: { id: sp.group, deletedAt: null, type: { not: "direct" }, members: { some: { accountId: me.id } } }, select: { id: true, name: true, type: true, tripPlace: true, tripCountry: true } })
     : null;
   const tz = await getTimeZone();
   const home = (me.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();

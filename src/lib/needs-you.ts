@@ -55,15 +55,18 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     const names = nameIds.length ? await db.member.findMany({ where: { id: { in: nameIds } }, select: { id: true, name: true } }) : [];
     const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
 
+    // A pair is "Direct", and its screen is the person's page (the group's own pages send it there anyway).
+    const whereOf = (g: { id: string; name: string; type: string }) => (g.type === "direct" ? "Direct" : g.name);
+    const hrefOf = (g: { id: string; type: string }) => (g.type === "direct" ? `/people/${g.id}` : `/groups/${g.id}/settle`);
     for (const c of claims) {
       const g = groupOf.get(c.toId);
       if (!g) continue;
-      items.push({ id: `claim:${c.id}`, kind: "claim", text: `${nameOf(c.fromId)} says they paid you ${formatMoney(c.amount, c.currency)}`, where: g.name, href: `/groups/${g.id}/settle`, groupId: g.id, fromId: c.fromId, claimId: c.id, at: c.createdAt });
+      items.push({ id: `claim:${c.id}`, kind: "claim", text: `${nameOf(c.fromId)} says they paid you ${formatMoney(c.amount, c.currency)}`, where: whereOf(g), href: hrefOf(g), groupId: g.id, fromId: c.fromId, claimId: c.id, at: c.createdAt });
     }
     for (const p of payments) {
       const g = groupOf.get(p.toId);
       if (!g) continue;
-      items.push({ id: `payment:${p.id}`, kind: "payment", text: `${nameOf(p.fromId)} says they paid you ${formatMoney(p.amount, g.currency)}`, where: g.name, href: `/groups/${g.id}/settle`, groupId: g.id, fromId: p.fromId, at: p.createdAt });
+      items.push({ id: `payment:${p.id}`, kind: "payment", text: `${nameOf(p.fromId)} says they paid you ${formatMoney(p.amount, g.currency)}`, where: whereOf(g), href: hrefOf(g), groupId: g.id, fromId: p.fromId, at: p.createdAt });
     }
 
     // Bills that wait for an amount, where I'm the one who pays this month.

@@ -6,6 +6,7 @@ import { cleanNames, sameName } from "./names";
 import { formatMoney } from "./money";
 import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
+import { localPairKey } from "./direct";
 
 // Renaming people and leaving / rejoining a group. Every change is logged,
 // notifies the others, and can be undone.
@@ -55,14 +56,22 @@ export async function setMember(
   const who = memberId === actorId ? "themselves" : m.name;
   const tag = undoing ? " (undo)" : "";
 
+  const pair = group.type === "direct";
   if (data.name !== undefined) {
     const name = data.name;
     if (name === m.name) return { ok: true };
     const clash = group.members.find((x) => x.id !== memberId && sameName(x.name, name));
-    if (clash) return { ok: false, error: `Someone called ${clash.name} is already in the group.` };
-    const eventId = await db.$transaction(async (tx) => {
+    if (clash) return { ok: false, error: pair ? `Someone called ${clash.name} is already here.` : `Someone called ${clash.name} is already in the group.` };
+    // A pair: only the name only you can see may be renamed (an account holder's name is theirs). Its key and the pair's own name
+    // change in the same write; if you already have someone by that name, nothing changes.
+    const owner = pair ? group.members.find((x) => x.accountId && x.id !== memberId) : undefined;
+    if (pair && (m.accountId || m.claimedAt || !owner?.accountId)) return { ok: false, error: "Only a name you added yourself can be changed here." };
+    let eventId: string;
+    try {
+    eventId = await db.$transaction(async (tx) => {
       await markUndone(tx, opts.mark);
       await tx.member.update({ where: { id: memberId }, data: { name } });
+      if (pair) await tx.group.update({ where: { id: groupId }, data: { pairKey: localPairKey(owner!.accountId!, name), name: `${owner!.name} & ${name}`.slice(0, 60) } });
       return logEvent(tx, {
         groupId,
         actorId,
@@ -71,10 +80,17 @@ export async function setMember(
         undo: { type: "member_set", memberId, data: { name: m.name } },
       });
     });
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      if (pair && (e?.code === "P2002" || /UNIQUE constraint failed/i.test(String(e?.message ?? "")))) return { ok: false, error: `You already have someone called ${name}.` };
+      throw err;
+    }
     return { ok: true, eventId };
   }
 
   if (data.leftAt !== undefined) {
+    // Nobody leaves, is removed from, or is brought back into a pair in this version (blocking is the safety valve).
+    if (pair) return { ok: false, error: "This is just between two people, so nobody can leave it." };
     const leaving = data.leftAt !== null;
     const alreadyLeft = m.leftAt !== null;
     // Someone who left on their own, now taken out by the person who looks after the group: "left" becomes "removed".

@@ -1,4 +1,5 @@
 import { neutralGameText } from "@/lib/game-words";
+import { bounceIfDirect } from "@/lib/direct-db";
 import { Confetti } from "@/components/Confetti";
 import Link from "@/components/Link";
 import { SquareSeal } from "@/components/DrawnIcons";
@@ -47,6 +48,7 @@ export default async function GroupSettle({
 }) {
   const { id } = await params;
   const sp = await searchParams;
+  await bounceIfDirect(id, sp); // a pair of two people has no group screens: its person page instead (messages travel with it)
   // What the page shows comes from the database's own sums, not from loading every expense: the settle buttons
   // below recompute the plan on the full data and compare (planKey is the same on both).
   const data = await loadGroupSettle(id, await getMyMemberId(id));

@@ -27,7 +27,8 @@ import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { beforeYouGo, homeHighlights } from "@/lib/home/highlights";
-import { BeforeYouGo } from "@/components/BeforeYouGo";
+import { parseHandPlaces, passportZone, stampDay } from "@/lib/passport";
+import { undatedTripFacts } from "@/lib/passport-db";
 import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
@@ -47,7 +48,7 @@ import { MoneyCard, type StubCover, type TripPassView } from "@/components/HomeM
 import { greetingWord } from "@/lib/home/owe-card";
 import { PassStack } from "@/components/PassStack";
 import { TripCountdown } from "@/components/TripCountdown";
-import { homeTicket, mixedDirections, moneyMode, moneyPeople, type InvolvedGroup } from "@/lib/home/money-card";
+import { homeNetCard } from "@/lib/home/money-card";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadHomeMemories } from "@/lib/moments-db";
@@ -88,7 +89,7 @@ export default async function Home({
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
   const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew] = await Promise.all([
-    loadOverview(memberships),
+    loadOverview(memberships, visitorRegion(await headers()).currency),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
@@ -98,7 +99,7 @@ export default async function Home({
     // Postcards that arrived and are unread (none from people you blocked, none still sealed).
     getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
   ]);
-  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
+  const { all, direct, open, closed, common, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
   const now = new Date();
   const today = todayKey(now, tz);
@@ -160,40 +161,15 @@ export default async function Home({
   // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
   const live = stillIn(open);
   const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
-  // The balance card's big number (all groups together, or per currency).
-  // Big amounts show whole units (display only); the exact amount rides along in the tooltip.
-  const heroOf = (money: (n: number) => string) =>
-    netCommon ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${money(Math.abs(netCommon.value))}` : netLines.join(" · ");
-  const heroText = heroOf((n) => formatMoney(n, common)); // exact, the same figure as the group and Settle up (rounding stays on summaries)
-  const heroExact = heroOf((n) => formatMoney(n, common));
-  // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
-  const acrossCurrencies = !netCommon && mixedDirections(netLines);
-  const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
-  // Who the money is with, each side on its own: the same transfers Settle up uses, largest first. Money both ways stays as two lines
-  // on the ticket (never netted together), so both sides are worked out whenever anything is open.
-  const peopleGroups = open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers }));
-  const owePeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owe", common, toCommon);
-  const owedPeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owed", common, toCommon);
-  // The groups the money runs through: how much is with you in each (in the common currency; a group with no
-  // saved rate counts 0 and only wins when nothing else is there).
-  const involved: InvolvedGroup[] = open
-    .filter((g) => !g.leaver && g.transfers.some((t) => t.from === g.myId || t.to === g.myId))
-    .map((g) => ({
-      id: g.group.id,
-      name: g.group.name,
-      type: g.group.type,
-      weight: g.transfers
-        .filter((t) => t.from === g.myId || t.to === g.myId)
-        .reduce((sum, t) => sum + (g.group.currency === common ? t.amount : (toCommon(t.amount, g.group.currency) ?? 0)), 0),
-    }));
-  const ticket = homeTicket({
-    mode,
-    acrossCurrencies,
-    owe: owePeople,
-    owed: owedPeople,
+  // The slim Net card: everything you're owed minus everything you owe, groups and non-group (direct pairs) together, with the two
+  // kinds as small lines. Only Home combines them; Settle up keeps them apart. Same balances and saved rates as Home's total always used.
+  const netCard = homeNetCard({
+    items: [
+      ...open.map((g) => ({ currency: g.group.currency, net: g.myBalance, direct: false })),
+      ...direct.map((p) => ({ currency: p.currency, net: p.net, direct: true })),
+    ],
     common,
-    hero: { text: heroText.replace(/^([≈ ]*)[+−]/, "$1"), exact: heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined },
-    groups: involved,
+    toCommon,
   });
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
@@ -405,12 +381,13 @@ export default async function Home({
     }
   }
 
-  // The bottom of Home: "Before you go" (the soonest trip that has not started, with its usual weather) and the sliding cards under it
-  // (new postcards, a bill due within 5 days, your month). No trip photos; see src/lib/home/highlights.ts.
+  // The sliding row on Home (one row, in this order; see src/lib/home/highlights.ts): the usual weather for your next trip, your month,
+  // a bill due within 5 days, a postcard, your passport, and the festival for your country when it is on. No trip photos.
   // A group they left shows no bills.
   const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
   const fahrenheit = usesFahrenheit(region.country);
-  const beforeCard = beforeYouGo(
+  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
+  const weatherCard = beforeYouGo(
     trips.map((t) => {
       const stops = stopsOf(t.g);
       return {
@@ -424,10 +401,46 @@ export default async function Home({
       };
     }),
     fahrenheit,
+    homeCountry,
   );
+  // The day a trip's stamp is dated, or null when it has none yet (one rule, shared with the passport: src/lib/passport.ts).
+  // An undated trip is stamped from the spending you may see (src/lib/passport-db.ts undatedTripFacts), the same numbers the passport reads.
+  const stampTz = passportZone(account);
+  const undatedFacts = await undatedTripFacts(
+    all.filter((g) => g.group.type === "trip" && !g.group.tripStart && !g.group.deletedAt).map((g) => ({ groupId: g.group.id, me: { id: g.myId, leftAt: g.leaver?.leftAt ?? null } })),
+    stampTz,
+  );
+  const stampOf = (g: (typeof all)[number]) =>
+    stampDay({ type: g.group.type, deletedAt: g.group.deletedAt, tripStart: g.group.tripStart, undated: undatedFacts.get(g.group.id) ?? null, leftAt: g.leaver?.leftAt ?? null }, today, stampTz);
+  // The same count as the passport: countries with a stamp or a tick (home only if it has one).
+  const passportSet = new Set(
+    [
+      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
+      ...all.filter((g) => stampOf(g) !== null).flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
+    ].filter(Boolean),
+  );
+  // The passport card's stamps: the same places the passport counts, newest first, then countries ticked by hand. Abroad only, one each, at most 2.
+  const keepsakeStamps = [
+    ...all
+      .flatMap((g) => {
+        const when = stampOf(g);
+        return when === null ? [] : [{ g, when }];
+      })
+      .sort((a, b) => b.when.localeCompare(a.when))
+      .flatMap(({ g, when }) => stopsOf(g).filter((st) => st.country).map((st) => ({ code: st.country.toUpperCase(), when, byHand: false }))),
+    ...(account ? parseHandPlaces(account.places).map((pl) => ({ code: pl.c.toUpperCase(), when: "", byHand: true })).reverse() : []),
+  ]
+    .filter((st) => st.code !== homeCountry)
+    .filter((st, i, list) => list.findIndex((o) => o.code === st.code) === i)
+    .slice(0, 2)
+    .flatMap((st) => {
+      const c = countryOf(st.code);
+      return c ? [{ code: c.code, country: c.name, when: st.when, ...(st.byHand ? { byHand: true } : {}) }] : [];
+    });
   const highlights = homeHighlights({
+    weather: weatherCard,
     hasMonth: Boolean(month),
-    // The festival or season coming up in this visitor's country (Christmas, New Year, Diwali, Eid…).
+    // The festival or season coming up in this visitor's country (Christmas, New Year, Diwali, Eid…), only inside its dates.
     season: seasonNow(new Date(), tz, region.country),
     // New postcards and a bill due soon have no line of their own on Home, so the sliding cards bring them up.
     postcardsNew,
@@ -438,11 +451,18 @@ export default async function Home({
       const inDays = daysBetween(today, due);
       return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays, amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
     }),
+    passportCountries: passportSet.size,
+    // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
+    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
+    // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
+    scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0], stamps: keepsakeStamps, postcardPhoto: photoSet("card-postcard-photo")[0] },
   });
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} momentPhoto={photoSet("card-postcard-photo")[0]} />;
+  // Someone with only people they share expenses with directly (no group) still gets Home, Settle and their people (they count even with no group).
+  const hasAny = all.length > 0 || direct.length > 0;
+  if (!hasAny && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} momentPhoto={photoSet("card-postcard-photo")[0]} />;
 
   return (
     <>
@@ -476,7 +496,7 @@ export default async function Home({
       <header className="mb-4 flex items-start justify-between">
         <div className="min-w-0">
           <p className="font-display text-[28px] font-semibold leading-none tracking-tight">loopin</p>
-          {all.length > 0 && (
+          {hasAny && (
             <p className="mt-2 text-[17px] leading-tight text-fg/75" data-greeting>
               {greetingWord(new Date(), tz)}
             </p>
@@ -486,9 +506,9 @@ export default async function Home({
       </header>
 
       {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
-      {all.length === 0 && invitationsBlock}
+      {!hasAny && invitationsBlock}
 
-      {all.length === 0 ? (
+      {!hasAny ? (
         <>
           {/* Start screen: nothing here yet. Two photos and a receipt, the promise, then the ways in. */}
           <section aria-label="Start" className="text-fg" data-start-card>
@@ -571,7 +591,7 @@ export default async function Home({
 
           {/* Money (the mockup's short "You owe" card: label, the exact amount, who and where, faces, ONE full-width cream button, no photo);
               nothing sits under it: what needs you is in Updates behind the bell. */}
-          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} />
+          <MoneyCard card={netCard} />
 
           {/* Coming up: the countdown card for each trip that is next (the trip's polaroid, "12 days to go", everyone going, Share),
               earliest first, swiped sideways. Founder, 15 Nov: this card, not the mockup's. */}
@@ -651,11 +671,8 @@ export default async function Home({
             </Link>
           )}
 
-          {/* Before you go: ONE card for the soonest trip that has not started, with its usual weather. No such trip: no section. */}
-          {beforeCard && <BeforeYouGo card={beforeCard} />}
-
-          {/* The sliding cards, only the useful ones: postcards waiting, a bill due soon, your month. None: no row at all. Swipe, tap a dot,
-              or pause; they glide by themselves unless animations are off. */}
+          {/* ONE sliding row: your next trip's usual weather, your month, a bill due soon, a postcard, your passport, the festival (in its dates).
+              Swipe, tap a dot, or pause; they glide by themselves unless animations are off. */}
           {highlights.length > 0 && (
             <div className="mt-8">
               <HomeBanner>

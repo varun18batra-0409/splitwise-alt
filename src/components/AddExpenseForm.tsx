@@ -23,6 +23,7 @@ import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
 import { resultSentence } from "@/lib/add-expense-sentence";
+import { pairLine } from "@/lib/direct";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -55,6 +56,7 @@ export function AddExpenseForm({
   ai = false,
   existingReceiptId,
   initialItems,
+  pair,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -71,6 +73,7 @@ export function AddExpenseForm({
   ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
   existingReceiptId?: string; // editing: the bill photo already kept with this expense
   initialItems?: { name: string; amount: string; people: string[] }[]; // editing an expense split by item
+  pair?: { otherId: string; otherName: string }; // an expense with one person, no group: "For" reads Both of you / Just them / Just you, and a line says who owes whom
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -450,8 +453,14 @@ export function AddExpenseForm({
     : [];
   // The amount is the hero: big for short amounts, stepping down so a lakh-sized amount still fits a 320px phone.
   const heroSize = amount.length <= 6 ? "text-[clamp(52px,17vw,72px)]" : amount.length <= 8 ? "text-[clamp(40px,13vw,56px)]" : "text-[clamp(30px,9.5vw,42px)]";
-  const forSummary =
-    forMode === "everyone" ? "everyone" : forMode === "one" ? who(onePersonId) : `${participants.length} ${participants.length === 1 ? "person" : "people"}`;
+  // With one person: "both of you", "just Rohan", "just you".
+  const pairFor = (): string => {
+    if (participants.length >= 2) return "both of you";
+    return participants[0] === myId ? "just you" : `just ${pair?.otherName ?? who(participants[0] ?? onePersonId)}`;
+  };
+  const forSummary = pair
+    ? pairFor()
+    : forMode === "everyone" ? "everyone" : forMode === "one" ? who(onePersonId) : `${participants.length} ${participants.length === 1 ? "person" : "people"}`;
   const splitSummary =
     participants.length <= 1
       ? "100% to them"
@@ -965,7 +974,7 @@ export function AddExpenseForm({
             on={!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
             onClick={resetSplit}
           >
-            Everyone equally
+            {pair ? "Both equally" : "Everyone equally"}
           </Chip>
           {members.length > 2 && (
             <Chip
@@ -1040,9 +1049,9 @@ export function AddExpenseForm({
               <span className={labelClass}>Who was it for?</span>
               <Segmented
                 options={[
-                  { id: "everyone", label: "Everyone" },
+                  { id: "everyone", label: pair ? "Both of you" : "Everyone" },
                   { id: "selected", label: "Selected" },
-                  { id: "one", label: "One person" },
+                  { id: "one", label: pair ? "Just one" : "One person" },
                 ]}
                 value={forMode}
                 onChange={(v) => setForMode(v as ForMode)}
@@ -1382,7 +1391,12 @@ export function AddExpenseForm({
 
       {/* ONE quiet line: what happened and what it means for you, in money colour. */}
       <div role="status" aria-live="polite" className="text-center text-sm leading-snug" data-expense-result>
-        {preview.ok ? (
+        {preview.ok && pair ? (
+          // With one person: one plain sentence from the same shares that will be saved ("Rohan owes you ₹600 for this expense.").
+          <p className="text-fg/85" data-pair-line>
+            {pairLine({ ...preview.expense, payers: payersJson(preview.expense.payers) }, myId, pair.otherId, pair.otherName, baseCurrency)}
+          </p>
+        ) : preview.ok ? (
           <p className="text-fg/75">
             {resultParts.map((p, i) => (
               <span key={i}>
