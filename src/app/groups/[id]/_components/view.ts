@@ -8,6 +8,9 @@ import { convertAmount } from "@/lib/conversion";
 import { formatMoney } from "@/lib/money";
 import { isGroupAdmin } from "@/lib/group-admin";
 import { leaverUndoChecks, type CanUndo, type UndoViewer } from "@/lib/undo";
+import { db } from "@/lib/db";
+import { parseUndo } from "@/lib/events";
+import { moveOutPaymentIds } from "@/lib/payment-change";
 
 // Everything the group screen shows, worked out once and shared by its parts
 // (summary, Activity, Balances, Charts).
@@ -33,6 +36,8 @@ export type GroupView = Loaded & {
   eventById: Map<string, GroupEvent>;
   leaverChecks: Map<string, CanUndo>; // for someone who has left: Undo of their own leave / move-out lines, judged on the FULL history (what the server does)
   undoViewer: UndoViewer; // who is looking, as canUndo wants them (the full member list, not the leaver-scoped one)
+  moveOutIds: Set<string>; // this group's flat move-out final payments: the only payments that still say "waiting" for Got it / Not received
+  acrossNames: Map<string, string[]>; // a payment recorded across several groups: the names of those groups (so Delete can say it takes them all off)
 };
 
 export async function buildGroupView(data: Loaded, myId: string, tz: string): Promise<GroupView> {
@@ -54,7 +59,19 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
     return v === null ? null : `≈ ${formatMoney(v, secondary)}`;
   };
 
-  const undoViewer: UndoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, toId: x.toId, deletedById: x.deletedById })) };
+  // A payment recorded across several groups (the all-groups Settle page) names its parts in its first "recorded" line.
+  const acrossParts = new Map<string, string[]>();
+  for (const ev of group.events) {
+    if (ev.kind !== "payment_recorded" || !ev.paymentId) continue;
+    const u = parseUndo(ev.undo);
+    if (u?.type === "payment_delete" && u.across && u.across.parts.length > 1) acrossParts.set(ev.paymentId, u.across.parts.map((x) => x.groupId));
+  }
+  const acrossGroupIds = [...new Set([...acrossParts.values()].flat())];
+  const acrossGroups = acrossGroupIds.length ? await db.group.findMany({ where: { id: { in: acrossGroupIds } }, select: { id: true, name: true } }) : [];
+  const acrossNames = new Map([...acrossParts].map(([pid, gids]) => [pid, gids.map((gid) => acrossGroups.find((x) => x.id === gid)?.name).filter((n): n is string => Boolean(n))] as [string, string[]]));
+  const moveOutIds = await moveOutPaymentIds(db, [group.id]);
+
+  const undoViewer: UndoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })) };
   return {
     ...data,
     tz,
@@ -71,6 +88,8 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
     expenseById: new Map(group.expenses.map((e) => [e.id, e])),
     eventById: new Map(group.events.map((ev) => [ev.id, ev])),
     undoViewer,
+    moveOutIds,
+    acrossNames,
     leaverChecks: data.leaver && !data.leaver.removed ? await leaverUndoChecks(group.id, undoViewer, new Date()) : new Map(),
   };
 }

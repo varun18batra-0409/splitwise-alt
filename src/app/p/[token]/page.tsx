@@ -12,9 +12,8 @@ import { PAYMENT_LINE } from "@/lib/money";
 import { ChevronDown } from "@/components/icons";
 
 // The "I've paid" page: the link inside a Remind message. Whoever owes opens
-// it (no sign-in), pays in their UPI app, and taps "I've paid". The person
-// who's owed is asked to "Confirm received" (until then nothing changes in the
-// balances). Only this one debt, only what's owed now.
+// it (no sign-in), pays in their UPI app, and taps "I've paid". It counts straight
+// away and the person who's owed is told. Only this one debt, only what's owed now.
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ paid?: string; undone?: string; error?: string }> };
 
@@ -29,24 +28,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title, description: `For “${s.group.name}”. Pay, then tap I’ve paid. No sign-in needed.`, robots, openGraph: { title, description: `For “${s.group.name}”. Pay, then tap I’ve paid.` } };
 }
 
-function Mark({ tone }: { tone: "ok" | "wait" | "rest" }) {
-  const ring = tone === "ok" ? "text-owed" : tone === "wait" ? "text-fg/75" : "text-fg/60";
+function Mark({ tone }: { tone: "ok" | "rest" }) {
+  const ring = tone === "ok" ? "text-owed" : "text-fg/60";
   return (
     <span aria-hidden className={`lp-pop-in relative mx-auto flex h-16 w-16 items-center justify-center rounded-full ${ring}`}>
       <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="32" cy="32" r="30" strokeOpacity="0.35" />
         <circle cx="32" cy="32" r="30" strokeDasharray="188.5" className="lp-draw-ring" />
       </svg>
-      {tone === "wait" ? (
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="12" cy="12" r="8.5" />
-          <path d="M12 7.5V12l3 2" />
-        </svg>
-      ) : (
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12.5l4.5 4.5L19 7.5" className="lp-draw-tick" />
-        </svg>
-      )}
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12.5l4.5 4.5L19 7.5" className="lp-draw-tick" />
+      </svg>
     </span>
   );
 }
@@ -89,7 +81,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
     <>
       {header}
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
-      {s.kind === "owes" ? <Owes s={s} money={money} to={to} from={from} token={token} undone={Boolean(sp.undone)} /> : <Done s={s} money={money} to={to} from={from} token={token} />}
+      {s.kind === "owes" ? <Owes s={s} money={money} to={to} from={from} token={token} undone={Boolean(sp.undone)} /> : <Done s={s} money={money} to={to} from={from} token={token} justPaid={Boolean(sp.paid)} />}
       <p className="mt-10 text-center text-xs leading-relaxed text-fg/55">
         {PAYMENT_LINE}
         <br />
@@ -127,11 +119,6 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
       </section>
 
       {undone && <p className="mt-4 rounded-2xl border border-[#26262c] bg-[#16161a] px-4 py-3 text-sm text-fg/70">Done, it’s taken back. Tap I’ve paid again once you’ve paid.</p>}
-      {s.declined && !undone && (
-        <p role="status" className="mt-4 rounded-2xl border border-[#26262c] bg-[#16161a] px-4 py-3 text-sm text-fg/80" data-paylink-declined>
-          {to} hasn’t received it yet. Check your payment app, then tap I’ve paid again.
-        </p>
-      )}
 
       <section className="mt-7" aria-label={`Pay ${to}`}>
         {/* The amount is said once (the header above) and the payee at most twice: no names or sums in these steps. */}
@@ -172,29 +159,29 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
           </button>
         </form>
         <p className="mt-3 text-center text-xs text-fg/55">
-          Only if you’re {from}. They’re asked to confirm; it counts once they do.
+          Only if you’re {from}. It counts straight away, and {to} is told.
         </p>
       </section>
     </>
   );
 }
 
-function Done({ s, money, to, from, token }: { s: Shown; money: string; to: string; from: string; token: string }) {
+function Done({ s, money, to, from, token, justPaid }: { s: Shown; money: string; to: string; from: string; token: string; justPaid: boolean }) {
   const when = s.paidAt ? s.paidAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : "";
   const view =
-    s.kind === "said"
-      ? { tone: "wait" as const, title: `Waiting for ${to} to confirm`, text: `You said you paid ${money}${when ? ` on ${when}` : ""}. As soon as ${to} taps Confirm received, you’re square.` }
+    s.kind === "paid"
+      ? justPaid
+        ? { tone: "ok" as const, title: `Paid. ${to}’s been told`, text: `${money} for ${s.group.name}, recorded${when ? ` on ${when}` : ""}.` }
+        : { tone: "ok" as const, title: `All square with ${to}!`, text: `${money} for ${s.group.name}, recorded. Nice one, ${from}.` }
       : s.kind === "closed"
       ? { tone: "rest" as const, title: "This group is closed", text: `${s.group.name} is closed, so there’s nothing to do here. Thanks, ${from}!` }
-      : s.confirmed
-      ? { tone: "ok" as const, title: `${to} got it. All square!`, text: `${money} for ${s.group.name}, confirmed. Nice one, ${from}.` }
       : { tone: "ok" as const, title: `Nothing to pay ${to} right now`, text: `You’re square with ${to} in ${s.group.name}.` };
   return (
     <section className="vault lp-rise rounded-[20px] px-6 py-9 text-center" data-paylink={s.kind}>
       <Mark tone={view.tone} />
       <h1 className="mt-5 font-display text-[26px] font-semibold leading-tight tracking-tight">{view.title}</h1>
       <p className="mx-auto mt-2 max-w-[20rem] text-sm text-fg/60">{view.text}</p>
-      {s.kind === "said" && (
+      {s.kind === "paid" && (
         <form action={undoIPaidAction} className="mt-6">
           <input type="hidden" name="token" value={token} />
           <button type="submit" className="inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">

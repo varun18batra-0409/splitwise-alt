@@ -2,12 +2,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { ensureAccountPair, ensureLocalPair, directEntries, hasHistory, filterDirect } from "@/lib/direct-db";
 import { accountPairKey, localPairKey } from "@/lib/direct";
-import { saveExpense, setExpenseDeleted, type SaveExpenseInput } from "@/lib/save-expense";
+import { saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
 import { undoEvent } from "@/lib/undo";
 import { loadGroup, loadMyGroupsLight, loadNotifications } from "@/lib/group-data";
 import { settleAcrossCore } from "@/lib/cross-settle-db";
 import { recordPaymentCore } from "@/lib/pay-record";
-import { rejectPayment } from "@/lib/payment-ok";
 import { loadNeedsYou } from "@/lib/needs-you";
 import type { RateAnswer } from "@/lib/rate-cache";
 import { mkAccount, mkSharedGroup, stamp, wipe } from "./helpers/direct-fixtures";
@@ -172,17 +171,15 @@ describe("money in a pair: the ordinary group maths", () => {
 });
 
 describe("recording a payment in a pair", () => {
-  it("9. A records paying B: it counts, B's Needs you shows it, and B's Not received reverses it", async () => {
+  it("9. A records paying B: it counts at once and asks nobody, and B can delete it (the money goes back)", async () => {
     const pay = await recordPaymentCore({ groupId: pairId, fromId: aRow, toId: rRow, amount: 3000, currency: "INR", myId: aRow, key: key("pay-b"), fp: "fp-pay-b", warnOver: false });
     expect(pay.kind).toBe("done");
     expect((await netOf(pairId))[aRow]).toBe(3000); // it counts straight away
-    const p = (await db.payment.findFirst({ where: { groupId: pairId, fromId: aRow, toId: rRow, deletedAt: null, okAt: null, needsOk: true } }))!;
-    expect(p.amount).toBe(3000);
+    const p = (await db.payment.findFirst({ where: { groupId: pairId, fromId: aRow, toId: rRow, deletedAt: null } }))!;
+    expect([p.amount, p.needsOk]).toEqual([3000, false]);
     const needs = await loadNeedsYou({ [pairId]: rRow }, { id: B }, 0);
-    const mine = needs.items.find((i) => i.id === `payment:${p.id}`);
-    expect(mine?.where).toBe("Direct");
-    expect(mine?.href).toBe(`/people/${pairId}`);
-    const no = await rejectPayment(p.id, rRow);
+    expect(needs.items.find((i) => i.id === `payment:${p.id}`)).toBeUndefined(); // nothing waits for B
+    const no = await setPaymentDeleted(p.id, rRow, true);
     expect(no.ok).toBe(true);
     const net = await netOf(pairId);
     expect(net[aRow]).toBe(0);

@@ -350,7 +350,7 @@ export async function moveOut(
       // 2. Square up: every final payment is recorded as paid now, so they leave at exactly 0. A person paid who can answer (and isn't
       // the one doing this) is also asked "Confirm received / Not received"; "Not received" brings the people who left back (payment-ok.ts).
       for (const t of p.payments) {
-        const pay = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId, needsOk: waitsFor(flat, actorId, t) });
+        const pay = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId, asksReceiver: waitsFor(flat, actorId, t) || undefined });
         moneyInfo.payments.push({ id: pay.id, fromId: t.from, toId: t.to, amount: t.amount });
         const payEventId = await logEvent(tx, {
           groupId,
@@ -549,7 +549,8 @@ type Client = Prisma.TransactionClient;
 async function checkMoveOut(client: Client, groupId: string, memberId: string, info: MoveOutUndo) {
   const touched = new Set<string>();
   const described = new Map<string, string>();
-  const stop = (text: string, leaver = MOVE_OUT_LEAVER_FIXABLE): { block: MoveOutBlock; touched: Set<string>; described: Map<string, string> } => ({ block: { text, leaver }, touched, described });
+  const kept = new Set<string>(); // square-up payments already confirmed by the person paid: the undo leaves them counting
+  const stop = (text: string, leaver = MOVE_OUT_LEAVER_FIXABLE): { block: MoveOutBlock; touched: Set<string>; described: Map<string, string>; kept: Set<string> } => ({ block: { text, leaver }, touched, described, kept });
   const mo = info.money;
   const g = await client.group.findUnique({ where: { id: groupId }, select: { currency: true } });
   if (mo && g && g.currency !== mo.currency) return stop(CURRENCY_SINCE, MOVE_OUT_GONE_FOR_GOOD);
@@ -565,13 +566,18 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
       for (const id of new Set([...was.keys(), ...will.keys()])) if ((was.get(id) ?? 0) !== (will.get(id) ?? 0)) touched.add(id);
     }
     for (const x of mo.payments) {
-      const pay = await client.payment.findUnique({ where: { id: x.id }, select: { fromId: true, toId: true, amount: true, deletedAt: true } });
+      const pay = await client.payment.findUnique({ where: { id: x.id }, select: { fromId: true, toId: true, amount: true, deletedAt: true, okAt: true } });
       if (!pay || pay.deletedAt || pay.fromId !== x.fromId || pay.toId !== x.toId || pay.amount !== x.amount) return stop("The square-up payment was changed after the move-out, so this can’t be undone. Ask someone in the flat to undo that change first.");
+      // A payment the person paid already confirmed is real money: the undo leaves it counting, so it moves nobody's balance.
+      if (pay.okAt) {
+        kept.add(x.id);
+        continue;
+      }
       touched.add(x.fromId);
       touched.add(x.toId);
     }
     // A payment someone said they made ("I've paid") was counted in the square-up: taking it off would count that money twice.
-    if (mo.payments.length && (await client.paymentClaim.count({ where: { paymentId: { in: mo.payments.map((x) => x.id) }, status: "covered" } })) > 0) {
+    if (mo.payments.length && (await client.paymentClaim.count({ where: { paymentId: { in: mo.payments.filter((x) => !kept.has(x.id)).map((x) => x.id) }, status: "covered" } })) > 0) {
       return stop("A payment someone said they made (“I’ve paid”) was counted in the move-out’s square-up, so it can’t be undone.", MOVE_OUT_GONE_FOR_GOOD);
     }
   }
@@ -590,7 +596,7 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
         const x = mo.shares.find((y) => y.expenseId === e.id);
         return x ? { ...e, shares: x.before } : e;
       }),
-      payments: l.payments.filter((p) => !mo.payments.some((x) => x.id === p.id)),
+      payments: l.payments.filter((p) => kept.has(p.id) || !mo.payments.some((x) => x.id === p.id)),
     }));
     if (gone.length) return stop(`${gone[0]} has left the group since, so the move-out can’t be undone. Ask ${gone[0]} to rejoin first.`);
   }
@@ -609,10 +615,10 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
     const run = await client.billRun.findUnique({ where: { billId_period: { billId: x.billId, period: x.period } }, select: { status: true } });
     if (run && run.status !== "waiting") {
       const bill = (await client.bill.findUnique({ where: { id: x.billId }, select: { name: true } }))?.name ?? "The bill";
-      return { block: { text: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.`, leaver: MOVE_OUT_LEAVER_FIXABLE }, touched, described };
+      return { block: { text: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.`, leaver: MOVE_OUT_LEAVER_FIXABLE }, touched, described, kept };
     }
   }
-  return { block: null as MoveOutBlock | null, touched, described };
+  return { block: null as MoveOutBlock | null, touched, described, kept };
 }
 
 export async function moveOutUndoBlock(client: Client, groupId: string, memberId: string, info: MoveOutUndo): Promise<MoveOutBlock | null> {
@@ -659,7 +665,7 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
       const at = new Date();
       const mo = info.money;
       // Everything that could stand in the way, read first (before any write): a refusal throws and rolls the whole undo back.
-      const { block, touched, described } = await checkMoveOut(tx, groupId, memberId, info);
+      const { block, touched, described, kept } = await checkMoveOut(tx, groupId, memberId, info);
       if (block) throw new MoveOutBlocked(block);
       if (info.deposit) {
         const d = info.deposit;
@@ -696,10 +702,15 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
           const mine = (xs: { memberId: string; amount: number }[]) => xs.find((y) => y.memberId === memberId)?.amount ?? 0;
           lines.push(`${m.name}’s share: ${money(mine(x.after))} → ${money(mine(x.before))} (${described.get(x.expenseId) ?? "a bill"}, move-out undone)`);
         }
-        await tx.payment.updateMany({ where: { id: { in: mo.payments.map((x) => x.id) }, deletedAt: null }, data: { deletedAt: at, deletedById: actorId } });
-        for (const x of mo.payments) lines.push(`Taken off: ${nameOf(x.fromId)} paid ${nameOf(x.toId)} ${money(x.amount)}`);
-        if (mo.payments.length) lines.push("If any of these payments really happened, record it again.");
-        await tx.groupEvent.updateMany({ where: { id: { in: mo.eventIds }, undoneAt: null }, data: { undoneAt: at, undoneById: actorId } });
+        // A payment the person paid already confirmed is real money: it stays and keeps counting (and its line stays as it was).
+        // Payments nobody has confirmed come off. Only payments still unconfirmed are written, as read in the same step.
+        const gone = mo.payments.filter((x) => !kept.has(x.id));
+        await tx.payment.updateMany({ where: { id: { in: gone.map((x) => x.id) }, deletedAt: null, okAt: null }, data: { deletedAt: at, deletedById: actorId } });
+        for (const x of gone) lines.push(`Taken off: ${nameOf(x.fromId)} paid ${nameOf(x.toId)} ${money(x.amount)}`);
+        for (const x of mo.payments.filter((y) => kept.has(y.id))) lines.push(`Kept, already confirmed: ${nameOf(x.fromId)} paid ${nameOf(x.toId)} ${money(x.amount)}`);
+        if (gone.length) lines.push("If any of these payments really happened, record it again.");
+        const keptLines = kept.size ? (await tx.groupEvent.findMany({ where: { id: { in: mo.eventIds }, paymentId: { in: [...kept] } }, select: { id: true } })).map((e) => e.id) : [];
+        await tx.groupEvent.updateMany({ where: { id: { in: mo.eventIds.filter((id) => !keptLines.includes(id)) }, undoneAt: null }, data: { undoneAt: at, undoneById: actorId } });
       }
       return logEvent(tx, {
         groupId,

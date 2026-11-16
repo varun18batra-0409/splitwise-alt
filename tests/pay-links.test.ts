@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
+import { markAsMoveOut } from "./helpers/move-out-marks";
 import { eraseGroups } from "@/lib/purge";
 import { cleanPayWays, payButtons, payLinkLabel } from "@/lib/pay-links";
 import { nudgeMessage } from "@/lib/nudge";
@@ -61,6 +62,9 @@ describe("Payment tracking (real database)", () => {
 
     const p1 = await db.payment.create({ data: { groupId: g.id, fromId: ravi.id, toId: asha.id, amount: 30000, createdById: ravi.id, needsOk: true } });
     const p2 = await db.payment.create({ data: { groupId: g.id, fromId: ravi.id, toId: asha.id, amount: 5000, createdById: ravi.id, needsOk: true } });
+    const old = await db.payment.create({ data: { groupId: g.id, fromId: ravi.id, toId: asha.id, amount: 100, createdById: ravi.id, needsOk: true } }); // an older row, not a move-out: never asked
+    await markAsMoveOut(g.id, ravi.id, [p1.id, p2.id]);
+    expect((await confirmPayment(old.id, asha.id)).ok).toBe(false);
     expect((await waitingForMe(g.id, asha.id)).map((p) => p.id).sort()).toEqual([p1.id, p2.id].sort());
 
     expect((await confirmPayment(p1.id, ravi.id)).ok).toBe(false); // only Asha
@@ -89,6 +93,7 @@ describe("Payment tracking (real database)", () => {
     const ravi = g.members.find((m) => m.name === "Ravi")!;
     const toAsha = await db.payment.create({ data: { groupId: g.id, fromId: ravi.id, toId: asha.id, amount: 30000, createdById: ravi.id, needsOk: true } });
     const toRavi = await db.payment.create({ data: { groupId: g.id, fromId: asha.id, toId: ravi.id, amount: 5000, createdById: asha.id, needsOk: true } });
+    await markAsMoveOut(g.id, ravi.id, [toAsha.id, toRavi.id]);
     await db.member.update({ where: { id: asha.id }, data: { leftAt: new Date() } });
     expect((await confirmPayment(toAsha.id, asha.id)).ok).toBe(true); // paid to Asha: she may confirm even though she left
     expect((await confirmPayment(toRavi.id, asha.id)).ok).toBe(false); // paid to Ravi: not hers to answer

@@ -22,7 +22,6 @@ const { netBalances } = await import("@/lib/balances");
 const { formatMoney } = await import("@/lib/money");
 const { moveOut, moveOutPreview } = await import("@/lib/home/moving-db");
 const { confirmPayment, rejectPayment, waitingForMe } = await import("@/lib/payment-ok");
-const { makeClaim, confirmClaim } = await import("@/lib/payment-claims");
 const { recordPaymentCore } = await import("@/lib/pay-record");
 const { markAllPaid, setPaymentsDeleted, settleAllAndClose, applySettleAll, planKey } = await import("@/lib/settle-all");
 const { saveExpense, setExpenseDeleted, setPaymentDeleted } = await import("@/lib/save-expense");
@@ -109,6 +108,16 @@ const record = (w: World, from: string, to: string, amount: number, by = from) =
   recordPaymentCore({ groupId: w.gid, fromId: from, toId: to, amount, currency: "INR", myId: by, key: key(), fp: `fp-${key()}`, warnOver: false });
 const leave = (w: World, member: string) => setMemberLeft(w.gid, member, member, true);
 const money = (x: number) => formatMoney(x, "INR");
+// Every payment counts at once, so "Not received" on an ordinary payment is now the person paid deleting it. Someone who left comes back owing.
+// Returns the people who were brought back (left or removed before, in the group again after).
+const del = async (w: World, paymentId: string, by: string) => {
+  const goneNow = () => db.member.findMany({ where: { groupId: w.gid, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] }, select: { id: true, name: true } });
+  const before = await goneNow();
+  const r = await setPaymentDeleted(paymentId, by, true);
+  if (!r.ok) throw new Error(r.error);
+  const after = new Set((await goneNow()).map((m) => m.id));
+  return { ...r, back: before.filter((m) => !after.has(m.id)) };
+};
 const reject = async (paymentId: string, by: string) => {
   const r = await rejectPayment(paymentId, by);
   if (!r.ok) throw new Error(r.error);
@@ -263,42 +272,42 @@ describe("6. OB-3: Varun owes Asha and marks her out", () => {
 });
 
 describe("7-8. a trip: the one paid has left, or the payer has left, or both", () => {
-  it("7. Asha records paying Ravi 60000, Ravi leaves; Ravi says Not received: Ravi is back at +60000, Asha -60000", async () => {
+  it("7. Asha records paying Ravi 60000, Ravi leaves; Ravi deletes the payment: Ravi is back at +60000, Asha -60000", async () => {
     const { w, A, R, M } = await trip();
     expect((await record(w, A, R, 60000)).kind).toBe("done");
     const pay = (await w.payments())[0];
-    expect([pay.needsOk, pay.okAt]).toEqual([true, null]);
+    expect([pay.needsOk, pay.okAt]).toEqual([false, null]); // it counts at once and asks nobody
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     expect((await leave(w, R)).ok).toBe(true);
     expect((await w.row(R)).leftAt).not.toBeNull();
     await w.check();
-    const r = await reject(pay.id, R);
+    const r = await del(w, pay.id, R);
     expect(r.back).toEqual([{ id: R, name: "Ravi" }]);
     expect((await w.row(R)).leftAt).toBeNull();
     expect(await w.net()).toEqual({ [A]: -60000, [R]: 60000, [M]: 0 });
     await w.check();
   });
 
-  it("8. Asha records paying Ravi 60000, then leaves; Ravi says Not received: Asha is back at -60000, Ravi +60000", async () => {
+  it("8. Asha records paying Ravi 60000, then leaves; Ravi deletes the payment: Asha is back at -60000, Ravi +60000", async () => {
     const { w, A, R, M } = await trip();
     expect((await record(w, A, R, 60000)).kind).toBe("done");
     const pay = (await w.payments())[0];
     expect((await leave(w, A)).ok).toBe(true);
     await w.check();
-    const r = await reject(pay.id, R);
+    const r = await del(w, pay.id, R);
     expect(r.back).toEqual([{ id: A, name: "Asha" }]);
     expect(await w.net()).toEqual({ [A]: -60000, [R]: 60000, [M]: 0 });
     await w.check();
   });
 
-  it("8b. both leave, then Ravi says Not received: both are brought back", async () => {
+  it("8b. both leave, then Ravi deletes the payment: both are brought back", async () => {
     const { w, A, R, M } = await trip();
     expect((await record(w, A, R, 60000)).kind).toBe("done");
     const pay = (await w.payments())[0];
     expect((await leave(w, A)).ok).toBe(true);
     expect((await leave(w, R)).ok).toBe(true);
     await w.check();
-    const r = await reject(pay.id, R);
+    const r = await del(w, pay.id, R);
     expect(r.back.map((b) => b.id).sort()).toEqual([A, R].sort());
     for (const id of [A, R]) {
       const m = await w.row(id);
@@ -320,26 +329,24 @@ describe("9. H1: nobody but the person paid can bring a refused payment back", (
     expect(ids).toHaveLength(1);
     expect((await setPaymentsDeleted(w.gid, M, ids, true)).ok).toBe(true);
     expect(await w.net()).toEqual({ [A]: -40000, [R]: 40000, [M]: 0 });
-    const said = await makeClaim({ groupId: w.gid, fromId: A, toId: R, actorId: A, source: "app" });
-    if (!said.ok) throw new Error(said.error);
-    expect((await confirmClaim(said.claimId, R)).ok).toBe(true);
+    expect((await recordPaymentCore({ groupId: w.gid, fromId: A, toId: R, amount: 40000, currency: "INR", myId: A, key: key(), fp: `fp-${key()}`, warnOver: false })).ok).toBe(true); // Asha's own "I've paid" counts at once
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     expect((await leave(w, A)).ok).toBe(true);
     const redo = await setPaymentsDeleted(w.gid, M, ids, false);
-    expect(redo).toEqual({ ok: false, error: "Asha has left the group, so this can't be redone." });
+    expect(redo.ok).toBe(false); // refused (Asha has left, and it would count her 40000 twice)
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     expect((await w.row(A)).leftAt).not.toBeNull();
     await w.check();
   });
 
-  it("(b) Meera marks Asha's 40000 as paid, Ravi says Not received: Meera's direct restore is refused with the receiver-only words; Ravi +40000, Asha -40000", async () => {
+  it("(b) Meera marks Asha's 40000 as paid, Ravi deletes it: Meera's direct restore is refused with the receiver-only words; Ravi +40000, Asha -40000", async () => {
     const w = await world("trip", [{ name: "Asha" }, { name: "Ravi" }, { name: "Meera" }]);
     const [A, R, M] = [w.id("Asha"), w.id("Ravi"), w.id("Meera")];
     await w.expense("Dinner", 40000, R, [[A, 40000]]);
     expect((await markAllPaid(w.gid, M, [{ from: A, to: R, amount: 40000 }], "", true)).ok).toBe(true);
     const pay = (await w.payments())[0];
-    expect(pay.needsOk).toBe(true);
-    await reject(pay.id, R);
+    expect(pay.needsOk).toBe(false); // it counts at once
+    await del(w, pay.id, R); // Ravi deletes it
     expect(await setPaymentsDeleted(w.gid, M, [pay.id], false)).toEqual({ ok: false, error: receiverOnlyText("Ravi") });
     expect(await w.net()).toEqual({ [A]: -40000, [R]: 40000, [M]: 0 });
     await w.check();
@@ -350,15 +357,15 @@ describe("9. H1: nobody but the person paid can bring a refused payment back", (
     await w.check();
   });
 
-  it("(d) the same for Settle everything: the group is reopened, Ravi says Not received, and Meera's Redo is refused with the receiver-only words", async () => {
+  it("(d) the same for Settle everything: the group is reopened, Ravi deletes it, and Meera's Redo is refused with the receiver-only words", async () => {
     const w = await world("trip", [{ name: "Asha" }, { name: "Ravi" }, { name: "Meera" }]);
     const [A, R, M] = [w.id("Asha"), w.id("Ravi"), w.id("Meera")];
     await w.expense("Dinner", 40000, R, [[A, 40000]]);
     expect((await settleAllAndClose(w.gid, M, planKey([{ from: A, to: R, amount: 40000 }]))).ok).toBe(true);
     const ids = (await w.payments()).map((p) => p.id);
     expect(ids).toHaveLength(1);
-    await db.group.update({ where: { id: w.gid }, data: { closed: false, closedAt: null } }); // reopened, so Ravi can answer
-    await reject(ids[0], R);
+    await db.group.update({ where: { id: w.gid }, data: { closed: false, closedAt: null } }); // reopened, so Ravi can delete it
+    await del(w, ids[0], R);
     expect(await applySettleAll(w.gid, M, ids, true)).toEqual({ ok: false, error: receiverOnlyText("Ravi") });
     expect((await db.payment.findUniqueOrThrow({ where: { id: ids[0] } })).deletedById).toBe(R);
     expect((await db.group.findUniqueOrThrow({ where: { id: w.gid } })).closed).toBe(false);
@@ -462,7 +469,7 @@ describe("12. no double rent cut when someone is brought back and moves out agai
 });
 
 describe("13. someone the admin removed is put back too", () => {
-  it("Asha records paying Ravi 60000, admin Meera removes her; Ravi says Not received: Asha is back (no left / removed mark), Asha -60000, Ravi +60000; the undo data carries the removal", async () => {
+  it("Asha records paying Ravi 60000, admin Meera removes her; Ravi deletes the payment: Asha is back (no left / removed mark), Asha -60000, Ravi +60000; the undo data carries the removal", async () => {
     const w = await world("trip", [{ name: "Meera" }, { name: "Asha" }, { name: "Ravi" }]);
     const [M, A, R] = [w.id("Meera"), w.id("Asha"), w.id("Ravi")];
     await w.expense("Dinner", 60000, R, [[A, 60000]]);
@@ -473,7 +480,7 @@ describe("13. someone the admin removed is put back too", () => {
     expect(removed.removedAt).not.toBeNull();
     expect(removed.removedById).toBe(M);
     await w.check();
-    const r = await reject(pay.id, R);
+    const r = await del(w, pay.id, R);
     expect(r.back).toEqual([{ id: A, name: "Asha" }]);
     const asha = await w.row(A);
     expect([asha.leftAt, asha.removedAt, asha.removedById]).toEqual([null, null, ""]);
@@ -488,32 +495,32 @@ describe("13. someone the admin removed is put back too", () => {
 });
 
 describe("14. closed and deleted groups", () => {
-  it("closed: Not received is refused and Asha stays left at 0; after reopening it works", async () => {
+  it("closed: deleting is refused and Asha stays left at 0; after reopening it works", async () => {
     const { w, A, R, M } = await trip();
     expect((await record(w, A, R, 60000)).kind).toBe("done");
     const pay = (await w.payments())[0];
     expect((await leave(w, A)).ok).toBe(true);
     await db.group.update({ where: { id: w.gid }, data: { closed: true } });
-    expect(await rejectPayment(pay.id, R)).toEqual({ ok: false, error: "This group is closed. Reopen it to change payments." });
+    expect(await setPaymentDeleted(pay.id, R, true)).toEqual({ ok: false, error: "This group is closed. Reopen it to change payments." });
     expect((await w.row(A)).leftAt).not.toBeNull();
     expect(await w.net()).toEqual({ [A]: 0, [R]: 0, [M]: 0 });
     await w.check();
     await db.group.update({ where: { id: w.gid }, data: { closed: false } });
-    expect((await rejectPayment(pay.id, R)).ok).toBe(true);
+    expect((await setPaymentDeleted(pay.id, R, true)).ok).toBe(true);
     expect(await w.net()).toEqual({ [A]: -60000, [R]: 60000, [M]: 0 });
   });
 
-  it("deleted: That payment isn’t there any more.", async () => {
+  it("deleted: This group was deleted.", async () => {
     const { w, A, R } = await trip();
     expect((await record(w, A, R, 60000)).kind).toBe("done");
     const pay = (await w.payments())[0];
     await db.group.update({ where: { id: w.gid }, data: { deletedAt: new Date() } });
-    expect(await rejectPayment(pay.id, R)).toEqual({ ok: false, error: "That payment isn’t there any more." });
+    expect(await setPaymentDeleted(pay.id, R, true)).toEqual({ ok: false, error: "This group was deleted." });
   });
 });
 
 describe("15. a pair", () => {
-  it("Not received works as today, no member_rejoined is written, nobody has left; moving out is still refused", async () => {
+  it("deleting works, no member_rejoined is written, nobody has left; moving out is still refused", async () => {
     const a = await account("PairPia");
     const p = await ensureLocalPair({ id: a.id }, "Rohan", { currency: "INR", myName: "Pia" });
     if (!p.ok) throw new Error("refused");
@@ -522,9 +529,9 @@ describe("15. a pair", () => {
     const done = await recordPaymentCore({ groupId: p.groupId, fromId: p.myId, toId: p.otherId, amount: 3000, currency: "INR", myId: p.myId, key: key(), fp: `fp-${key()}`, warnOver: false });
     expect(done.kind).toBe("done");
     const pay = await db.payment.findFirstOrThrow({ where: { groupId: p.groupId, deletedAt: null } });
-    expect(pay.needsOk).toBe(true);
-    const r = await rejectPayment(pay.id, p.otherId);
-    expect(r).toMatchObject({ ok: true, back: [] });
+    expect(pay.needsOk).toBe(false);
+    const r = await setPaymentDeleted(pay.id, p.otherId, true);
+    expect(r.ok).toBe(true);
     expect(await db.groupEvent.count({ where: { groupId: p.groupId, kind: "member_rejoined" } })).toBe(0);
     expect(await db.member.count({ where: { groupId: p.groupId, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] } })).toBe(0);
     expect(await moveOut(p.groupId, p.myId, { leaverId: p.myId, lastDay: "2026-11-10", requestKey: key() }, NOW)).toEqual({ ok: false, error: PAIR_NO_MOVE_OUT });
@@ -580,10 +587,9 @@ describe("17. kept from Batch A", () => {
     expect(moving).toContain("resplitAlready(");
     expect(moving).not.toContain("splitSquareUp");
     expect(moving).not.toContain("tellReceiver");
-    for (const f of ["payment-ok", "settle-all", "save-expense"]) expect(readFileSync(`src/lib/${f}.ts`, "utf8"), f).toContain("reopenCoveredClaims(");
-    expect(readFileSync("src/lib/payment-claims.ts", "utf8")).toContain('status: "expired"'); // MB-2
+    expect(readFileSync("src/lib/payment-change.ts", "utf8")).toContain("tellBroughtBack("); // a delete or a Not received brings the people who left back
     expect(readFileSync("src/lib/payments.ts", "utf8")).toContain("receiverOnlyText("); // MB-1 for every restore
-    for (const f of ["payment-claims", "pay-record", "settle-all", "cross-settle-db", "pay-link", "money-guard", "payment-ok"]) {
+    for (const f of ["payment-claims", "payment-change", "pay-record", "settle-all", "cross-settle-db", "pay-link", "money-guard", "payment-ok"]) {
       const src = readFileSync(`src/lib/${f}.ts`, "utf8");
       expect(src, f).not.toContain("thirdPartyLeaverRefusal");
       expect(src, f).not.toContain("claimConfirmBreaks");

@@ -32,6 +32,7 @@ export type EventKind =
   | "payment_restored"
   | "payment_confirmed"
   | "payment_claimed"
+  | "payment_note_closed" // an old "I've paid" note that could not be counted when notes were retired (scripts/convert-waiting-claims.ts)
   | "group_renamed"
   | "currency_changed"
   | "markup_changed"
@@ -139,14 +140,18 @@ export function expenseState(
   };
 }
 
+// One payment recorded across several groups (the all-groups Settle page): every part names the others, so it is deleted and restored as a set.
+// JSON only (no column). Payments recorded before this have none and stay single.
+export type PaymentAcross = { id: string; parts: { groupId: string; paymentId: string }[] };
+
 // How to reverse a change. Stored with each event; undoing it is itself a
 // logged, undoable change (so "undo" can always be followed by "redo").
 export type UndoPayload =
   | { type: "expense_delete"; expenseId: string }
   | { type: "expense_restore"; expenseId: string }
   | { type: "expense_revert"; expenseId: string; before: ExpenseState }
-  | { type: "payment_delete"; paymentId: string }
-  | { type: "payment_restore"; paymentId: string; byReceiver?: boolean } // byReceiver: the person paid took it off, so only they can bring it back (missing on older lines)
+  | { type: "payment_delete"; paymentId: string; across?: PaymentAcross }
+  | { type: "payment_restore"; paymentId: string; byReceiver?: boolean; across?: PaymentAcross } // byReceiver: the person paid took it off, so only they can bring it back (missing on older lines)
   | { type: "group_set"; data: { name?: string; cardMarkupBp?: number; secondaryCurrency?: string; closed?: boolean; closedAt?: string | null } }
   | {
       type: "currency_restore";

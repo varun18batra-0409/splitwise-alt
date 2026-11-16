@@ -308,19 +308,22 @@ async function toggleExpense(formData: FormData, deleted: boolean) {
   redirect(`/groups/${groupId}?tab=activity&${q}`);
 }
 
-// Delete a settle-up payment (any active member can, not only whoever recorded it). History keeps it.
+// Delete a settle-up payment. Only the payer and the person paid can (even if they have left: they come back owing it). History keeps it.
+// A payment recorded across several groups is taken off in all of them, in one step.
 export async function removePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
-  const r = await deletePayment(paymentId, await getMyMemberId(groupId));
+  const memberships = await getMemberships();
+  const r = await deletePayment(paymentId, memberships[groupId], { memberships });
   redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
 }
 
-// Bring back a deleted settle-up payment.
+// Bring back a deleted settle-up payment (the payer or the person paid; the person paid alone if they took it off themselves).
 export async function restorePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
-  const r = await setPaymentDeleted(paymentId, await getMyMemberId(groupId), false);
+  const memberships = await getMemberships();
+  const r = await setPaymentDeleted(paymentId, memberships[groupId], false, { memberships });
   redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
 }
 
@@ -329,7 +332,8 @@ export async function undoChange(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const eventId = String(formData.get("eventId") ?? "");
   const back = String(formData.get("back") ?? "group");
-  const r = await undoEvent(eventId, await getMyMemberId(groupId), await getTimeZone());
+  const memberships = await getMemberships();
+  const r = await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships });
   const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
   if (back === "home") redirect(`/?${q}&g=${groupId}`);
   if (back === "people") redirect(`/groups/${groupId}/people?${q}`);

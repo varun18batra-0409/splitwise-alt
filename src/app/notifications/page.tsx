@@ -62,6 +62,7 @@ const ICON: Record<string, string> = {
   payment_restored: "↺",
   payment_confirmed: "✓",
   payment_claimed: "…",
+  payment_note_closed: "…",
   members_removed: "−",
   display_currency_changed: "¤",
   group_renamed: "✎",
@@ -256,7 +257,7 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
                   const details = viewerDetails(parseDetails(n.event.details), n.myName).slice(0, 4);
                   return (
                     <li key={n.event.id}>
-                      <Link href={n.direct ? `/people/${n.event.groupId}` : `/groups/${n.event.groupId}?tab=activity`} className="flex gap-3 py-3 active:bg-gray-50">
+                      <Link href={n.direct ? `/people/${n.event.groupId}` : `/groups/${n.event.groupId}?tab=activity${n.event.paymentId && n.event.kind.startsWith("payment_") && !n.event.paymentId.startsWith("claim:") ? `&open=${n.event.paymentId}` : ""}`} className="flex gap-3 py-3 active:bg-gray-50">
                         {/* The group's picture, with what happened as a small badge. */}
                         <span className="relative h-11 w-11 shrink-0" aria-hidden>
                           <span className={`absolute inset-0 overflow-hidden rounded-xl ${n.unread ? "" : "opacity-70"}`}>

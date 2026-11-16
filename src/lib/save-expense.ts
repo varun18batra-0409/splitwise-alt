@@ -3,11 +3,10 @@ import { hasLeft, LEFT_ERROR } from "./active";
 import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
 import { formatMoney, isSupportedCurrency } from "./money";
-import { RestoreRefused, reopenCoveredClaims, restorePayments } from "./payments";
-import { onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
+import { changePayment, type ChangeOpts, type Result as PaymentResult } from "./payment-change";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, markUndone, touchedByExpense, type ExpenseSnapshot, type UndoMark } from "./events";
-import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceBreaks, peopleInExpense, removedPaymentsBreak } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
@@ -497,79 +496,12 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   return { ok: true, id: expense.id, eventId: eventId || undefined };
 }
 
-// Thrown inside the transaction: only the person paid can bring this payment back (the message carries their name).
-class ReceiverOnly extends Error {}
-
-// Delete a recorded settle-up payment (anyone in the group). It stays in history.
-export async function deletePayment(paymentId: string, actingMemberId: string | undefined): Promise<Result> {
-  return setPaymentDeleted(paymentId, actingMemberId, true);
+// Delete a recorded settle-up payment. Only the payer and the person paid can (payment-change.ts). It stays in history.
+export async function deletePayment(paymentId: string, actingMemberId: string | undefined, opts: ChangeOpts = {}): Promise<PaymentResult> {
+  return setPaymentDeleted(paymentId, actingMemberId, true, opts);
 }
 
-// Delete or restore a settle-up payment. Deleted payments stay in history.
-export async function setPaymentDeleted(paymentId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean; mark?: UndoMark } = {}): Promise<Result> {
-  return withRetry(() => setPaymentDeletedOnce(paymentId, actingMemberId, deleted, opts));
-}
-async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean; mark?: UndoMark }): Promise<Result> {
-  const payment = await db.payment.findUnique({
-    where: { id: paymentId },
-    include: { group: { include: { members: { select: { id: true } } } }, from: true, to: true },
-  });
-  if (!payment) return { ok: false, error: "That payment no longer exists." };
-  if (!actingMemberId || !payment.group.members.some((m) => m.id === actingMemberId)) {
-    return { ok: false, error: "Only people in this group can delete its payments." };
-  }
-  if (await hasLeft(payment.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };
-  if (payment.group.deletedAt) return { ok: false, error: "This group was deleted." };
-  if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
-  if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };
-  // The person paid said "Not received" (or deleted it themselves): only they can bring it back. This covers Undo and Activity's
-  // "Restore payment", for new and older payments alike (it reads who deleted the payment).
-  if (!deleted && onlyReceiverCanBringBack(payment, actingMemberId)) return { ok: false, error: receiverOnlyText(payment.to.name) };
-  let eventId: string;
-  await opts.afterRead?.();
-  try {
-   eventId = await db.$transaction(async (tx) => {
-    // First: the group is still open, in the same currency, and this person still in it.
-    await guardGroup(tx, payment.groupId, { currency: payment.group.currency, actorId: actingMemberId });
-    await markUndone(tx, opts.mark);
-    if (deleted) {
-      const gone = await removedPaymentsBreak(tx, payment.groupId, [payment.id]);
-      if (gone.length) throw new LeaverBreak(gone[0], "deleted");
-    } else {
-      // Again inside the transaction, from the row as it is now (the first look could be out of date).
-      const nowRow = await tx.payment.findUnique({ where: { id: payment.id }, select: { deletedById: true, toId: true } });
-      if (nowRow && onlyReceiverCanBringBack(nowRow, actingMemberId)) throw new ReceiverOnly(payment.to.name);
-      const gone = await leaverBalanceBreaks(tx, payment.groupId, [payment.fromId, payment.toId], (l) => ({ ...l, payments: [...l.payments, payment] }));
-      if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
-    }
-    let moved: boolean;
-    if (deleted) {
-      moved = (await tx.payment.updateMany({ where: { id: payment.id, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actingMemberId } })).count === 1;
-      // A note this payment had closed as "covered" is waiting again.
-      if (moved) await reopenCoveredClaims(tx, [payment.id]);
-    } else {
-      // Counting again: also closes a waiting "I've paid" for the same pair, so one payment can't count twice.
-      moved = (await restorePayments(tx, [payment.id], actingMemberId)).length === 1;
-    }
-    if (!moved) return "";
-    return logEvent(tx, {
-      groupId: payment.groupId,
-      actorId: actingMemberId,
-      kind: deleted ? "payment_deleted" : "payment_restored",
-      text: `${deleted ? "deleted" : "restored"} the payment ${payment.from.name} → ${payment.to.name} (${formatMoney(payment.amount, payment.group.currency)})`,
-      paymentId: payment.id,
-      // When the person paid takes it off, only they can bring it back (byReceiver; the server also reads the payment itself).
-      undo: deleted
-        ? { type: "payment_restore", paymentId: payment.id, ...(actingMemberId === payment.toId ? { byReceiver: true } : {}) }
-        : { type: "payment_delete", paymentId: payment.id },
-    });
-   });
-  } catch (err) {
-    if (err instanceof ReceiverOnly) return { ok: false, error: receiverOnlyText(err.message) };
-    if (err instanceof RestoreRefused) return { ok: false, error: err.message };
-    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
-    if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
-    throw err;
-  }
-  return { ok: true, id: payment.id, eventId: eventId || undefined };
+// Delete or restore a settle-up payment. Deleted payments stay in history. One place decides everything: changePayment.
+export async function setPaymentDeleted(paymentId: string, actingMemberId: string | undefined, deleted: boolean, opts: ChangeOpts = {}): Promise<PaymentResult> {
+  return changePayment(paymentId, actingMemberId, deleted, opts);
 }

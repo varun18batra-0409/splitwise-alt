@@ -110,16 +110,16 @@ describe("money-guard: the group is re-checked inside the write", () => {
     expect(screen.transfers).toEqual(l.transfers);
   });
 
-  it("the pay-link take-back and the move-out undo also call guardGroup", () => {
+  it("the pay-link take-back goes through the one payment-change path, and the move-out undo calls guardGroup", () => {
     const root = path.resolve(__dirname, "..");
-    expect(readFileSync(path.join(root, "src/app/pay-link-actions.ts"), "utf8")).toMatch(/guardGroup\(/);
+    expect(readFileSync(path.join(root, "src/app/pay-link-actions.ts"), "utf8")).toMatch(/changePayment\(/); // the take-back is the one delete path, which guards the group
     const moving = readFileSync(path.join(root, "src/lib/home/moving-db.ts"), "utf8");
     expect(moving.slice(moving.indexOf("export async function undoMoveOut"))).toMatch(/guardGroup\(/);
   });
 
   it("every file that writes money calls guardGroup (so a new writer can't forget it)", () => {
     const root = path.resolve(__dirname, "..");
-    for (const f of ["save-expense", "pay-record", "cross-settle-db", "settle-all", "pay-link", "payment-claims", "home/moving-db", "pot-db", "undo", "people", "payment-ok", "home/goals-db"]) {
+    for (const f of ["save-expense", "pay-record", "cross-settle-db", "settle-all", "pay-link", "payment-change", "home/moving-db", "pot-db", "undo", "people", "payment-ok", "home/goals-db"]) {
       expect(readFileSync(path.join(root, "src/lib", `${f}.ts`), "utf8"), f).toMatch(/guardGroup\(/);
     }
   });
@@ -787,17 +787,21 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect((await net(g.id))[g.ids.C]).toBe(0);
   });
 
-  it("N10: deleting C's 30000 payment would put C at −30000 again: refused, C stays 0", async () => {
+  it("N10 (changed in Batch C): deleting C's 30000 payment is allowed; C comes back into the group at -30000", async () => {
     const g = await cLeftSquare();
-    expect(await setPaymentDeleted(g.pay.id, g.ids.A, true)).toEqual({ ok: false, error: deleteText });
-    expect((await db.payment.findUniqueOrThrow({ where: { id: g.pay.id } })).deletedAt).toBeNull();
-    expect((await net(g.id))[g.ids.C]).toBe(0);
+    // By hand: Dinner 90000 paid by A, 30000 each: A +60000, B -30000, C -30000. C paid A 30000: A +30000, C 0. A deletes it: A +60000, C -30000 again,
+    // and because someone who has left always shows 0, C is brought back into the group owing it.
+    expect((await setPaymentDeleted(g.pay.id, g.ids.A, true)).ok).toBe(true);
+    expect((await db.payment.findUniqueOrThrow({ where: { id: g.pay.id } })).deletedAt).not.toBeNull();
+    expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.C } })).leftAt).toBeNull();
+    expect((await net(g.id))[g.ids.C]).toBe(-30000);
   });
 
-  it("N10: undoing 'Mark all paid' (setPaymentsDeleted) over C's payment is refused with the 'undone' wording", async () => {
+  it("N10 (changed in Batch C): undoing 'Mark all paid' (setPaymentsDeleted) over C's payment is allowed to a person in it; C is brought back owing", async () => {
     const g = await cLeftSquare();
-    expect(await setPaymentsDeleted(g.id, g.ids.A, [g.pay.id], true)).toEqual({ ok: false, error: "C has left the group, so this can't be undone." });
-    expect((await net(g.id))[g.ids.C]).toBe(0);
+    expect((await setPaymentsDeleted(g.id, g.ids.A, [g.pay.id], true)).ok).toBe(true);
+    expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.C } })).leftAt).toBeNull();
+    expect((await net(g.id))[g.ids.C]).toBe(-30000);
   });
 
   it("N10: undoing 'settle everything' is refused when a leaver is involved (C paid 30000 and left; undo would leave C at −30000)", async () => {
@@ -902,15 +906,20 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(await net(g.id)).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
   });
 
-  it("N4: the pay-link take-back uses the same rule (C, who was paid 30000 and left, would be left at +30000)", async () => {
+  it("N4: the pay-link take-back never leaves someone who left off zero (C, who was paid 30000 and left, is brought back owed 30000)", async () => {
     const g = await make(["B", "C"]);
     await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi");
     const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // C: +30000 − 30000 = 0
     await db.member.update({ where: { id: g.ids.C }, data: { leftAt: new Date() } });
     expect(await db.$transaction((tx) => removedPaymentsBreak(tx, g.id, [pay.id]))).toEqual(["C"]);
+    // The take-back goes through the one delete path: it no longer leaves C at +30000. C (who left) is brought back owed 30000, in the same step.
     const src = readFileSync(path.resolve(__dirname, "..", "src/app/pay-link-actions.ts"), "utf8");
-    expect(src.indexOf("removedPaymentsBreak(tx")).toBeGreaterThan(src.indexOf("guardGroup(tx"));
-    expect(src.indexOf("removedPaymentsBreak(tx")).toBeLessThan(src.indexOf("tx.payment.updateMany"));
+    expect(src).toContain("changePayment(s.link.paymentId, s.link.fromId, true)");
+    const { changePayment } = await import("@/lib/payment-change");
+    expect((await changePayment(pay.id, g.ids.B, true)).ok).toBe(true);
+    expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.C } })).leftAt).toBeNull();
+    const l = await db.$transaction((tx) => ledgerInTx(tx, g.id));
+    expect(l.net).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
   });
 
   // L1: a move-out charge (Ravi's share 20800, paid by Asha) is exempt only for Ravi.

@@ -6,7 +6,7 @@ import { contextFor, createGroup, joinGroup, readBalances, settled } from "../he
 
 // Phase 7–8 (the free parts): Asha adds her UPI ID; Ravi types an expense in one
 // line; Ravi gets an Open payment app button with the amount filled in and
-// says "I've paid" (a claim: nothing moves until Asha confirms), and Asha taps Confirm received.
+// says "I've paid" (it counts at once and Asha is told).
 // Before that, a too-big amount on "Paid a different amount?" asks first and Cancel saves nothing.
 test("pay buttons, payment tracking and the quick line", async ({ browser }) => {
   const asha = await signUp("Asha", testEmail("pay-asha"));
@@ -85,30 +85,23 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await expect(R.locator("[data-over-warning]")).toHaveCount(0);
   expect(await payments()).toBe(0);
 
-  // Back on Settle up: "I've paid ₹500" is a claim. Ravi's ₹500 owed does not move.
+  // Back on Settle up: "I've paid" records the payment. It counts at once.
   await R.goto(`${g.path}/settle`);
   await settled(R);
   await R.locator("[data-i-paid]").click();
-  await R.waitForURL(/claimed=1/);
-  await expect(R.getByRole("heading", { name: "Waiting for Asha" })).toBeVisible();
-  expect(await payments()).toBe(0);
-  expect(await readBalances(R, g.path)).toMatchObject({ Asha: 50000, Ravi: -50000 });
+  await R.waitForURL(/paid=1/);
+  await expect(R.getByRole("heading", { name: "Payment recorded" })).toBeVisible();
+  expect(await payments()).toBe(1);
+  expect(await readBalances(R, g.path)).toMatchObject({ Asha: 0, Ravi: 0 });
 
-  // Asha is asked: did you get it? Confirm received.
-  await A.goto(`${g.path}/settle`);
-  await settled(A);
-  const ask = A.getByRole("region", { name: "Did you get these?" });
-  await expect(ask.locator("[data-waiting='Ravi']")).toContainText("Ravi says they paid you ₹500");
-  await ask.getByRole("button", { name: "Confirm received" }).click();
-  await A.waitForURL(/ok=1/);
-  // The question is gone once answered: checked on the plain Settle page (the ok=1 page is the "Payment recorded" screen, which never had it).
+  // Asha has nothing to confirm: no question, and the payment shows in Activity as a plain payment.
   await A.goto(`${g.path}/settle`);
   await settled(A);
   await expect(A.getByRole("region", { name: "Did you get these?" })).toHaveCount(0);
-  expect(await payments()).toBe(1);
+  await expect(A.locator("[data-waiting]")).toHaveCount(0);
   await A.goto(`${g.path}?tab=activity`);
   await settled(A);
-  await expect(A.getByText(/Confirmed ✓/).first()).toBeVisible();
+  await expect(A.getByText(/Ravi paid you/).first()).toBeVisible();
 
   await A.context().close();
   await R.context().close();

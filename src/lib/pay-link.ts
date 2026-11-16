@@ -4,6 +4,7 @@ import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
+import { tellParties } from "./payment-claims";
 import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
 import { guardGroup } from "./money-guard";
@@ -11,7 +12,7 @@ import type { Prisma } from "@prisma/client";
 
 // "I've paid" links. When Asha reminds Ravi from Settle up, the WhatsApp
 // message carries a link that only does one thing: Ravi opens it (no sign-in),
-// pays Asha with UPI, taps "I've paid", and Asha is asked "Did you get this?".
+// pays Asha with UPI, taps "I've paid", and it counts straight away: Asha is told, and can open it and delete it if it is wrong.
 //
 // Safe by design: the token is long and random (unguessable), it belongs to
 // exactly one pair of people in one group, it can only ever record what Ravi
@@ -48,18 +49,15 @@ export async function payLinkFor(groupId: string, fromId: string, toId: string, 
 export type PayLinkState =
   | { kind: "gone" } // unknown, expired, or the group is gone
   | {
-      kind: "owes" | "said" | "square" | "closed";
-      currency: string; // the currency of `amount`: the group's now, or the waiting claim's own
+      kind: "owes" | "paid" | "square" | "closed";
+      currency: string; // the group's currency
       link: { id: string; token: string; groupId: string; fromId: string; toId: string; paymentId: string };
       group: { id: string; name: string; currency: string; closed: boolean };
       fromName: string;
       toName: string;
       toAccountId: string | null;
-      amount: number; // what's owed right now (owes) or what they said they paid (said)
-      paidAt?: Date;
-      confirmed?: boolean; // square because they confirmed the payment made here
-      claimId?: string; // said: the waiting "I've paid" claim (absent = an older payment that already counts and waits for "Confirm received")
-      declined?: boolean; // owes: the person paid said "Not received" to the last "I've paid"
+      amount: number; // what's owed right now (owes) or what was recorded through this link (paid)
+      paidAt?: Date; // paid: when it was recorded
     };
 
 // Everything the page needs, worked out fresh from the group's balances.
@@ -81,21 +79,11 @@ export async function readPayLink(token: string, now = new Date()): Promise<PayL
     toAccountId: to.accountId,
     currency: group.currency,
   };
-  // An older payment made through this link (it already counts in the balances) still waiting for "Confirm received".
-  const said = link.paymentId ? payments.find((p) => p.id === link.paymentId && p.needsOk && !p.okAt) : undefined;
-  if (said) return { kind: "said", ...base, amount: said.amount, paidAt: said.createdAt };
-  // A new "I've paid": a claim waiting for the person paid. It is not in the balances.
-  const claim = await db.paymentClaim.findFirst({ where: { groupId: link.groupId, fromId: link.fromId, toId: link.toId, status: "waiting" } });
-  // The claim is shown in the currency it was made in, even if the group's currency changed since.
-  if (claim) return group.closed ? { kind: "closed", ...base, currency: claim.currency, amount: claim.amount } : { kind: "said", ...base, currency: claim.currency, amount: claim.amount, paidAt: claim.createdAt, claimId: claim.id };
   const owed = transfers.find((t) => t.from === link.fromId && t.to === link.toId)?.amount ?? 0;
   if (group.closed) return { kind: "closed", ...base, amount: owed };
-  if (owed <= 0) {
-    const last = link.paymentId ? payments.find((p) => p.id === link.paymentId) : undefined;
-    return { kind: "square", ...base, amount: last?.amount ?? 0, confirmed: Boolean(last?.okAt) };
-  }
-  const latest = await db.paymentClaim.findFirst({ where: { groupId: link.groupId, fromId: link.fromId, toId: link.toId }, orderBy: { createdAt: "desc" }, select: { status: true } });
-  if (latest?.status === "declined") return { kind: "owes", ...base, amount: owed, declined: true };
+  // A payment made through this link that still counts (loadGroup only holds payments that aren't deleted), and nothing more is owed.
+  const made = link.paymentId ? payments.find((p) => p.id === link.paymentId) : undefined;
+  if (owed <= 0) return made ? { kind: "paid", ...base, amount: made.amount, paidAt: made.createdAt } : { kind: "square", ...base, amount: 0 };
   return { kind: "owes", ...base, amount: owed };
 }
 
@@ -111,25 +99,24 @@ export async function owedInTx(tx: Prisma.TransactionClient, groupId: string, fr
   return smartSettle(net).find((t) => t.from === fromId && t.to === toId)?.amount ?? 0;
 }
 
-// "I've paid" for someone who can't tap "Confirm received" (the person owed is only a name, or has no account):
-// there is nobody to ask, so it is recorded as a payment right away, as before claims existed. It counts now,
-// and is flagged for "Got it / Not received" so that, once the person owed joins, they can still say Not received. Only the debt shown (`amount`) is
-// recorded, and only one tap wins: the link must still point at the payment it was read with.
-export async function recordLinkPayment(s: { link: { id: string; groupId: string; fromId: string; toId: string; paymentId: string }; amount: number; currency: string; toName: string }): Promise<boolean> {
+// "I've paid" from the link: recorded as a payment right away (it counts now), and the person paid is told. Only the debt shown (`amount`)
+// is recorded, and only one tap wins: the link must still point at the payment it was read with.
+export async function recordLinkPayment(s: { link: { id: string; groupId: string; fromId: string; toId: string; paymentId: string }; amount: number; currency: string; toName: string; fromName?: string; groupName?: string }): Promise<boolean> {
   const amountText = formatMoney(s.amount, s.currency);
   // Only what is really owed right now (balances may have moved since the page was read).
   const fresh = await loadGroup(s.link.groupId, { events: false });
   if (!fresh || fresh.group.closed || fresh.transfers.find((t) => t.from === s.link.fromId && t.to === s.link.toId)?.amount !== s.amount) return false;
+  let made: { paymentId: string; eventId: string } | null = null;
   try {
-    return await db.$transaction(async (tx) => {
+    made = await db.$transaction(async (tx) => {
       // The group must still be as read (same currency, open), then checked again inside the write: someone may have
       // recorded this money between the read above and now.
       await guardGroup(tx, s.link.groupId, { currency: s.currency });
       if ((await owedInTx(tx, s.link.groupId, s.link.fromId, s.link.toId)) !== s.amount) throw new Error("no longer owed");
-      const p = await createPayment(tx, { groupId: s.link.groupId, fromId: s.link.fromId, toId: s.link.toId, amount: s.amount, createdById: s.link.fromId, needsOk: true });
+      const p = await createPayment(tx, { groupId: s.link.groupId, fromId: s.link.fromId, toId: s.link.toId, amount: s.amount, createdById: s.link.fromId });
       const claimed = await tx.payLink.updateMany({ where: { id: s.link.id, paymentId: s.link.paymentId }, data: { paymentId: p.id } });
       if (claimed.count !== 1) throw new Error("double tap"); // the other tap won: this payment is rolled back
-      await logEvent(tx, {
+      const eventId = await logEvent(tx, {
         groupId: s.link.groupId,
         actorId: s.link.fromId,
         kind: "payment_recorded",
@@ -137,9 +124,15 @@ export async function recordLinkPayment(s: { link: { id: string; groupId: string
         paymentId: p.id,
         undo: { type: "payment_delete", paymentId: p.id },
       });
-      return true;
+      return { paymentId: p.id, eventId };
     });
   } catch {
     return false;
   }
+  tellParties({
+    event: "recorded", actorId: s.link.fromId, actorName: fresh.group.members.find((m) => m.id === s.link.fromId)?.name ?? "Someone", fromId: s.link.fromId, toId: s.link.toId,
+    fromName: fresh.group.members.find((m) => m.id === s.link.fromId)?.name ?? "Someone", toName: s.toName, amountText, groupName: fresh.group.name, groupId: s.link.groupId,
+    paymentId: made.paymentId, eventId: made.eventId, direct: fresh.group.type === "direct",
+  });
+  return true;
 }

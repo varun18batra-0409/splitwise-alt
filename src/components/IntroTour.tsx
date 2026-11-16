@@ -211,7 +211,7 @@ function makeSlides(L: Local, momentPhoto?: string): Slide[] {
     {
       id: "settle",
       title: "See who owes. Then settle.",
-      caption: "Pay each other however you like. It counts once the person you paid confirms. Loopin never moves money; it just keeps the score straight.",
+      caption: "Pay each other however you like, then record it. It counts straight away, and the other person is told. Loopin never moves money; it just keeps the score straight.",
       art: (
         <Card>
           <div className="rise flex items-center gap-3">
@@ -224,12 +224,8 @@ function makeSlides(L: Local, momentPhoto?: string): Slide[] {
           </div>
           <div className="rise rise-3 mt-4 rounded-2xl bg-mist p-3">
             <p className="text-sm">
-              Ravi says they paid
+              Ravi paid you {L.m(v.back)}
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-center text-[13px] font-semibold">
-              <span className="rounded-full bg-fg px-3 py-2 text-canvas">Confirm received</span>
-              <span className="rounded-full border border-line px-3 py-2 text-fg/80">Not received</span>
-            </div>
           </div>
         </Card>
       ),

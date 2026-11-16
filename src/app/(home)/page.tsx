@@ -33,8 +33,9 @@ import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
+import { moveOutPaymentIds } from "@/lib/payment-change";
 import { gameVisible, stillIn } from "@/lib/left-view";
-import { canUndo } from "@/lib/undo";
+import { canUndo, paymentsForUndo } from "@/lib/undo";
 import { isGroupAdmin } from "@/lib/group-admin";
 import { UndoBar } from "@/components/UndoBar";
 import { BellButton } from "@/components/BellButton";
@@ -118,20 +119,21 @@ export default async function Home({
     const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
-    const viewer = { id: myId, isAdmin: await isGroupAdmin(didGroup, myId), closed: grp.group.closed, members: grp.group.members };
+    const viewer = { id: myId, isAdmin: await isGroupAdmin(didGroup, myId), closed: grp.group.closed, members: grp.group.members, payments: ev ? await paymentsForUndo(didGroup, ev.undo) : [] };
     if (ev && canUndo(ev, events, new Date(), viewer).ok) {
       const actor = ev.actorId === myId ? "You" : grp.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
       undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)} · ${grp.group.name}`, groupId: didGroup, eventId: ev.id };
     }
   }
 
-  // The latest changes across open groups.
+  // The latest changes across open groups. (Only a flat move-out's final payments can read "waiting"; every other payment counts at once.)
+  const moveOut = await moveOutPaymentIds(db, open.map((g) => g.group.id));
   const recent = open
     .flatMap((g) => {
       const mine = rows.recent.get(g.group.id);
       if (!mine) return [];
       const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
-      return buildActivity(mine.expenses, mine.payments, g.myId).map((item) => ({
+      return buildActivity(mine.expenses, mine.payments, g.myId, [], moveOut).map((item) => ({
         item,
         groupId: g.group.id,
         currency: g.group.currency,

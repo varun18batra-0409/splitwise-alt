@@ -7,6 +7,7 @@ import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap, type Grain } from 
 import { Insights, type InsightsData } from "./Insights";
 import { computeInsights } from "@/lib/insights";
 import { db } from "@/lib/db";
+import { moveOutPaymentIds } from "@/lib/payment-change";
 import { displayRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
 import { after } from "next/server";
@@ -39,11 +40,12 @@ export default async function SearchPage({
   const groupId = all.some((g) => g.group.id === sp.g) ? sp.g : undefined;
   const groups = groupId ? all.filter((g) => g.group.id === groupId) : all;
 
+  const moveOut = await moveOutPaymentIds(db, groups.map((g) => g.group.id)); // only a flat move-out's final payments can read "waiting"
   const rows = groups.flatMap((g) => {
     const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
     const nameOf = (id: string) => names.get(id) ?? "Someone";
     const searchName = (id: string) => (id === g.myId ? `${g.group.members.find((m) => m.id === id)?.name ?? ""} you` : nameOf(id));
-    const items = filterActivity(buildActivity(g.expenses, g.payments, g.myId), { q }, searchName).filter(
+    const items = filterActivity(buildActivity(g.expenses, g.payments, g.myId, [], moveOut), { q }, searchName).filter(
       (item) => !cat || (item.kind === "expense" && getCategory(item.category).id === cat),
     );
     return items.map((item) => ({ item, g, nameOf }));

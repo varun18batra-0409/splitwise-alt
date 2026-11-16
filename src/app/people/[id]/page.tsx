@@ -9,10 +9,8 @@ import { ActivityTab } from "@/app/groups/[id]/_components/ActivityTab";
 import { getTimeZone } from "@/lib/tz";
 import { canUndo } from "@/lib/undo";
 import { neutralGameText } from "@/lib/game-words";
-import { waitingForMe } from "@/lib/payment-ok";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { balanceLine } from "@/lib/direct";
-import { confirmPaymentAction, rejectPaymentAction } from "@/app/pay-actions";
 import { cancelInvite, renamePerson, settleAcrossGroups } from "@/app/actions";
 import { openInviteEmail } from "@/lib/direct-db";
 import { inviteDirect } from "@/app/direct-actions";
@@ -70,10 +68,9 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   const owe = net < 0;
   const hasHistory = group.expenses.length > 0 || group.payments.length > 0;
 
-  const [reactions, receipts, waiting, openInvite] = await Promise.all([
+  const [reactions, receipts, openInvite] = await Promise.all([
     group.expenses.length ? db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) } }, select: { expenseId: true, memberId: true, emoji: true } }) : Promise.resolve([]),
     group.expenses.length ? db.receipt.findMany({ where: { groupId: group.id, expenseId: { not: "" } }, select: { id: true, expenseId: true } }) : Promise.resolve([]),
-    waitingForMe(group.id, myId),
     shared ? Promise.resolve(null) : openInviteEmail(group.id, other.id),
   ]);
 
@@ -150,8 +147,6 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       {sp.settle === "stale" && <Notice tone="error" params={["settle"]} className="mb-3">{STALE_KEY_ERROR}</Notice>}
       {sp.settle === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
       {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-3">Payment recorded.</Notice>}
-      {sp.ok === "1" && <Notice params={["ok"]} className="mb-3">Got it ✓</Notice>}
-      {sp.notgot === "1" && !sp.undone && <Notice params={["notgot"]} className="mb-3">Marked as not received. It’s off the balance.</Notice>}
       {sp.invited === "1" && <Notice tone="success" params={["invited"]} className="mb-3">Invitation sent.</Notice>}
       {sp.error && <Notice tone="error" params={["error"]} className="mb-3">{sp.error.slice(0, 300)}</Notice>}
       {sp.undone === "1" && !showUndo && <Notice tone="success" params={["undone"]} className="mb-3">Undone.</Notice>}
@@ -258,33 +253,6 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               </form>
             </details>
           )}
-        </section>
-      )}
-
-      {/* A payment someone recorded to you that is still waiting for your word. */}
-      {waiting.length > 0 && (
-        <section aria-label="Waiting for you" className="mt-4 space-y-3" data-person-waiting>
-          {waiting.map((p) => (
-            <div key={p.id} className="rounded-[22px] border border-line px-4 py-3.5">
-              <p className="text-[15px] leading-snug">
-                {p.from.name} says they paid you <span className="font-semibold">{formatMoney(p.amount, currency)}</span>.
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2.5">
-                <form action={confirmPaymentAction}>
-                  <input type="hidden" name="paymentId" value={p.id} />
-                  <button type="submit" className="pop h-12 w-full bg-fg text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]">
-                    Got it ✓
-                  </button>
-                </form>
-                <form action={rejectPaymentAction}>
-                  <input type="hidden" name="paymentId" value={p.id} />
-                  <button type="submit" className="h-12 w-full rounded-full border border-fg/20 text-[15px] font-semibold active:bg-fg/10">
-                    Not received
-                  </button>
-                </form>
-              </div>
-            </div>
-          ))}
         </section>
       )}
 

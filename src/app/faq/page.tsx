@@ -64,12 +64,12 @@ const sections = (): { title: string; items: QA[] }[] => [
         a: "Settle up shows a short list, like “Just 3 payments”, that clears everything, even across all your groups at once. You pay each other however you like and tap Mark paid. Loopin only records payments; it never holds or moves money.",
       },
       {
-        q: "What happens when someone says they paid me?",
-        a: "It shows as “says they paid, to be confirmed” and the balances don’t move. You’re asked to tap Confirm received or Not received, in Settle up and on your phone; Not received leaves everything as it was.",
+        q: "What happens when someone records a payment with me?",
+        a: "It counts straight away and you’re told, in Activity and on your phone. If it’s wrong, open it and delete it; only the two of you can, and the balances go back to what they were.",
       },
       {
         q: "Can someone tell me they paid without having Loopin?",
-        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note and a link. They pay, tap I’ve paid on that page with no sign-in, and you tap Confirm received. The link only works for that one debt, and stops once you’re square or after 30 days.",
+        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note and a link. They pay, tap I’ve paid on that page with no sign-in, and it counts straight away; you’re told, and you can delete it if it’s wrong. The link only works for that one debt, and stops once you’re square or after 30 days.",
       },
       {
         q: "Can people pay me in one tap?",

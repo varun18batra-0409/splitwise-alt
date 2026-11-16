@@ -138,8 +138,8 @@ export function InfoNote({ children }: { children: React.ReactNode }) {
 }
 
 // `payApp`: the existing "Open payment app" link(s) (PayAppButtons), or nothing when the person has no saved way to be paid.
-// `tellButton`: the existing "I've paid" button, already styled by the caller (outline, or cream when there is no payment app).
-// `tellButton` is null when no claim is possible here (I left, or the group is closed): step 2 is hidden and `noClaimNote` says why.
+// `tellButton`: the "I've paid" button (it records the payment at once), already styled by the caller (outline, or cream when there is no payment app).
+// `tellButton` is null when nothing can be recorded here (I left, or the group is closed): step 2 is hidden and `noClaimNote` says why.
 export function PayView({ name, amount, cover, groupName, ways, payApp, tellButton, noClaimNote }: { name: string; amount: string; cover?: StubCover; groupName: string; ways: PayWays | null; payApp?: React.ReactNode; tellButton: React.ReactNode; noClaimNote?: string }) {
   const masked = maskPayWay(ways);
   const first = firstName(name);
@@ -172,7 +172,7 @@ export function PayView({ name, amount, cover, groupName, ways, payApp, tellButt
         {tellButton && (
           <li>
             <p className="flex items-center gap-3 text-[15px] font-semibold">
-              <span className={STEP}>2</span>Return and tell {first}
+              <span className={STEP}>2</span>Return and record it
             </p>
             <div className="mt-3">{tellButton}</div>
           </li>
@@ -180,91 +180,6 @@ export function PayView({ name, amount, cover, groupName, ways, payApp, tellButt
       </ol>
       {!tellButton && noClaimNote && <InfoNote>{noClaimNote}</InfoNote>}
       <InfoNote>Opening a payment app does not confirm payment.</InfoNote>
-    </div>
-  );
-}
-
-// ---- Waiting for Nupur ----
-
-function ClockIcon() {
-  return (
-    <svg aria-hidden width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" className="text-fg/75">
-      <circle cx="12" cy="12" r="9.25" />
-      <path d="M12 6.8V12l3.4 2" />
-    </svg>
-  );
-}
-
-export function WaitingView({
-  name,
-  amount,
-  cover,
-  groupName,
-  groupHref,
-  backHref,
-  toId,
-  undo,
-}: {
-  name: string;
-  amount: string;
-  cover?: StubCover;
-  groupName: string;
-  groupHref: string;
-  backHref: string;
-  toId: string;
-  undo: React.ReactNode; // the existing "take it back" form (withdrawClaimAction), with a quiet link-style button inside
-}) {
-  const first = firstName(name);
-  return (
-    <div className="space-y-5 pt-2" data-claim-waiting={toId}>
-      <div className="flex flex-col items-center text-center">
-        <ClockIcon />
-        <h2 className="mt-3 font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]">Waiting for {first}</h2>
-        <p className="mt-2 font-display text-[26px] font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums text-owe">{amount}</p>
-        <p className="mt-2 text-sm text-fg/60">Payment reported</p>
-      </div>
-      <ol className={`${CARD} space-y-4 px-4 py-4`}>
-        <li className="flex items-start gap-3">
-          <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-fg text-canvas">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-              <path d="m5 12.5 4.5 4.5L19 7.5" />
-            </svg>
-          </span>
-          <span>
-            <b className="block text-[15px] font-semibold">You marked it paid</b>
-            <span className="block text-[13px] text-fg/55">Just now</span>
-          </span>
-        </li>
-        <li className="flex items-start gap-3">
-          <span aria-hidden className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-fg/40" />
-          <span>
-            <b className="block text-[15px] font-semibold">{first} confirms receipt</b>
-            <span className="block text-[13px] text-fg/55">Pending</span>
-          </span>
-        </li>
-      </ol>
-      <div className={`${CARD} px-4 py-3`}>
-        <InfoNote>Your balance updates after {first} confirms.</InfoNote>
-      </div>
-      <Link href={groupHref} className={`${CARD} flex min-h-[64px] items-center gap-3 py-2 pl-2 pr-4 active:opacity-80`}>
-        <span aria-hidden className="relative block h-12 w-16 shrink-0 overflow-hidden rounded-[10px] bg-mist">
-          {cover && <CoverFill c={cover} sizes="64px" />}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{groupName}</span>
-        <span aria-hidden className="text-fg/40">
-          ›
-        </span>
-      </Link>
-      <Link href={backHref} className={`${CREAM} w-full`}>
-        Back to {groupName}
-      </Link>
-      {undo && (
-        <div className="flex justify-center text-[13.5px] text-fg/60">
-          <span className="inline-flex min-h-11 items-center gap-1.5">
-            Made a mistake? {undo}
-          </span>
-        </div>
-      )}
     </div>
   );
 }

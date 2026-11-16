@@ -60,6 +60,7 @@ const { rejectPayment } = await import("@/lib/payment-ok");
 const { joinNew } = await import("@/lib/join");
 const { acceptInvitation } = await import("@/lib/invitations");
 const { canSeePassport } = await import("@/lib/passport-db");
+const { markAsMoveOut } = await import("./helpers/move-out-marks");
 const exportRoute = await import("@/app/groups/[id]/export/route");
 const myDataRoute = await import("@/app/api/my-data/route");
 const photoRoute = await import("@/app/api/group-photo/[id]/route");
@@ -100,7 +101,7 @@ type World = {
   code: string;
   rows: Record<"asha" | "meera" | "lou" | "rex" | "ivy" | "pete" | "zed", string>;
   seed: string; // an expense: Asha paid 10000, Asha 5000 and Meera 5000
-  payment: string; // Meera paid Asha 1000 and Asha is asked "Got it?"
+  payment: string; // Meera paid Asha 1000 (it counts at once; only a flat move-out's payment asks "Got it?")
   token: string; // Ivy's invitation
 };
 
@@ -143,7 +144,7 @@ async function world(c: Cast, label: string, o: { ledger?: boolean; type?: strin
         data: { groupId: g.id, description: "Seed", splitType: "equal", amount: 10000, originalAmount: 10000, convertedAmount: 10000, paidById: rows.asha, createdById: rows.asha, createdAt: fiveDaysAgo, shares: { create: [{ memberId: rows.asha, amount: 5000 }, { memberId: rows.meera, amount: 5000 }] } },
       })
     ).id;
-    payment = (await db.payment.create({ data: { groupId: g.id, fromId: rows.meera, toId: rows.asha, amount: 1000, createdById: rows.meera, needsOk: true, createdAt: fiveDaysAgo } })).id;
+    payment = (await db.payment.create({ data: { groupId: g.id, fromId: rows.meera, toId: rows.asha, amount: 1000, createdById: rows.meera, createdAt: fiveDaysAgo } })).id;
   }
   return { id: g.id, name, code, rows, seed, payment, token };
 }
@@ -188,6 +189,13 @@ afterAll(async () => {
   await db.account.deleteMany({ where: { id: { in: accountIds } } });
   await db.outbox.deleteMany({ where: { to: { contains: stamp } } });
 });
+
+// A flat move-out's final payment Meera -> Asha 1000: the only kind that still asks the person paid ("Got it / Not received").
+async function moveOutPay(w: World): Promise<string> {
+  const pay = await db.payment.create({ data: { groupId: w.id, fromId: w.rows.meera, toId: w.rows.asha, amount: 1000, createdById: w.rows.meera, needsOk: true } });
+  await markAsMoveOut(w.id, w.rows.meera, [pay.id]);
+  return pay.id;
+}
 
 const JOINED_ACTIVE: Persona[] = ["admin", "member"];
 const expenseInput = (w: World, extra: { expenseId?: string; name?: string } = {}) => ({
@@ -247,7 +255,13 @@ describe("payments", () => {
     return (await db.payment.findUniqueOrThrow({ where: { id: w.payment } })).deletedAt === null;
   }));
 
-  it("'Not received' on a payment is for the person who was paid (Asha) only", () => table("reject-payment", ["admin"], async (_p, w) => {
+  it("'Not received' on a move-out payment is for the person who was paid (Asha) only", () => table("reject-payment", ["admin"], async (_p, w) => {
+    const pay = await moveOutPay(w);
+    await attempt(() => P.rejectPaymentAction(form({ paymentId: pay })));
+    return (await db.payment.findUniqueOrThrow({ where: { id: pay } })).deletedAt !== null;
+  }));
+
+  it("'Not received' on an ordinary payment is refused for everyone: it already counts, and the people in it can delete it", () => table("reject-ordinary", [], async (_p, w) => {
     await attempt(() => P.rejectPaymentAction(form({ paymentId: w.payment })));
     return (await db.payment.findUniqueOrThrow({ where: { id: w.payment } })).deletedAt !== null;
   }));
@@ -268,17 +282,19 @@ describe("undo of 'Not received'", () => {
   // (even the person who said they paid) could press Undo and make it count again. Nobody gets an exception, not even the admin.
   // Asha is the person paid (Meera paid her 1000) and she is also the admin persona, so "admin" is the only one allowed.
   it("undo 'Not received' (only the person who was paid: Asha)", () => table("undo-not-received", ["admin"], async (_p, w) => {
-    const said = await rejectPayment(w.payment, w.rows.asha);
+    const pay = await moveOutPay(w);
+    const said = await rejectPayment(pay, w.rows.asha);
     if (!said.ok || !said.eventId) throw new Error("setup failed");
     await attempt(() => A.undoChange(form({ groupId: w.id, eventId: said.eventId!, back: "group" })));
-    return (await db.payment.findUniqueOrThrow({ where: { id: w.payment } })).deletedAt === null;
+    return (await db.payment.findUniqueOrThrow({ where: { id: pay } })).deletedAt === null;
   }));
 
   it("'Restore payment' in Activity after 'Not received' (only Asha)", () => table("restore-not-received", ["admin"], async (_p, w) => {
-    const said = await rejectPayment(w.payment, w.rows.asha);
+    const pay = await moveOutPay(w);
+    const said = await rejectPayment(pay, w.rows.asha);
     if (!said.ok) throw new Error("setup failed");
-    await attempt(() => A.restorePayment(form({ groupId: w.id, paymentId: w.payment })));
-    return (await db.payment.findUniqueOrThrow({ where: { id: w.payment } })).deletedAt === null;
+    await attempt(() => A.restorePayment(form({ groupId: w.id, paymentId: pay })));
+    return (await db.payment.findUniqueOrThrow({ where: { id: pay } })).deletedAt === null;
   }));
 });
 

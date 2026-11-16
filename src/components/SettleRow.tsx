@@ -98,7 +98,7 @@ export function SettleRow({
   main?: React.ReactNode; // the one FILLED button(s): PayAppButtons or a Remind link
   hint?: string; // one short line under the buttons
   action?: React.ReactNode; // the one OUTLINED button (a form or a details), built with outlineButtonClass
-  status?: React.ReactNode; // "Waiting for Asha to confirm", "Asha hasn't received it yet"...
+  status?: React.ReactNode; // a short note under the row
   link?: React.ReactNode; // DifferentAmountLink
   tint?: "owe" | "plain" | "mine";
   id?: string; // so a link can land on this row (Home's "Pay Nupur")

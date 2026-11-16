@@ -7,6 +7,7 @@ import { pushHostForLog, validSub } from "./push-subs";
 import { isBigExpense } from "./big-expense";
 import { JOINED } from "./membership";
 import { blockersOf } from "./blocks";
+import { moveOutPaymentIds } from "./payment-change";
 
 // Phone notifications (Web Push). When someone changes something in a group,
 // everyone else in it who turned notifications on gets a short message.
@@ -33,7 +34,7 @@ export async function vapidKeys(): Promise<{ publicKey: string; privateKey: stri
 // A small sign for what kind of change it was, so it's clear at a glance.
 const SIGN: Record<string, string> = {
   expense_added: "🧾", expense_edited: "✏️", expense_deleted: "🗑️", expense_restored: "↩️",
-  payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️", payment_confirmed: "✅", payment_claimed: "💬",
+  payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️", payment_confirmed: "✅", payment_claimed: "💬", payment_note_closed: "💬",
   members_added: "👋", member_invited: "✉️", members_removed: "👤", member_left: "👤", member_rejoined: "👋", member_renamed: "✏️",
   group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_imported: "📥", group_deleted: "🗑️", group_restored: "↩️",
   split_changed: "⚖️",
@@ -52,10 +53,30 @@ export function pushPayload(e: { groupId: string; groupName: string; actorName: 
   return {
     title: sign ? `${sign} ${e.groupName}` : e.groupName,
     body: body.length > 140 ? `${body.slice(0, 139)}…` : body,
-    // A payment opens Settle up, where the person paid can tap "Got it ✓".
+    // A payment opens Settle up (the people in it get their own message that opens the payment itself, see tellParties in payment-claims.ts).
     url: e.direct ? `/people/${e.groupId}` : e.kind === "payment_recorded" ? `/groups/${e.groupId}/settle` : `/groups/${e.groupId}?tab=activity`,
     tag: e.eventId,
   };
+}
+
+// The payer and the person paid of the payment(s) a group line is about, when they are told by their own message instead (tellParties in
+// payment-claims.ts): a recorded payment ("Mark paid", "Mark all paid", "Settle everything", the pay link, across groups), and a single payment
+// deleted or brought back. They are skipped here so they are not told twice. A flat move-out's payments are not covered (they keep the group message).
+async function partiesOfEvent(ev: { kind: string; groupId: string; paymentId: string | null; undo: string }): Promise<string[]> {
+  let u: { type?: string; paymentIds?: unknown; apply?: boolean } | null = null;
+  try {
+    u = ev.undo ? (JSON.parse(ev.undo) as { type?: string; paymentIds?: unknown; apply?: boolean }) : null;
+  } catch {
+    u = null;
+  }
+  const covered = ev.kind === "payment_recorded" || ((ev.kind === "payment_deleted" || ev.kind === "payment_restored") && Boolean(ev.paymentId)) || (ev.kind === "group_settled_closed" && u?.type === "settle_all" && u.apply === false);
+  if (!covered) return [];
+  let ids: string[] = ev.paymentId ? [ev.paymentId] : [];
+  if (u && (u.type === "settle_all" || u.type === "payments_set") && Array.isArray(u.paymentIds)) ids = u.paymentIds.filter((x): x is string => typeof x === "string");
+  if (!ids.length) return [];
+  const moveOut = await moveOutPaymentIds(db, [ev.groupId]);
+  const rows = await db.payment.findMany({ where: { id: { in: ids.filter((id) => !moveOut.has(id)) } }, select: { fromId: true, toId: true } });
+  return [...new Set(rows.flatMap((r) => [r.fromId, r.toId]))];
 }
 
 // Each person's own "Notifications & email" choices, by account. People without an account (phone-only members) have none: they get today's behaviour.
@@ -79,7 +100,7 @@ export async function sendEventPush(eventId: string): Promise<number> {
   try {
     const ev = await db.groupEvent.findUnique({ where: { id: eventId }, include: { group: { select: { id: true, name: true, type: true } } } });
     if (!ev) return 0;
-    // "Ravi says he paid" is told to the person paid only (see payment-claims.ts), not the whole group.
+    // (Older "Ravi says he paid" lines are history only: nobody is told about them now.)
     if (ev.kind === "payment_claimed") return 0;
     // A pair taking the currency of its first expense isn't news: the expense itself is what the other person is told about.
     if (ev.group.type === "direct" && ev.kind === "currency_changed") return 0;
@@ -88,12 +109,15 @@ export async function sendEventPush(eventId: string): Promise<number> {
     const [all, own] = await Promise.all([
       db.pushSubscription.findMany({
         // (Someone added by another person who hasn't opened the group yet gets nothing.)
-        where: { member: { groupId: ev.groupId, leftAt: null, ...JOINED }, memberId: { not: ev.actorId } },
+        where: { member: { groupId: ev.groupId, leftAt: null, ...JOINED }, memberId: { notIn: [ev.actorId, ...inPayment] } },
         include: { member: { select: { notify: true, accountId: true } } },
       }),
       db.pushSubscription.findMany({ where: { memberId: ev.actorId }, select: { endpoint: true } }),
     ]);
     const actorPhones = new Set(own.map((o) => o.endpoint));
+    // The payer and the person paid of a payment are told by their own message ("Asha recorded paying you ₹400. If that's wrong, open it to delete it."),
+    // not by this group-wide one, so they are not told twice.
+    const inPayment = await partiesOfEvent(ev);
     // Anyone who blocked the person who did this hears nothing about it (the group's money and activity list are unchanged).
     const actorAccountId = (await db.member.findUnique({ where: { id: ev.actorId }, select: { accountId: true } }))?.accountId;
     const blockers = actorAccountId ? await blockersOf(actorAccountId) : new Set<string>();

@@ -563,7 +563,9 @@ if (!hosted) {
       });
     await spent("Dinner at Malaka Spice", 300000, pr);
     await spent("Cab to Lonavala", 150000, v);
-    await db.payment.create({ data: { groupId: pune.id, fromId: n, toId: v, amount: 50000, createdById: n, needsOk: true } });
+    // Only a flat move-out's final payment still asks the person paid, so this one is named by a move-out line (as a real move-out does).
+    const moveOutPay = await db.payment.create({ data: { groupId: pune.id, fromId: n, toId: v, amount: 50000, createdById: n, needsOk: true } });
+    await db.groupEvent.create({ data: { groupId: pune.id, actorId: n, kind: "member_left", text: "moved out", undo: JSON.stringify({ type: "member_set", moveOut: { money: { payments: [{ id: moveOutPay.id }] } } }) } });
     await shot("97-settle-pay-and-confirm", `/groups/${pune.id}/settle`);
     await shot("99-add-quick-line", `/groups/${pune.id}/add`, async (p) => {
       await p.getByRole("button", { name: "Type a line" }).click();

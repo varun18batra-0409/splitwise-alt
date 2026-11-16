@@ -10,6 +10,7 @@ import { niceDate, rateText } from "@/lib/format";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { canUndo } from "@/lib/undo";
 import { onlyReceiverCanBringBack } from "@/lib/refused-payment";
+import { deleteQuestion } from "@/lib/payment-change";
 import { deleteExpense, removePayment, restoreExpense, restorePayment, undoChange } from "@/app/actions";
 import { SwipeRow } from "@/components/SwipeRow";
 import type { ReactNode } from "react";
@@ -41,7 +42,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
   const receiptOf = new Map(receipts.map((r) => [r.expenseId, r.id]));
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
-  const all = buildActivity(group.expenses, group.payments, myId, group.events);
+  const all = buildActivity(group.expenses, group.payments, myId, group.events, v.moveOutIds);
   const searchName = (id: string) => {
     const name = group.members.find((m) => m.id === id)?.name ?? "";
     return id === myId ? `${name} you` : name;
@@ -226,6 +227,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
 
               if (item.kind === "payment") {
                 const live = item.deletedById === null;
+                const isParty = item.fromId === myId || item.toId === myId;
                 return (
                   <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                     <details open={openId === item.id}>
@@ -234,8 +236,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       </summary>
                       <div className="mb-3 ml-[3.25rem] space-y-2 rounded-xl bg-mist p-3 text-sm text-gray-600">
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
-                        {/* Not shown to anyone but the person paid, once they said "Not received" (the server refuses too). */}
-                        {!live && !group.closed && !onlyReceiverCanBringBack(item, myId) && (
+                        {/* Only the payer and the person paid can delete or restore a payment (the server refuses everyone else, the admin too).
+                            Not shown to anyone but the person paid, once they took it off themselves. */}
+                        {isParty && !live && !group.closed && !onlyReceiverCanBringBack(item, myId) && (
                           <form action={restorePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />
@@ -244,12 +247,16 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                             </button>
                           </form>
                         )}
-                        {live && !group.closed && (
+                        {isParty && live && !group.closed && (
                           <form action={removePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />
                             <ConfirmButton
-                              message="Delete this payment? Balances will go back to before it was recorded."
+                              message={deleteQuestion({
+                                groupName: group.name,
+                                acrossGroups: v.acrossNames.get(item.id),
+                                leftNames: [item.fromId, item.toId].filter((id) => group.members.some((m) => m.id === id && (m.leftAt || m.removedAt))).map((id) => group.members.find((m) => m.id === id)?.name ?? ""),
+                              })}
                               className="text-sm font-medium text-red-700"
                             >
                               Delete payment

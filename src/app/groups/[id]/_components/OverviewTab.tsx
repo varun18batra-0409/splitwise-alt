@@ -19,7 +19,7 @@ export function OverviewTab({ v, facts, strip }: { v: GroupView; facts: GroupFac
   const sides = groupTicketSides({ mine: net[myId] ?? 0, myId, transfers: v.transfers, nameOf: v.nameOf });
   // The settled pass already has its own quiet "Add an expense", so the outline button is for when money is owed either way.
   const canAdd = !group.closed && !v.leaver && sides.length > 0;
-  const rows = recentRows(group.expenses, group.payments, myId);
+  const rows = recentRows(group.expenses, group.payments, myId, 3, v.moveOutIds);
   const now = new Date();
   return (
     <div>

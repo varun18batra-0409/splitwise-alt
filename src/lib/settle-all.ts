@@ -4,15 +4,34 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, wit
 import { loadGroup } from "./group-data";
 import { logEvent, markUndone, type UndoMark } from "./events";
 import { formatMoney } from "./money";
-import { createPayment, reopenCoveredClaims, RestoreRefused, restorePayments } from "./payments";
+import { createPayment, RestoreRefused, restorePayments } from "./payments";
+import { bringBackAfterDelete, NotSquare, paymentsPartyRefusal } from "./payment-change";
+import { tellParties } from "./payment-claims";
 import type { Transfer } from "./settle";
 import type { Prisma } from "@prisma/client";
 import { PAIR_NO_CLOSE } from "./direct-guard";
-import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceBreaks, ledgerInTx, removedPaymentsBreak, restoredPaymentsBreak } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceBreaks, ledgerInTx, restoredPaymentsBreak } from "./money-guard";
 
 // "We settled outside the app": record every Smart Settle payment at once and
 // close the group. One logged change, one Undo (which takes the payments back
-// out and reopens the group); Undo can be redone.
+// out and reopens the group); Undo can be redone. Every payment counts straight away and the people in each are told.
+// Only the people in each payment can take them off afterwards (payment-change.ts); whoever recorded them for others can Undo for 10 minutes.
+
+type Made = { id: string; fromId: string; toId: string; amount: number };
+
+// Tell the payer and the person paid of every payment just recorded (after the transaction). Never throws.
+async function tellAll(groupId: string, actorId: string, made: Made[]) {
+  try {
+    const g = await db.group.findUnique({ where: { id: groupId }, select: { name: true, currency: true, type: true, members: { select: { id: true, name: true } } } });
+    if (!g) return;
+    const nameOf = (id: string) => g.members.find((m) => m.id === id)?.name ?? "Someone";
+    for (const m of made) {
+      tellParties({ event: "recorded", actorId, actorName: nameOf(actorId), fromId: m.fromId, toId: m.toId, fromName: nameOf(m.fromId), toName: nameOf(m.toId), amountText: formatMoney(m.amount, g.currency), groupName: g.name, groupId, paymentId: m.id, direct: g.type === "direct" });
+    }
+  } catch {
+    /* a push that could not be sent is never an error for the person who recorded it */
+  }
+}
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 
@@ -41,9 +60,11 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, group.currency);
   let eventId: string;
+  const made: Made[] = [];
   await opts.afterRead?.();
   try {
    eventId = await db.$transaction(async (tx) => {
+    made.length = 0; // a retried transaction starts again
     // The group must still be as read (same currency, open, not deleted, this person still in it).
     await guardGroup(tx, groupId, { currency: group.currency, actorId });
     // Close first, only if still open: a second (retried) request stops here.
@@ -56,6 +77,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
     for (const t of now.transfers) {
       const p = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
       ids.push(p.id);
+      made.push({ id: p.id, fromId: t.from, toId: t.to, amount: t.amount });
     }
     return logEvent(tx, {
       groupId,
@@ -75,12 +97,13 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
     if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "This group is already closed." : groupChangedText(err) };
     throw err;
   }
+  await tellAll(groupId, actorId, made);
   return { ok: true, eventId };
 }
 
 // Undo (apply = false): take the payments back out and reopen.
 // Redo (apply = true): put them back and close again.
-export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean, opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}): Promise<Result> {
+export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean, opts: { afterRead?: () => Promise<void>; mark?: UndoMark; recorderOk?: boolean } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (group.type === "direct") return { ok: false, error: PAIR_NO_CLOSE };
@@ -88,6 +111,9 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
   if (apply && group.closed) return { ok: false, error: "The group is already closed." };
+  // Only the people in each payment can take them off or put them back (whoever recorded them for others, for 10 minutes: undo.ts).
+  const noParty = await paymentsPartyRefusal(db, groupId, paymentIds, actorId, opts.recorderOk);
+  if (noParty) return { ok: false, error: noParty };
   let eventId: string;
   await opts.afterRead?.();
   try {
@@ -100,9 +126,12 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
       const open = await tx.group.updateMany({ where: { id: groupId, closed: true }, data: { closed: true } });
       if (open.count !== 1) throw new Error("reopened-since");
     }
-    // Someone who has left may only end with the balance they had, or 0.
-    const goneHere = apply ? await restoredPaymentsBreak(tx, groupId, paymentIds) : await removedPaymentsBreak(tx, groupId, paymentIds);
-    if (goneHere.length) throw new LeaverBreak(goneHere[0], apply ? "redone" : "undone");
+    // Putting payments back: someone who has left may only end with the balance they had, or 0. (Taking them off is never refused for that:
+    // whoever has left comes back into the group, owing, below.)
+    if (apply) {
+      const goneHere = await restoredPaymentsBreak(tx, groupId, paymentIds);
+      if (goneHere.length) throw new LeaverBreak(goneHere[0], "redone");
+    }
     if (apply) {
       await restorePayments(tx, paymentIds, actorId, groupId);
       // "Settle everything" left every balance at 0. If an expense or payment was added since it was undone, putting
@@ -112,9 +141,10 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
     } else {
       // Only payments still counting: one the person paid already refused keeps its "Not received" mark (deletedById).
       await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actorId } });
-      await reopenCoveredClaims(tx, paymentIds); // a note these payments had closed as "covered" is waiting again
     }
     await tx.group.update({ where: { id: groupId }, data: { closed: apply, closedAt: apply ? new Date() : null } });
+    // After the group is reopened (so it can be written to): anyone who left comes back, owing, and ends exactly where the ledger says.
+    if (!apply) await bringBackAfterDelete(tx, { groupId, groupName: group.name, currency: group.currency, paymentIds, actorId });
     return logEvent(tx, {
       groupId,
       actorId,
@@ -125,6 +155,7 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
    }, { timeout: 15000 });
   } catch (err) {
     if (err instanceof RestoreRefused || err instanceof LeaverBreak) return { ok: false, error: err.message };
+    if (err instanceof NotSquare) return { ok: false, error: "Balances just changed. Look again, then try once more." };
     if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "The group is already closed." : groupChangedText(err) };
     const msg = String((err as Error)?.message);
     if (msg === "not-square") return { ok: false, error: "Balances changed since, so this can't be redone." };
@@ -167,7 +198,9 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
     const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
     const money = (n: number) => formatMoney(n, group.currency);
     await opts.afterRead?.();
+    const made: Made[] = [];
     const eventId = await db.$transaction(async (tx) => {
+      made.length = 0; // a retried transaction starts again
       // The group must still be as read; and from Settle up every payment is checked again against the plan as it is now.
       await guardGroup(tx, groupId, { currency: group.currency, actorId });
       if (checkPlan) {
@@ -188,9 +221,9 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
       await claimKey(tx, key, "paid", fp);
       const ids: string[] = [];
       for (const t of pick) {
-        const r = group.members.find((m) => m.id === t.to);
-        const p = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId, needsOk: Boolean(r && r.id !== actorId && (r.accountId || r.claimedAt)) });
+        const p = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
         ids.push(p.id);
+        made.push({ id: p.id, fromId: t.from, toId: t.to, amount: t.amount });
       }
       return logEvent(tx, {
         groupId,
@@ -201,6 +234,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
         undo: { type: "payments_set", paymentIds: ids, deleted: true },
       });
     }, { timeout: 15000 });
+    await tellAll(groupId, actorId, made);
     return { ok: true, eventId };
   });
   } catch (err) {
@@ -213,12 +247,15 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
 }
 
 // Undo / redo of "Mark all paid": take those payments out, or put them back.
-export async function setPaymentsDeleted(groupId: string, actorId: string, paymentIds: string[], deleted: boolean, opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}): Promise<Result> {
+export async function setPaymentsDeleted(groupId: string, actorId: string, paymentIds: string[], deleted: boolean, opts: { afterRead?: () => Promise<void>; mark?: UndoMark; recorderOk?: boolean } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
+  // Only the people in each payment can take them off or put them back (whoever recorded them for others, for 10 minutes: undo.ts).
+  const noParty = await paymentsPartyRefusal(db, groupId, paymentIds, actorId, opts.recorderOk);
+  if (noParty) return { ok: false, error: noParty };
   let eventId: string;
   await opts.afterRead?.();
   try {
@@ -226,13 +263,16 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, groupId, { currency: group.currency, actorId });
     await markUndone(tx, opts.mark);
-    // Someone who has left may only end with the balance they had, or 0.
-    const goneHere = deleted ? await removedPaymentsBreak(tx, groupId, paymentIds) : await restoredPaymentsBreak(tx, groupId, paymentIds);
-    if (goneHere.length) throw new LeaverBreak(goneHere[0], deleted ? "undone" : "redone"); // this is the Undo / Redo of "Mark all paid"
+    // Putting payments back (Redo of "Mark all paid"): someone who has left may only end with the balance they had, or 0.
+    if (!deleted) {
+      const goneHere = await restoredPaymentsBreak(tx, groupId, paymentIds);
+      if (goneHere.length) throw new LeaverBreak(goneHere[0], "redone");
+    }
     if (deleted) {
       // Only payments still counting: one the person paid already refused keeps its "Not received" mark (deletedById).
       await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actorId } });
-      await reopenCoveredClaims(tx, paymentIds); // a note these payments had closed as "covered" is waiting again
+      // Anyone who has left comes back into the group, owing, and ends exactly where the ledger says.
+      await bringBackAfterDelete(tx, { groupId, groupName: group.name, currency: group.currency, paymentIds, actorId });
     } else await restorePayments(tx, paymentIds, actorId, groupId);
     return logEvent(tx, {
       groupId,
@@ -244,6 +284,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
    });
   } catch (err) {
     if (err instanceof RestoreRefused || err instanceof LeaverBreak) return { ok: false, error: err.message };
+    if (err instanceof NotSquare) return { ok: false, error: "Balances just changed. Look again, then try once more." };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }

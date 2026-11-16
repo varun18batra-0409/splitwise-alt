@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { moveOutPaymentIds } from "./payment-change";
 import { formatMoney } from "./money";
 import { billStatuses } from "./home/bills-db";
 import { billHold } from "./home/bills";
@@ -6,9 +7,9 @@ import { collectSentence, paidAction, paidToViewer } from "./home/display";
 import type { DueBill } from "./home/need-line";
 
 // Alerts: "Needs you" (things only you can answer) kept apart from "Activity" (what happened).
-// Four kinds, each one line that goes straight to where you act:
-//   claim      – someone says they paid you; confirm it or say you haven't got it
-//   payment    – an older payment to you that still waits for your "Confirm received"
+// Three kinds, each one line that goes straight to where you act:
+//   payment    – a flat move-out's final payment to you that still waits for your "Got it / Not received" (every other payment counts at once,
+//                and is not asked about; "claim" is no longer made: nobody's "I've paid" waits for anyone any more)
 //   bill       – a bill that changes each month and is waiting for the amount you enter, or a bill held for
 //                a problem that you pay (shown as "Needs a fix", opening the bill's settings)
 //   collect    – someone in your collection says they've paid; check it
@@ -47,22 +48,17 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     const liveIds = live.map((m) => m.id);
     const groupOf = new Map(live.map((m) => [m.id, m.group]));
 
-    const [claims, payments] = await Promise.all([
-      liveIds.length ? db.paymentClaim.findMany({ where: { toId: { in: liveIds }, status: "waiting" }, orderBy: { createdAt: "desc" }, take: 50 }) : Promise.resolve([]),
-      liveIds.length ? db.payment.findMany({ where: { toId: { in: liveIds }, needsOk: true, okAt: null, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }) : Promise.resolve([]),
-    ]);
-    const nameIds = [...new Set([...claims.map((c) => c.fromId), ...payments.map((p) => p.fromId)])];
+    const asking = liveIds.length ? await db.payment.findMany({ where: { toId: { in: liveIds }, needsOk: true, okAt: null, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
+    // Only a flat move-out's final payments still ask (older rows flagged by the earlier rule are not asked about).
+    const moveOut = asking.length ? await moveOutPaymentIds(db, [...new Set(asking.map((p) => p.groupId))]) : new Set<string>();
+    const payments = asking.filter((p) => moveOut.has(p.id));
+    const nameIds = [...new Set(payments.map((p) => p.fromId))];
     const names = nameIds.length ? await db.member.findMany({ where: { id: { in: nameIds } }, select: { id: true, name: true } }) : [];
     const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
 
     // A pair is "Direct", and its screen is the person's page (the group's own pages send it there anyway).
     const whereOf = (g: { id: string; name: string; type: string }) => (g.type === "direct" ? "Direct" : g.name);
     const hrefOf = (g: { id: string; type: string }) => (g.type === "direct" ? `/people/${g.id}` : `/groups/${g.id}/settle`);
-    for (const c of claims) {
-      const g = groupOf.get(c.toId);
-      if (!g) continue;
-      items.push({ id: `claim:${c.id}`, kind: "claim", text: `${nameOf(c.fromId)} says they paid you ${formatMoney(c.amount, c.currency)}`, where: whereOf(g), href: hrefOf(g), groupId: g.id, fromId: c.fromId, claimId: c.id, at: c.createdAt });
-    }
     for (const p of payments) {
       const g = groupOf.get(p.toId);
       if (!g) continue;
@@ -121,24 +117,17 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
 }
 
 // What goes in the Activity list once "Needs you" is drawn: the same thing is never shown twice.
-// The "says they paid" line of a claim that is shown in Needs you, and a collection "paid" note for a
-// payment still waiting to be checked, both live in Needs you only. Only THAT claim's line is hidden.
-// The line carries its claim's id ("claim:<id>" in `ref`), so it is matched exactly: another claim by the
-// same person, an earlier tap or a "hasn't received it" line stays in Activity. Lines written before the id
-// was kept have no `ref`; for those only, the old rule applies (same group, same person, the same moment).
-export const CLAIM_LINE_WINDOW_MS = 5000;
+// A collection "paid" note for a payment still waiting to be checked lives in Needs you only. The old "says they paid / waiting to be
+// confirmed" lines of the earlier "I've paid" notes are history only now (nothing waits for anyone any more), so they are never listed.
 
 export function withoutRepeats<T extends { type: "event"; groupId: string; kind: string; actorId: string; at: Date; ref?: string | null } | { type: "note"; kind: string; url: string; body: string }>(
   rows: T[],
   needs: NeedsYouItem[],
 ): T[] {
-  const claims = needs.filter((n) => n.kind === "claim" && n.groupId && n.fromId);
   const says = needs.filter((n) => n.kind === "collect" && n.entryName).map((n) => ({ url: n.href, prefix: `${n.entryName} says they paid` }));
   return rows.filter((r) => {
     if (r.type === "event") {
-      if (r.kind !== "payment_claimed") return true;
-      if (r.ref?.startsWith("claim:")) return !claims.some((c) => c.claimId !== undefined && `claim:${c.claimId}` === r.ref);
-      return !claims.some((c) => c.groupId === r.groupId && c.fromId === r.actorId && Math.abs(c.at.getTime() - r.at.getTime()) <= CLAIM_LINE_WINDOW_MS);
+      return r.kind !== "payment_claimed";
     }
     return !(r.kind === "collect_ticked" && says.some((x) => x.url === r.url && r.body.startsWith(x.prefix)));
   });

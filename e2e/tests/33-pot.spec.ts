@@ -132,13 +132,9 @@ test("a game night from first chips in to settled", async ({ browser }) => {
   await expect(R.locator("[data-game='done']")).toContainText("you were down");
   await R.goto(`${g.path}/settle`);
   await settled(R);
-  // Settle up's "I've paid" is a claim: it counts once Asha taps Confirm received.
+  // Settle up's "I've paid" records the payment: it counts at once.
   await R.locator("[data-i-paid]").click();
-  await R.waitForURL(/claimed=1/);
-  await A.goto(`${g.path}/settle`);
-  await settled(A);
-  await A.locator("[data-waiting='Ravi']").getByRole("button", { name: "Confirm received" }).click();
-  await A.waitForURL(/ok=1/);
+  await R.waitForURL(/paid=1/);
   await R.goto(game);
   await settled(R);
   await expect(R.getByRole("region", { name: "Money owed" }).locator("[data-transfer='paid']").filter({ hasText: "You pay Asha" })).toHaveCount(1);

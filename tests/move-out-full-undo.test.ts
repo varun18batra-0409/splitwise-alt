@@ -29,8 +29,9 @@ import { scopeForLeaver } from "@/lib/left-view";
 //   is recorded straight away (and Meera, who has joined, is asked "Confirm received / Not received": needsOk, not yet confirmed).
 //   After the move-out: Meera +444444, Ravi -444444, Asha 0.
 //   Meera says "Not received": the payment comes off and Asha is back in the flat: Meera +455555, Ravi -444444, Asha -11111.
-//   Undo (Asha, without Meera saying Not received; also after Meera confirmed): shares exactly 300000 x 3 and 33334 / 33333 / 33333, the payment
-//   taken off -> the "before" balances again: Meera +566666, Ravi -333333, Asha -233333.
+//   Undo (Asha, before Meera answers): shares exactly 300000 x 3 and 33334 / 33333 / 33333, the payment taken off -> the "before" balances again:
+//   Meera +566666, Ravi -333333, Asha -233333. (After Meera confirmed, the confirmed 11111 stays: Meera +555555, Ravi -333333, Asha -222222;
+//   that case is in tests/move-out-claims.test.ts 8b.)
 //   Settling those: Ravi pays Meera 333333, Asha pays Meera 233333 -> everyone 0.
 
 vi.mock("next/headers", () => ({
@@ -462,7 +463,7 @@ describe("the leaver's Undo button is only shown when the server would accept it
     await db.member.update({ where: { id: f.R }, data: { leftAt: new Date("2026-11-12T00:00:00Z") } }); // Ravi, -444444 at that point
     await refused(f, LEAVER_BLOCKED_TEXT);
   });
-  it("a covered 'I've paid' claim on the square-up payment, or a changed currency, is a plain 'can't be undone any more'", async () => {
+  it("a changed currency is a plain 'can't be undone any more'", async () => {
     const f = await flat();
     await ashaMovesOut(f);
     await db.group.update({ where: { id: f.g.id }, data: { currency: "USD" } });

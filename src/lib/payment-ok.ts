@@ -2,13 +2,14 @@ import { db } from "./db";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { GroupChanged, groupChangedText, guardGroup, leaversOffZero } from "./money-guard";
-import { reopenCoveredClaims } from "./payments";
+import { bringBackLeavers, moveOutPaymentIds, NotSquare } from "./payment-change";
 import { tellBroughtBack } from "./payment-claims";
 
-// Payment tracking (older payments only: new "I've paid" taps are claims, see payment-claims.ts). When someone other than the person paid records a payment
-// ("Ravi paid Asha ₹300"), it counts straight away (as before) but Asha is
-// asked: "Got it ✓" or "Not received". Not received takes it off the balances
-// (with undo), so nobody is out of pocket on someone's word.
+// A flat move-out's final payments are the ONLY payments that still ask the person paid. They count straight away, and the person paid
+// can answer: "Got it ✓" or "Not received". Not received takes the payment off the balances (with undo) and brings the people who left
+// back into the flat, owing. Every other payment counts at once and is simply deleted if it is wrong (payment-change.ts).
+// Which payments are move-out payments is read from the move-out lines themselves (moveOutPaymentIds), so older rows that were
+// flagged needsOk by the earlier "tell Asha" rule are never asked about.
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 
@@ -21,6 +22,8 @@ async function mine(paymentId: string, myMemberId: string | undefined) {
   const p = await db.payment.findUnique({ where: { id: paymentId }, include: { group: { select: { id: true, name: true, currency: true, closed: true, deletedAt: true } }, from: { select: { name: true } }, to: { select: { name: true } } } });
   if (!p || p.deletedAt || p.group.deletedAt) return { error: "That payment isn’t there any more." } as const;
   if (!myMemberId || p.toId !== myMemberId) return { error: "Only the person who was paid can confirm it." } as const;
+  // Only a flat move-out's final payment can be answered. Everything else already counts: delete it from the activity if it is wrong.
+  if (!(await moveOutPaymentIds(db, [p.groupId])).has(p.id)) return { error: "This payment already counts. If it’s wrong, delete it from the activity." } as const;
   // Someone who left may still answer a payment made TO them, and "Not received" is never refused because someone left:
   // the people who left are brought back into the group (see rejectPayment).
   return { p } as const;
@@ -45,12 +48,6 @@ export type RejectResult = { ok: true; eventId?: string; back: { id: string; nam
 // nothing, so if the payer and/or the person paid has left, they are put back into the group IN THE SAME TRANSACTION: the money is
 // owed again, and the people who owe it can see it and settle it.
 // Hand-worked: Asha left after paying Ravi 40000 (both at 0). Ravi says Not received: the payment goes, Asha is back at -40000, Ravi +40000.
-class NotSquare extends Error {
-  constructor(public who: string) {
-    super("not square");
-  }
-}
-
 export async function rejectPayment(paymentId: string, myMemberId: string | undefined): Promise<RejectResult> {
   const r = await mine(paymentId, myMemberId);
   if (!("p" in r) || !r.p) return { ok: false, error: r.error };
@@ -63,15 +60,8 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
     out = await db.$transaction(async (tx) => {
       // First: the group is still open and in the same currency. (No actor check: a receiver who has left may still answer.)
       await guardGroup(tx, p.groupId, { currency: p.group.currency });
-      // The payer and the person paid, as they are now (inside the write).
-      const people = await tx.member.findMany({
-        where: { groupId: p.groupId, id: { in: [p.fromId, p.toId] } },
-        select: { id: true, name: true, leftAt: true, removedAt: true, removedById: true, accountId: true },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      });
       const changed = await tx.payment.updateMany({ where: { id: p.id, deletedAt: null, okAt: null }, data: { deletedAt: new Date(), deletedById: myMemberId } });
       if (changed.count !== 1) return { eventId: "", back: [] };
-      await reopenCoveredClaims(tx, [p.id]); // a note this payment had closed as "covered" is waiting again, so Asha can still confirm it
       const eventId = await logEvent(tx, {
         groupId: p.groupId,
         actorId: myMemberId!,
@@ -80,27 +70,9 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
         paymentId: p.id,
         undo: { type: "payment_restore", paymentId: p.id, byReceiver: true }, // only the person paid can bring it back (see refused-payment.ts)
       });
-      // Whoever has left or been removed comes back, each written only if still exactly as read (otherwise everything rolls back).
-      const back: { id: string; name: string; accountId: string | null }[] = [];
-      for (const m of people) {
-        if (!m.leftAt && !m.removedAt) continue;
-        const wrote = await tx.member.updateMany({ where: { id: m.id, leftAt: m.leftAt, removedAt: m.removedAt }, data: { leftAt: null, removedAt: null, removedById: "" } });
-        if (wrote.count !== 1) throw new NotSquare(m.name);
-        // The undo of this line puts them back exactly as they were (the same shape as invitations.ts).
-        const undoData: { leftAt?: string | null; removedAt?: string | null; removedById?: string } = m.removedAt
-          ? { leftAt: (m.leftAt ?? m.removedAt).toISOString(), removedAt: m.removedAt.toISOString(), removedById: m.removedById }
-          : { leftAt: m.leftAt!.toISOString() };
-        await logEvent(tx, {
-          groupId: p.groupId,
-          actorId: myMemberId!,
-          kind: "member_rejoined",
-          text: m.id === myMemberId ? `came back into ${p.group.name} until the ${amountText} is sorted` : `brought ${m.name} back into ${p.group.name} until the ${amountText} is sorted`,
-          undo: { type: "member_set", memberId: m.id, data: undoData },
-          touches: [m.id], // no paymentId: this line never stands in the way of undoing the "Not received"
-        });
-        back.push({ id: m.id, name: m.name, accountId: m.accountId });
-      }
-      // Last check: nobody this touched is left (or was left) off zero.
+      // Whoever has left or been removed comes back, each written only if still exactly as read (otherwise everything rolls back);
+      // then nobody this touched is left (or was left) off zero.
+      const back = await bringBackLeavers(tx, { groupId: p.groupId, groupName: p.group.name, amountText, actorId: myMemberId!, people: [p.fromId, p.toId] });
       const off = await leaversOffZero(tx, p.groupId, [p.fromId, p.toId]);
       if (off.length) throw new NotSquare(off[0]);
       return { eventId, back };
@@ -118,6 +90,10 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
 }
 
 // Payments waiting for this person's "Got it". `from` carries whether the payer has left, for the wording of the "Not received" question.
+// Only move-out final payments (older needsOk rows from the earlier rule are not asked about).
 export async function waitingForMe(groupId: string, myMemberId: string) {
-  return db.payment.findMany({ where: { groupId, toId: myMemberId, needsOk: true, okAt: null, deletedAt: null }, include: { from: { select: { name: true, leftAt: true, removedAt: true } } }, orderBy: { createdAt: "desc" }, take: 20 });
+  const rows = await db.payment.findMany({ where: { groupId, toId: myMemberId, needsOk: true, okAt: null, deletedAt: null }, include: { from: { select: { name: true, leftAt: true, removedAt: true } } }, orderBy: { createdAt: "desc" }, take: 20 });
+  if (!rows.length) return rows;
+  const mine = await moveOutPaymentIds(db, [groupId]);
+  return rows.filter((r) => mine.has(r.id));
 }

@@ -1,30 +1,24 @@
 // What one payment row on Settle up offers. The same rules everywhere:
 //   one big action on the ticket – "Pay Nupur" (I'm paying: it opens the steps, where "Open payment app" lives) or "Remind Meera" (I'm owed);
 //                             cream on the screen's first ticket, an outline pill on the others
-//   one quiet text action   – "I've paid" (a claim: counts after Confirm received, or the same words recorded straight away
-//                             where the other person can't confirm) or "Mark paid" for money owed to me and for others
+//   one quiet text action   – "I've paid" (when I pay) or "Mark paid" (money owed to me, and payments between others). Both record the
+//                             payment: it counts straight away and the other person is told.
 //   one quiet "More ›"      – "Paid a different amount?"
-// The plan below is unchanged: only how it is drawn changed. Never two cream buttons on one screen.
-
-import { needsOkFor } from "./payment-ok";
+// Never two cream buttons on one screen.
 
 export type RowFacts = {
   iPay: boolean; // I'm the one paying
   iAmPaid: boolean; // I'm the one being paid
   closed: boolean;
   iLeft: boolean; // someone who left can't say they paid
-  receiverCanConfirm: boolean; // the person paid is on Loopin and can tap Confirm received
   payApps: number; // how many ways to pay I have saved (only the first is a button; the rest are small links)
-  myClaimWaiting: boolean; // my "I've paid" is waiting for them
-  theirClaimWaiting: boolean; // they say they paid me (answered in the box at the top)
 };
 
 export type RowPlan = {
   main: "pay-app" | "remind" | null;
-  action: "claim" | "record" | null;
+  action: "record" | null;
   actionFilled: boolean; // the action is the row's one filled button
   actionLabel: "I’ve paid" | "Mark paid" | null;
-  status: "waiting" | "their-claim" | null;
   differentAmount: boolean; // show "Paid a different amount?"
   filledButtons: number; // how many filled buttons the row shows: never more than one
 };
@@ -36,33 +30,21 @@ export function settleRowFacts(i: {
   myId: string;
   closed: boolean;
   iLeft: boolean;
-  receiver: Parameters<typeof needsOkFor>[0]; // the person paid, as found in the group
   payApps: number;
-  myClaimWaiting: boolean;
-  theirClaimWaiting: boolean;
 }): RowFacts {
   return {
     iPay: i.transfer.from === i.myId,
     iAmPaid: i.transfer.to === i.myId,
     closed: i.closed,
     iLeft: i.iLeft,
-    receiverCanConfirm: needsOkFor(i.receiver, i.myId),
     payApps: i.payApps,
-    myClaimWaiting: i.myClaimWaiting,
-    theirClaimWaiting: i.theirClaimWaiting,
   };
 }
 
 export function planSettleRow(f: RowFacts): RowPlan {
   const canRecord = !f.closed && !f.iLeft;
-  const claimable = f.iPay && !f.closed && !f.iLeft && f.receiverCanConfirm;
-  const main: RowPlan["main"] = f.iPay && f.payApps > 0 ? "pay-app" : f.iAmPaid && !f.closed && !f.theirClaimWaiting ? "remind" : null;
-  let action: RowPlan["action"] = null;
-  let status: RowPlan["status"] = null;
-  if (claimable && f.myClaimWaiting) status = "waiting";
-  else if (claimable) action = "claim";
-  else if (canRecord && !f.theirClaimWaiting) action = "record";
-  else if (f.theirClaimWaiting) status = "their-claim";
+  const main: RowPlan["main"] = f.iPay && f.payApps > 0 ? "pay-app" : f.iAmPaid && !f.closed ? "remind" : null;
+  const action: RowPlan["action"] = canRecord ? "record" : null;
   // Only my own action can be the filled one; "Mark paid" on a payment between two other people stays an outline button, so it never competes with mine.
   const actionFilled = action !== null && main === null && (f.iPay || f.iAmPaid);
   const actionLabel = action === null ? null : f.iPay ? "I’ve paid" : "Mark paid";
@@ -71,8 +53,7 @@ export function planSettleRow(f: RowFacts): RowPlan {
     action,
     actionFilled,
     actionLabel,
-    status,
-    differentAmount: canRecord && status !== "waiting",
+    differentAmount: canRecord,
     filledButtons: main === "pay-app" ? 1 : main === "remind" ? 1 : actionFilled ? 1 : 0,
   };
 }

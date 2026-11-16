@@ -4,10 +4,10 @@ import { claimKey, isDuplicateKey, retryOnceIfBusy } from "./once";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
-import { needsOkFor } from "./payment-ok";
+import { tellParties } from "./payment-claims";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./money-guard";
 
-// Recording one payment (Smart Settle's "Mark paid" and "Record a payment"), with the checks done INSIDE the write.
+// Recording one payment (Smart Settle's "Mark paid" and "I've paid", and "Record a payment"), with the checks done INSIDE the write. It counts straight away.
 // The server action only reads the form and redirects to what this answers.
 
 // How a payment reads in the history and alerts, after the name of whoever recorded it: "Ravi paid Varun ₹5,000",
@@ -65,11 +65,12 @@ export type PayInput = {
 
 class LeftOut extends Error {}
 export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => Promise<void> } = {}): Promise<PayOutcome> {
-  const group = await db.group.findUnique({ where: { id: i.groupId }, select: { name: true, currency: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true } } } });
+  const group = await db.group.findUnique({ where: { id: i.groupId }, select: { name: true, currency: true, type: true, members: { select: { id: true, name: true } } } });
   if (!group) return { kind: "refused", error: groupChangedText(new GroupChanged("gone")) };
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   await opts.afterRead?.();
   try {
+    let paymentId = "";
     const did = await retryOnceIfBusy(() => db.$transaction(async (tx: Prisma.TransactionClient) => {
       await guardGroup(tx, i.groupId, { currency: i.currency, actorId: i.myId });
       // The same request again (a double tap, a retry): it already happened, whatever the balances say now.
@@ -82,7 +83,8 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
         const { limit, side } = overpayLimit(net, i.fromId, i.toId);
         if (i.amount > limit) throw new Over(limit, side);
       }
-      const p = await createPayment(tx, { groupId: i.groupId, fromId: i.fromId, toId: i.toId, amount: i.amount, createdById: i.myId, needsOk: needsOkFor(group.members.find((m) => m.id === i.toId), i.myId) });
+      const p = await createPayment(tx, { groupId: i.groupId, fromId: i.fromId, toId: i.toId, amount: i.amount, createdById: i.myId });
+      paymentId = p.id;
       await claimKey(tx, i.key, p.id, i.fp);
       return logEvent(tx, {
         groupId: i.groupId,
@@ -93,6 +95,11 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
         undo: { type: "payment_delete", paymentId: p.id },
       });
     }, { timeout: 15000 }));
+    // It counts straight away; the other person (or both, when a third person recorded it) is told after it is saved.
+    tellParties({
+      event: "recorded", actorId: i.myId, actorName: nameOf(i.myId), fromId: i.fromId, toId: i.toId, fromName: nameOf(i.fromId), toName: nameOf(i.toId),
+      amountText: formatMoney(i.amount, i.currency), groupName: group.name, groupId: i.groupId, paymentId, eventId: did, direct: group.type === "direct",
+    });
     return { kind: "done", did };
   } catch (err) {
     if (err instanceof Used) return { kind: "duplicate" };

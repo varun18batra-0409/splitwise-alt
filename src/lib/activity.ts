@@ -47,7 +47,7 @@ type PaymentRow = {
 type EventRow = { id: string; kind: string; actorId: string; text: string; details: string; createdAt: Date };
 
 // Group-level changes shown as their own lines (expense/payment changes show on the item itself).
-const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "display_currency_changed", "members_added", "members_removed", "group_closed", "group_reopened", "split_changed", "trip_dates_set", "countdown_shared", "pot_started", "pot_finished", "pot_reopened", "pot_deleted", "bill_added", "bill_changed", "group_imported"]);
+const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "display_currency_changed", "members_added", "members_removed", "group_closed", "group_reopened", "split_changed", "trip_dates_set", "countdown_shared", "pot_started", "pot_finished", "pot_reopened", "pot_deleted", "bill_added", "bill_changed", "group_imported", "payment_note_closed"]);
 
 export type ActivityItem =
   | {
@@ -102,7 +102,9 @@ function originalOf(e: ExpenseRow, myId: string, deleted: boolean) {
   };
 }
 
-export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], myId: string, events: EventRow[] = []): ActivityItem[] {
+// `asks`: the ids of a flat move-out's final payments (moveOutPaymentIds). Only those can be "waiting" for the person paid to say Got it / Not received;
+// every other payment counts at once and reads plainly ("Asha paid Ravi"), even an older one flagged needsOk by the earlier rule.
+export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], myId: string, events: EventRow[] = [], asks?: Set<string>): ActivityItem[] {
   const items: ActivityItem[] = [
     ...expenses.map((e): ActivityItem => {
       const deleted = Boolean(e.deletedAt);
@@ -138,7 +140,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         effect: p.deletedAt ? 0 : p.fromId === myId ? p.amount : p.toId === myId ? -p.amount : 0,
         createdById: p.createdById ?? p.fromId,
         deletedById: p.deletedAt ? (p.deletedById ?? "") : null,
-        status: p.okAt ? "ok" : p.needsOk ? "waiting" : undefined,
+        status: p.okAt ? (asks?.has(p.id) ? "ok" : undefined) : p.needsOk && asks?.has(p.id) ? "waiting" : undefined,
       }),
     ),
     ...events

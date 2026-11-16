@@ -190,7 +190,7 @@ describe("N2/N3: the bill run and a pay link don't make anyone joined", () => {
     expect((await db.member.findUniqueOrThrow({ where: { id: row.id } })).seenAt).toBeNull();
   });
 
-  it("a pending person tapping 'I paid' on a reminder link stays pending; the tap is recorded (as a claim Asha confirms)", async () => {
+  it("a pending person tapping 'I paid' on a reminder link stays pending; the payment counts at once (and the link's own line doesn't make them joined)", async () => {
     const t = await trip("n2b");
     const { acc, row } = await pendingRow(t, "Payer2b");
     await db.expense.create({ data: { groupId: t.g.id, description: "Dinner n2b", splitType: "equal", amount: 2000, originalAmount: 2000, convertedAmount: 2000, paidById: t.ashaId, createdById: t.ashaId, shares: { create: [{ memberId: t.ashaId, amount: 1000 }, { memberId: row.id, amount: 1000 }] } } });
@@ -200,10 +200,10 @@ describe("N2/N3: the bill run and a pay link don't make anyone joined", () => {
     await iPaidAction(f).catch((err: Error) => {
       if (!/^NEXT_REDIRECT/.test(String(err.message))) throw err;
     });
-    // Batch C: Asha has joined, so "I paid" is a claim waiting for her "Confirm received", not a payment yet.
-    const claim = await db.paymentClaim.findFirstOrThrow({ where: { groupId: t.g.id, fromId: row.id } });
-    expect([claim.amount, claim.status]).toEqual([1000, "waiting"]);
-    expect(await db.payment.count({ where: { groupId: t.g.id, fromId: row.id } })).toBe(0);
+    // Batch C: "I paid" counts straight away, from the link; no note is made.
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: t.g.id, fromId: row.id } });
+    expect([pay.amount, pay.toId, pay.needsOk]).toEqual([1000, t.ashaId, false]);
+    expect(await db.paymentClaim.count({ where: { groupId: t.g.id } })).toBe(0);
     await signedInAs(acc.id);
     expect(await confirmUsedPending(acc.id)).toEqual([]);
     expect(await getMemberships()).toEqual({});

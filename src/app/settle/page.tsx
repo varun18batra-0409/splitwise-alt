@@ -27,7 +27,8 @@ import { filterDirect, type DirectEntry } from "@/lib/direct-db";
 
 // Smart Settle across all your groups: one payment per person. Each person is a card (founder's design, 15 Nov): the exact amount, "View breakdown",
 // one big button and a ⋮ menu. "Record payment" opens a bottom sheet; confirming it records the payment in each group (settleAcrossGroups, exactly as the old
-// "Record in N groups" button did; people who can confirm are asked as before). (The group's own Settle up keeps its own look.)
+// "Record in N groups" button did). Every part counts straight away and the other person is told; deleting any part takes all of them off together
+// (payment-change.ts). (The group's own Settle up keeps its own look.)
 export default async function SettlePage({ searchParams }: { searchParams: Promise<{ settle?: string; pay?: string; show?: string; q?: string }> }) {
   const { settle: notice, pay, show: showParam, q: qParam } = await searchParams;
   const { all, common, settleItems, skippedLinks, othersPending, direct, toCommon } = await loadOverview(await getMemberships(), visitorRegion(await headers()).currency);

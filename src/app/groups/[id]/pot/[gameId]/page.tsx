@@ -186,7 +186,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       )}
       {sp.paid && (
         <Notice tone="success" params={["paid", "did"]} className="mb-4">
-          Marked paid ✓ It’s in the group’s balances. If the person paid is on Loopin, they’re asked to confirm.
+          Marked paid ✓ It’s in the group’s balances, and they’re told.
         </Notice>
       )}
       {sp.allpaid && !sp.undone && <Notice tone="success" params={["allpaid"]} className="mb-4">All marked paid ✓</Notice>}

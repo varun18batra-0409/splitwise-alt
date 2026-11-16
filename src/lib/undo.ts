@@ -69,7 +69,8 @@ export type UndoViewer = {
   closed: boolean; // the group is closed right now (most undos of money are refused in a closed group, as the server does)
   members: { id: string; name: string; accountId: string | null; leftAt: Date | null; removedAt: Date | null }[];
   // The group's payments (when the screen has them): lets the Undo check see WHO took a payment off, as the server does (setPaymentDeleted).
-  payments?: { id: string; toId: string; deletedById: string | null }[];
+  // fromId and toId: Only the payer and the person paid can undo a payment (the Undo for someone who recorded it for others lasts 10 minutes).
+  payments?: { id: string; fromId: string; toId: string; deletedById: string | null }[];
 };
 
 // Who may use Undo at all: someone in the group. Someone who left can't change the group, except to undo their OWN "left the group"
@@ -144,7 +145,8 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
     moveOut?.money
       ? block(
           "Something the move-out changed (a bill or a square-up payment) was changed again since. Undo the newer change first.",
-          (x) => !own.has(x.id) && Boolean((x.expenseId && resplitIds.has(x.expenseId)) || (x.paymentId && squareUpIds.has(x.paymentId))),
+          // (The person paid answering "Got it" is not a change to the payment: a confirmed payment is real money and stays, see undoMoveOut.)
+          (x) => !own.has(x.id) && x.kind !== "payment_confirmed" && Boolean((x.expenseId && resplitIds.has(x.expenseId)) || (x.paymentId && squareUpIds.has(x.paymentId))),
         )
       : null,
     payload.type === "currency_restore" ? block("Expenses or payments changed after the currency change, so it can’t be undone safely.", (x) => MONEY_KINDS.has(x.kind)) : null,
@@ -193,6 +195,17 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): stri
     if (holder && ev.actorId !== actorId) return `Only the person who made that change can undo it. You can add ${holder.name} again with Add people.`;
     if (holder && !putBackOpen(ev.createdAt, now)) return lateRecreateText(holder.name);
   }
+  // Only the payer and the person paid can take a payment off or put it back, and only for payments the screen knows about (the server
+  // reads the payment itself). Someone who recorded it for others (Mark paid, Mark all paid, Settle everything) may Undo it for 10 minutes.
+  const recorder = ev.actorId === actorId && putBackOpen(ev.createdAt, now);
+  if (!recorder && (payload.type === "payment_delete" || payload.type === "payment_restore")) {
+    const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
+    if (pay && pay.fromId !== actorId && pay.toId !== actorId) return `Only ${find(pay.fromId)?.name ?? "the payer"} or ${find(pay.toId)?.name ?? "the person paid"} can change this payment.`;
+  }
+  if (!recorder && (payload.type === "payments_set" || payload.type === "settle_all")) {
+    const pays = payload.paymentIds.map((id) => viewer.payments?.find((x) => x.id === id));
+    if (pays.every((x) => x) && !pays.every((x) => x!.fromId === actorId || x!.toId === actorId)) return "Only the people in each payment can take these off.";
+  }
   // The person paid said "Not received" (or deleted the payment themselves): only they can bring it back, so nobody can overrule them.
   // Lines written before the flag existed are recognised by their words. (The server also reads the payment itself: setPaymentDeleted.)
   if (payload.type === "payment_restore" && ev.actorId !== actorId) {
@@ -225,6 +238,13 @@ export function canUndo(ev: EventLike, all: EventLike[], now: Date, viewer: Undo
   if (!history.ok) return history;
   const no = actorRefusal(ev, viewer, now);
   return no ? { ok: false, reason: no } : { ok: true };
+}
+
+// The payments a change is about (for the party-only rule): the screens that show an Undo for one change fill UndoViewer.payments with these.
+export async function paymentsForUndo(groupId: string, undo: string): Promise<NonNullable<UndoViewer["payments"]>> {
+  const early = parseUndo(undo);
+  const ids = early && (early.type === "payment_delete" || early.type === "payment_restore") ? [early.paymentId] : early && (early.type === "payments_set" || early.type === "settle_all") ? early.paymentIds : [];
+  return ids.length ? db.payment.findMany({ where: { id: { in: ids }, groupId }, select: { id: true, fromId: true, toId: true, deletedById: true } }) : [];
 }
 
 // The viewer as the server sees them (for pages that don't already hold the member list).
@@ -344,11 +364,12 @@ export function blockedMessage(check: Extract<CanUndo, { ok: false }>, ctx: { na
 
 type UndoResult = { ok: true; eventId?: string } | { ok: false; error: string };
 
-export async function undoEvent(eventId: string, actorId: string | undefined, tz: string = DEFAULT_TIME_ZONE): Promise<UndoResult> {
-  return withRetry(() => undoOnce(eventId, actorId, tz));
+// `memberships`: group id -> my member id (the pages pass getMemberships()), so a payment across several groups finds who I am in each.
+export async function undoEvent(eventId: string, actorId: string | undefined, tz: string = DEFAULT_TIME_ZONE, opts: { memberships?: Record<string, string> } = {}): Promise<UndoResult> {
+  return withRetry(() => undoOnce(eventId, actorId, tz, opts));
 }
 
-async function undoOnce(eventId: string, actorId: string | undefined, tz: string): Promise<UndoResult> {
+async function undoOnce(eventId: string, actorId: string | undefined, tz: string, opts: { memberships?: Record<string, string> }): Promise<UndoResult> {
   const now = new Date();
   const ev = await db.groupEvent.findUnique({ where: { id: eventId } });
   if (!ev) return { ok: false, error: "That change no longer exists." };
@@ -361,7 +382,9 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   if (!actorId || !group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can undo its changes." };
   // The same three rules the screens use (canUndo), in this order, so the messages stay the same:
   // who may use Undo at all, then whether anything newer stands in the way, then what only some people may do.
-  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members };
+  // The payments this change is about, so the party-only rule reads who is in each (the screens fill the same list).
+  const payRows = await paymentsForUndo(ev.groupId, ev.undo);
+  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members, ...(payRows.length ? { payments: payRows } : {}) };
   const actorLeft = Boolean(group.members.find((m) => m.id === actorId)?.leftAt);
   const refused = viewerRefusal(ev, viewer);
   if (refused) return { ok: false, error: refused };
@@ -384,7 +407,9 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   const mark: UndoMark = { eventId: ev.id, actorId };
   let result: UndoResult;
   try {
-    result = await apply(payload, ev.groupId, actorId, ev.text, mark, { actorId: ev.actorId, createdAt: ev.createdAt });
+    // Someone who recorded it for others may Undo it for 10 minutes: the payment code then lets them through (it reads the same window).
+    const recorderOk = ev.actorId === actorId && putBackOpen(ev.createdAt, now);
+    result = await apply(payload, ev.groupId, actorId, ev.text, mark, { actorId: ev.actorId, createdAt: ev.createdAt }, { memberships: opts.memberships, recorderOk });
   } catch (err) {
     if (err instanceof UndoTaken) return { ok: false, error: err.message };
     throw err;
@@ -395,16 +420,16 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   return result;
 }
 
-async function apply(p: UndoPayload, groupId: string, actorId: string, originalText: string, mark: UndoMark, ev: { actorId: string; createdAt: Date }): Promise<UndoResult> {
+async function apply(p: UndoPayload, groupId: string, actorId: string, originalText: string, mark: UndoMark, ev: { actorId: string; createdAt: Date }, who: { memberships?: Record<string, string>; recorderOk: boolean }): Promise<UndoResult> {
   switch (p.type) {
     case "expense_delete":
       return fromResult(await setExpenseDeleted(p.expenseId, actorId, true, { mark }));
     case "expense_restore":
       return fromResult(await setExpenseDeleted(p.expenseId, actorId, false, { undoing: true, mark }));
     case "payment_delete":
-      return fromResult(await setPaymentDeleted(p.paymentId, actorId, true, { mark }));
+      return fromResult(await setPaymentDeleted(p.paymentId, actorId, true, { mark, memberships: who.memberships, recorderOk: who.recorderOk }));
     case "payment_restore":
-      return fromResult(await setPaymentDeleted(p.paymentId, actorId, false, { undoing: true, mark }));
+      return fromResult(await setPaymentDeleted(p.paymentId, actorId, false, { undoing: true, mark, memberships: who.memberships, recorderOk: who.recorderOk }));
     case "expense_revert":
       return revertExpense(p.expenseId, p.before, actorId, { mark });
     case "group_set":
@@ -416,9 +441,9 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
     case "members_restore":
       return restoreMembers(groupId, actorId, p.members, mark);
     case "settle_all":
-      return fromResult(await applySettleAll(groupId, actorId, p.paymentIds, p.apply, { mark }));
+      return fromResult(await applySettleAll(groupId, actorId, p.paymentIds, p.apply, { mark, recorderOk: who.recorderOk }));
     case "payments_set":
-      return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted, { mark }));
+      return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted, { mark, recorderOk: who.recorderOk }));
     case "member_set":
       if (p.moveOut && p.data.leftAt === null) return fromResult(await undoMoveOut(groupId, actorId, p.memberId, p.moveOut, mark, { recordedBy: ev.actorId, recordedAt: ev.createdAt }));
       return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true, { mark }));

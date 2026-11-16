@@ -28,8 +28,8 @@ export const CATEGORIES: Category[] = [
     label: "Payments",
     hint: "Money moving between you and your friends.",
     push: [
-      { id: "payments.claimed", label: "Someone says they paid you" },
-      { id: "payments.answered", label: "A payment you made is confirmed or questioned" },
+      { id: "payments.claimed", label: "Someone records a payment with you" },
+      { id: "payments.answered", label: "A move-out payment is confirmed or questioned" },
       { id: "payments.recorded", label: "Someone records a payment" },
       { id: "payments.collect", label: "Collections: added, reminders and payments" },
     ],
@@ -141,6 +141,7 @@ export function eventItem(kind: string): ItemId {
   if (kind.startsWith("expense_") || kind.startsWith("bill_") || kind === "split_changed") return "expenses.changed";
   if (kind === "payment_confirmed") return "payments.answered";
   if (kind === "payment_claimed") return "payments.claimed";
+  if (kind === "payment_note_closed") return "payments.answered";
   if (kind.startsWith("payment_")) return "payments.recorded";
   if (kind.startsWith("member")) return "groups.people";
   if (kind.startsWith("pot_")) return "groups.games";

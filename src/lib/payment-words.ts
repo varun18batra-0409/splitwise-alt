@@ -1,6 +1,6 @@
 // The words on a payment row in the activity lists (Home Latest, a group's Activity, Alerts): what the row says about who paid whom,
-// and what it meant for you. A payment someone only SAYS they made (needsOk, not yet confirmed, including older ones with no okAt)
-// is a claim: it never says "paid you" or "you received".
+// and what it meant for you. Every payment counts at once and reads "paid" / "you paid" / "you received". Only a flat move-out's final payment
+// that its person paid hasn't answered yet reads "waiting" (the caller decides which: see buildActivity's `asks`).
 export type PaymentStatus = "waiting" | "ok" | undefined;
 
 // The "Not received" question. When the payer and/or the person answering has left, it says plainly that they come back into the group

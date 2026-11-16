@@ -15,6 +15,7 @@ vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), c
 
 const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
+const { markAsMoveOut } = await import("./helpers/move-out-marks");
 const { netBalances } = await import("@/lib/balances");
 const { createPayment } = await import("@/lib/payments");
 const { rejectPayment } = await import("@/lib/payment-ok");
@@ -44,7 +45,8 @@ async function world() {
   await db.expense.create({
     data: { groupId: g.id, description: "Dinner", amount: 200000, splitType: "equal", paidById: a, createdById: a, originalAmount: 200000, convertedAmount: 200000, shares: { create: [{ memberId: r, amount: 200000 }] } },
   });
-  const pay = await db.$transaction((tx) => createPayment(tx, { groupId: g.id, fromId: r, toId: a, amount: 200000, createdById: m, needsOk: true }));
+  const pay = await db.$transaction((tx) => createPayment(tx, { groupId: g.id, fromId: r, toId: a, amount: 200000, createdById: m, asksReceiver: true }));
+  await markAsMoveOut(g.id, m, [pay.id]);
   const net = async () => {
     const [members, expenses, payments] = await Promise.all([
       db.member.findMany({ where: { groupId: g.id }, select: { id: true } }),

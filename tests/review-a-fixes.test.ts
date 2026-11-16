@@ -18,7 +18,6 @@ const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
 const { netBalances } = await import("@/lib/balances");
 const { moveOut } = await import("@/lib/home/moving-db");
-const { makeClaim } = await import("@/lib/payment-claims");
 const { markAllPaid, settleAllAndClose, applySettleAll } = await import("@/lib/settle-all");
 const { actorRefusal, undoEvent } = await import("@/lib/undo");
 const { receiverOnlyText } = await import("@/lib/refused-payment");
@@ -103,31 +102,22 @@ describe("2. Mark all paid follows the leaver rule", () => {
   });
 });
 
-describe("4. taking a payment off reopens the note it had covered", () => {
-  it("Undo of Settle everything: Asha's 'I've paid' (40000) is covered by it, and waiting again after the undo", async () => {
+describe("4. taking a payment off puts the debt back (no old notes involved any more)", () => {
+  it("Undo of Settle everything: Asha's 40000 is recorded by it, and is owed again after the undo", async () => {
     const f = await flat([{ name: "Asha", joined: true }, { name: "Ravi", joined: true }]);
     const [A, R] = [f.id("Asha"), f.id("Ravi")];
     await f.expense("Milk", 40000, R, [[A, 40000]]);
-    const made = await makeClaim({ groupId: f.gid, fromId: A, toId: R, actorId: A, source: "app" });
-    expect(made.ok).toBe(true);
     expect((await settleAllAndClose(f.gid, R, `${A}>${R}:40000`)).ok).toBe(true);
-    expect((await f.claims())[0].status).toBe("covered");
+    expect(await f.claims()).toHaveLength(0); // no note is made or touched
     expect(await f.net()).toEqual({ [A]: 0, [R]: 0 });
     const ids = (await f.payments()).map((p) => p.id);
     expect(ids).toHaveLength(1);
     expect((await applySettleAll(f.gid, R, ids, false)).ok).toBe(true);
-    const c = (await f.claims())[0];
-    expect([c.status, c.paymentId, c.slot]).toEqual(["waiting", "", ""]);
+    expect(await f.claims()).toHaveLength(0);
     expect((await db.group.findUniqueOrThrow({ where: { id: f.gid } })).closed).toBe(false);
     const back = await f.net();
     expect(back).toEqual({ [A]: -40000, [R]: 40000 });
     expect(sum(back)).toBe(0);
-  });
-
-  it("taking back an old pay-link payment uses the same reopening (checked in the action's source: it needs a request)", () => {
-    const src = readFileSync("src/app/pay-link-actions.ts", "utf8");
-    expect(src).toContain("reopenCoveredClaims(tx, [s.link.paymentId])");
-    expect(src.indexOf("reopenCoveredClaims(tx, [s.link.paymentId])")).toBeGreaterThan(src.indexOf("if (gone.count !== 1) return;"));
   });
 });
 

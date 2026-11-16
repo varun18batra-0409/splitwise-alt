@@ -107,24 +107,23 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   const form = src("src/components/RecordPaymentForm.tsx");
   const pay = src("src/app/groups/[id]/pay/page.tsx");
   it("group Settle up keeps its actions and the fields they send", () => {
-    for (const s of ["claimPaidAction", "confirmClaimAction", "declineClaimAction", "confirmPaymentAction", "rejectPaymentAction", "withdrawClaimAction", "markAllPaidAction", "recordCustomPayment", "settleEverything", "undoChange"]) expect(settle).toContain(s);
-    for (const s of ['name="groupId"', 'name="fromId"', 'name="toId"', 'name="amount"', 'name="back" value="settle"', 'name="claimId"', 'name="paymentId"', 'name="plan"', 'name="over" value="1"']) expect(settle).toContain(s);
+    for (const s of ["confirmPaymentAction", "rejectPaymentAction", "markAllPaidAction", "recordCustomPayment", "settleEverything", "undoChange"]) expect(settle).toContain(s);
+    for (const s of ['name="groupId"', 'name="fromId"', 'name="toId"', 'name="amount"', 'name="back" value="settle"', 'name="paymentId"', 'name="plan"']) expect(settle).toContain(s);
     expect(settle).toContain("value={toInputAmount(t.amount, group.currency)}"); // the recorded amount is the exact suggested one
-    expect(settle).toContain("value={t.amount}"); // the claim carries the exact suggested amount
+    for (const gone of ["claimPaidAction", "confirmClaimAction", "declineClaimAction", "withdrawClaimAction"]) expect(settle).not.toContain(gone); // nothing waits for anyone any more
   });
   it("group Settle up keeps the hooks the tests read", () => {
-    for (const s of ["data-i-paid", "data-mark-paid", "data-remind", "data-claim-waiting", "data-claim-above", "data-claim-declined", "data-waiting", "\"data-claim\"", "data-over-warning", "data-settle-actions", 'data-more-options="settle"', 'aria-label="Did you get these?"', "data-transfer-row"]) expect(settle).toContain(s);
+    for (const s of ["data-i-paid", "data-mark-paid", "data-remind", "data-waiting", "data-settle-actions", 'data-more-options="settle"', 'aria-label="Did you get these?"', "data-transfer-row"]) expect(settle).toContain(s);
     expect(src("src/components/PayScreens.tsx")).toContain("data-settled-pct={pct}");
     expect(src("src/components/SettleRow.tsx")).toContain("data-different-amount");
   });
   it("only one cream button on the screen: the first ticket's, and none when someone is waiting on you to confirm", () => {
     expect(settle).toContain("i === 0 && confirmCount === 0 ? CREAM : OUTLINE_PILL");
-    expect(settle).toContain("claimsToMe.length === 0 && i === 0 ? CREAM : OUTLINE_PILL");
   });
   it("someone who left, or a closed group, still gets Open payment app but no claim; a leaver has no Undo report", () => {
     expect(settle).toContain('const payOnly = f.plan.main === "pay-app" && (iLeft || group.closed)');
     expect(settle).toContain('(f.plan.action || f.plan.main === "pay-app") && iPay');
-    expect(settle).toContain("iLeft ? null : (");
+    expect(settle).toContain("{!group.closed && !iLeft && (");
     expect(src("src/components/PayScreens.tsx")).toContain("{tellButton && (");
   });
   it("the progress bar is the money measure (the % settled), not a count of payments", () => {

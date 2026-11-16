@@ -16,7 +16,6 @@ const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
 const { netBalances } = await import("@/lib/balances");
 const { moveOut, moveOutPreview, MOVE_OUT_KEY_CHANGED, MOVE_OUT_WAITING_NOTE, transfersKey } = await import("@/lib/home/moving-db");
-const { makeClaim } = await import("@/lib/payment-claims");
 const { confirmPayment, rejectPayment } = await import("@/lib/payment-ok");
 const { undoEvent } = await import("@/lib/undo");
 const { moveOutConfirm } = await import("@/lib/move-confirm");
@@ -186,8 +185,8 @@ describe("FB-1: moving yourself out while you owe someone who has joined", () =>
 
   it("7. a waiting 'I've paid' already involves the person: the move-out is refused, nothing changes (and the preview says so)", async () => {
     const { f, A, R } = await f2();
-    const made = await makeClaim({ groupId: f.gid, fromId: A, toId: R, actorId: A, source: "app" });
-    expect(made.ok).toBe(true);
+    // An older note still waiting (no new ones are made any more): written straight into the table.
+    await db.paymentClaim.create({ data: { groupId: f.gid, fromId: A, toId: R, amount: 1200000, currency: "INR", source: "app", status: "waiting", slot: "" } });
     const r = await out(f.gid, A, A);
     expect(r).toEqual({ ok: false, error: MOVE_OUT_WAITING_NOTE });
     expect((await f.row(A)).leftAt).toBeNull();
@@ -259,18 +258,21 @@ describe("FB-1: the full flat (rent, Wi-Fi, a payment, undo)", () => {
     expect(rejoined.details).toContain("Taken off: Asha paid Meera ₹111.11");
   });
 
-  it("8b. Meera confirms first, then Asha undoes: the payment still comes off; shares go back; Meera +566666, Ravi -333333, Asha -233333", async () => {
+  it("8b. Meera confirms first, then Asha undoes: the confirmed 11111 stays; shares go back; Meera +555555, Ravi -333333, Asha -222222, and Asha is back in the flat", async () => {
     const { f, M, R, S, rent, wifi, moveOutEventId } = await world();
     const pay = (await f.payments())[0];
     expect((await confirmPayment(pay.id, M)).ok).toBe(true);
     expect(await f.net()).toEqual({ [M]: 444444, [R]: -444444, [S]: 0 });
     expect((await undoEvent(moveOutEventId, S)).ok).toBe(true);
-    expect(await f.payments()).toHaveLength(0);
+    // The confirmed payment (Asha -> Meera 11111) keeps counting.
+    expect((await f.payments()).map((p) => [p.fromId, p.toId, p.amount])).toEqual([[S, M, 11111]]);
     expect(await f.sharesOf(rent.id)).toEqual({ [M]: 300000, [R]: 300000, [S]: 300000 });
     expect(await f.sharesOf(wifi.id)).toEqual({ [M]: 33334, [R]: 33333, [S]: 33333 });
+    // By hand: before 566666 / -333333 / -233333; Asha's 11111 to Meera: Meera 566666 - 11111 = 555555, Asha -233333 + 11111 = -222222.
     const after = await f.net();
-    expect(after).toEqual({ [M]: 566666, [R]: -333333, [S]: -233333 });
+    expect(after).toEqual({ [M]: 555555, [R]: -333333, [S]: -222222 });
     expect(sum(after)).toBe(0);
+    expect((await f.row(S)).leftAt).toBeNull();
   });
 
   it("8c. Meera says Not received: Asha is back at -11111 (Meera +455555, Ravi -444444), and her move-out can no longer be undone", async () => {
