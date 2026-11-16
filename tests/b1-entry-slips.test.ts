@@ -240,6 +240,43 @@ describe("3. CB-4: counting the money twice does not count it twice", () => {
     expect(await db.requestKey.count({ where: { key: k } })).toBe(1);
   });
 
+  it("a double tap AFTER the count and finish went through gets the first answer back (finished), not 'this game is finished'; nothing is added", async () => {
+    const x = await game("after");
+    const k = `b1s-after-${stamp}-${++counter}-abcdefgh`;
+    const first = await countOut(x.gameId, x.As, x.entries, true, {}, { requestKey: k });
+    expect(first).toEqual({ ok: true, finished: true, gap: false });
+    expect(await returns(x.gameId)).toBe(2);
+    const again = await countOut(x.gameId, x.As, x.entries, true, {}, { requestKey: k });
+    expect(again).toEqual({ ok: true, finished: true, gap: false });
+    expect(await returns(x.gameId)).toBe(2);
+    expect(await db.expense.count({ where: { groupId: x.w.gid, kind: "pot", deletedAt: null } })).toBe(1);
+    const net = await checkBooks(x.w.gid);
+    expect([net[x.As], net[x.R]]).toEqual([30_000, -30_000]);
+    // Without the key the same request is honestly refused: the game is finished.
+    expect((await countOut(x.gameId, x.As, x.entries, true)).ok).toBe(false);
+  });
+
+  it("a count that did not add up is answered the same way when repeated (counted, gap), and the repeat adds nothing", async () => {
+    const x = await game("gap");
+    const k = `b1s-gap-${stamp}-${++counter}-abcdefgh`;
+    const rows = [{ memberId: x.As, amount: "800" }, { memberId: x.R, amount: "100" }]; // 90000 back, 100000 went in: 10000 missing
+    expect(await countOut(x.gameId, x.As, rows, true, {}, { requestKey: k })).toEqual({ ok: true, finished: false, gap: true });
+    expect(await countOut(x.gameId, x.As, rows, true, {}, { requestKey: k })).toEqual({ ok: true, finished: false, gap: true });
+    expect(await returns(x.gameId)).toBe(2);
+  });
+
+  it("after a count the screen is given a new key (a new count from it is accepted): Asha counted under one key, Ravi under the next", async () => {
+    const x = await game("fresh");
+    const k1 = `b1s-fresh1-${stamp}-${++counter}-abcdefgh`;
+    const k2 = `b1s-fresh2-${stamp}-${++counter}-abcdefgh`;
+    expect((await countOut(x.gameId, x.As, [x.entries[0]], false, {}, { requestKey: k1 })).ok).toBe(true);
+    expect((await countOut(x.gameId, x.As, [x.entries[1]], false, {}, { requestKey: k2 })).ok).toBe(true);
+    expect(await returns(x.gameId)).toBe(2);
+    // The screen side: the redirect carries a new number, and the count form is built afresh by it (a new mount makes a new key).
+    expect(readFileSync("src/app/pot-actions.ts", "utf8")).toMatch(/const n = String\(Date\.now\(\)\);[\s\S]*finished: "1", n/);
+    expect(readFileSync("src/app/groups/[id]/pot/[gameId]/page.tsx", "utf8")).toContain('key={`${live.length}-${sp.n ?? ""}`}');
+  });
+
   it("a key reused for a different count is a stale screen: nothing is added", async () => {
     const x = await game("stale");
     const k = `b1s-stale-${stamp}-${++counter}-abcdefgh`;

@@ -459,7 +459,11 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     if (deleted) {
       // Deleting takes its amounts out of everyone's balance: a leaver can't end anywhere but where they were, or 0.
       // No exception any more (not even a move-out daily charge, for the leaver it was made for): taking that charge off would leave them owing it.
-      const gone = await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: expense.paidById, payers: parsePayers(expense.payers), shares: expense.shares }), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== expense.id) }));
+      // Who is in it is read again HERE, inside the write: an edit that landed after the first read can have added or removed people.
+      const fresh = await tx.expense.findUnique({ where: { id: expense.id }, include: { shares: true } });
+      const gone = fresh
+        ? await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: fresh.paidById, payers: parsePayers(fresh.payers), shares: fresh.shares }), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== expense.id) }))
+        : [];
       if (gone.length) throw new LeaverBreak(gone[0], "deleted");
     }
     if (!deleted) {

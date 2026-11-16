@@ -113,14 +113,16 @@ function prechargePayer(bill: DailyOffer["bill"], period: string, leaverId: stri
 // added yet: the month-end bill will be credited to the month's payer, so the charge goes to that person now, instead of being left
 // with someone who has gone. Worked out from the flat as read (preview and move-out read it the same way).
 type Handover = { expenseId: string; to: string; desc: string; amount: number; sharerId: string; billId: string; billName: string; period: string };
-async function pendingHandovers(flat: Flat, leaverId: string, othersIds: string[], heir: string): Promise<Handover[]> {
+async function pendingHandovers(flat: Flat, leaverId: string, othersIds: string[], heir: string): Promise<Handover[] & { adding?: string }> {
   const bills = (await db.bill.findMany({ where: { groupId: flat.id, nature: "daily", deletedAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] })).filter((b) => b.prepaid && b.prepaid !== "{}");
   if (!bills.length) return [];
   const runs = await db.billRun.findMany({ where: { billId: { in: bills.map((b) => b.id) } }, select: { billId: true, period: true, status: true } });
-  const out: Handover[] = [];
+  const out: Handover[] & { adding?: string } = [];
   for (const bill of bills) {
     for (const [period, list] of Object.entries(parsePrepaid(bill.prepaid)).sort(([a], [b]) => a.localeCompare(b))) {
       const run = runs.find((r) => r.billId === bill.id && r.period === period);
+      // A month being added right now is counting these charges: a move-out can't hand them on in the middle of it.
+      if (run?.status === "adding" && list.some((x) => flat.expenses.some((y) => y.id === x.e && y.paidById === leaverId && !y.payers))) out.adding ??= `${bill.name} for ${monthName(period)} is being added right now. Try again in a minute.`;
       if (run && run.status !== "waiting") continue;
       for (const x of list) {
         const e = flat.expenses.find((y) => y.id === x.e);
@@ -220,6 +222,7 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   const heir = others.find((m) => m.id === actorId)?.id ?? others[0]?.id ?? "";
   // Charges the person paid for an earlier leaver's daily share: handed to this month's payer (the same in the move-out itself).
   const handovers = await pendingHandovers(flat, leaverId, others.map((m) => m.id), heir);
+  if (handovers.adding) return { ok: false, error: handovers.adding } as Fail;
   const p = plan(flat, leaverId, lastDay, bills, [], handovers);
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
   // Daily bills this month: their share for the days they were there, charged now if they tick "Add it now".
@@ -287,6 +290,7 @@ export async function moveOut(
   const offers = input.addDaily ? (await dailyOffers(flat, leaver.id, input.lastDay)).filter((o) => !o.d.unsupported && o.d.amount > 0) : [];
   const charges = offers.map((o) => ({ ...o, payerId: prechargePayer(o.bill, o.period, leaver.id, others.map((m) => m.id), heir) }));
   const handovers = await pendingHandovers(flat, leaver.id, others.map((m) => m.id), heir);
+  if (handovers.adding) return { ok: false, error: handovers.adding };
   const p = plan(flat, leaver.id, input.lastDay, bills, charges.map((c) => ({ payerId: c.payerId, amount: c.d.amount })), handovers);
   const name = (id: string) => flat.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, flat.currency);
@@ -413,7 +417,7 @@ export async function moveOut(
         const run = await tx.billRun.findUnique({ where: { billId_period: { billId: h.billId, period: h.period } }, select: { status: true } });
         if (run && run.status !== "waiting") throw new Error("BILLS_CHANGED");
         await tx.expense.update({ where: { id: h.expenseId }, data: { paidById: h.to, payers: "" } });
-        (undoInfo.chargePayers ??= []).push({ expenseId: h.expenseId, before: leaver.id, after: h.to });
+        (undoInfo.chargePayers ??= []).push({ expenseId: h.expenseId, before: leaver.id, after: h.to, billId: h.billId, period: h.period });
         const handEventId = await logEvent(tx, {
           groupId,
           actorId,
@@ -683,16 +687,18 @@ export const MOVE_OUT_GONE_FOR_GOOD = "This move-out can’t be undone any more.
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const monthName = (period: string) => MONTH_NAMES[Number(period.slice(5, 7)) - 1] ?? period;
 // Would a bill with this split have had this person in it? (A "some" list without them, or percentages or amounts with no entry for them, no.)
-function splitIncludes(splitJson: string, memberId: string): boolean {
+// (The flat's own split gives someone with a split weight of 0 no share either.)
+function splitIncludes(splitJson: string, memberId: string, weight = 100): boolean {
   try {
     const v = JSON.parse(splitJson) as { mode?: string; ids?: unknown; pct?: Record<string, number>; amt?: Record<string, number> };
     if (v?.mode === "some") return Array.isArray(v.ids) && v.ids.includes(memberId);
     if (v?.mode === "percent") return (v.pct?.[memberId] ?? 0) > 0;
     if (v?.mode === "amounts") return (v.amt?.[memberId] ?? 0) > 0;
+    if (v?.mode === "equal") return true;
   } catch {
     /* unreadable: treat as the flat's own split */
   }
-  return true;
+  return weight > 0;
 }
 
 type Client = Prisma.TransactionClient;
@@ -751,6 +757,21 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
   for (const x of chargePayers) {
     const e = await client.expense.findUnique({ where: { id: x.expenseId }, select: { groupId: true, description: true, deletedAt: true, paidById: true, payers: true } });
     if (!e || e.groupId !== groupId || e.deletedAt || e.paidById !== x.after || e.payers) return fixable(e?.description ?? "The daily charge");
+    // Once that month's bill was added (or is being added) it took the charge off its total and credited the month's payer:
+    // handing the charge back would put the credit in two places. Lines saved before the month was kept: found from the bill's note.
+    let where: { billId: string; period: string } | null = x.billId && x.period ? { billId: x.billId, period: x.period } : null;
+    if (!where) {
+      for (const b of await client.bill.findMany({ where: { groupId, prepaid: { contains: x.expenseId } }, select: { id: true, prepaid: true } })) {
+        const period = Object.entries(parsePrepaid(b.prepaid)).find(([, list]) => list.some((y) => y.e === x.expenseId))?.[0];
+        if (period) where = { billId: b.id, period };
+      }
+    }
+    if (!where) return fixable(e.description);
+    const run = await client.billRun.findUnique({ where: { billId_period: { billId: where.billId, period: where.period } }, select: { status: true } });
+    if (run && run.status !== "waiting") {
+      const billName = (await client.bill.findUnique({ where: { id: where.billId }, select: { name: true } }))?.name ?? "The bill";
+      return stop(`${billName} for ${monthName(where.period)} was added after the move-out, so the move-out can’t be undone.`, MOVE_OUT_GONE_FOR_GOOD);
+    }
     touched.add(x.before);
     touched.add(x.after);
   }
@@ -793,7 +814,7 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
 
 // A bill month added (or being added right now) after the move-out that the person would have been in, but isn't (they had left).
 async function billAddedSince(client: Client, groupId: string, memberId: string, info: MoveOutUndo, since?: Date): Promise<MoveOutBlock | null> {
-  const member = await client.member.findUnique({ where: { id: memberId }, select: { leftAt: true } });
+  const member = await client.member.findUnique({ where: { id: memberId }, select: { leftAt: true, splitWeight: true } });
   if (!member?.leftAt) return null;
   const from = since ?? member.leftAt;
   const runs = await client.billRun.findMany({
@@ -806,7 +827,7 @@ async function billAddedSince(client: Client, groupId: string, memberId: string,
     if (r.expenseId && info.money?.shares.some((x) => x.expenseId === r.expenseId)) continue;
     // Their share was in the bill as it was before the move-out took them off a fixed list.
     const split = info.bills.find((b) => b.id === r.bill.id)?.before.split ?? r.bill.split;
-    if (!splitIncludes(split, memberId)) continue;
+    if (!splitIncludes(split, memberId, member.splitWeight)) continue;
     if (r.status === "added") {
       if (!r.expenseId) continue;
       const e = await client.expense.findUnique({ where: { id: r.expenseId }, select: { createdAt: true, deletedAt: true, shares: { select: { memberId: true } } } });

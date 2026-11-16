@@ -90,12 +90,11 @@ async function groupFor(groupId: string, actorId: string) {
   return { error: "", g };
 }
 
-// The host runs the game. If the host is no longer in the group, whoever looks
-// after the group (its admin) can adjust, finish, reopen or delete it instead.
+// The host runs the game. Whoever looks after the group (its admin) can always adjust, finish, reopen or delete it too: a host
+// who goes quiet with chips in an open game would otherwise leave the game, and so the group, stuck (nobody with chips in an
+// open game can leave or be removed).
 export function canRunGame(game: { hostId: string }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null }[], actorId: string): boolean {
   if (game.hostId === actorId) return true;
-  const host = members.find((m) => m.id === game.hostId);
-  if (host && !host.leftAt) return false;
   return pickAdmin(members)?.id === actorId;
 }
 
@@ -217,7 +216,7 @@ export async function removeMove(moveId: string, actorId: string, hooks: Hooks =
   const r = await gameFor(m.gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   if (r.game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
-  if (m.createdById !== actorId && !canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only whoever added it, or the host, can take it back." };
+  if (m.createdById !== actorId && !canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only whoever added it, the host, or whoever looks after the group, can take it back." };
   await hooks.afterRead?.();
   const g = r.g;
   return move(async () => {
@@ -235,7 +234,7 @@ export async function adjustGap(gameId: string, actorId: string, input: { mode: 
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game } = r;
-  if (!canRunGame(game, r.g.members, actorId)) return { ok: false, error: "Only the host can fix the difference." };
+  if (!canRunGame(game, r.g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can fix the difference." };
   if (game.status !== "open") return { ok: false, error: "This game is finished." };
   const { lines, totals } = potSummary(parsePlayers(game.players), game.moves);
   if (totals.balanced) return { ok: false, error: "It already adds up." };
@@ -266,7 +265,7 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
-  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can finish the game." };
+  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can finish the game." };
   if (game.status !== "open") return { ok: false, error: "This game is already finished." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen it in settings first." };
   const { lines, totals } = potSummary(parsePlayers(game.players), game.moves);
@@ -339,7 +338,7 @@ export async function reopenGame(gameId: string, actorId: string, hooks: Hooks =
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
-  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can reopen the game." };
+  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can reopen the game." };
   if (game.status !== "done") return { ok: false, error: "This game is still going." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen the group first." };
   await hooks.afterRead?.();
@@ -381,7 +380,7 @@ export async function reopenGame(gameId: string, actorId: string, hooks: Hooks =
 export async function deleteGame(gameId: string, actorId: string, hooks: Hooks = {}): Promise<Result<{ groupId: string }>> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
-  if (!canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only the host can delete the game." };
+  if (!canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can delete the game." };
   if (r.game.status !== "open") return { ok: false, error: "Reopen it first." };
   await hooks.afterRead?.();
   const { g, game } = r;
@@ -499,6 +498,16 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
+  // The one-time key is looked at FIRST, before "is the game still open" and before who is still playing: a repeat of a count that
+  // already went through (a double tap, a retry) must get the first answer back, not "this game is finished". The fingerprint is
+  // of what was typed, not of who was still playing, so it is the same before and after the first count committed.
+  const typedRows = entries.map((e) => [e.memberId, String(e.amount ?? "").trim()] as const).filter(([, t]) => t);
+  const fp = fingerprintOf("pot-count", gameId, settle, ...typedRows.map(([id, t]) => `${id}:${t}`).sort());
+  if (typedRows.length) {
+    const ks = await keyState(opts.requestKey, fp);
+    if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+    if (ks.state === "done") return firstAnswer(gameId, ks.result);
+  }
   if (game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
   const playing = new Set(inPlay(parsePlayers(game.players), game.moves));
   const name = (id: string) => g.members.find((m) => m.id === id)?.name ?? "Someone";
@@ -513,14 +522,7 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
   }
   if (!rows.length && !settle) return { ok: false, error: "Type what each person has." };
   if (rows.length) {
-    const fp = fingerprintOf("pot-count", gameId, settle, ...rows.map((x) => `${x.memberId}:${x.amount}`).sort());
-    const again = async (): Promise<Result<{ finished: boolean; gap: boolean }>> => {
-      const now = await db.potGame.findUnique({ where: { id: gameId }, select: { status: true } });
-      return { ok: true, finished: now?.status === "done", gap: false };
-    };
-    const ks = await keyState(opts.requestKey, fp);
-    if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
-    if (ks.state === "done") return again();
+    const again = () => firstAnswer(gameId, "count");
     await hooks.afterRead?.();
     try {
       const w = await move(async () => {
@@ -544,13 +546,28 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
       throw err;
     }
   }
-  if (!settle || !canRunGame(game, g.members, actorId)) return { ok: true, finished: false, gap: false };
+  // What the person is told is kept on the key, so a repeat of this same form gets the same answer.
+  const answer = async (out: Result<{ finished: boolean; gap: boolean }>) => {
+    if (opts.requestKey && rows.length && out.ok) {
+      await db.requestKey.updateMany({ where: { key: opts.requestKey, fingerprint: fp }, data: { result: out.finished ? "finished" : out.gap ? "gap" : "counted" } }).catch(() => undefined);
+    }
+    return out;
+  };
+  if (!settle || !canRunGame(game, g.members, actorId)) return answer({ ok: true, finished: false, gap: false });
   const missing = [...playing].filter((id) => !rows.some((x) => x.memberId === id));
   if (missing.length) return { ok: false, error: `Still to count: ${missing.map(name).join(", ")}. Put 0 for anyone who took nothing home.` };
   const f = await finishGame(gameId, actorId);
-  if (f.ok) return { ok: true, finished: true, gap: false };
+  if (f.ok) return answer({ ok: true, finished: true, gap: false });
   // Counted, but it doesn't add up (or something else stopped it: say what).
-  return /missing from the count|more came back/.test(f.error) ? { ok: true, finished: false, gap: true } : { ok: false, error: f.error };
+  return /missing from the count|more came back/.test(f.error) ? answer({ ok: true, finished: false, gap: true }) : { ok: false, error: f.error };
+}
+
+// The answer to a count that was already saved under this key (what the first request was told, or what the game says now).
+async function firstAnswer(gameId: string, saved: string): Promise<Result<{ finished: boolean; gap: boolean }>> {
+  if (saved === "finished") return { ok: true, finished: true, gap: false };
+  if (saved === "gap") return { ok: true, finished: false, gap: true };
+  const now = await db.potGame.findUnique({ where: { id: gameId }, select: { status: true } });
+  return { ok: true, finished: saved !== "counted" && now?.status === "done", gap: false };
 }
 
 // A finished game's payments: each "Ravi pays Asha ₹300" with what's left to

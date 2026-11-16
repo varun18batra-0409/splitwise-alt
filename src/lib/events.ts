@@ -192,7 +192,7 @@ export type MoveOutUndo = {
   prepaid?: { billId: string; period: string; expenseId: string }[];
   // Earlier leavers' daily-share charges the person paid, handed to this month's payer at move-out (add-only: missing = none handed).
   // The undo gives each back (before = the person moving out, after = the new payer), only while it is still paid by `after`.
-  chargePayers?: { expenseId: string; before: string; after: string }[];
+  chargePayers?: { expenseId: string; before: string; after: string; billId?: string; period?: string }[]; // billId, period: the bill month it belongs to (missing on lines saved before: looked up)
   bills: { id: string; before: { payer: string; rotation: string; split: string }; after: { payer: string; rotation: string; split: string } }[];
   deposit?: {
     leaverShareId: string;

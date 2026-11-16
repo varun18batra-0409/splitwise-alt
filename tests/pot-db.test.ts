@@ -310,7 +310,7 @@ describe("The Pot (real database)", () => {
     expect(await db.expense.count({ where: { groupId: g.id, kind: "pot" } })).toBe(0);
   });
 
-  it("the admin can delete a left host's open game, but not while the host is still in", async () => {
+  it("the admin can delete an open game whether or not the host is still in; a plain player can't", async () => {
     const t = await table();
     // Who looks after the group, worked out as group-admin.ts does: nobody has claimed a place, so the earliest member (createdAt, then id) who hasn't left.
     const ordered = await db.member.findMany({ where: { groupId: t.g.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true } });
@@ -321,16 +321,19 @@ describe("The Pot (real database)", () => {
     const s = await startGame(t.g.id, host, { name: "Host night", game: "poker", players: [host, other] });
     if (!s.ok) throw new Error(s.error);
     expect((await loadGame(t.g.id, s.id))!.hostId).toBe(host);
-    // The host is still in: the admin may not delete it, another player may not, the host may only when it is theirs to do.
-    expect((await deleteGame(s.id, admin)).ok).toBe(false);
+    // The host is still in: another player may not delete it, the admin may (a host who goes quiet must not trap the game).
     expect((await deleteGame(s.id, other)).ok).toBe(false);
     expect(await loadGame(t.g.id, s.id)).not.toBeNull();
-    // The host leaves: now the admin can (and a plain player still can't).
-    await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
-    expect(await groupAdminId(t.g.id)).toBe(admin);
-    expect((await deleteGame(s.id, other)).ok).toBe(false);
     expect((await deleteGame(s.id, admin)).ok).toBe(true);
     expect(await loadGame(t.g.id, s.id)).toBeNull();
+    // A second game whose host has left: the admin can still, a plain player still can't.
+    const s2 = await startGame(t.g.id, host, { name: "Host night 2", game: "poker", players: [host, other] });
+    if (!s2.ok) throw new Error(s2.error);
+    await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
+    expect(await groupAdminId(t.g.id)).toBe(admin);
+    expect((await deleteGame(s2.id, other)).ok).toBe(false);
+    expect((await deleteGame(s2.id, admin)).ok).toBe(true);
+    expect(await loadGame(t.g.id, s2.id)).toBeNull();
   });
 
   it("an imported card-game row (no game behind it) stays editable and deletable; a game's result does not", async () => {

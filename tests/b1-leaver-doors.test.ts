@@ -7,8 +7,9 @@ import { moveOut, moveOutPreview, setMoveInFor, MOVE_OUT_CLOSED } from "@/lib/ho
 import { addWaitingBill, billExpenseInput, runBillsForGroup } from "@/lib/home/bills-db";
 import { billCommand, saveBillFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { moveOutConfirm } from "@/lib/move-confirm";
-import { revertExpense, undoEvent } from "@/lib/undo";
-import { finishGame, openGameFor, reopenGame } from "@/lib/pot-db";
+import { addPrepaid } from "@/lib/home/moving";
+import { removeMembers, revertExpense, undoEvent } from "@/lib/undo";
+import { countOut, deleteGame, finishGame, openGameFor, reopenGame } from "@/lib/pot-db";
 import { setMember } from "@/lib/people";
 import { moneySig } from "@/lib/money-guard";
 import { checkBooks } from "./helpers/money-invariants";
@@ -97,6 +98,34 @@ describe("1. D3-1: deleting a charge a leaver is in is refused, with no exceptio
     expect(await setExpenseDeleted(ch.id, w.id("Meera"), true)).toEqual({ ok: false, error: "Ravi has left the group, so this can't be deleted. Ask them to rejoin first." });
     expect((await db.expense.findUniqueOrThrow({ where: { id: ch.id } })).deletedAt).toBeNull();
     expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, 0, 0]);
+  });
+});
+
+describe("1b. D3-1: who is in the expense is read inside the write", () => {
+  it("Ravi (left, at 0) is added to the expense, and pays his 5000, in the gap before Meera's delete: the delete is refused and Ravi stays at 0", async () => {
+    const w = await world("d31b");
+    const [A, R, M] = [w.id("Asha"), w.id("Ravi"), w.id("Meera")];
+    await db.member.update({ where: { id: R }, data: { leftAt: new Date("2026-11-13T12:00:00Z") } });
+    // Dinner 20000 paid by Asha, 10000 each for Asha and Meera. Ravi is not in it, so when the delete reads it Ravi is nowhere.
+    const dinner = await db.expense.create({
+      data: {
+        groupId: w.gid, description: "Dinner", amount: 20000, paidById: A, createdById: A, splitType: "exact", forMode: "selected", category: "other",
+        originalAmount: 20000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 20000,
+        shares: { create: [{ memberId: A, amount: 10000 }, { memberId: M, amount: 10000 }] },
+      },
+    });
+    const r = await setExpenseDeleted(dinner.id, M, true, {
+      afterRead: async () => {
+        // Someone's edit lands: Dinner becomes 25000 with Ravi's 5000 in it, and Ravi pays Asha 5000 (so he is back to 0).
+        await db.expense.update({ where: { id: dinner.id }, data: { amount: 25000, originalAmount: 25000, convertedAmount: 25000 } });
+        await db.expenseShare.create({ data: { expenseId: dinner.id, memberId: R, amount: 5000 } });
+        await pay(w.gid, R, A, 5000);
+      },
+    });
+    // Taking the dinner away would leave Ravi +5000 (his payment with nothing to pay for).
+    expect(r).toEqual({ ok: false, error: "Ravi has left the group, so this can't be deleted. Ask them to rejoin first." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: dinner.id } })).deletedAt).toBeNull();
+    expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([10000, 0, -10000]); // Asha 25000 - 10000 - 5000 (Ravi's payment), Ravi -5000 + 5000, Meera -10000
   });
 });
 
@@ -517,6 +546,139 @@ describe("10. MB-4: nobody can leave (or be removed) with chips in an open game"
     expect((await db.potGame.findUniqueOrThrow({ where: { id: gameId } })).status).toBe("open");
     expect(await potResults(w.gid)).toHaveLength(0);
     await checkBooks(w.gid);
+  });
+});
+
+describe("10b. MB-4 is not a trap: whoever looks after the group can always finish or delete an open game", () => {
+  it("the host Ravi takes 50000 and goes quiet: he can't be removed; Asha (looks after the group) counts Ravi 0 and Meera 100000 and finishes; Ravi pays 50000; then he can be removed", async () => {
+    const w = await world("mb4trap", { names: ["Asha", "Ravi", "Meera"], type: "trip" });
+    const [A, R, M] = [w.id("Asha"), w.id("Ravi"), w.id("Meera")];
+    const game = await db.potGame.create({ data: { groupId: w.gid, name: "Friday teen patti", players: JSON.stringify([R, M]), hostId: R } });
+    await db.potMove.createMany({ data: [R, M].map((memberId) => ({ gameId: game.id, memberId, kind: "take", amount: 50000, createdById: R })) });
+    expect(await setMember(w.gid, A, R, { leftAt: new Date().toISOString() })).toEqual({ ok: false, error: "Ravi is still in a game that’s open (Friday teen patti). Finish the game first." });
+    expect(await finishGame(game.id, M)).toEqual({ ok: false, error: "Only the host, or whoever looks after the group, can finish the game." }); // a plain player still can't
+    // Asha is not the host and the host is still in the group: she may run the game all the same.
+    const c = await countOut(game.id, A, [{ memberId: R, amount: "0" }, { memberId: M, amount: "1000" }], true);
+    expect(c).toEqual({ ok: true, finished: true, gap: false });
+    expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, -50000, 50000]); // Meera 100000 home - 50000 in; Ravi 0 home - 50000 in
+    await pay(w.gid, R, M, 50000);
+    expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, 0, 0]);
+    expect((await setMember(w.gid, A, R, { leftAt: new Date().toISOString() })).ok).toBe(true);
+    await checkBooks(w.gid);
+  });
+
+  it("the admin can delete an open game of a quiet host too, which frees the host to leave", async () => {
+    const w = await world("mb4del", { names: ["Asha", "Ravi"], type: "trip" });
+    const [A, R] = [w.id("Asha"), w.id("Ravi")];
+    const game = await db.potGame.create({ data: { groupId: w.gid, name: "Friday teen patti", players: JSON.stringify([A, R]), hostId: R } });
+    await db.potMove.create({ data: { gameId: game.id, memberId: R, kind: "take", amount: 50000, createdById: R } });
+    expect((await deleteGame(game.id, A)).ok).toBe(true);
+    expect((await setMember(w.gid, R, R, { leftAt: new Date().toISOString() })).ok).toBe(true);
+    await checkBooks(w.gid);
+  });
+});
+
+describe("review fixes (1-4)", () => {
+  it("1. the move-out undo can't hand a charge back after its month was added: Milk (Ravi and Meera share, Asha pays) 31200, handed to Meera, month added 112800", async () => {
+    const w = await world("rv1");
+    const [asha, ravi, meera] = [w.id("Asha"), w.id("Ravi"), w.id("Meera")];
+    await milk(w, asha, { split: JSON.stringify({ mode: "some", ids: [ravi, meera] }) });
+    // Ravi out on the 13th with Add it now: 13 × 4800 ÷ 2 = 31200, paid by Asha; Ravi pays Asha 31200.
+    const first = await moveOut(w.gid, asha, { leaverId: ravi, lastDay: "2026-11-13", addDaily: true, requestKey: key("rv1a") }, new Date("2026-11-13T06:00:00Z"));
+    if (!first.ok) throw new Error(first.error);
+    const ch = await db.expense.findFirstOrThrow({ where: { groupId: w.gid, description: { contains: "Ravi" } } });
+    expect(ch.amount).toBe(31200);
+    // Asha out on the 20th: the charge goes to Meera, Asha pays Meera 31200.
+    const out = await moveOut(w.gid, asha, { leaverId: asha, lastDay: "2026-11-20", requestKey: key("rv1b") }, new Date("2026-11-20T06:00:00Z"));
+    if (!out.ok) throw new Error(out.error);
+    expect(out.payments).toEqual([{ from: asha, to: meera, amount: 31200 }]);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: ch.id } })).paidById).toBe(meera);
+    const saved = JSON.parse((await db.groupEvent.findUniqueOrThrow({ where: { id: out.eventId! } })).undo).moveOut.chargePayers;
+    expect(saved).toEqual([expect.objectContaining({ expenseId: ch.id, before: asha, after: meera, period: "2026-11" })]);
+    // Month end: 30 × 4800 = 144000 − 31200 = 112800, paid and shared by Meera.
+    expect((await runBillsForGroup(w.gid, new Date("2026-12-01T06:00:00Z"))).added).toBe(1);
+    const m = await db.expense.findFirstOrThrow({ where: { groupId: w.gid, description: "Milk" } });
+    expect([m.amount, m.paidById]).toEqual([112800, meera]);
+    expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, 0, 0]);
+    // The undo is refused (Meera is still here, so she is told which bill); nothing changes.
+    expect(await undoEvent(out.eventId!, meera)).toEqual({ ok: false, error: "Milk for November was added after the move-out, so the move-out can’t be undone." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: ch.id } })).paidById).toBe(meera);
+    expect((await db.member.findUniqueOrThrow({ where: { id: asha } })).leftAt).not.toBeNull();
+    expect(await db.payment.count({ where: { groupId: w.gid, deletedAt: null } })).toBe(2);
+    expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, 0, 0]);
+    // A line saved before the month was kept is looked up from the bill's note, and refused the same way.
+    const ev = await db.groupEvent.findUniqueOrThrow({ where: { id: out.eventId! } });
+    const u = JSON.parse(ev.undo);
+    u.moveOut.chargePayers = u.moveOut.chargePayers.map((x: Record<string, unknown>) => ({ expenseId: x.expenseId, before: x.before, after: x.after }));
+    await db.groupEvent.update({ where: { id: ev.id }, data: { undo: JSON.stringify(u) } });
+    expect(await undoEvent(ev.id, meera)).toEqual({ ok: false, error: "Milk for November was added after the move-out, so the move-out can’t be undone." });
+  });
+
+  it("2. Skip re-reads the bill's charges inside its own write: a move-out charge committed in the gap makes it refuse (waiting month, and next month)", async () => {
+    const w = await world("rv2");
+    const bill = await milk(w, w.id("Asha"));
+    const text = "A move-out share of this month’s Milk was already charged, so this month can’t be skipped.";
+    const charged = () => db.bill.update({ where: { id: bill.id }, data: { prepaid: addPrepaid("{}", "2026-11", { m: w.id("Ravi"), a: 100, e: "x", d: "2026-11-13" }) } });
+    await db.billRun.create({ data: { billId: bill.id, period: "2026-11", status: "waiting" } });
+    expect(await billCommand(w.gid, w.id("Asha"), bill.id, "skip", new Date("2026-11-16T06:00:00Z"), { afterRead: async () => void (await charged()) })).toEqual({ ok: false, error: text });
+    expect((await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: bill.id, period: "2026-11" } } })).status).toBe("waiting");
+    await db.billRun.deleteMany({ where: { billId: bill.id } });
+    await db.bill.update({ where: { id: bill.id }, data: { prepaid: "{}" } });
+    expect(await billCommand(w.gid, w.id("Asha"), bill.id, "skip", new Date("2026-11-16T06:00:00Z"), { afterRead: async () => void (await charged()) })).toEqual({ ok: false, error: text });
+    expect(await db.billRun.count({ where: { billId: bill.id } })).toBe(0);
+  });
+
+  it("3. a move-out while the month's bill is being added is refused, in the preview and the move-out; nothing is recorded", async () => {
+    const w = await world("rv3");
+    const [asha, ravi] = [w.id("Asha"), w.id("Ravi")];
+    const bill = await milk(w, asha);
+    expect((await moveOut(w.gid, asha, { leaverId: ravi, lastDay: "2026-11-13", addDaily: true, requestKey: key("rv3a") }, new Date("2026-11-13T06:00:00Z"))).ok).toBe(true);
+    await db.billRun.create({ data: { billId: bill.id, period: "2026-11", status: "adding", claimedAt: new Date() } });
+    const text = "Milk for November is being added right now. Try again in a minute.";
+    const now = new Date("2026-11-20T06:00:00Z");
+    expect(await moveOutPreview(w.gid, asha, "2026-11-20", now, asha)).toEqual({ ok: false, error: text });
+    expect(await moveOut(w.gid, asha, { leaverId: asha, lastDay: "2026-11-20", requestKey: key("rv3b") }, now)).toEqual({ ok: false, error: text });
+    expect((await db.member.findUniqueOrThrow({ where: { id: asha } })).leftAt).toBeNull();
+    expect(await db.payment.count({ where: { groupId: w.gid, deletedAt: null } })).toBe(1);
+    expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, 0, 0]);
+  });
+
+  it("4. someone whose split weight is 0 was never in the flat's bills: a bill added after their move-out does not block their undo", async () => {
+    const w = await world("rv4");
+    const [asha, ravi, meera] = [w.id("Asha"), w.id("Ravi"), w.id("Meera")];
+    await db.member.update({ where: { id: asha }, data: { splitWeight: 0 } });
+    const out = await moveOut(w.gid, asha, { leaverId: asha, lastDay: "2026-11-16", requestKey: key("rv4") }, new Date("2026-11-16T06:00:00Z"));
+    if (!out.ok) throw new Error(out.error);
+    const rent = await db.bill.create({ data: { groupId: w.gid, name: "Rent", category: "bills", nature: "fixed", amount: 900000, day: 1, startMonth: "2026-12", payer: ravi, split: JSON.stringify({ mode: "group", ids: [] }) } });
+    const ex = await db.expense.create({
+      data: {
+        groupId: w.gid, description: "Rent", amount: 900000, paidById: ravi, createdById: ravi, splitType: "exact", forMode: "selected", originalAmount: 900000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 900000,
+        shares: { create: [{ memberId: ravi, amount: 450000 }, { memberId: meera, amount: 450000 }] },
+      },
+    });
+    await db.billRun.create({ data: { billId: rent.id, period: "2026-12", status: "added", expenseId: ex.id } });
+    // Ravi +450000, Meera −450000, Asha 0: undoing her move-out moves nothing, so it goes through.
+    expect((await undoEvent(out.eventId!, ravi)).ok).toBe(true);
+    expect((await db.member.findUniqueOrThrow({ where: { id: asha } })).leftAt).toBeNull();
+    expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, 450000, -450000]);
+  });
+});
+
+describe("10c. undo of 'added Kiran by name' can't delete someone with chips in a game", () => {
+  it("Kiran has a take line in a game (even one since taken back): the undo is refused with the usual words and Kiran stays; with nothing he is removed", async () => {
+    const w = await world("kiran", { names: ["Asha", "Ravi"], type: "trip" });
+    const A = w.id("Asha");
+    const kiran = await db.member.create({ data: { groupId: w.gid, name: "Kiran" } });
+    const idle = await db.member.create({ data: { groupId: w.gid, name: "Idle" } });
+    const game = await db.potGame.create({ data: { groupId: w.gid, name: "Friday teen patti", players: JSON.stringify([A, kiran.id]), hostId: A } });
+    const mv = await db.potMove.create({ data: { gameId: game.id, memberId: kiran.id, kind: "take", amount: 50000, createdById: A } });
+    const words = "Kiran is already part of expenses, payments or moments, so they can’t be removed.";
+    expect(await removeMembers(w.gid, A, [kiran.id])).toEqual({ ok: false, error: words });
+    await db.potMove.update({ where: { id: mv.id }, data: { deletedAt: new Date() } });
+    expect(await removeMembers(w.gid, A, [kiran.id])).toEqual({ ok: false, error: words }); // the line was taken back, but he is still at the table
+    expect(await db.member.count({ where: { id: kiran.id } })).toBe(1);
+    expect((await removeMembers(w.gid, A, [idle.id])).ok).toBe(true);
+    expect(await db.member.count({ where: { id: idle.id } })).toBe(0);
   });
 });
 

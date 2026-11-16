@@ -5,6 +5,7 @@ import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money"
 import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
+import type { Prisma } from "@prisma/client";
 import { parseSplit } from "./bills-db";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 
@@ -146,13 +147,21 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
     // Skip the month that's waiting, or else this month (if not added yet), or next month.
     const waiting = await db.billRun.findFirst({ where: { billId, status: "waiting" }, orderBy: { period: "asc" } });
     // A daily bill's month that already has a move-out share charged can't be skipped (the share would be left with no month-end bill).
-    const charged = (period: string) => bill.nature === "daily" && (parsePrepaid(bill.prepaid)[period] ?? []).length > 0;
+    // Read again inside the write (a move-out can commit a charge in the gap), never from the first look.
+    const charged = async (tx: Prisma.TransactionClient, period: string) => {
+      const now2 = await tx.bill.findUnique({ where: { id: billId }, select: { nature: true, prepaid: true } });
+      return Boolean(now2 && now2.nature === "daily" && (parsePrepaid(now2.prepaid)[period] ?? []).length > 0);
+    };
     await opts.afterRead?.();
     if (waiting) {
-      if (charged(waiting.period)) return { ok: false, error: SKIP_LOCKED(bill.name) };
       // Only while it is still waiting: if it was added in the gap, nothing is skipped.
-      const done = await db.billRun.updateMany({ where: { id: waiting.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
-      if (done.count !== 1) return { ok: false, error: `${bill.name} was just added, so it wasn’t skipped. You’ll find it in Activity.` };
+      const done = await db.$transaction(async (tx) => {
+        if (await charged(tx, waiting.period)) return "charged" as const;
+        const c = await tx.billRun.updateMany({ where: { id: waiting.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
+        return c.count === 1 ? ("ok" as const) : ("added" as const);
+      });
+      if (done === "charged") return { ok: false, error: SKIP_LOCKED(bill.name) };
+      if (done === "added") return { ok: false, error: `${bill.name} was just added, so it wasn’t skipped. You’ll find it in Activity.` };
     } else {
       // The first month from this one that the bill comes round in and isn't added yet
       // (a bill every 2 months skips its next real month).
@@ -163,8 +172,12 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
       }
       if (!next) return { ok: false, error: "There’s no coming month to skip." };
       const period = next;
-      if (charged(period)) return { ok: false, error: SKIP_LOCKED(bill.name) };
-      await db.billRun.upsert({ where: { billId_period: { billId, period } }, create: { billId, period, status: "skipped", reason: "skipped" }, update: {} });
+      const locked = await db.$transaction(async (tx) => {
+        if (await charged(tx, period)) return true;
+        await tx.billRun.upsert({ where: { billId_period: { billId, period } }, create: { billId, period, status: "skipped", reason: "skipped" }, update: {} });
+        return false;
+      });
+      if (locked) return { ok: false, error: SKIP_LOCKED(bill.name) };
     }
   } else if (command === "pause") {
     if (!bill.paused) await db.bill.update({ where: { id: billId }, data: { paused: true, pausedAt: now } });

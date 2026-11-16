@@ -755,7 +755,11 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
       (await db.paymentClaim.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
       // A moment they added, or a reaction they left, counts too: taking the person out would leave photos with no author (and their files behind).
       (await db.moment.count({ where: { groupId, authorId: m.id } })) +
-      (await db.momentReaction.count({ where: { memberId: m.id } }));
+      (await db.momentReaction.count({ where: { memberId: m.id } })) +
+      // Chips in a card game (a live line, or one taken back), a game they host or sit at: the game's lines and result would point at nobody.
+      // (A finished game's result is an expense with their share, counted above.)
+      (await db.potMove.count({ where: { memberId: m.id, game: { groupId } } })) +
+      (await db.potGame.count({ where: { groupId, deletedAt: null, OR: [{ hostId: m.id }, { players: { contains: m.id } }] } }));
     if (used > 0) return { ok: false, error: `${m.name} is already part of expenses, payments or moments, so they can’t be removed.` };
   }
   if (members.length === 0) return { ok: true };
