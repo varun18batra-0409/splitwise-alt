@@ -1,17 +1,44 @@
 // Lists the places people named that Loopin has no photo for, so new place photos can be added.
 // READ-ONLY (one SELECT). Run by the "Unknown places" workflow (needs TURSO_DATABASE_URL / TURSO_AUTH_TOKEN).
-// The repository is PUBLIC, so only AGGREGATES are output: a place name that at least 2 different trips named
-// (so no single person's trip can be picked out), most-named first, at most 200. Never group ids, names, people or tags.
-import { createClient } from "@libsql/client";
+// THIS REPOSITORY IS PUBLIC, so place names are NEVER written to the job summary or to anything in this repository.
+// The names go only to a separate PRIVATE repository (REPORTS_REPO + REPORTS_TOKEN). Without both, only a count is written.
+// Even there, only places named by 3 or more different accounts are listed (most-named first, at most 200).
 import { writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
-const db = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
-const exists = (await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='UnknownPlace'")).rows.length > 0;
-const rows = exists ? (await db.execute("SELECT place, groups FROM UnknownPlace WHERE groups >= 2 ORDER BY groups DESC, place ASC LIMIT 200")).rows : [];
-// Re-check each name before it goes anywhere public: letters, spaces, hyphens, apostrophes only.
-const places = rows.map((r) => ({ place: String(r.place), trips: Number(r.groups) })).filter((p) => /^[\p{L}][\p{L} '-]{1,39}$/u.test(p.place));
-writeFileSync("unknown-places.json", JSON.stringify({ updated: new Date().toISOString().slice(0, 10), places }, null, 1) + "\n");
-const md = [`## Places without a photo (named by 2 or more trips)`, ""];
-md.push(exists ? (places.length ? "| place | trips |\n|---|---|\n" + places.map((p) => `| ${p.place} | ${p.trips} |`).join("\n") : "(none yet)") : "(not recorded yet: the table is not created)");
-writeFileSync("unknown-places.md", md.join("\n") + "\n");
-db.close();
+export const MIN_ACCOUNTS = 3;
+export const MAX_PLACES = 200;
+
+// Pure: rows from the database (place, groups = number of different accounts) and the settings → what to write.
+// `json` is null (no file at all) unless the private repository is set up; `summary` never contains a place name.
+export function buildReport(rows, env, today = new Date().toISOString().slice(0, 10)) {
+  // Re-check each name: letters, spaces, hyphens, apostrophes only.
+  const places = rows
+    .map((r) => ({ place: String(r.place), accounts: Number(r.groups) }))
+    .filter((p) => p.accounts >= MIN_ACCOUNTS && /^[\p{L}][\p{L} '-]{1,39}$/u.test(p.place))
+    .sort((a, b) => b.accounts - a.accounts || a.place.localeCompare(b.place))
+    .slice(0, MAX_PLACES);
+  const ready = Boolean(env.REPORTS_REPO && env.REPORTS_TOKEN);
+  return {
+    count: places.length,
+    json: ready ? JSON.stringify({ updated: today, places }, null, 1) + "\n" : null,
+    summary: ready
+      ? `## Places without a photo\n\n${places.length} places waiting. The list was saved to the private reports repository.\n`
+      : `## Places without a photo\n\n${places.length} places waiting, report repo not set up.\n`,
+  };
+}
+
+async function main() {
+  const { createClient } = await import("@libsql/client"); // only when really run (the tests use buildReport alone)
+  const url = process.env.TURSO_DATABASE_URL;
+  const db = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
+  const exists = (await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='UnknownPlace'")).rows.length > 0;
+  const rows = exists ? (await db.execute({ sql: "SELECT place, groups FROM UnknownPlace WHERE groups >= ? ORDER BY groups DESC, place ASC LIMIT 200", args: [MIN_ACCOUNTS] })).rows : [];
+  db.close();
+  const r = buildReport(rows, process.env);
+  if (r.json) writeFileSync("unknown-places.json", r.json);
+  writeFileSync("unknown-places.md", r.summary);
+  console.log(`${r.count} places waiting`); // a count only
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

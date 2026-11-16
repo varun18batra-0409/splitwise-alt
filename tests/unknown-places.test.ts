@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noteTripPlace, noteTripPlaceLater, normalisePlace, placesToRecord, placeTag, type PlaceStore } from "../src/lib/unknown-places";
+import { noteTripPlace, noteTripPlaceLater, normalisePlace, placeKey, placesToRecord, placeTag, type PlaceStore } from "../src/lib/unknown-places";
 
 // Pure parts only (no database): what is kept, what is skipped, and that a failure never reaches the save.
 
@@ -53,7 +53,7 @@ describe("placesToRecord (a place Loopin has no photo for)", () => {
 });
 
 describe("placeTag", () => {
-  it("is stable, keyed, and does not contain the trip id", () => {
+  it("is stable, keyed, and does not contain the account id", () => {
     const t = placeTag("s1", "group-abc123", "lisbon");
     expect(t).toBe(placeTag("s1", "group-abc123", "lisbon"));
     expect(t).not.toBe(placeTag("s2", "group-abc123", "lisbon"));
@@ -70,7 +70,21 @@ function fake() {
   return { calls, store };
 }
 
+describe("placeKey", () => {
+  it("is its own key, derived from the secret (so another secret means other tags: counts start again)", () => {
+    expect(placeKey("s1")).toBe(placeKey("s1"));
+    expect(placeKey("s1")).not.toBe(placeKey("s2"));
+    expect(placeKey("s1")).not.toBe("s1");
+    expect(placeTag("s1", "acc", "lisbon")).not.toBe(placeTag("s2", "acc", "lisbon"));
+  });
+});
+
 describe("noteTripPlace", () => {
+  it("records nothing for a member with no account", async () => {
+    const a = fake();
+    for (const none of [null, undefined, ""]) await noteTripPlace(none, "Lisbon", "", { store: a.store, secret: "s" });
+    expect(a.calls).toEqual([]);
+  });
   it("hands only the place and a hash to the store; a known place is not stored", async () => {
     const a = fake();
     await noteTripPlace("group-xyz789", "Lisbon", "", { store: a.store, secret: "s" });
