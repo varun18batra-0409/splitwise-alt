@@ -24,7 +24,7 @@ import { Notice } from "@/components/Notice";
 import { UndoBar } from "@/components/UndoBar";
 import { BackIcon, iconButtonClass } from "@/components/icons";
 import { inputClass, primaryButtonClass } from "@/components/ui";
-import { BIG_CREAM } from "@/lib/settle-ui";
+import { BIG_OUTLINE } from "@/lib/settle-ui";
 import { STALE_KEY_ERROR } from "@/lib/once";
 
 // A person you share expenses with directly (no group): who owes whom, a way to settle, and the history between the two of you.
@@ -95,6 +95,12 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       ]
     : [{ key: "part", label: "Pay part", href: partHref, attrs: { "data-different-amount": "" } }];
 
+  const addButton = (
+    <Link href={`/groups/${group.id}/add`} className={`${primaryButtonClass} mt-4`} data-person-add>
+      Add expense
+    </Link>
+  );
+
   return (
     <>
       <header className="mb-5 flex items-center gap-3">
@@ -106,7 +112,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           <h1 className="truncate font-display text-[26px] font-semibold leading-tight tracking-[-0.02em]" data-person-name>
             {name}
           </h1>
-          <p className="truncate text-[14px] leading-snug text-fg/65" data-person-badge>
+          <p className="text-[14px] leading-snug text-fg/65" data-person-badge>
             {shared ? `Shared with ${name}` : "Only you can see this"}
           </p>
         </div>
@@ -151,17 +157,72 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       {sp.undone === "1" && !showUndo && <Notice tone="success" params={["undone"]} className="mb-3">Undone.</Notice>}
 
       {/* Who owes whom, exactly, in this pair's own currency. */}
-      <section aria-label="Balance" className="rounded-[24px] border border-line bg-white px-5 py-5" data-person-balance>
-        <p className={`font-display text-[26px] font-semibold leading-tight tracking-[-0.02em] ${owed ? "text-owed" : owe ? "text-owe" : "text-fg"}`} data-balance-line>
-          {balanceLine(net, name, currency)}
-        </p>
-        <p className="mt-1 text-[14px] text-fg/60">
-          {hasHistory ? `Only between you and ${name}. Not combined with any group.` : `Nothing here yet. Add the first expense with ${name}.`}
-        </p>
-        <Link href={`/groups/${group.id}/add`} className={`${primaryButtonClass} mt-4`} data-person-add>
-          Add expense
-        </Link>
-      </section>
+      {net === 0 && (
+        <section aria-label="Balance" className="rounded-[24px] border border-line bg-white px-5 py-5" data-person-balance>
+          <p className="font-display text-[26px] font-semibold leading-tight tracking-[-0.02em] text-fg" data-balance-line>
+            {balanceLine(net, name, currency)}
+          </p>
+          <p className="mt-1 text-[14px] text-fg/60">
+            {hasHistory ? `Only between you and ${name}. Not combined with any group.` : `Nothing here yet. Add the first expense with ${name}.`}
+          </p>
+          {addButton}
+        </section>
+      )}
+
+      {/* One card when money is owed either way: the headline, the note, the breakdown, then Add expense and the settle action. */}
+      {net !== 0 && (
+        <ul aria-label="Balance" data-person-balance data-person-settle>
+          <SettleCard
+            id={`person-${group.id}`}
+            name={name}
+            groupLine="Direct"
+            amount={amount}
+            tone={owed ? "owed" : "owe"}
+            lead={{
+              headline: balanceLine(net, name, currency),
+              note: `Only between you and ${name}. Not combined with any group.`,
+              add: (
+                <Link href={`/groups/${group.id}/add`} className={primaryButtonClass} data-person-add>
+                  Add expense
+                </Link>
+              ),
+            }}
+            main={
+              owed
+                ? {
+                    kind: "node",
+                    node: (
+                      <Link href={`/groups/${group.id}/remind?from=${other.id}`} data-remind className={BIG_OUTLINE}>
+                        Remind {first}
+                      </Link>
+                    ),
+                  }
+                : { kind: "sheet", label: "Record payment" }
+            }
+            menu={menu}
+            breakdown={
+              <div className="mt-1 rounded-2xl bg-mist px-3.5 py-3 text-[13.5px] leading-snug text-fg/75" data-breakdown-body>
+                <p className="font-semibold text-fg" data-cross-total>
+                  {owed ? `${name} pays you ${amount}` : `You pay ${name} ${amount}`}
+                </p>
+              </div>
+            }
+            sheet={
+              owed
+                ? { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: name, to: "You", other: name, groupLine: "Direct", amount, tone: "owed", partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
+                : { title: "Record payment", subtitle: `Confirm only after you’ve paid ${first}.`, from: "You", to: name, other: name, groupLine: "Direct", amount, tone: "owe", partHref, confirmLabel: "Confirm payment recorded", note: SHEET_NOTE }
+            }
+            action={settleAcrossGroups}
+            fields={
+              <>
+                <FreshKey name="rid" />
+                <input type="hidden" name="parts" value={JSON.stringify([part])} />
+                <input type="hidden" name="back" value={`people:${group.id}`} />
+              </>
+            }
+          />
+        </ul>
+      )}
 
       {!shared && (
         <section aria-label={`Invite ${name}`} className="mt-4 rounded-[22px] border border-line px-4 py-3.5" data-person-invite>
@@ -193,52 +254,6 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             </details>
           )}
         </section>
-      )}
-
-      {net !== 0 && (
-        <ul className="mt-4 space-y-3" data-person-settle>
-          <SettleCard
-            id={`person-${group.id}`}
-            name={name}
-            groupLine={shared ? "Direct" : "Direct · only you see this"}
-            amount={amount}
-            tone={owed ? "owed" : "owe"}
-            main={
-              owed
-                ? {
-                    kind: "node",
-                    node: (
-                      <Link href={`/groups/${group.id}/remind?from=${other.id}`} data-remind className={BIG_CREAM}>
-                        Remind {first}
-                      </Link>
-                    ),
-                  }
-                : { kind: "sheet", label: "Record payment" }
-            }
-            menu={menu}
-            breakdown={
-              <div className="mt-1 rounded-2xl bg-mist px-3.5 py-3 text-[13.5px] leading-snug text-fg/75" data-breakdown-body>
-                <p>{`Only between you and ${name}. Not combined with any group.`}</p>
-                <p className="mt-2 border-t border-line pt-2 font-semibold text-fg" data-cross-total>
-                  {owed ? `${name} pays you ${amount}` : `You pay ${name} ${amount}`}
-                </p>
-              </div>
-            }
-            sheet={
-              owed
-                ? { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: name, to: "You", other: name, groupLine: "Direct", amount, tone: "owed", partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
-                : { title: "Record payment", subtitle: `Confirm only after you’ve paid ${first}.`, from: "You", to: name, other: name, groupLine: "Direct", amount, tone: "owe", partHref, confirmLabel: "Confirm payment recorded", note: SHEET_NOTE }
-            }
-            action={settleAcrossGroups}
-            fields={
-              <>
-                <FreshKey name="rid" />
-                <input type="hidden" name="parts" value={JSON.stringify([part])} />
-                <input type="hidden" name="back" value={`people:${group.id}`} />
-              </>
-            }
-          />
-        </ul>
       )}
 
       {/* A payment someone recorded to you that is still waiting for your word. */}

@@ -91,6 +91,7 @@ export default async function AddExpensePage({
       photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
       uid={group.id}
       letter={group.name}
+      person={pair?.otherName}
     >
       {sp.again && source && (
         <Notice tone="success" className="-mt-2 mb-5">

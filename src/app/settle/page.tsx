@@ -387,7 +387,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]">Settle up</h1>
-          <p className="text-[15px] leading-snug text-fg/65">Across all your groups</p>
+          <p className="text-[15px] leading-snug text-fg/65">{direct.length > 0 ? "Across your groups and people" : "Across all your groups"}</p>
         </div>
       </header>
 

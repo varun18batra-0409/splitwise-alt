@@ -2,7 +2,6 @@ import Link from "@/components/Link";
 import { redirect } from "next/navigation";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PageHeader } from "@/components/ui";
-import { SheetPage } from "@/components/SheetPage";
 import { directEntryOn } from "@/lib/direct";
 import { pickableGroups } from "@/lib/direct-db";
 
@@ -39,7 +38,8 @@ export default async function PickGroupForExpense({ searchParams }: { searchPara
   const account = await getAccount();
   const row = "flex min-h-[72px] items-center gap-3.5 rounded-[22px] border border-line bg-white px-4 py-3.5 active:bg-mist";
   return (
-    <SheetPage title="Add expense" back="/" cover={{ kind: "plain" }} uid="add-choice" letter="+">
+    <>
+      <PageHeader title="Add expense" back="/" />
       <ul className="space-y-3" data-add-choice>
         <li>
           <Link href={account ? "/add/person" : "/signin?back=/add/person"} className={row} data-choice="person">
@@ -60,6 +60,6 @@ export default async function PickGroupForExpense({ searchParams }: { searchPara
           </Link>
         </li>
       </ul>
-    </SheetPage>
+    </>
   );
 }
