@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crossActionLabel, crossPreview, crossSettle, personKey, phoneKeyResolver, type GroupForSettle } from "@/lib/cross-settle";
+import { crossPersonKey, crossActionLabel, crossPreview, crossSettle, personKey, phoneKeyResolver, type GroupForSettle } from "@/lib/cross-settle";
 import { netBalances } from "@/lib/balances";
 import { smartSettle } from "@/lib/settle";
 
@@ -10,7 +10,7 @@ const goa: GroupForSettle = {
   myId: "me1",
   members: [
     { id: "me1", name: "Varun", phone: "" },
-    { id: "a1", name: "Asha", phone: "+91 98765 43210" },
+    { id: "a1", name: "Asha", phone: "+91 98765 43210", accountId: "acc-asha" },
     { id: "r1", name: "Ravi", phone: "" },
   ],
   transfers: [
@@ -25,7 +25,7 @@ const flat: GroupForSettle = {
   myId: "me2",
   members: [
     { id: "me2", name: "Varun", phone: "" },
-    { id: "a2", name: "asha  ", phone: "9876543210" }, // same Asha (same phone)
+    { id: "a2", name: "asha  ", phone: "", accountId: "acc-asha" }, // same Asha (same Loopin account)
     { id: "r2", name: "Ravi", phone: "" },
   ],
   transfers: [
@@ -148,64 +148,30 @@ describe("the all-groups Settle opener uses different words from a group's claim
     expect(crossActionLabel(0)).toBe("Mark paid");
   });
 
-  it("matches on the full international number: same last 10 digits under different country codes are two people", () => {
-    const grp = (id: string, phone: string): GroupForSettle => ({
-      groupId: id,
-      groupName: id,
-      currency: "USD",
-      myId: `me-${id}`,
-      members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Sam", phone }],
-      transfers: [{ from: `me-${id}`, to: `p-${id}`, amount: 1000 }],
-    });
-    const { items } = crossSettle([grp("us", "+16505550123"), grp("in", "+916505550123")], "USD", () => null);
-    expect(items).toHaveLength(2);
-  });
-
-  it("an Indian number with or without +91 is one person in an Indian group", () => {
-    const grp = (id: string, phone: string): GroupForSettle => ({
+  it("people with only a phone number are never combined across groups, even with the very same number: one row per group", () => {
+    const grp = (id: string, phone: string, accountId?: string): GroupForSettle => ({
       groupId: id,
       groupName: id,
       currency: "INR",
       myId: `me-${id}`,
-      members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Asha", phone }],
+      members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Asha", phone, accountId }],
       transfers: [{ from: `me-${id}`, to: `p-${id}`, amount: 1000 }],
     });
-    const { items } = crossSettle([grp("a", "+91 98765 43210"), grp("b", "98765 43210")], "INR", () => null);
-    expect(items).toHaveLength(1);
-    expect(items[0].net).toBe(-2000);
-    expect(personKey({ name: "x", phone: "919876543210" }, "g", "IN")).toBe(personKey({ name: "x", phone: "9876543210" }, "g", "IN"));
-  });
-});
-
-describe("LC-03: numbers with and without a country code, in any currency's group", () => {
-  const grp = (id: string, currency: string, phone: string): GroupForSettle => ({
-    groupId: id,
-    groupName: id,
-    currency,
-    myId: `me-${id}`,
-    members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Asha", phone }],
-    transfers: [{ from: `me-${id}`, to: `p-${id}`, amount: 1000 }],
+    // By hand: ₹10 + ₹10 to the same number, but no account: two rows of -1000, not one of -2000.
+    const phoneOnly = crossSettle([grp("a", "+91 98765 43210"), grp("b", "98765 43210")], "INR", () => null).items;
+    expect(phoneOnly.map((i) => [i.net, i.parts.map((p) => p.groupId)])).toEqual([[-1000, ["a"]], [-1000, ["b"]]]);
+    // With the same Loopin account in both, it is one row: -1000 + -1000 = -2000.
+    const same = crossSettle([grp("a", "+91 98765 43210", "acc-1"), grp("b", "", "acc-1")], "INR", () => null).items;
+    expect(same.map((i) => [i.net, i.parts.length])).toEqual([[-2000, 2]]);
+    // Different accounts with the same number stay apart.
+    expect(crossSettle([grp("a", "+91 98765 43210", "acc-1"), grp("b", "+91 98765 43210", "acc-2")], "INR", () => null).items).toHaveLength(2);
+    // An account in one group and only the phone number in the other: not combined.
+    expect(crossSettle([grp("a", "+91 98765 43210", "acc-1"), grp("b", "+91 98765 43210")], "INR", () => null).items).toHaveLength(2);
   });
 
-  it("+91 98765 43210 in an INR flat and 98765 43210 in a THB trip group are one person: 1 row, 2000", () => {
-    const items = crossSettle([grp("flat", "INR", "+91 98765 43210"), grp("trip", "THB", "98765 43210")], "INR", (amt) => amt);
-    expect(items.items).toHaveLength(1);
-    expect(items.items[0].net).toBe(-2000); // -1000 + -1000
-  });
-  it("098765 43210 in a USD group and +91 98765 43210 merge (no code on one side: last 10 digits)", () => {
-    const items = crossSettle([grp("us", "USD", "098765 43210"), grp("in", "INR", "+91 98765 43210")], "INR", (amt) => amt);
-    expect(items.items).toHaveLength(1);
-  });
-  it("+16505550123 and +916505550123 stay two people (both carry a code, and the codes differ): 2 rows", () => {
-    const items = crossSettle([grp("us", "USD", "+16505550123"), grp("in", "INR", "+916505550123")], "INR", (amt) => amt).items;
-    expect(items).toHaveLength(2);
-  });
-  it("a number with no code is left alone when the same digits exist under two different codes", () => {
-    const items = crossSettle([grp("us", "USD", "+16505550123"), grp("in", "INR", "+916505550123"), grp("eu", "EUR", "6505550123")], "INR", (amt) => amt);
-    expect(items.items).toHaveLength(3);
-  });
-  it("Singapore: +65 9123 4567 and 9123 4567 are one person", () => {
-    expect(crossSettle([grp("a", "SGD", "+65 9123 4567"), grp("b", "THB", "9123 4567")], "INR", (amt) => amt).items).toHaveLength(1);
+  it("crossPersonKey: the account decides; otherwise the person's own row in their own group", () => {
+    expect(crossPersonKey({ id: "x", name: "A", phone: "+91 98765 43210", accountId: "a1" }, "g1")).toBe(crossPersonKey({ id: "y", name: "B", phone: "", accountId: "a1" }, "g2"));
+    expect(crossPersonKey({ id: "x", name: "A", phone: "+91 98765 43210" }, "g1")).not.toBe(crossPersonKey({ id: "y", name: "A", phone: "+91 98765 43210" }, "g2"));
   });
 });
 

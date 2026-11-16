@@ -8,11 +8,10 @@ import type { Transfer } from "./settle";
 // ONE payment. Example: Goa trip says you pay Asha ₹1,000; Flat says Asha pays
 // you ₹400 → across groups, you pay Asha ₹600.
 //
-// The same person is recognised by their Loopin account (signed in with a
-// verified email), else by their phone number (a number typed with or without the country code is the same number;
-// two numbers that both carry a code match only if the codes match: +1 650… and +91 650… are not). Two people who only
-// share a name are NEVER merged: someone added by name alone is settled group by
-// group (each group's own row), because a name can't prove it's the same person.
+// The same person is recognised by their Loopin account (signed in with a verified email) and by nothing else.
+// A phone number or a name alone can't prove it's the same person, and the server refuses to record one payment across
+// groups unless it is the same account in every part. So someone without an account (added by phone or by name) is
+// settled group by group: each group gets its own row for them.
 // Recording it as paid records the underlying payment in each group, so every
 // group's own balances stay right.
 
@@ -126,6 +125,11 @@ export function settleRowId(way: "pay" | "remind", key: string): string {
   return `${way}-${key.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 }
 
+// The key a person is combined under across groups on Settle up: their Loopin account, else their own row in their own group.
+export function crossPersonKey(m: { id?: string; name: string; phone: string; accountId?: string | null }, groupId = ""): string {
+  return m.accountId ? personKey(m, groupId) : personKey({ id: m.id, name: m.name, phone: "" }, groupId);
+}
+
 export function crossSettle(
   groups: GroupForSettle[],
   commonCurrency: string,
@@ -133,16 +137,6 @@ export function crossSettle(
 ): { items: CrossItem[]; skippedGroups: string[] } {
   const byPerson = new Map<string, CrossItem>();
   const skippedGroups: string[] = [];
-  const resolve = phoneKeyResolver(
-    groups.flatMap((g) =>
-      g.transfers
-        .filter((t) => t.from === g.myId || t.to === g.myId)
-        .map((t) => g.members.find((m) => m.id === (t.from === g.myId ? t.to : t.from)))
-        .filter((m): m is NonNullable<typeof m> => Boolean(m))
-        .map((m) => personKey(m, g.groupId, regionForGroup(g))),
-    ),
-  );
-
   for (const g of groups) {
     const member = (id: string) => g.members.find((m) => m.id === id);
     for (const t of g.transfers) {
@@ -155,7 +149,7 @@ export function crossSettle(
         if (!skippedGroups.includes(g.groupName)) skippedGroups.push(g.groupName);
         continue;
       }
-      const key = resolve(personKey(other, g.groupId, regionForGroup(g)));
+      const key = crossPersonKey(other, g.groupId);
       const item = byPerson.get(key) ?? { key, name: other.name, net: 0, parts: [], converted: false };
       const iPay = t.from === g.myId;
       item.net += iPay ? -amountCommon : amountCommon;

@@ -2,7 +2,7 @@
 // you owe -> Settle up is bright; you're owed or it evens out -> Add expense is bright;
 // all square -> Add expense is bright and the second button becomes New group (there is nothing to settle).
 import type { TripPhase } from "../countdown";
-import { personKey, phoneKeyResolver, regionForGroup, settleRowId } from "../cross-settle";
+import { crossPersonKey, settleRowId } from "../cross-settle";
 import { formatMoney } from "../money";
 
 export type MoneyMode = "owe" | "owed" | "even" | "square";
@@ -45,7 +45,7 @@ export function moneyLabel(x: { mode: MoneyMode; acrossCurrencies?: boolean; peo
 
 // ---- The people line under the label: initial circles and "Nupur, Ravi and 2 others" ----
 // Built from the same transfers Settle up uses (crossSettle), so the order is Settle up's per-person totals.
-// People are merged across groups only where Settle up merges them (signed-in account, else phone: personKey).
+// People are merged across groups only where Settle up merges them (signed-in account only: crossPersonKey).
 // Someone added by name alone stays per group. A group with no saved rate keeps its own currency, never added into another.
 // `parts`: each group's payment between you and them (memberId = their member id there; amount in `currency`, the same
 // currency as the total, so parts of one entry are comparable). Used to pick the group to remind them in.
@@ -82,15 +82,6 @@ export function pairPeopleGroup(e: { groupId: string; currency: string; myId: st
 // Amounts are positive minor units. Together (one currency) they add up to that side's total.
 export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common: string, toCommon: (amount: number, currency: string) => number | null): MoneyPerson[] {
   const acc = new Map<string, MoneyPerson & { signed: number }>();
-  const resolve = phoneKeyResolver(
-    groups.flatMap((g) =>
-      g.transfers
-        .filter((t) => t.from === g.myId || t.to === g.myId)
-        .map((t) => g.members.find((m) => m.id === (t.from === g.myId ? t.to : t.from)))
-        .filter((m): m is NonNullable<typeof m> => Boolean(m))
-        .map((m) => personKey(m, g.groupId, regionForGroup(g))),
-    ),
-  );
   for (const g of groups) {
     for (const t of g.transfers) {
       if (t.from !== g.myId && t.to !== g.myId) continue;
@@ -100,7 +91,7 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
       const conv = g.currency === common ? t.amount : toCommon(t.amount, g.currency);
       const currency = conv === null ? g.currency : common;
       const amount = conv === null ? t.amount : conv;
-      const key = resolve(personKey(other, g.groupId, regionForGroup(g)));
+      const key = crossPersonKey(other, g.groupId);
       // A pair and a group with the same person are separate entries: what you owe in one is never taken off what you are owed in the other.
       const slot = `${key}|${currency}|${g.direct ? "d" : "g"}`;
       const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0, ...(g.direct ? { rowKey: `direct:${g.groupId}` } : {}) };
