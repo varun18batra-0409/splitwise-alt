@@ -46,6 +46,23 @@ async function shot(name: string, path: string, prepare?: (p: Page) => Promise<v
   }
 }
 
+// One card of Home's sliding row, on its own: the row is brought into view and paused, then moved straight to card n (no click,
+// so the floating tab bar can't get in the way). A row with fewer cards: nothing is saved for the missing ones.
+async function rowCard(name: string, n: number) {
+  await shot(name, "/", async (p) => {
+    const row = p.locator('section[aria-roledescription="carousel"]').first();
+    await row.scrollIntoViewIfNeeded();
+    const pause = p.getByRole("button", { name: /Pause the highlights/ });
+    if (await pause.count()) await pause.click({ force: true });
+    const total = await row.locator('[aria-roledescription="slide"]').count();
+    if (n > total) throw new Error(`only ${total} cards`);
+    await row.locator("div.snap-x").first().evaluate((el, i) => el.scrollTo({ left: i * el.clientWidth, behavior: "auto" }), n - 1);
+    await p.waitForTimeout(700);
+    await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await p.waitForTimeout(300);
+  }, false);
+}
+
 const g = `/groups/${demo.trip.id}`;
 await shot("01-home", "/");
 await shot("02-group-activity", `${g}?tab=activity`);
@@ -412,16 +429,7 @@ await shot("69-home-full", "/");
 // on the narrowest phone (320). Each card is picked by its dot when there are dots.
 for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
   if (w) await page.setViewportSize({ width: w, height: 640 });
-  for (const n of [1, 2, 3, 4, 5, 6]) {
-    await shot(`${prefix}-home-card-${n}`, "/", async (p) => {
-      const pause = p.getByRole("button", { name: /Pause the highlights/ });
-      if (await pause.count()) await pause.click();
-      const dot = p.getByRole("button", { name: new RegExp(`^Show ${n} of`) });
-      if (await dot.count()) await dot.click();
-      await p.locator("[data-highlight], [data-month-card]").first().scrollIntoViewIfNeeded();
-      await p.waitForTimeout(900);
-    }, false);
-  }
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`${prefix}-home-card-${n}`, n);
   if (w) await page.setViewportSize(wide ?? screen);
 }
 // Collect: the organiser's screens, then what someone opening the link sees.
@@ -480,6 +488,11 @@ if (!hosted) {
       console.log("✗ 82-place-photos", String(e).split("\n")[0]);
     }
   }
+  // The sliding row again, now that a trip in 12 days exists: its weather card comes first.
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`69w-home-row-${n}`, n);
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`n320-69w-home-row-${n}`, n);
+  await page.setViewportSize(screen);
   await shot("72-home-collecting", "/");
   await shot("76-home-countdown", "/", undefined, false);
   await shot("91-home-share-sheet", "/", async (p) => {
