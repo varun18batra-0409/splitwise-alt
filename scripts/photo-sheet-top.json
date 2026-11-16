@@ -1063,6 +1063,120 @@
      ]
     }
    ]
+  },
+  {
+   "file": "top-6.png",
+   "title": "Top 6: USA second pass (Zion, Alaska, Savannah, Cape Cod)",
+   "rows": [
+    {
+     "slot": "Zion",
+     "note": "",
+     "now": [
+      {
+       "id": "photo-1766386787610-53ef5c3da25d",
+       "label": "Previous A"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1515601915049-08c8836c2204",
+       "page": "https://unsplash.com/photos/river-under-rock-mountains-PfTNxPww6bY",
+       "desc": "View from Angels Landing, Zion National Park (labelled)"
+      },
+      {
+       "id": "photo-1606681129845-a6ab3e1017e3",
+       "page": "https://unsplash.com/photos/brown-rocky-mountain-under-blue-sky-during-daytime-8_2EVebUT3A",
+       "desc": "Canyon cliffs, Zion National Park, UT (tags: angels landing)"
+      },
+      {
+       "id": "photo-1524274165673-750e79bf7e2e",
+       "page": "https://unsplash.com/photos/river-between-rocky-mountains-aHdAdA0JzLE",
+       "desc": "The Narrows at Zion, golden hour (labelled The Narrows)"
+      }
+     ]
+    },
+    {
+     "slot": "Alaska",
+     "note": "",
+     "now": [
+      {
+       "id": "photo-1787594799825-3586cee8243e",
+       "label": "Previous A"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1565073182887-6bcefbe225b1",
+       "page": "https://unsplash.com/fr/photos/denali-mountain-above-green-tundra-rLBewYnoi6I",
+       "desc": "Denali mountain over the tundra, Denali National Park, Alaska (labelled)"
+      },
+      {
+       "id": "photo-1752783565007-d3a5e9cf62ea",
+       "page": "https://unsplash.com/photos/a-glacier-majestically-meets-the-snowy-mountains-z3PXA_0sQk8",
+       "desc": "Glacier in Kenai Fjords National Park, Seward, AK (labelled)"
+      },
+      {
+       "id": "photo-1654835608149-7605e13b3f66",
+       "page": "https://unsplash.com/photos/a-lake-surrounded-by-trees-and-mountains-z3lsfr6jDF8",
+       "desc": "Mendenhall-area glacier, Juneau, Alaska (labelled)"
+      }
+     ]
+    },
+    {
+     "slot": "Savannah",
+     "note": "",
+     "now": [
+      {
+       "id": "photo-1667489012747-d4bbc525486f",
+       "label": "Previous B"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1780348545647-0498a42c3b38",
+       "page": "https://unsplash.com/photos/golden-sunlight-illuminates-spanish-moss-on-ancient-oak-trees-SfWMziQHs-w",
+       "desc": "Golden sunlight on Spanish moss and oaks (tags: Savannah, Forsyth Park)"
+      },
+      {
+       "id": "photo-1780348545045-d8760fe95a33",
+       "page": "https://unsplash.com/photos/ornate-fountain-in-a-green-park-with-moss-draped-oak-trees-lNxU7S2jM4A",
+       "desc": "Ornate fountain in a park with moss-draped oaks (Forsyth Park per tags)"
+      },
+      {
+       "id": "photo-1644994063221-9059c879b2bd",
+       "page": "https://unsplash.com/photos/a-bench-under-a-canopy-of-trees-in-a-park-px90wCM7W0A",
+       "desc": "Spanish moss oaks, location label Savannah, GA"
+      }
+     ]
+    },
+    {
+     "slot": "Cape Cod",
+     "note": "",
+     "now": [
+      {
+       "id": "photo-1708458988303-0828184d091e",
+       "label": "Previous B"
+      }
+     ],
+     "cands": [
+      {
+       "id": "photo-1582076654402-df484938f0ef",
+       "page": "https://unsplash.com/photos/white-and-red-concrete-lighthouse-near-white-and-red-house-under-blue-sky-during-daytime-pRz878Pkt34",
+       "desc": "Chatham Coast Guard Lighthouse (location: Cape Cod, Chatham, MA)"
+      },
+      {
+       "id": "photo-1509292602317-1e6a8ba7b1d0",
+       "page": "https://unsplash.com/photos/high-angle-photography-of-white-and-black-lighthouse-tower-during-day-time-aHHMcVPn4ac",
+       "desc": "Nauset Lighthouse, Eastham (labelled; Cape Cod tag)"
+      },
+      {
+       "id": "photo-1708458988303-0828184d091e",
+       "page": "https://unsplash.com/photos/a-path-to-the-beach-leading-to-the-ocean-eJKsNzxZRM4",
+       "desc": "Path to the beach (Cape Cod search, no explicit label)"
+      }
+     ]
+    }
+   ]
   }
  ]
 }
