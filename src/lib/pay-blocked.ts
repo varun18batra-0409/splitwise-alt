@@ -14,7 +14,7 @@ export function payBlocked(g: { name: string; closed: boolean; leaver: { removed
     return {
       kind: "closed",
       title: `${g.name} is closed`,
-      text: "You can’t add payments to a closed group. If something’s still owed, an admin can reopen it from Group settings.",
+      text: "You can’t add payments to a closed group. If something’s still owed, reopen the group first.",
     };
   }
   return null;

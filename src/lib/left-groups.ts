@@ -4,7 +4,7 @@ import { dayKey } from "./dates";
 // They are kept for good (no time limit): that is where Rejoin, Undo my move-out and the history download are reached.
 // Pure functions, so the words and the order can be tested.
 
-type LeaverEntry = { group: { id: string; type?: string; members: { id: string; name: string }[] }; myId: string; leaver?: { leftAt: Date; removed: boolean } | null };
+type LeaverEntry = { group: { id: string; type?: string; members: { id: string; name: string; removedAt?: Date | null }[] }; myId: string; leaver?: { leftAt: Date; removed: boolean } | null };
 
 // The groups I left or was removed from, newest first.
 export function leftGroups<T extends { leaver?: { leftAt: Date } | null }>(open: T[]): T[] {
@@ -23,7 +23,9 @@ export function shortDay(iso: string): string {
 //   removed:  "Asha removed you on 10 Nov" if the person who removed me is known, else "You were removed on 10 Nov"
 export function leftLine(g: LeaverEntry, tz: string, removedBy?: string): string {
   const l = g.leaver!;
-  const day = shortDay(dayKey(l.leftAt, tz));
+  // A removed person's date is the day they were removed (removedAt), which can be later than the day they left on their own.
+  const mine = g.group.members.find((m) => m.id === g.myId);
+  const day = shortDay(dayKey(l.removed && mine?.removedAt ? mine.removedAt : l.leftAt, tz));
   if (l.removed) {
     const who = removedBy ? g.group.members.find((m) => m.id === removedBy && m.id !== g.myId)?.name : undefined;
     return who ? `${who} removed you on ${day}` : `You were removed on ${day}`;

@@ -114,6 +114,20 @@ export default async function PeoplePage({
               {(m.removedAt || m.leftAt) && <span className="block text-xs text-gray-400">{m.removedAt ? "Removed from the group" : "Left the group"}</span>}
             </span>
           </div>
+          {/* Report / Block works for every leaver (blockAction allows it). The passport link is for someone who left on their own, and
+              only for people who were in the group by the day they left (this list is already cut to that day). */}
+          {((!leaver.removed && m.accountId) || (viewer && m.accountId && m.accountId !== viewer.id)) && (
+            <div className="space-y-4 pb-4 pl-12">
+              {!leaver.removed && m.accountId && !m.removedAt && (
+                <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist" data-leaver-passport>
+                  <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
+                </Link>
+              )}
+              {viewer && m.accountId && m.accountId !== viewer.id && (
+                <SafetyLinks kind="person" targetId={m.accountId} accountId={m.accountId} name={m.name} back={`/groups/${group.id}/people`} className="!justify-start -ml-2" />
+              )}
+            </div>
+          )}
         </li>
       );
     }

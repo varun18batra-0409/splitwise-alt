@@ -15,7 +15,8 @@ describe("Inside a group you left: no buttons that fail", () => {
     expect(activity).toContain("const swipeable = !deleted && canChange && !isPot;");
     expect(activity).toContain("isParty && !live && canChange");
     expect(activity).toContain("isParty && live && canChange");
-    expect(activity).toContain("{!deleted && canChange && (");
+    // reactions follow the leaver rule only, so a closed group keeps them for people still in
+    expect(activity).toContain("{!deleted && !v.leaver && (\n                        <div className=\"-mx-1 mb-1\" role=\"group\" aria-label=\"React\">");
     expect(activity).toContain("{canChange && (\n                        <div className=\"flex gap-4 pt-1\">");
     expect(activity.match(/!group\.closed/g)).toHaveLength(1); // only inside the canChange rule itself
   });
@@ -59,6 +60,18 @@ describe("People, seen by someone who left", () => {
     expect(people).toContain("{!leaver && (\n          <Link href={`/groups/${group.id}/invite`} aria-label=\"Add people\"");
     expect(people).toContain("{!leaver && (\n            <form action={renamePerson}");
   });
+  it("read-only rows keep Report / Block for every leaver, and the passport link only for a self-leaver", () => {
+    const row = people.slice(people.indexOf("data-readonly-person"), people.indexOf("const mine = leaver && me;"));
+    expect(row).toContain("<SafetyLinks");
+    expect(row).toContain("viewer && m.accountId && m.accountId !== viewer.id");
+    // SafetyLinks is not behind the removed check; the passport link is
+    expect(row).toContain("{!leaver.removed && m.accountId && !m.removedAt && (");
+    const safety = row.slice(row.indexOf("{viewer && m.accountId && m.accountId !== viewer.id && ("));
+    expect(safety.indexOf("leaver.removed")).toBe(-1);
+  });
+  it("the people listed are already cut to the day they left (membersAsOf)", () => {
+    expect(people).toContain("groupPeople(leaver ? membersAsOf(group.members, myId, leaver.leftAt) : group.members)");
+  });
   it("their own row keeps Rejoin, Undo my move-out and the removed note", () => {
     expect(people).toContain("Rejoin the group");
     expect(people).toContain("UndoMoveOutButton");
@@ -78,6 +91,10 @@ describe("Our passports: kept for someone who left on their own, hidden for some
   });
   it("People tab (By person): same rule", () => {
     expect(src(`${G}/_components/BalancesTab.tsx`)).toContain("{!leaver?.removed && <Link href={`/groups/${group.id}/passports`}");
+  });
+  it("the passports page loads createdAt so the roster can cut to the day they left", () => {
+    expect(src(`${G}/passports/page.tsx`)).toContain("removedAt: true, createdAt: true");
+    expect(src("lib/passport-db.ts")).toContain("m.createdAt.getTime() <= day");
   });
   it("the rule matches the passport code: a removed viewer gets no roster", () => {
     const db = src("lib/passport-db.ts");

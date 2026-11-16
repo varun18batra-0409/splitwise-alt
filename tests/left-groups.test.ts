@@ -39,6 +39,15 @@ describe("Groups you left: the quiet line", () => {
     expect(leftLine(entry("trip", "2026-11-15T22:00:00Z"), "Asia/Kolkata")).toBe("You left on 16 Nov");
     expect(leftLine(entry("trip", "2026-11-15T22:00:00Z"), "UTC")).toBe("You left on 15 Nov");
   });
+  it("removed: the date is the day of removal, not the earlier day they left on their own (left 2 Nov, removed 10 Nov)", () => {
+    const e = {
+      group: { id: "g", type: "trip", members: [{ id: "me", name: "Riya", removedAt: new Date("2026-11-10T10:00:00Z") }, ...members.slice(1)] },
+      myId: "me",
+      leaver: { leftAt: new Date("2026-11-02T10:00:00Z"), removed: true },
+    };
+    expect(leftLine(e, "Asia/Kolkata", "asha")).toBe("Asha removed you on 10 Nov");
+    expect(leftLine(e, "Asia/Kolkata")).toBe("You were removed on 10 Nov");
+  });
   it("shortDay drops the year and any leading zero", () => expect(shortDay("2026-11-02")).toBe("2 Nov"));
 });
 
@@ -48,7 +57,7 @@ describe("Record a payment in a group that can't take one", () => {
     const b = payBlocked({ name: "Goa 2025", closed: true, leaver: null })!;
     expect(b.kind).toBe("closed");
     expect(b.title).toBe("Goa 2025 is closed");
-    expect(b.text).toBe("You can’t add payments to a closed group. If something’s still owed, an admin can reopen it from Group settings.");
+    expect(b.text).toBe("You can’t add payments to a closed group. If something’s still owed, reopen the group first.");
   });
   it("left: You left {Group}", () => {
     const b = payBlocked({ name: "Koh Samui", closed: false, leaver: { removed: false } })!;

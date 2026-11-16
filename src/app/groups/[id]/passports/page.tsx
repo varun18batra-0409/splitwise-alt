@@ -26,7 +26,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   if (!myId) redirect(await privatePath(id));
   const group = await db.group.findUnique({
     where: { id },
-    select: { id: true, name: true, deletedAt: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, removedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+    select: { id: true, name: true, deletedAt: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, removedAt: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) notFound();
   // Only someone who really joined (and wasn't removed) can open it, and it lists only people who did too.

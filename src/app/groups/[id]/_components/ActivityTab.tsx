@@ -338,7 +338,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                     </summary>
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
                       {/* React: one tap (tap yours again to take it back). */}
-                      {!deleted && canChange && (
+                      {!deleted && !v.leaver && (
                         <div className="-mx-1 mb-1" role="group" aria-label="React">
                           {(() => {
                             const btn = (emoji: string) => (
