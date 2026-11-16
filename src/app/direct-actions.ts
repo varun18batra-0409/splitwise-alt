@@ -7,12 +7,13 @@ import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
 import { getAccount, getMemberships, getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
+import { cleanEmail } from "@/lib/auth";
 import { cleanKey, fingerprintOf, isDuplicateKey } from "@/lib/once";
 import { regionFor } from "@/lib/region";
 import { isSupportedCurrency } from "@/lib/money";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { DIRECT, directEntryOn, NOT_DIRECT } from "@/lib/direct";
-import { ensureAccountPair, ensureLocalPair, inviteDirectPerson, type PairResult } from "@/lib/direct-db";
+import { ensureAccountPair, ensureLocalPair, inviteDirectPerson, inviteGate, type PairResult } from "@/lib/direct-db";
 
 // "With a person": picking someone starts (or finds) the pair, then goes straight to Add expense with them.
 // Nothing is written to the pair's history until an expense is saved, and nobody is told before then.
@@ -42,7 +43,8 @@ async function myNameFor(accountId: string, accountName: string): Promise<string
   return row?.name.trim() || "Me";
 }
 
-const refuse = (error: string): never => redirect(`/add/person?${new URLSearchParams({ error })}`);
+const refuse = (error: string, keep?: { name: string; email: string }): never =>
+  redirect(`/add/person?${new URLSearchParams({ error, ...(keep ? { name: keep.name.slice(0, 80), email: keep.email.slice(0, 200) } : {}) })}`);
 
 export async function startDirectWith(formData: FormData) {
   if (!directEntryOn()) redirect("/add");
@@ -56,6 +58,20 @@ export async function startDirectWith(formData: FormData) {
   const memberships = await getMemberships();
   const currency = await usualCurrency(memberships, account.homeCountry);
   const myName = await myNameFor(account.id, account.name);
+
+  // "Add someone new" with an email: the invite checks run FIRST, before anything is made, in the same order as every other invite
+  // (own email, hourly limit, the day's allowance, then "you already share expenses"), so this can't be used to probe emails and
+  // a refusal creates nothing. What was typed stays on the screen.
+  const typedEmail = field(formData, "email").trim();
+  let gated = false;
+  if (kind === "new" && typedEmail) {
+    const clean = cleanEmail(typedEmail);
+    if (clean) {
+      const refused = await inviteGate(account, clean);
+      if (refused) return refuse(refused, { name: field(formData, "name"), email: typedEmail });
+      gated = true;
+    }
+  }
 
   let r: PairResult;
   if (kind === "account") {
@@ -75,7 +91,7 @@ export async function startDirectWith(formData: FormData) {
   if (!r.ok) return refuse(r.error);
 
   // A new name with an email: invite them, once (a second tap with the same one-time key does nothing more).
-  const email = field(formData, "email").trim();
+  const email = typedEmail;
   if (kind === "new" && email) {
     let first = true;
     if (rid) {
@@ -86,7 +102,7 @@ export async function startDirectWith(formData: FormData) {
         first = false;
       }
     }
-    if (first) await inviteDirectPerson(r.groupId, r.myId, email, origin, (job) => after(job)).catch(() => undefined);
+    if (first) await inviteDirectPerson(r.groupId, r.myId, email, origin, (job) => after(job), { gated }).catch(() => undefined);
   }
   redirect(`/groups/${r.groupId}/add`);
 }

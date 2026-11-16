@@ -12,7 +12,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/compone
 // "With a person": pick someone, and go straight to Add expense with them. Only people you already know are listed:
 // your existing pairs, and account holders you share an open group with. Anyone else is added by name (an email is optional).
 // Names only: no email search, no contacts, no list of everyone on Loopin.
-export default async function PickPerson({ searchParams }: { searchParams: Promise<{ q?: string; error?: string }> }) {
+export default async function PickPerson({ searchParams }: { searchParams: Promise<{ q?: string; error?: string; name?: string; email?: string }> }) {
   if (!directEntryOn()) redirect("/add");
   const sp = await searchParams;
   const account = await getAccount();
@@ -101,11 +101,11 @@ export default async function PickPerson({ searchParams }: { searchParams: Promi
           <input type="hidden" name="kind" value="new" />
           <label className="block">
             <span className="mb-1.5 block text-[13px] font-semibold text-fg/65">Their name</span>
-            <input name="name" required maxLength={40} defaultValue={sp.q && fromGroups.length + recent.length === 0 ? sp.q.slice(0, 40) : ""} placeholder="Rohan" autoComplete="off" className={inputClass} />
+            <input name="name" required maxLength={40} defaultValue={sp.name ? sp.name.slice(0, 40) : sp.q && fromGroups.length + recent.length === 0 ? sp.q.slice(0, 40) : ""} placeholder="Rohan" autoComplete="off" className={inputClass} />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-[13px] font-semibold text-fg/65">Their email (optional)</span>
-            <input name="email" type="email" inputMode="email" maxLength={200} placeholder="to invite them to see it" autoComplete="off" className={inputClass} />
+            <input name="email" type="email" inputMode="email" maxLength={200} defaultValue={sp.email?.slice(0, 200) ?? ""} placeholder="to invite them to see it" autoComplete="off" className={inputClass} />
           </label>
           <p className="text-[13.5px] leading-snug text-fg/60">Only you can see this until they join.</p>
           <button type="submit" className={primaryButtonClass} data-direct-new-go>

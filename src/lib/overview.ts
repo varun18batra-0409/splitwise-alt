@@ -12,7 +12,32 @@ import { directEntries, hasHistory } from "./direct-db";
 // across groups.
 // The balances come from the database's own sums (balances-db.ts) and no group's expenses are loaded: nothing here
 // needs them. Every number is the one loadMyGroups would give.
-export async function loadOverview(memberships: Record<string, string>) {
+// The currency the "≈" total is shown in.
+// - Open groups decide it (the most used one), exactly as before.
+// - With no open group but some pairs, the pairs decide (closed groups are ignored): the most used pair currency; on a tie the
+//   user's own currency if it is one of the tied ones, else the one with the larger total amount (absolute), then alphabetical so it is stable.
+// - Otherwise a closed group's currency, else INR.
+export function pickCommonCurrency(x: {
+  openCounts: Map<string, number>;
+  closedFirst?: string;
+  pairCounts: Map<string, number>;
+  pairAbs: { currency: string; abs: number }[];
+  prefer?: string;
+}): string {
+  const topOpen = [...x.openCounts].sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (topOpen) return topOpen;
+  if (x.pairCounts.size > 0) {
+    const best = Math.max(...x.pairCounts.values());
+    const tied = [...x.pairCounts].filter(([, n]) => n === best).map(([c]) => c);
+    if (tied.length === 1) return tied[0];
+    if (x.prefer && tied.includes(x.prefer)) return x.prefer;
+    const abs = (c: string) => x.pairAbs.filter((p) => p.currency === c).reduce((t, p) => t + p.abs, 0);
+    return tied.sort((a, b) => abs(b) - abs(a) || a.localeCompare(b))[0];
+  }
+  return x.closedFirst ?? "INR";
+}
+
+export async function loadOverview(memberships: Record<string, string>, preferCurrency?: string) {
   // Pairs (expenses with one person, no group) are loaded with the groups and split off at once: `all`, `open` and `closed` stay
   // ordinary groups only, so Home's stories, Your groups, the Groups list, Smart Settle across groups and everything built on them
   // never see a pair. A pair is never netted against a group: it only ever adds its own amount, in its own currency.
@@ -42,8 +67,13 @@ export async function loadOverview(memberships: Record<string, string>) {
   for (const g of open) currencyCount.set(g.group.currency, (currencyCount.get(g.group.currency) ?? 0) + 1);
   const pairCurrencyCount = new Map<string, number>();
   for (const p of direct) pairCurrencyCount.set(p.currency, (pairCurrencyCount.get(p.currency) ?? 0) + 1);
-  const common =
-    [...currencyCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? all[0]?.group.currency ?? (all.length ? undefined : [...pairCurrencyCount].sort((a, b) => b[1] - a[1])[0]?.[0]) ?? "INR";
+  const common = pickCommonCurrency({
+    openCounts: currencyCount,
+    closedFirst: all[0]?.group.currency,
+    pairCounts: pairCurrencyCount,
+    pairAbs: direct.map((p) => ({ currency: p.currency, abs: Math.abs(p.net) })),
+    prefer: preferCurrency,
+  });
   // Saved rates only (never waits for the internet); stale ones refresh after the screen is sent.
   const rates = new Map<string, string | null>(
     await Promise.all(

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // Inviting a name only you can see ("Invite Rohan by email"), accepting, and the doors that must stay shut.
@@ -6,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
 
 const { db } = await import("@/lib/db");
-const { ensureAccountPair, ensureLocalPair, inviteDirectPerson } = await import("@/lib/direct-db");
+const { ensureAccountPair, ensureLocalPair, inviteDirectPerson, inviteGate } = await import("@/lib/direct-db");
+const { inviteMailOk, INVITE_EMAILS_PER_DAY } = await import("@/lib/invites");
 const { accountPairKey, localPairKey } = await import("@/lib/direct");
 const { acceptInvitation } = await import("@/lib/invitations");
 const { joinNew, joinExisting, loadByCode, newInviteLink } = await import("@/lib/join");
@@ -74,6 +76,8 @@ describe("inviting and accepting", () => {
     const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" });
     const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
     if (!real.ok || !local.ok) throw new Error("refused");
+    // The pair has history (Asha paid 1000 for both), so the plain refusal applies.
+    await addExpense(real.groupId, { paidBy: real.myId, amount: 100000, shares: { [real.myId]: 50000, [real.otherId]: 50000 } });
     const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
     expect(r).toEqual({ ok: false, error: "You already share expenses with the person who has this email. Open them from Settle up or the + button." });
     expect(await db.invite.count({ where: { groupId: local.groupId } })).toBe(0);
@@ -117,6 +121,101 @@ describe("inviting and accepting", () => {
     expect(after!.declinedAt).not.toBeNull();
     expect(after!.acceptedAt).toBeNull();
     expect((await db.group.findUnique({ where: { id: real.groupId } }))!.pairKey).toBe(accountPairKey(a.id, e.id));
+  });
+});
+
+// The refusal must not become a way to find out whether an address belongs to someone you share a pair with.
+describe("invite attempts leak nothing", () => {
+  const used = (_email: string) => `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Try again tomorrow.`;
+
+  it("1. allowance used up: a pair partner's email and a random email get the identical answer, and nothing is written", async () => {
+    const a = await made("la", "Asha");
+    const d = await made("ld", "Dee");
+    await mkSharedGroup("ld", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
+    const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" });
+    const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
+    if (!real.ok || !local.ok) throw new Error("refused");
+    await addExpense(real.groupId, { paidBy: real.myId, amount: 100000, shares: { [real.myId]: 50000, [real.otherId]: 50000 } });
+    // Burn the day's 20 (hand count: 20 allowed, the 21st is refused).
+    for (let i = 0; i < INVITE_EMAILS_PER_DAY; i++) expect(await inviteMailOk({ id: "", accountId: a.id })).toBe(true);
+
+    const partner = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
+    const random = await inviteDirectPerson(local.groupId, local.myId, `nobody-${Date.now()}@example.org`, origin);
+    expect(partner).toEqual({ ok: false, error: used(d.email) });
+    expect(random).toEqual(partner);
+    expect(await db.invite.count({ where: { groupId: local.groupId } })).toBe(0);
+    expect(await mailTo(d.email)).toBe(0);
+    // Only your own email may still answer differently (it says nothing about anyone else).
+    expect(await inviteDirectPerson(local.groupId, local.myId, a.email, origin)).toEqual({ ok: false, error: "That’s your own email. Type theirs." });
+  });
+
+  it("2. every attempt with a valid email is charged, a pair partner's included; your own email is free", async () => {
+    const a = await made("ca", "Asha");
+    const d = await made("cd", "Dee");
+    await mkSharedGroup("cd", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
+    const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" });
+    const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
+    if (!real.ok || !local.ok) throw new Error("refused");
+    await addExpense(real.groupId, { paidBy: real.myId, amount: 100000, shares: { [real.myId]: 50000, [real.otherId]: 50000 } });
+    const key = `invite-mail:${a.id}`;
+    const count = async () => (await db.rateLimit.findUnique({ where: { key } }))?.count ?? 0;
+    expect(await count()).toBe(0);
+    await inviteDirectPerson(local.groupId, local.myId, a.email, origin); // own email: free
+    expect(await count()).toBe(0);
+    const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin); // refused, but still charged: 1
+    expect(r.ok).toBe(false);
+    expect(await count()).toBe(1);
+    await inviteDirectPerson(local.groupId, local.myId, `x-${Date.now()}@example.org`, origin); // a normal send: 2
+    expect(await count()).toBe(2);
+  });
+
+  it("2b. a per-account hourly limit (20) gives every email the same answer once used", async () => {
+    const a = await made("ha", "Asha");
+    const local = await ensureLocalPair({ id: a.id }, "Sam", { currency: "INR", myName: "Asha" });
+    if (!local.ok) throw new Error("refused");
+    for (let i = 0; i < 20; i++) expect(await inviteGate(a, `h${i}-${Date.now()}@example.org`)).toBeNull();
+    const first = await inviteGate(a, "one@example.org");
+    expect(first).toBe("Too many invites just now. Try again a little later.");
+    expect(await inviteGate(a, "two@example.org")).toBe(first);
+  });
+
+  it("3. a matching pair with NO history is treated like any account: the invitation goes out normally, and accepting it is refused cleanly", async () => {
+    const a = await made("ea", "Asha");
+    const d = await made("ed", "Dee");
+    await mkSharedGroup("ed", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
+    const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" }); // empty: no expense, no payment
+    const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
+    if (!real.ok || !local.ok) throw new Error("refused");
+    const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
+    expect(r).toEqual({ ok: true, email: d.email }); // "Invitation sent to ..." exactly as for anyone
+    const inv = (await db.invite.findFirst({ where: { groupId: local.groupId } }))!;
+    expect(inv.email).toBe(d.email);
+    const out = await acceptInvitation(d, inv.token);
+    expect(out.ok).toBe(false); // the key is taken by the empty pair: nothing merged
+    const g = await db.group.findUnique({ where: { id: local.groupId }, include: { members: true } });
+    expect(g!.pairKey).toBe(localPairKey(a.id, "Dee (old)"));
+    expect(g!.members.find((m) => m.id === local.otherId)!.accountId).toBeNull();
+    expect((await db.group.findUnique({ where: { id: real.groupId } }))!.pairKey).toBe(accountPairKey(a.id, d.id));
+  });
+
+  it("4. the picker's email check runs before anything is made, and it writes nothing", async () => {
+    const a = await made("pa", "Asha");
+    const d = await made("pd", "Dee");
+    await mkSharedGroup("pd", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
+    const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" });
+    if (!real.ok) throw new Error("refused");
+    await addExpense(real.groupId, { paidBy: real.myId, amount: 100000, shares: { [real.myId]: 50000, [real.otherId]: 50000 } });
+    const groupsBefore = await db.group.count({ where: { members: { some: { accountId: a.id } } } });
+    const refused = await inviteGate(a, d.email);
+    expect(refused).toBe("You already share expenses with the person who has this email. Open them from Settle up or the + button.");
+    expect(await db.group.count({ where: { members: { some: { accountId: a.id } } } })).toBe(groupsBefore);
+    expect(await db.invite.count({ where: { email: d.email } })).toBe(0);
+    expect(await mailTo(d.email)).toBe(0);
+    // The action asks inviteGate before it makes the name-only pair, and keeps what was typed on the screen.
+    const src = readFileSync("src/app/direct-actions.ts", "utf8");
+    expect(src.indexOf("inviteGate(account")).toBeGreaterThan(-1);
+    expect(src.indexOf("inviteGate(account")).toBeLessThan(src.indexOf("ensureLocalPair(account"));
+    expect(src).toContain("keep");
   });
 });
 

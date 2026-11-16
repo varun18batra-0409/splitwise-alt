@@ -10,6 +10,7 @@ import {
   homeTicket,
   initialOf,
   moneyPeople,
+  pairPeopleGroup,
   payHref,
   rankGroups,
   remindHref,
@@ -359,5 +360,46 @@ describe("R1 item 10: one balance, one number", () => {
     expect(home).not.toContain("show: (n: number) => formatMoney(n, g.group.currency)");
     expect(home).toContain("const heroText = heroOf((n) => formatMoney(n, common))");
     expect(home).toContain("homeMoney(month.share, month.currency)"); // "November in numbers" stays rounded
+  });
+});
+
+describe("people you share expenses with directly on the card", () => {
+  const pair = (id: string, name: string, net: number) => pairPeopleGroup({ groupId: `p-${id}`, currency: "INR", myId: "me", other: { id, name, accountId: `acc-${id}` }, net });
+  // Types as Home passes them: a pair has no "home" type.
+  const ticket = (groups: PeopleGroup[], mode: MoneyMode) => ticketFor(groups, { g1: "home" }, mode);
+
+  it("flatmates only when EVERY person on the side is from a home group: 3 owed = Kabir (1000) + Meera (2000) from the flat + Dev (3000) directly", () => {
+    const flatOnly = ticket([grp("g1", "Flat", "INR", [], [["k", "Kabir", 1000], ["m", "Meera", 2000]])], "owed");
+    expect(flatOnly.kind === "one" && flatOnly.line.name).toBe("2 flatmates");
+    const mixed = ticket([grp("g1", "Flat", "INR", [], [["k", "Kabir", 1000], ["m", "Meera", 2000]]), pair("d", "Dev", 3000)], "owed");
+    expect(mixed.kind).toBe("one");
+    if (mixed.kind === "one") {
+      expect(mixed.line).toMatchObject({ count: 3, name: "3 people", phrase: "3 people owe you", amount: "₹60" });
+      expect(mixed.to).toBe("You");
+      expect(mixed.from).toBe("3 people");
+    }
+  });
+
+  it("both ways, several people all direct: the button goes to the direct section (#direct), which exists on Settle", () => {
+    // I owe Dev 1000 and Eli 2000 directly; Kabir (flat) owes me 500.
+    const t = ticket([pair("d", "Dev", -1000), pair("e", "Eli", -2000), grp("g1", "Flat", "INR", [], [["k", "Kabir", 500]])], "even");
+    expect(t.kind).toBe("both");
+    if (t.kind === "both") {
+      const owe = t.lines.find((l) => l.side === "owe")!;
+      expect(owe).toMatchObject({ count: 2, name: "2 people", peopleHref: "/settle#direct" });
+      expect(owe.action.href).toBe("/settle#direct");
+      const owed = t.lines.find((l) => l.side === "owed")!;
+      expect(owed.peopleHref).toBe("/settle#remind"); // a group person: the group list
+    }
+    expect(readFileSync("src/app/settle/page.tsx", "utf8")).toContain('id="direct"');
+  });
+
+  it("a side with a group person and a direct person keeps the group list (#pay)", () => {
+    const t = ticket([pair("d", "Dev", -1000), grp("g1", "Flat", "INR", [["n", "Nupur", 2000]], [["k", "Kabir", 500]])], "even");
+    expect(t.kind).toBe("both");
+    if (t.kind === "both") {
+      const owe = t.lines.find((l) => l.side === "owe")!;
+      expect(owe).toMatchObject({ count: 2, peopleHref: "/settle#pay" });
+    }
   });
 });

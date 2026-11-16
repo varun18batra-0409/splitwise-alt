@@ -88,7 +88,7 @@ export default async function Home({
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
   const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew] = await Promise.all([
-    loadOverview(memberships),
+    loadOverview(memberships, visitorRegion(await headers()).currency),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
@@ -446,7 +446,7 @@ export default async function Home({
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  // Someone with only people they share expenses with directly (no group) still gets Home, Settle and their people, whatever the switch says.
+  // Someone with only people they share expenses with directly (no group) still gets Home, Settle and their people (they count even with no group).
   const hasAny = all.length > 0 || direct.length > 0;
   if (!hasAny && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} momentPhoto={photoSet("card-postcard-photo")[0]} />;
 

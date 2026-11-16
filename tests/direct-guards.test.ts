@@ -181,6 +181,8 @@ describe("L2 and L3. an invitation that can be seen and cancelled", () => {
     const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" });
     const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
     if (!real.ok || !local.ok) throw new Error("refused");
+    // The refusal applies once the pair has history: Asha paid 1000 for both.
+    await addExpense(real.groupId, { paidBy: real.myId, amount: 100000, shares: { [real.myId]: 50000, [real.otherId]: 50000 } });
 
     const r = await inviteDirectPerson(local.groupId, local.myId, d.email.toUpperCase(), origin);
     expect(r).toEqual({ ok: false, error: "You already share expenses with the person who has this email. Open them from Settle up or the + button." });

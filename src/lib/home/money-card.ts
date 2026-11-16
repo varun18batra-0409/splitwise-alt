@@ -300,6 +300,13 @@ export function crowdWord(types: string[]): "flatmates" | "people" {
   return types.length > 0 && types.every((t) => t === "home") ? "flatmates" : "people";
 }
 
+// "flatmates" only when EVERY person on this side comes from a home group. A person from a direct pair (or from a group we can't
+// find) makes it "people": nothing is skipped when counting, so one such person is enough.
+export function crowdOf(people: MoneyPerson[], groups: { id: string; type?: string }[]): "flatmates" | "people" {
+  const types = people.map((p) => (p.rowKey?.startsWith("direct:") ? "direct" : p.parts.length === 0 ? "" : p.parts.every((x) => groups.find((g) => g.id === x.groupId)?.type === "home") ? "home" : "other"));
+  return crowdWord(types);
+}
+
 // The two ends of the route line. First names only (the card is narrow); you are always "You".
 export function routeEnds(side: "owe" | "owed", firstNames: string[], crowd: "flatmates" | "people"): { from: string; to: string } {
   const them = firstNames.length === 1 ? firstNames[0] : `${firstNames.length} ${side === "owed" ? crowd : "people"}`;
@@ -398,10 +405,12 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
   const top = people[0];
   const count = people.length;
   const total = sideTotal(entries);
-  const types = people.flatMap((p) => p.parts.map((x) => groups.find((g) => g.id === x.groupId)?.type ?? "")).filter(Boolean);
-  const crowd = crowdWord(types);
+  const crowd = crowdOf(people, groups);
   const name = count === 1 ? firstName(top.name) : `${count} ${side === "owed" ? crowd : "people"}`;
-  const peopleHref = side === "owe" ? "/settle#pay" : "/settle#remind";
+  // "To pay" / "To receive" only hold group people. When everyone on this side is a person you share expenses with directly,
+  // the list that has their rows is "With people directly".
+  const allDirect = people.every((p) => p.rowKey?.startsWith("direct:"));
+  const peopleHref = allDirect ? "/settle#direct" : side === "owe" ? "/settle#pay" : "/settle#remind";
   const remind = count === 1 ? remindHref(top) : null;
   const action: TicketAction =
     side === "owe"
@@ -492,7 +501,7 @@ export function homeTicket(x: {
     const side = owe ? "owe" : "owed";
     const line = ticketLine(side, owe ? x.owe : x.owed, x.common, x.groups, false);
     const first = distinctPeople(owe ? x.owe : x.owed).map((p) => firstName(p.name));
-    const crowd = line.count > 1 ? crowdWord(distinctPeople(owe ? x.owe : x.owed).flatMap((p) => p.parts.map((q) => x.groups.find((g) => g.id === q.groupId)?.type ?? "")).filter(Boolean)) : "people";
+    const crowd = line.count > 1 ? crowdOf(distinctPeople(owe ? x.owe : x.owed), x.groups) : "people";
     return { kind: "one", line, mark, context, ...routeEnds(side, first, crowd) };
   }
   // Nobody to name (it evens out, or the people can't be told apart): the card's own total with a way to Settle up.

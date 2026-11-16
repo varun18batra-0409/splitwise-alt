@@ -9,7 +9,7 @@ vi.mock("@/lib/rate-cache", async (orig) => ({ ...(await orig<typeof import("@/l
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
 
 const { db } = await import("@/lib/db");
-const { loadOverview } = await import("@/lib/overview");
+const { loadOverview, pickCommonCurrency } = await import("@/lib/overview");
 const { ensureAccountPair } = await import("@/lib/direct-db");
 const { settleAcrossCore } = await import("@/lib/cross-settle-db");
 const { moneyPeople, pairPeopleGroup, moneyMode } = await import("@/lib/home/money-card");
@@ -166,3 +166,30 @@ describe("a pair beside a group", () => {
     expect(o.settleItems).toHaveLength(0);
   });
 });
+
+// The main currency for the "≈" total, worked by hand.
+describe("which currency the converted total uses", () => {
+  const m = (...e: [string, number][]) => new Map(e);
+  it("open groups still decide: USD x2 beats INR x1, even with pairs in INR", () => {
+    expect(pickCommonCurrency({ openCounts: m(["USD", 2], ["INR", 1]), closedFirst: "EUR", pairCounts: m(["INR", 5]), pairAbs: [] })).toBe("USD");
+  });
+  it("no open groups, pairs exist: a closed EUR group is ignored; the pair currency wins", () => {
+    expect(pickCommonCurrency({ openCounts: m(), closedFirst: "EUR", pairCounts: m(["INR", 1]), pairAbs: [{ currency: "INR", abs: 60000 }] })).toBe("INR");
+  });
+  it("no groups at all, no pairs: the closed group's currency, else INR", () => {
+    expect(pickCommonCurrency({ openCounts: m(), closedFirst: "EUR", pairCounts: m(), pairAbs: [] })).toBe("EUR");
+    expect(pickCommonCurrency({ openCounts: m(), pairCounts: m(), pairAbs: [] })).toBe("INR");
+  });
+  it("a tie between pairs (1 INR, 1 USD): the user's own currency if tied, else the larger absolute amount", () => {
+    const abs = [{ currency: "INR", abs: 60000 }, { currency: "USD", abs: 2500 }];
+    expect(pickCommonCurrency({ openCounts: m(), pairCounts: m(["INR", 1], ["USD", 1]), pairAbs: abs, prefer: "USD" })).toBe("USD");
+    expect(pickCommonCurrency({ openCounts: m(), pairCounts: m(["INR", 1], ["USD", 1]), pairAbs: abs, prefer: "GBP" })).toBe("INR"); // 60000 > 2500
+    expect(pickCommonCurrency({ openCounts: m(), pairCounts: m(["INR", 1], ["USD", 1]), pairAbs: abs })).toBe("INR");
+  });
+  it("end to end: Dev's INR pair (+60000) and USD pair (-2500) tie; region USD picks USD, none picks INR", async () => {
+    const pairs = { [xPair.groupId]: xPair.aRow, [yPair.groupId]: yPair.aRow };
+    expect((await loadOverview(pairs, "USD")).common).toBe("USD");
+    expect((await loadOverview(pairs)).common).toBe("INR");
+  });
+});
+

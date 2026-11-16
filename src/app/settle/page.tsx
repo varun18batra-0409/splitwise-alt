@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+import { visitorRegion } from "@/lib/region";
 import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { Notice } from "@/components/Notice";
@@ -28,7 +30,7 @@ import { filterDirect, type DirectEntry } from "@/lib/direct-db";
 // "Record in N groups" button did; people who can confirm are asked as before). (The group's own Settle up keeps its own look.)
 export default async function SettlePage({ searchParams }: { searchParams: Promise<{ settle?: string; pay?: string; show?: string; q?: string }> }) {
   const { settle: notice, pay, show: showParam, q: qParam } = await searchParams;
-  const { all, common, settleItems, skippedLinks, othersPending, direct, toCommon } = await loadOverview(await getMemberships());
+  const { all, common, settleItems, skippedLinks, othersPending, direct, toCommon } = await loadOverview(await getMemberships(), visitorRegion(await headers()).currency);
   // Pay buttons for people you owe who added their UPI ID / pay link (people in groups, and people you share expenses with directly).
   const owedAccounts = [
     ...settleItems.filter((it) => it.net < 0 && !it.converted && it.key.startsWith("acc:")).map((it) => it.key.slice(4)),

@@ -229,14 +229,41 @@ export const ALREADY_SHARE = "You already share expenses with the person who has
 
 export type InviteReply = { ok: true; email: string } | { ok: false; error: string };
 
+export const INVITE_TRIES_PER_HOUR = 20;
+
+// The checks every invite attempt goes through, in this order, so nobody can learn whether an email belongs to someone they
+// already share a pair with (an answer that differed by email would confirm a private address):
+//  1. Your own email: said plainly, free (it says nothing about anyone else).
+//  2. A per-account hourly limit, then the day's invite-email allowance. EVERY attempt with a valid email is charged, whatever
+//     the email is, so once either is used up all emails get the same answer.
+//  3. Only then: an email of someone you already share a pair WITH HISTORY with gets the plain refusal. A matching pair with no
+//     expense or payment yet gets nothing special: the invitation goes out like any other (accepting it later is refused cleanly,
+//     see claimDirectInvite, and nothing is merged), so the inviter sees the same reply as for anyone else.
+// Returns the refusal text, or null to carry on. Writes nothing.
+export async function inviteGate(me: { id: string; email: string }, email: string): Promise<string | null> {
+  if (email === me.email.toLowerCase()) return "That’s your own email. Type theirs.";
+  if (!(await allow(`invite-direct:${me.id}`, INVITE_TRIES_PER_HOUR, 3600))) return "Too many invites just now. Try again a little later.";
+  if (!(await inviteMailOk({ id: "", accountId: me.id }))) return `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Try again tomorrow.`;
+  const theirs = await db.account.findUnique({ where: { email }, select: { id: true } });
+  if (!theirs) return null;
+  const pair = await db.group.findUnique({
+    where: { pairKey: accountPairKey(me.id, theirs.id) },
+    select: { deletedAt: true, type: true, _count: { select: { expenses: true, payments: true } } },
+  });
+  if (pair && !pair.deletedAt && pair.type === DIRECT && pair._count.expenses + pair._count.payments > 0) return ALREADY_SHARE;
+  return null;
+}
+
 // Only the account holder of a name-only pair, and only while the other row is still a name. Your own email, or the email of someone
-// you already share a pair with, is refused in plain words (nothing is written or sent). Any other email, on Loopin or not, sends the same way.
+// you already share a pair with history with, is refused in plain words (nothing is written or sent). Any other email, on Loopin or
+// not, sends the same way. `gated`: the caller already ran inviteGate for this email (the picker does, before it makes anything).
 export async function inviteDirectPerson(
   groupId: string,
   actorId: string,
   rawEmail: string,
   origin: string,
   later?: (job: () => Promise<unknown>) => void,
+  opts: { gated?: boolean } = {},
 ): Promise<InviteReply> {
   const email = cleanEmail(rawEmail);
   if (!email) return { ok: false, error: "Enter an email address, like name@gmail.com." };
@@ -248,16 +275,11 @@ export async function inviteDirectPerson(
   if (row.accountId || row.claimedAt || row.removedAt) return { ok: false, error: `${row.name} is already on Loopin.` };
   const me = await db.account.findUnique({ where: { id: actor.accountId }, select: { id: true, email: true, name: true } });
   if (!me) return { ok: false, error: "Sign in to invite." };
-  // Your own email: said plainly.
-  if (email === me.email.toLowerCase()) return { ok: false, error: "That’s your own email. Type theirs." };
-  // Someone you already share a pair with: said plainly too. Nothing is written, invited or sent, and it uses none of the day's email allowance.
+  if (!opts.gated) {
+    const refused = await inviteGate(me, email);
+    if (refused) return { ok: false, error: refused };
+  }
   const theirs = await db.account.findUnique({ where: { email }, select: { id: true } });
-  if (theirs && (await db.group.findUnique({ where: { pairKey: accountPairKey(me.id, theirs.id) }, select: { id: true } }))) {
-    return { ok: false, error: ALREADY_SHARE };
-  }
-  if (!(await inviteMailOk({ id: actor.id, accountId: actor.accountId }))) {
-    return { ok: false, error: `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Try again tomorrow.` };
-  }
 
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId, email } } });
   const priorOpen = Boolean(prior && !prior.acceptedAt && !prior.declinedAt);
