@@ -22,9 +22,11 @@ export const PAIR_NEW_BLOCKED = "You can’t add new expenses with this person."
 export const PAIR_BLOCKED = "You can’t add expenses with this person.";
 const PAIR_BUSY = "Too many new people added just now. Try again a little later.";
 
-// ONE meaning of "has history" for a pair, used by the invite refusal, the empty-pair retirement, the currency switch, and (as hasHistory
-// below, from the same non-deleted counts) Settle and Home: at least one expense or payment that is not deleted.
+// "Has history" for a pair, as Settle and Home see it (and the invite refusal): at least one expense or payment that is not deleted.
 export const LIVE_COUNT = { select: { expenses: { where: { deletedAt: null } }, payments: { where: { deletedAt: null } } } };
+// "Has any rows at all", deleted ones included. Used where a deleted row could still be restored: the silent currency switch (a restore
+// would bring back amounts in the old currency) and retiring an empty pair on accept (retiring would strand anything restorable).
+export const ANY_COUNT = { select: { expenses: true, payments: true } };
 export const pairHasHistory = (g: { _count: { expenses: number; payments: number } }) => g._count.expenses + g._count.payments > 0;
 
 const newCode = () => randomBytes(6).toString("base64url");
@@ -141,7 +143,7 @@ export async function ensureLocalPair(me: { id: string }, rawName: string, opts:
 // - A pair with no expenses or payments at all takes the currency of its first expense (changeGroupCurrency with expectEmpty: it
 //   refuses, writing nothing, if anything is there by the time it runs). Once there is money the currency is fixed.
 export async function prepareDirectSave(groupId: string, myId: string, currency: string, editing: boolean): Promise<string | null> {
-  const g = await db.group.findUnique({ where: { id: groupId }, include: { members: true, _count: LIVE_COUNT } });
+  const g = await db.group.findUnique({ where: { id: groupId }, include: { members: true, _count: ANY_COUNT } });
   if (!g || g.deletedAt || g.type !== DIRECT) return null;
   const me = g.members.find((m) => m.id === myId);
   const other = g.members.find((m) => m.id !== myId);
@@ -377,9 +379,9 @@ export async function claimDirectInvite(
         data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } },
       });
       if (linked.count !== 1) throw new Closed();
-      // An account pair already holds this key: an empty one is retired (key cleared, marked deleted: nothing is lost, it had no
-      // history), one with history refuses the whole join. Read inside the transaction, so a pair that gains a row meanwhile still counts.
-      const held = await tx.group.findUnique({ where: { pairKey: newKey }, select: { id: true, type: true, deletedAt: true, _count: LIVE_COUNT } });
+      // An account pair already holds this key: one with no rows at all (deleted ones included) is retired (key cleared, marked
+      // deleted: nothing is lost), one with any rows refuses the whole join. Read inside the transaction, so a pair that gains a row meanwhile still counts.
+      const held = await tx.group.findUnique({ where: { pairKey: newKey }, select: { id: true, type: true, deletedAt: true, _count: ANY_COUNT } });
       if (held && held.id !== group.id) {
         if (held.type !== DIRECT || pairHasHistory(held)) throw new Taken();
         await tx.group.update({ where: { id: held.id }, data: { pairKey: null, deletedAt: held.deletedAt ?? new Date() } });

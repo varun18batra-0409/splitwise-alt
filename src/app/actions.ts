@@ -801,6 +801,8 @@ export async function restoreGroup(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || !group.deletedAt) redirect("/");
+  // Pairs are never deleted by a person; a retired empty pair (on an accepted invite) must never come back as a second history.
+  if (group.type === "direct") redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/");
   // Bringing a deleted group back is for whoever deleted it or looks after it, and not for someone who left.

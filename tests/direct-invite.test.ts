@@ -192,19 +192,17 @@ describe("invite attempts leak nothing", () => {
     expect(await inviteGate(a, "two@example.org")).toBe(first);
   });
 
-  it("3. an EMPTY account pair (deleted rows don't count) is retired on accept; the name-only pair with its history becomes the account pair, balances unchanged", async () => {
+  it("3. an EMPTY account pair (no rows at all) is retired on accept; the name-only pair with its history becomes the account pair, balances unchanged", async () => {
     const a = await made("ea", "Asha");
     const d = await made("ed", "Dee");
     await mkSharedGroup("ed", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
     const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" }); // no live expense or payment
     const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
     if (!real.ok || !local.ok) throw new Error("refused");
-    // The account pair only ever had an expense that was then deleted: that is NOT history (one meaning everywhere).
-    const gone = await addExpense(real.groupId, { paidBy: real.myId, amount: 20000, shares: { [real.myId]: 10000, [real.otherId]: 10000 } });
-    await db.expense.update({ where: { id: gone.id }, data: { deletedAt: new Date() } });
+    // The account pair has no rows at all.
     // The name-only pair: Asha paid 90000 for both, so Dee owes 45000 (Asha +45000, Dee -45000).
     await addExpense(local.groupId, { paidBy: local.myId, amount: 90000, shares: { [local.myId]: 45000, [local.otherId]: 45000 } });
-    // The deleted-only pair is empty, so the invite check does not refuse the email either.
+    // The pair is empty, so the invite check does not refuse the email either.
     expect(await inviteGate(a, d.email)).toBeNull();
     const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
     expect(r).toEqual({ ok: true, email: d.email }); // "Invitation sent to ..." exactly as for anyone
@@ -223,6 +221,32 @@ describe("invite attempts leak nothing", () => {
     expect(net[local.myId]).toBe(45000);
     expect(net[local.otherId]).toBe(-45000);
     expect(await db.expense.count({ where: { groupId: local.groupId, deletedAt: null } })).toBe(1);
+  });
+
+  it("3b. an account pair whose only expense was deleted is NOT retired (the expense could still be restored): the accept is refused and nothing moves", async () => {
+    const a = await made("xa", "Asha");
+    const d = await made("xd", "Dee");
+    await mkSharedGroup("xd", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
+    const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" });
+    const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
+    if (!real.ok || !local.ok) throw new Error("refused");
+    const gone = await addExpense(real.groupId, { paidBy: real.myId, amount: 20000, shares: { [real.myId]: 10000, [real.otherId]: 10000 } });
+    await db.expense.update({ where: { id: gone.id }, data: { deletedAt: new Date() } });
+    await addExpense(local.groupId, { paidBy: local.myId, amount: 90000, shares: { [local.myId]: 45000, [local.otherId]: 45000 } });
+    // Settle and Home see no live history, so the invite goes out like any other.
+    const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
+    expect(r).toEqual({ ok: true, email: d.email });
+    const inv = (await db.invite.findFirst({ where: { groupId: local.groupId } }))!;
+    const out = await acceptInvitation(d, inv.token);
+    expect(out.ok).toBe(false);
+    const kept = await db.group.findUnique({ where: { id: real.groupId } });
+    expect(kept!.pairKey).toBe(accountPairKey(a.id, d.id));
+    expect(kept!.deletedAt).toBeNull();
+    const still = await db.group.findUnique({ where: { id: local.groupId }, include: { members: true } });
+    expect(still!.members.find((m) => m.id === local.otherId)!.accountId).toBeNull();
+    const net = (await loadGroup(local.groupId))!.net;
+    expect(net[local.myId]).toBe(45000);
+    expect(net[local.otherId]).toBe(-45000);
   });
 
   it("4. the picker's email check runs before anything is made, and it writes nothing", async () => {

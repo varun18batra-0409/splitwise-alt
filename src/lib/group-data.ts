@@ -335,9 +335,10 @@ function leaverEventScope(m: { id: string; leftAt: Date | null; removedAt: Date 
 export async function loadNotifications(memberships: Record<string, string>, limit = 50) {
   const members = await db.member.findMany({
     where: { id: { in: Object.values(memberships) } },
-    include: { group: { select: { id: true, name: true, currency: true, type: true, cover: true, coverAt: true } } },
+    include: { group: { select: { id: true, name: true, currency: true, type: true, cover: true, coverAt: true, deletedAt: true } } },
   });
-  const valid = members.filter((m) => memberships[m.groupId] === m.id);
+  // A retired pair (deleted when an invite merged it) has no page any more, so its old updates are left out.
+  const valid = members.filter((m) => memberships[m.groupId] === m.id && !(isDirect(m.group) && m.group.deletedAt));
   if (valid.length === 0) return { items: [], unread: 0 };
 
   const events = await db.groupEvent.findMany({
