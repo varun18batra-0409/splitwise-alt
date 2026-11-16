@@ -322,8 +322,17 @@ describe("the group itself", () => {
 });
 
 describe("people", () => {
-  it("add someone who is on Loopin", () => table("add-person", JOINED_ACTIVE, async (_p, w) => {
+  it("add someone who is on Loopin", () => table("add-person", JOINED_ACTIVE, async (_p, w, c) => {
     const target = await account("Newbie");
+    // Adding by Loopin account needs a group you already share with them (16 Nov, AS-1). Everyone in the cast shares one with Newbie,
+    // so the table still tests only who may add people to THIS group.
+    const friends = await db.group.create({
+      data: {
+        name: `Matrix friends ${++counter} ${stamp}`, type: "trip", currency: "INR", inviteCode: `wcdw-f-${counter}-${stamp}`,
+        members: { create: [target, ...Object.values(c)].map((a, i) => ({ name: a.name, accountId: a.id, claimedAt: new Date(2026, 0, 1 + i), createdAt: new Date(2026, 0, 1 + i) })) },
+      },
+    });
+    groupIds.push(friends.id);
     await attempt(() => A.addPerson(form({ groupId: w.id, accountId: target.id })));
     return (await db.invite.count({ where: { groupId: w.id, email: target.email } })) === 1;
   }));

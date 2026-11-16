@@ -76,7 +76,7 @@ describe("Payment tracking (real database)", () => {
     expect(await waitingForMe(g.id, asha.id)).toEqual([]);
     const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, kind: "payment_deleted" } });
     expect(ev.text).toBe("hasn’t received ₹50 from Ravi, so it’s off the balances");
-    expect(JSON.parse(ev.undo)).toEqual({ type: "payment_restore", paymentId: p2.id });
+    expect(JSON.parse(ev.undo)).toEqual({ type: "payment_restore", paymentId: p2.id, byReceiver: true }); // only Asha can bring it back (16 Nov, MB-1)
   });
 
   it("someone who left can still answer for money paid TO them, and for nothing else", async () => {

@@ -113,7 +113,7 @@ describe("FB-1: moving yourself out while you owe someone who has joined", () =>
     expect(sum(nets)).toBe(0);
     // The history says what happened, in words that don't claim it was paid.
     const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.gid, kind: "member_left" } });
-    expect(ev.details).toContain("Asha says they paid Ravi ₹12,000.00 (waiting for Ravi to confirm)");
+    expect(ev.details).toContain("Asha says they paid Ravi ₹12,000 (waiting for Ravi to confirm)");
     expect(await db.groupEvent.count({ where: { groupId: f.gid, kind: "payment_claimed" } })).toBe(1);
     expect(await db.groupEvent.count({ where: { groupId: f.gid, kind: "payment_recorded" } })).toBe(0);
   });

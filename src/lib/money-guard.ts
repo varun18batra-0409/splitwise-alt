@@ -131,7 +131,7 @@ export async function claimConfirmBreaks(tx: Tx, groupId: string, c: { fromId: s
   ]);
   const all = members.map((m) => m.id);
   const before = netBalances(all, expenses, payments);
-  const after = netBalances(all, expenses, [...payments, { id: "claim-check", fromId: c.fromId, toId: c.toId, amount: c.amount }]);
+  const after = netBalances(all, expenses, [...payments, { fromId: c.fromId, toId: c.toId, amount: c.amount }]);
   return leavers
     .filter((m) => {
       const b = before[m.id] ?? 0;
