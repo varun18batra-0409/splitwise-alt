@@ -130,7 +130,7 @@ describe("all square and the neutral card", () => {
     const c = src("src/components/TripCountdown.tsx");
     expect(c).toContain("border-l-2 border-dashed");
     expect(c.match(/h-5 w-5 rounded-full bg-canvas/g)).toHaveLength(2);
-    expect(c).toContain("uppercase tracking-[0.18em]");
+    expect(c).toContain("uppercase leading-tight tracking-[0.18em]");
     expect(c).toContain("font-hand");
     expect(c).toContain("data-trip-pass={group.id}");
     expect(c).toContain("trip countdown");
