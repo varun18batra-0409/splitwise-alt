@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
@@ -14,6 +15,21 @@ type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 // Only people who can actually tap the button are asked: they've joined (not just a name).
 export function needsOkFor(receiver: { id: string; accountId?: string | null; claimedAt?: Date | null } | undefined, actorId: string): boolean {
   return Boolean(receiver && receiver.id !== actorId && (receiver.accountId || receiver.claimedAt));
+}
+
+// One rule for every route that records a payment (Record a payment, Mark paid, Mark all paid, Settle everything, card games, cross-group settle,
+// the pay link): when the payer or the person paid has LEFT the group, and the person paid can tap "Got it / Not received", only the person paid
+// may record it (recording it is confirming it). Anyone else would be counting a leaver's debt as paid with no way for the receiver to refuse it.
+// A payment to a plain name (nobody to ask) is not affected. Read INSIDE the transaction. Returns the words of the refusal, or null.
+// Hand-worked: Asha left owing Ravi 40000. Meera records "Asha paid Ravi 40000": refused. Ravi records it himself: fine.
+export async function thirdPartyLeaverRefusal(tx: Prisma.TransactionClient, groupId: string, fromId: string, toId: string, actorId: string): Promise<string | null> {
+  if (toId === actorId) return null;
+  const rows = await tx.member.findMany({ where: { groupId, id: { in: [fromId, toId] } }, select: { id: true, name: true, leftAt: true, accountId: true, claimedAt: true } });
+  const to = rows.find((m) => m.id === toId);
+  if (!to || !needsOkFor(to, actorId)) return null;
+  const from = rows.find((m) => m.id === fromId);
+  const gone = from?.leftAt ? from : to.leftAt ? to : undefined;
+  return gone ? `${gone.name} has left. Only ${to.name} can mark this as received.` : null;
 }
 
 async function mine(paymentId: string, myMemberId: string | undefined) {

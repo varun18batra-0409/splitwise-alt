@@ -92,7 +92,7 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
     db.member.findMany({ where: { groupId, accountId: { not: null } }, select: { accountId: true, leftAt: true, removedAt: true } }),
     // People you share a group with, both really joined (someone added straight in who hasn't opened it isn't offered yet).
     db.member.findMany({
-      where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { ...NOT_DIRECT, members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
+      where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
       // Their name in a group we share, used when they haven't set a name of their own (never the start of their email).
       select: { accountId: true, name: true },
       orderBy: { createdAt: "asc" },

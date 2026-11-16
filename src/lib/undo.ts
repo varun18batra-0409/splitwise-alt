@@ -6,7 +6,7 @@ import { withRetry } from "./once";
 import { diffExpense, expenseState, itemsForState, logEvent, markUndone, parseDetails, parseUndo, touchedByExpense, UndoTaken, type UndoMark, type UndoPayload } from "./events";
 import { POT_EDIT_ERROR, setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { isGameResult } from "./pot-result";
-import { NOT_RECEIVED_TEXT_START, receiverOnlyText } from "./refused-payment";
+import { NOT_RECEIVED_TEXT_START, onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
 import { isPairGroup, PAIR_NO_PEOPLE } from "./direct-guard";
@@ -68,6 +68,8 @@ export type UndoViewer = {
   isAdmin: boolean; // await isGroupAdmin(groupId, id)
   closed: boolean; // the group is closed right now (most undos of money are refused in a closed group, as the server does)
   members: { id: string; name: string; accountId: string | null; leftAt: Date | null; removedAt: Date | null }[];
+  // The group's payments (when the screen has them): lets the Undo check see WHO took a payment off, as the server does (setPaymentDeleted).
+  payments?: { id: string; toId: string; deletedById: string | null }[];
 };
 
 // Who may use Undo at all: someone in the group. Someone who left can't change the group, except to undo their OWN "left the group"
@@ -194,8 +196,10 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): stri
   // The person paid said "Not received" (or deleted the payment themselves): only they can bring it back, so nobody can overrule them.
   // Lines written before the flag existed are recognised by their words. (The server also reads the payment itself: setPaymentDeleted.)
   if (payload.type === "payment_restore" && ev.actorId !== actorId) {
-    const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START)));
-    if (byReceiver) return receiverOnlyText(find(ev.actorId ?? "")?.name ?? "the person who was paid");
+    // Older lines have no flag: the payment itself says whether the person paid took it off (deletedById is the receiver).
+    const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
+    const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START))) || (pay ? onlyReceiverCanBringBack(pay, actorId) : false);
+    if (byReceiver) return receiverOnlyText(find(pay?.toId ?? ev.actorId ?? "")?.name ?? "the person who was paid");
   }
   // A closed group refuses these undos on the server (reopen it first), so the screen never offers them.
   if (payload.type === "member_set" && payload.moveOut && payload.data.leftAt === null && viewer.closed) return CLOSED_MOVE_OUT_TEXT;

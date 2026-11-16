@@ -54,7 +54,7 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
     return v === null ? null : `≈ ${formatMoney(v, secondary)}`;
   };
 
-  const undoViewer: UndoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members };
+  const undoViewer: UndoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, toId: x.toId, deletedById: x.deletedById })) };
   return {
     ...data,
     tz,

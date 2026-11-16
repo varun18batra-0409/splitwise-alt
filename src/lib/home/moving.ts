@@ -40,13 +40,19 @@ export function joinWeights(members: { id: string; splitWeight: number; joinedFr
 
 // The leaver squares up: if they owe, they pay those who are owed (in
 // proportion); if they're owed, those who owe pay them.
-export function leaverPayments(net: Record<string, number>, leaverId: string): Transfer[] {
+// `eligible` (when given): only these people can be part of it, i.e. the ones still in the flat. Someone who moved out earlier is never
+// touched: their balance stays exactly as it is. If the people still here can't cover all of it (a leaver owes this person, or is owed by
+// them), only what they can cover is squared and the rest stays as it is between this person and the one who left. Nothing is lost.
+// Hand-worked: Meera is owed 1000, Ravi owes 600, Asha (left) owes 400. Only Ravi is eligible: he pays 600 (not 1000), Meera keeps +1000-600 = +400
+// against Asha's -400, and the balances still add to 0.
+export function leaverPayments(net: Record<string, number>, leaverId: string, eligible?: ReadonlySet<string>): Transfer[] {
   const mine = net[leaverId] ?? 0;
   if (mine === 0) return [];
   const sign = mine < 0 ? 1 : -1; // owe → pay the creditors; owed → paid by the debtors
-  const others = Object.entries(net).filter(([id, v]) => id !== leaverId && v * sign > 0);
+  const others = Object.entries(net).filter(([id, v]) => id !== leaverId && v * sign > 0 && (!eligible || eligible.has(id)));
   if (!others.length) return [];
-  return allocateByWeights(Math.abs(mine), others.map(([id, v]) => ({ memberId: id, weight: Math.abs(v) }))).map((p) =>
+  const available = others.reduce((s, [, v]) => s + Math.abs(v), 0);
+  return allocateByWeights(Math.min(Math.abs(mine), available), others.map(([id, v]) => ({ memberId: id, weight: Math.abs(v) }))).map((p) =>
     mine < 0 ? { from: leaverId, to: p.memberId, amount: p.amount } : { from: p.memberId, to: leaverId, amount: p.amount },
   );
 }

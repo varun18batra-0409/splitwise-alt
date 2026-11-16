@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/money";
 import { makeClaim, tellReceiver, withdrawClaim } from "@/lib/payment-claims";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { readPayLink, recordLinkPayment } from "@/lib/pay-link";
+import { reopenCoveredClaims } from "@/lib/payments";
 import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, removedPaymentsBreak } from "@/lib/money-guard";
 
 // The "I've paid" link (no sign-in): say you paid what you owe (a claim that counts
@@ -67,6 +68,7 @@ export async function undoIPaidAction(f: FormData) {
     if (leaver.length) throw new LeaverBreak(leaver[0], "changed here");
     const gone = await tx.payment.updateMany({ where: { id: s.link.paymentId, okAt: null, deletedAt: null }, data: { deletedAt: new Date(), deletedById: s.link.fromId } });
     if (gone.count !== 1) return;
+    await reopenCoveredClaims(tx, [s.link.paymentId]); // a note this payment had closed as "covered" is waiting again
     await tx.payLink.update({ where: { id: s.link.id }, data: { paymentId: "" } });
     await logEvent(tx, {
       groupId: s.group.id,

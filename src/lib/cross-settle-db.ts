@@ -5,9 +5,9 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, retryOnceIfBusy } fr
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
-import { needsOkFor } from "./payment-ok";
+import { needsOkFor, thirdPartyLeaverRefusal } from "./payment-ok";
 import { paymentText } from "./pay-record";
-import { GroupChanged, guardGroup, ledgerInTx } from "./money-guard";
+import { GroupChanged, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./money-guard";
 
 // Smart Settle across groups: records each group's part of one combined settle-up.
 //
@@ -67,6 +67,10 @@ export async function settleAcrossCore(
             await guardGroup(tx, p.groupId, { currency: c.currency, actorId: memberships[p.groupId] });
             const { transfers } = await ledgerInTx(tx, p.groupId);
             if (!transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount)) throw new Stale();
+            // Someone who has left: a payment to them can only be recorded by them, and may only take them to 0 (or leave them as they were).
+            if (await thirdPartyLeaverRefusal(tx, p.groupId, p.fromId, p.toId, memberships[p.groupId])) throw new Stale();
+            const gone = await leaverBalanceBreaks(tx, p.groupId, [p.fromId, p.toId], (l) => ({ ...l, payments: [...l.payments, { id: "new-payment", fromId: p.fromId, toId: p.toId, amount: p.amount }] }));
+            if (gone.length) throw new Stale();
           }
           await claimKey(tx, key, "settled", fp);
           for (const p of sorted) {

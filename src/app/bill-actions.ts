@@ -17,7 +17,7 @@ import { niceDate } from "@/lib/format";
 import { addGoalEntryFor, deleteGoalFor, saveGoalFor } from "@/lib/home/goals-db";
 import { getAccount, getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { createGroupFor } from "@/lib/group-setup";
-import { addRegistered } from "@/lib/invites";
+import { addRegistered, freeName } from "@/lib/invites";
 import { headers } from "next/headers";
 import { after } from "next/server";
 
@@ -245,7 +245,18 @@ export async function tripFromGoal(formData: FormData) {
   const trip = made.trip;
   await setMyMemberId(trip.id, trip.members[0].id);
   const { origin } = await originOf();
-  for (const m of goal.group.members) if (!m.leftAt && m.accountId && m.id !== actor) await addRegistered(trip.id, trip.members[0].id, m.accountId, origin, { later: (job) => after(job) });
+  const taken = trip.members.map((x) => x.name);
+  for (const m of goal.group.members) {
+    if (m.leftAt || !m.accountId || m.id === actor) continue;
+    const r = await addRegistered(trip.id, trip.members[0].id, m.accountId, origin, { later: (job) => after(job) });
+    // Someone the search rule won't add by account (for example added to the goal's group but who never opened it) is still part of "the same
+    // people": carried over as a plain name, never silently dropped. They can be invited from People as usual.
+    if (!r.ok) {
+      const name = freeName(taken, m.name);
+      taken.push(name);
+      await db.member.create({ data: { name, groupId: trip.id } });
+    }
+  }
   redirect(`/groups/${trip.id}`);
 }
 

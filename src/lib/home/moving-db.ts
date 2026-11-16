@@ -143,7 +143,7 @@ function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[
     [...flat.expenses.map((e) => resplit.find((r) => r.e.id === e.id) ? { ...e, shares: resplit.find((r) => r.e.id === e.id)!.shares } : e), ...extra],
     flat.payments,
   );
-  return { resplit, credit, before, after, payments: leaverPayments(after, leaverId), daysStayed, monthDays };
+  return { resplit, credit, before, after, payments: leaverPayments(after, leaverId, stillHere), daysStayed, monthDays };
 }
 
 // The last day: a real date, not in the future, and this month or last.

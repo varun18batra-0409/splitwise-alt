@@ -4,6 +4,7 @@ import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
+import { thirdPartyLeaverRefusal } from "./payment-ok";
 import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
 import { guardGroup } from "./money-guard";
@@ -126,6 +127,8 @@ export async function recordLinkPayment(s: { link: { id: string; groupId: string
       // recorded this money between the read above and now.
       await guardGroup(tx, s.link.groupId, { currency: s.currency });
       if ((await owedInTx(tx, s.link.groupId, s.link.fromId, s.link.toId)) !== s.amount) throw new Error("no longer owed");
+      // The person paid can confirm now and someone has left: only the person paid may record it.
+      if (await thirdPartyLeaverRefusal(tx, s.link.groupId, s.link.fromId, s.link.toId, s.link.fromId)) throw new Error("only the receiver");
       const p = await createPayment(tx, { groupId: s.link.groupId, fromId: s.link.fromId, toId: s.link.toId, amount: s.amount, createdById: s.link.fromId, needsOk: true });
       const claimed = await tx.payLink.updateMany({ where: { id: s.link.id, paymentId: s.link.paymentId }, data: { paymentId: p.id } });
       if (claimed.count !== 1) throw new Error("double tap"); // the other tap won: this payment is rolled back

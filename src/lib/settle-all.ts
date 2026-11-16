@@ -7,8 +7,9 @@ import { formatMoney } from "./money";
 import { createPayment, reopenCoveredClaims, RestoreRefused, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
 import type { Prisma } from "@prisma/client";
+import { thirdPartyLeaverRefusal } from "./payment-ok";
 import { PAIR_NO_CLOSE } from "./direct-guard";
-import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, ledgerInTx, removedPaymentsBreak, restoredPaymentsBreak } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceBreaks, ledgerInTx, removedPaymentsBreak, restoredPaymentsBreak } from "./money-guard";
 
 // "We settled outside the app": record every Smart Settle payment at once and
 // close the group. One logged change, one Undo (which takes the payments back
@@ -21,6 +22,7 @@ export function planKey(transfers: Transfer[]): string {
   return transfers.map((t) => `${t.from}>${t.to}:${t.amount}`).sort().join("|");
 }
 
+class NotYours extends Error {}
 const PLAN_CHANGED = "Balances changed since you opened this. Check the updated list and try again.";
 
 // `afterRead` is for tests only: it runs after the reads and before the write begins.
@@ -54,6 +56,10 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
     if (planKey(now.transfers) !== expectedPlan) throw new Error("plan-changed");
     const ids: string[] = [];
     for (const t of now.transfers) {
+      const notYours = await thirdPartyLeaverRefusal(tx, groupId, t.from, t.to, actorId);
+      if (notYours) throw new NotYours(notYours);
+    }
+    for (const t of now.transfers) {
       const p = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
       ids.push(p.id);
     }
@@ -70,6 +76,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
     });
    }, { timeout: 15000 });
   } catch (err) {
+    if (err instanceof NotYours) return { ok: false, error: err.message };
     if (String((err as Error)?.message) === "already-closed") return { ok: false, error: "This group is already closed." };
     if (String((err as Error)?.message) === "plan-changed") return { ok: false, error: PLAN_CHANGED };
     if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "This group is already closed." : groupChangedText(err) };
@@ -109,7 +116,10 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
       // the payments back would close the group with someone still owing: refuse, and nothing changes.
       const now = await ledgerInTx(tx, groupId);
       if (Object.values(now.net).some((v) => v !== 0)) throw new Error("not-square");
-    } else await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
+    } else {
+      await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
+      await reopenCoveredClaims(tx, paymentIds); // a note these payments had closed as "covered" is waiting again
+    }
     await tx.group.update({ where: { id: groupId }, data: { closed: apply, closedAt: apply ? new Date() : null } });
     return logEvent(tx, {
       groupId,
@@ -178,6 +188,14 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
         const sig = (xs: Pick) => xs.map((p) => `${p.from}|${p.to}|${p.amount}`).sort().join(",");
         if (sig(await opts.recheck(tx)) !== sig(pick)) throw new PlanChanged();
       }
+      // A row with someone who has left, to a person who can confirm it, is only for that person to mark.
+      for (const t of pick) {
+        const notYours = await thirdPartyLeaverRefusal(tx, groupId, t.from, t.to, actorId);
+        if (notYours) throw new NotYours(notYours);
+      }
+      // Someone who has left may only end with the balance they had, or 0 (all the rows counted together).
+      const gone = await leaverBalanceBreaks(tx, groupId, pick.flatMap((t) => [t.from, t.to]), (l) => ({ ...l, payments: [...l.payments, ...pick.map((t, i) => ({ id: `mark-all-${i}`, fromId: t.from, toId: t.to, amount: t.amount }))] }));
+      if (gone.length) throw new LeaverBreak(gone[0], "changed here");
       await claimKey(tx, key, "paid", fp);
       const ids: string[] = [];
       for (const t of pick) {
@@ -199,6 +217,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true };
     if (err instanceof PlanChanged) return { ok: false, error: PLAN_CHANGED };
+    if (err instanceof NotYours || err instanceof LeaverBreak) return { ok: false, error: (err as Error).message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }

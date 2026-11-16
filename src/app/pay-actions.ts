@@ -4,7 +4,7 @@ import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
 import { getAccount, getMyMemberId } from "@/lib/identity";
 import { cleanPayWays } from "@/lib/pay-links";
-import { confirmPayment, rejectPayment } from "@/lib/payment-ok";
+import { confirmPayment, needsOkFor, rejectPayment } from "@/lib/payment-ok";
 import { confirmClaim, declineClaim, makeClaim, tellReceiver, withdrawClaim } from "@/lib/payment-claims";
 import { hasLeft, LEFT_ERROR } from "@/lib/active";
 import { formatMoney } from "@/lib/money";
@@ -103,6 +103,11 @@ export async function markAllPaidAction(f: FormData) {
   const { shown } = applySettleMin(data.transfers, data.group.settleMin);
   const { cleanKey } = await import("@/lib/once");
   // Only other people's payments: the ones I make myself go through "I've paid" (a claim the other person confirms).
-  const r = await markAllPaid(groupId, myId, shown.filter((t) => t.from !== myId).map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "", true, cleanKey(f.get("rid")));
+  // A row with someone who has left, to a person who can confirm it, is only theirs to mark as received (the server refuses it from anyone else):
+  // it is left out here so it doesn't block the other rows.
+  const members = data.group.members;
+  const mineToMark = shown.filter((t) => t.from !== myId && !(needsOkFor(members.find((m) => m.id === t.to), myId) && (members.find((m) => m.id === t.from)?.leftAt || members.find((m) => m.id === t.to)?.leftAt)));
+  if (!mineToMark.length && shown.some((t) => t.from !== myId)) redirect(`/groups/${groupId}/settle?${new URLSearchParams({ error: "Payments with someone who has left can only be marked as received by the person who was paid." })}`);
+  const r = await markAllPaid(groupId, myId, mineToMark.map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "", true, cleanKey(f.get("rid")));
   redirect(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { paid: "all", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error })}`);
 }
