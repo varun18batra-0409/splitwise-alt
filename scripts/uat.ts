@@ -1782,15 +1782,18 @@ async function main() {
     assert(dv === -24000 && da === 24000, `Varun moved ${dv}, Asha moved ${da} (expected −24000 / +24000)`);
   });
   await step(V, "Payments", "Delete a payment from the history, then restore it", async () => {
+    // Only the payer or the person paid is offered "Delete payment", so pick a row Varun is part of: "Ravi paid you" or "You paid Ravi"
+    // (a row between two other people, "Ravi paid Asha", has no delete button for him).
+    const PAYMENT_OF_MINE = /\bpaid you\b|\bYou paid [A-Za-z]/;
     const before = await shownBalances(V, g);
     await go(V, `${g}?tab=activity`);
-    const row = V.locator("details summary").filter({ hasText: /paid (Asha|Varun|you)/ }).first();
+    const row = V.locator("details summary").filter({ hasText: PAYMENT_OF_MINE }).first();
     await row.click();
     await clickAndWait(V, V.getByRole("button", { name: "Delete payment" }).first());
     const mid = await shownBalances(V, g);
     assert(JSON.stringify(mid) !== JSON.stringify(before), "balances didn't change after deleting the payment");
     await go(V, `${g}?tab=activity`);
-    await V.locator("details summary").filter({ hasText: /paid (Asha|Varun|you)/ }).first().click();
+    await V.locator("details summary").filter({ hasText: PAYMENT_OF_MINE }).first().click();
     await clickAndWait(V, V.getByRole("button", { name: "Restore payment" }).first());
     const after = await shownBalances(V, g);
     assert(JSON.stringify(after) === JSON.stringify(before), `restore didn't put balances back: ${JSON.stringify(after)} vs ${JSON.stringify(before)}`);
