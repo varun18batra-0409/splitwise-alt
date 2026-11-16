@@ -46,6 +46,23 @@ async function shot(name: string, path: string, prepare?: (p: Page) => Promise<v
   }
 }
 
+// One card of Home's sliding row, on its own: the row is brought into view and paused, then moved straight to card n (no click,
+// so the floating tab bar can't get in the way). A row with fewer cards: nothing is saved for the missing ones.
+async function rowCard(name: string, n: number) {
+  await shot(name, "/", async (p) => {
+    const row = p.locator('section[aria-roledescription="carousel"]').first();
+    await row.scrollIntoViewIfNeeded();
+    const pause = p.getByRole("button", { name: /Pause the highlights/ });
+    if (await pause.count()) await pause.click({ force: true });
+    const total = await row.locator('[aria-roledescription="slide"]').count();
+    if (n > total) throw new Error(`only ${total} cards`);
+    await row.locator("div.snap-x").first().evaluate((el, i) => el.scrollTo({ left: i * el.clientWidth, behavior: "auto" }), n - 1);
+    await p.waitForTimeout(700);
+    await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await p.waitForTimeout(300);
+  }, false);
+}
+
 const g = `/groups/${demo.trip.id}`;
 await shot("01-home", "/");
 await shot("02-group-activity", `${g}?tab=activity`);
@@ -291,6 +308,34 @@ if (!desktop && !hosted) {
         }
       }
     }
+    // Home with BOTH kinds of money, so the slim card shows its Group and Non-group lines:
+    // in a flat, Asha paid 4583200 split with Kabir (Kabir owes her 2291600); Rohan (non-group) owes her 60000. Net +2351600.
+    const flat = await db.group.create({
+      data: {
+        name: "Flat 402", type: "home", currency: "INR", inviteCode: `shotsboth${Date.now().toString(36)}`,
+        members: { create: [{ name: "Asha", accountId: me.id, claimedAt: new Date() }, { name: "Kabir" }] },
+      },
+      include: { members: true },
+    });
+    const [asha, kabir] = [flat.members.find((m) => m.name === "Asha")!, flat.members.find((m) => m.name === "Kabir")!];
+    await db.expense.create({
+      data: {
+        groupId: flat.id, description: "Rent", splitType: "equal", amount: 4583200, originalAmount: 4583200, convertedAmount: 4583200,
+        originalCurrency: "INR", baseCurrency: "INR", paidById: asha.id, createdById: asha.id,
+        shares: { create: [{ memberId: asha.id, amount: 2291600 }, { memberId: kabir.id, amount: 2291600 }] },
+      },
+    });
+    for (const w of [390, 320] as const) {
+      await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+      try {
+        await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+        await p.waitForTimeout(500);
+        await p.screenshot({ path: `${out}/direct${w}-home-both.png`, fullPage: false });
+        console.log(`  ✓ direct${w}-home-both`);
+      } catch (e) {
+        console.log(`  ✗ direct${w}-home-both`, String(e).split("\n")[0]);
+      }
+    }
     await c.close();
   }
 }
@@ -312,7 +357,8 @@ if (!desktop && !hosted) {
   const flat = await members(flatId);
   const [V, A, R, M] = ["Varun", "Asha", "Ravi", "Meera"].map((n) => trip.get(n)!);
   const [FV, FK] = ["Varun", "Kabir"].map((n) => flat.get(n)!);
-  const card = () => page.getByRole("region", { name: "Your money" });
+  // The slim Net card is one link (a region no more): found by its hook.
+  const card = () => page.locator("[data-balance-card]").first();
   const read = async () => {
     await page.setViewportSize(screen);
     await page.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
@@ -340,16 +386,17 @@ if (!desktop && !hosted) {
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
   // (The card has no photo any more, so no stray letter ends the text.)
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
+    // The slim Net card says the net of groups and non-group together. These states only add group expenses, so no "Group / Non-group" lines show.
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "net", has: /^net \| Net · you owe ₹54,122$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "net", has: /^net \| Net · you’re owed ₹22,916$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people$/ }],
-    // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir You owe ₹4,200 To Asha( · .+?)? Review & settle$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "net", has: /^net \| Net · you’re owed ₹31,480$/ }],
+    // Money both ways, in two groups: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat). The card now NETS them: 2291600 - 420000 = 1871600 paise = ₹18,716 owed to him.
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "net", has: /^net \| Net · you’re owed ₹18,716$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| All square Nobody owes anybody$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -371,7 +418,7 @@ if (!desktop && !hosted) {
         await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
         await shot(`n${w}-home-state-${name}`, "/");
       }
-      // A long first name on the narrowest phone: the card says "To Bhagyalakshmi · …" (wrapping between words, never mid-word) and the amount stays whole.
+      // A long first name on the narrowest phone (the slim card names nobody now; kept so the before/after set stays the same).
       if (name === "owe") {
         const asha = await db.member.findUnique({ where: { id: A } });
         await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });
@@ -412,16 +459,7 @@ await shot("69-home-full", "/");
 // on the narrowest phone (320). Each card is picked by its dot when there are dots.
 for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
   if (w) await page.setViewportSize({ width: w, height: 640 });
-  for (const n of [1, 2, 3, 4, 5, 6]) {
-    await shot(`${prefix}-home-card-${n}`, "/", async (p) => {
-      const pause = p.getByRole("button", { name: /Pause the highlights/ });
-      if (await pause.count()) await pause.click();
-      const dot = p.getByRole("button", { name: new RegExp(`^Show ${n} of`) });
-      if (await dot.count()) await dot.click();
-      await p.locator("[data-highlight], [data-month-card]").first().scrollIntoViewIfNeeded();
-      await p.waitForTimeout(900);
-    }, false);
-  }
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`${prefix}-home-card-${n}`, n);
   if (w) await page.setViewportSize(wide ?? screen);
 }
 // Collect: the organiser's screens, then what someone opening the link sees.
@@ -480,6 +518,11 @@ if (!hosted) {
       console.log("✗ 82-place-photos", String(e).split("\n")[0]);
     }
   }
+  // The sliding row again, now that a trip in 12 days exists: its weather card comes first.
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`69w-home-row-${n}`, n);
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`n320-69w-home-row-${n}`, n);
+  await page.setViewportSize(screen);
   await shot("72-home-collecting", "/");
   await shot("76-home-countdown", "/", undefined, false);
   await shot("91-home-share-sheet", "/", async (p) => {

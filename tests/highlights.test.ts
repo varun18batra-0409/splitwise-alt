@@ -93,9 +93,11 @@ describe("Home's one sliding row, in order: weather, month, bill, postcard, pass
     expect(withPhotos.scene).toBe(true);
     expect(withPhotos.keepsake).toEqual({ kind: "postcard", photo: "/q.jpg" });
   });
-  it("the passport card: 'Where have you been?' with 0 or 1 country, 'N countries and counting' with more, linking to /passport, with your own stamps (at most 2)", () => {
+  it("the passport card: 'Where have you been?' with no country, '1 country and counting' with one, 'N countries and counting' with more, linking to /passport, with your own stamps (at most 2)", () => {
     expect(cardOf(homeHighlights(base), "fill-passport").title).toBe("Where have you been?");
-    expect(cardOf(homeHighlights({ ...base, passportCountries: 1 }), "fill-passport").title).toBe("Where have you been?");
+    const one = cardOf(homeHighlights({ ...base, passportCountries: 1 }), "fill-passport");
+    expect(one.title).toBe("1 country and counting");
+    expect(one.text).toContain("Flip through your stamps");
     const c = cardOf(homeHighlights({ ...base, passportCountries: 5, passportAbroad: 4 }), "fill-passport");
     expect(c.title).toBe("5 countries and counting");
     expect(c.text).toBe("4 abroad, plus home. Flip through your stamps, or see where friends who share theirs have been.");
