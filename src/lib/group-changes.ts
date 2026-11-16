@@ -4,10 +4,14 @@ import { logEvent, type Db, type OtherMoney } from "./events";
 import { allocateByWeights } from "./split";
 import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
-import { rebaseExpense, rebasePayment } from "./rebase";
-import { GroupChanged } from "./money-guard";
+import { keepSquareAtZero, rebaseExpense, rebasePayment, type SquareExpense, type SquarePayment } from "./rebase";
+import { GroupChanged, ledgerInTx, moneySig } from "./money-guard";
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string; needsRate?: true };
+
+// Converting would leave someone who is settled up (or who has left) with a tiny balance, and no nudge of a paisa can fix it.
+export const CURRENCY_ROUNDING_TEXT = "At this rate, rounding would leave someone who’s settled up with a tiny balance, so the currency wasn’t changed. Try a slightly different rate.";
+export const CURRENCY_PAYMENT_TEXT = "That rate makes a payment too small or too large. Check it.";
 
 export const PAIR_NO_SETTINGS = "This is just between two people, so it has no settings to change.";
 
@@ -91,7 +95,11 @@ class Refused extends Error {
 export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean; quiet?: boolean; afterRead?: () => Promise<void> }): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
-    include: { expenses: { include: { shares: true } }, payments: true, members: { select: { id: true } } },
+    include: {
+      expenses: { include: { shares: true, items: { select: { id: true } } } },
+      payments: true,
+      members: { select: { id: true, leftAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+    },
   });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   // A pair's currency is fixed by its first expense: the only way in is the empty-pair path (expectEmpty), which writes nothing once money is there.
@@ -114,7 +122,39 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   const expenseUpdates = group.expenses.map((e) => ({ e, r: rebaseExpense(e, oldCurrency, newCurrency, rate) }));
   if (expenseUpdates.some((x) => x.r === null)) return { ok: false, error: "That rate makes some amounts too small or too large. Check it." };
   const paymentUpdates = group.payments.map((p) => ({ p, amount: rebasePayment(p.amount, oldCurrency, newCurrency, rate) }));
-  if (paymentUpdates.some((x) => x.amount === null || x.amount <= 0)) return { ok: false, error: "That rate makes a payment too small. Check it." };
+  if (paymentUpdates.some((x) => x.amount === null || x.amount <= 0)) return { ok: false, error: CURRENCY_PAYMENT_TEXT };
+
+  // Everyone who was settled up (or has left) must stay exactly at 0: nudge whole paise between the shares of an expense or the
+  // two sides of a payment (see keepSquareAtZero). Nothing in the books changes except those rows.
+  const liveExpenses = expenseUpdates.filter((x) => !x.e.deletedAt);
+  const livePayments = paymentUpdates.filter((x) => !x.p.deletedAt);
+  const squareRows = (xs: typeof liveExpenses, rebased: boolean): SquareExpense[] =>
+    xs.map(({ e, r }) => ({
+      id: e.id,
+      createdAt: e.createdAt.getTime(),
+      kind: e.kind,
+      paidById: e.paidById,
+      payers: rebased ? r!.payers : e.payers,
+      amount: rebased ? r!.amount : e.amount,
+      itemSplit: e.items.length > 0,
+      shares: e.shares.map((s) => ({ id: s.id, memberId: s.memberId, amount: rebased ? r!.shares.find((x) => x.id === s.id)!.amount : s.amount })),
+    }));
+  const squarePayments = (rebased: boolean): SquarePayment[] =>
+    livePayments.map(({ p, amount }) => ({ id: p.id, createdAt: p.createdAt.getTime(), fromId: p.fromId, toId: p.toId, amount: rebased ? amount! : p.amount }));
+  let squared: ReturnType<typeof keepSquareAtZero> = null;
+  if (liveExpenses.length || livePayments.length) {
+    squared = keepSquareAtZero({
+      members: group.members.map((m) => ({ id: m.id, left: Boolean(m.leftAt) })),
+      before: { expenses: squareRows(liveExpenses, false), payments: squarePayments(false) },
+      after: { expenses: squareRows(liveExpenses, true), payments: squarePayments(true) },
+      convert: (a) => rebasePayment(a, oldCurrency, newCurrency, rate),
+    });
+    if (!squared) return { ok: false, error: CURRENCY_ROUNDING_TEXT };
+    for (const x of expenseUpdates) {
+      for (const s of x.r!.shares) if (squared.shares[s.id] !== undefined) s.amount = squared.shares[s.id];
+    }
+    for (const x of paymentUpdates) if (squared.payments[x.p.id] !== undefined) x.amount = squared.payments[x.p.id];
+  }
 
   const otherAfter = convertOtherMoney(otherBefore, (a) => rebaseSigned(a, oldCurrency, newCurrency, rate));
   if (!otherAfter) return { ok: false, error: "That rate makes a bill, budget, goal or deposit too small or too large. Check it." };
@@ -170,6 +210,16 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     } else if (expensesNow !== group.expenses.length || paymentsNow !== group.payments.length || !sameOtherMoney(otherNow, otherBefore)) {
       throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
     }
+    if (!opts?.expectEmpty) {
+      // Same counts is not enough: an edit in the gap would be overwritten by nudges worked out from the old numbers.
+      const [expensesRead, paymentsRead] = await Promise.all([
+        tx.expense.findMany({ where: { groupId }, include: { shares: true } }),
+        tx.payment.findMany({ where: { groupId } }),
+      ]);
+      if (moneySig(expensesRead, paymentsRead) !== moneySig(group.expenses, group.payments)) {
+        throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+      }
+    }
     for (const { e, r } of expenseUpdates) {
       // updateMany + a count: an edit that replaced this expense's shares in the gap is a calm "changed", not an error.
       const wrote = await tx.expense.updateMany({
@@ -193,6 +243,11 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     for (const { p, amount } of paymentUpdates) {
       const one = await tx.payment.updateMany({ where: { id: p.id }, data: { amount: amount! } });
       if (one.count !== 1) throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+    }
+    // The proof, read back from the database: everyone who had to stay at a balance is exactly on it.
+    if (squared) {
+      const { net } = await ledgerInTx(tx, groupId);
+      if (Object.entries(squared.targets).some(([id, t]) => (net[id] ?? 0) !== t)) throw new Refused({ ok: false, error: CURRENCY_ROUNDING_TEXT });
     }
     await writeOtherMoney(tx, otherAfter);
     await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency, settleMin: otherAfter.settleMin } });

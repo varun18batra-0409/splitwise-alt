@@ -224,14 +224,17 @@ describe("The Pot (real database)", () => {
     exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", category: "", rateMode: "auto", manualRate: "", ...over,
   });
   // Asha takes 1,000 and puts back 1,500; Bina takes 1,000 and puts back 500. Asha +50000, Bina -50000.
+  // hostLeaves: the game is started by Chirag, who isn't playing (players Asha and Bina), and Chirag then leaves. (A host who is IN the
+  // game can't leave while it is open, and a finished result with someone who has left in it can't be written: see b1-leaver-doors 10.)
   async function playedGame(opts: { hostLeaves?: boolean } = {}) {
     const t = await table();
-    const s = await startGame(t.g.id, t.a, { name: "Audit night", game: "poker", players: [t.a, t.b] });
+    const host = opts.hostLeaves ? t.c : t.a;
+    const s = await startGame(t.g.id, host, { name: "Audit night", game: "poker", players: [t.a, t.b] });
     if (!s.ok) throw new Error(s.error);
-    for (const who of [t.a, t.b]) await recordMove(s.id, t.a, { memberId: who, kind: "take", amount: "1000" });
-    await recordMove(s.id, t.a, { memberId: t.a, kind: "return", amount: "1500" });
-    await recordMove(s.id, t.a, { memberId: t.b, kind: "return", amount: "500" });
-    if (opts.hostLeaves) await db.member.update({ where: { id: t.a }, data: { leftAt: new Date() } });
+    for (const who of [t.a, t.b]) await recordMove(s.id, host, { memberId: who, kind: "take", amount: "1000" });
+    await recordMove(s.id, host, { memberId: t.a, kind: "return", amount: "1500" });
+    await recordMove(s.id, host, { memberId: t.b, kind: "return", amount: "500" });
+    if (opts.hostLeaves) await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
     return { ...t, gameId: s.id };
   }
 
@@ -293,10 +296,10 @@ describe("The Pot (real database)", () => {
   });
 
   it("when the host has left, the group admin can finish the game: the result is recorded once; others still can't", async () => {
-    const { g, a, b, c, gameId } = await playedGame({ hostLeaves: true });
+    const { g, a, b, c, d, gameId } = await playedGame({ hostLeaves: true });
     const admin = (await groupAdminId(g.id))!;
-    expect(admin).not.toBe(a);
-    const notAdmin = [b, c].find((x) => x !== admin)!;
+    expect(admin).not.toBe(c); // Chirag started the game and has left
+    const notAdmin = [a, b, d].find((x) => x !== admin)!;
     expect((await finishGame(gameId, notAdmin)).ok).toBe(false);
     expect((await finishGame(gameId, admin)).ok).toBe(true);
     expect((await finishGame(gameId, admin)).ok).toBe(false); // already finished

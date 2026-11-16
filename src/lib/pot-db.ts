@@ -2,11 +2,11 @@ import { db } from "./db";
 import { fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "./once";
 import { logEvent, type Db } from "./events";
 import { formatMoney, parseAmount } from "./money";
-import { payersJson } from "./payers";
+import { parsePayers, payersJson } from "./payers";
 import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, potTransfers, spreadGap } from "./pot";
 import { cleanNames, sameName } from "./names";
 import { pickAdmin } from "./group-admin";
-import { GroupChanged, groupChangedText, guardGroup } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
 import type { Prisma } from "@prisma/client";
 
 // Every move in an open game is written inside ONE transaction that first claims the game as still open (and the group as
@@ -19,6 +19,11 @@ class GameNotOpen extends Error {}
 class GameChanged extends Error {}
 class GameReopened extends Error {}
 class AllPaid extends Error {}
+class ReopenLeaver extends Error {
+  constructor(public who: string) {
+    super("reopen would move someone who has left");
+  }
+}
 type Hooks = { afterRead?: () => Promise<void> }; // tests only: runs after the reads, before the write
 
 async function claimOpenGame(tx: Tx, gameId: string): Promise<void> {
@@ -276,7 +281,8 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
   await hooks.afterRead?.();
   const done = await db.$transaction(async (tx) => {
     // The group must still be as read (same currency, not deleted) before the result is written into its balances.
-    await guardGroup(tx, g.id, { currency: g.currency });
+    // Everyone in the result must still be in the group: a result with someone who has left in it would move their balance off 0.
+    await guardGroup(tx, g.id, { currency: g.currency, involvedIds: [...res.winners, ...res.losers].map((x) => x.memberId) });
     // Claim the game first: if two finishes arrive at once, only one adds the result.
     const claimed = await tx.potGame.updateMany({ where: { id: gameId, status: "open", deletedAt: null }, data: { status: "done", finishedAt: now } });
     if (claimed.count !== 1) {
@@ -320,6 +326,7 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
     if (err instanceof GroupChanged) return err;
     throw err;
   });
+  if (done instanceof GroupChanged && done.reason === "left") return { ok: false, error: `${done.detail || "Someone"} has left the group, so this game can’t be finished with them in it. Ask them to rejoin first.` };
   if (done instanceof GroupChanged) return { ok: false, error: groupChangedText(done) };
   if (done === "deleted") return { ok: false, error: "This game was deleted." };
   if (done === "changed") return { ok: false, error: "Someone just changed this game. Check the amounts and finish again." };
@@ -328,28 +335,44 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
 }
 
 // Reopen a finished game (a wrong amount): its result comes out of the balances until it's finished again.
-export async function reopenGame(gameId: string, actorId: string): Promise<Result> {
+export async function reopenGame(gameId: string, actorId: string, hooks: Hooks = {}): Promise<Result> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
   if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can reopen the game." };
   if (game.status !== "done") return { ok: false, error: "This game is still going." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen the group first." };
-  const reopened = await db.$transaction(async (tx) => {
-    // Claim the game as it was read (the same way finishing claims it): two reopens, or a reopen racing a
-    // finish, can't both act, so a newer result is never left in the balances with no game pointing at it.
-    const claim = await tx.potGame.updateMany({ where: { id: gameId, status: "done", resultId: game.resultId, finishedAt: game.finishedAt }, data: { status: "open", finishedAt: null, resultId: "" } });
-    if (claim.count !== 1) return false;
-    if (game.resultId) {
-      // The event that pointed at it stays in the history, without the link.
-      await tx.groupEvent.updateMany({ where: { expenseId: game.resultId }, data: { expenseId: null } });
-      // By the game's own pointer (not by kind): a result that was changed into ordinary spending earlier still goes.
-      await tx.expenseShare.deleteMany({ where: { expenseId: game.resultId } });
-      await tx.expense.deleteMany({ where: { id: game.resultId } });
-    }
-    await logEvent(tx, { groupId: g.id, actorId, kind: "pot_reopened", text: `reopened ${game.name} (its result is out of the balances until it’s finished again)` });
-    return true;
-  });
+  await hooks.afterRead?.();
+  let reopened: boolean;
+  try {
+    reopened = await db.$transaction(async (tx) => {
+      // The group must still be as read (open, same currency) and the person reopening still in it.
+      await guardGroup(tx, g.id, { currency: g.currency, actorId });
+      // Claim the game as it was read (the same way finishing claims it): two reopens, or a reopen racing a
+      // finish, can't both act, so a newer result is never left in the balances with no game pointing at it.
+      const claim = await tx.potGame.updateMany({ where: { id: gameId, status: "done", resultId: game.resultId, finishedAt: game.finishedAt }, data: { status: "open", finishedAt: null, resultId: "" } });
+      if (claim.count !== 1) return false;
+      if (game.resultId) {
+        // Taking the result out must not move anyone who has left: they left at 0, and the result gave them (or took from them) money.
+        const result = await tx.expense.findUnique({ where: { id: game.resultId }, include: { shares: true } });
+        if (result) {
+          const gone = await leaverBalanceBreaks(tx, g.id, peopleInExpense({ paidById: result.paidById, payers: parsePayers(result.payers), shares: result.shares }), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== game.resultId) }));
+          if (gone.length) throw new ReopenLeaver(gone[0]);
+        }
+        // The event that pointed at it stays in the history, without the link.
+        await tx.groupEvent.updateMany({ where: { expenseId: game.resultId }, data: { expenseId: null } });
+        // By the game's own pointer (not by kind): a result that was changed into ordinary spending earlier still goes.
+        await tx.expenseShare.deleteMany({ where: { expenseId: game.resultId } });
+        await tx.expense.deleteMany({ where: { id: game.resultId } });
+      }
+      await logEvent(tx, { groupId: g.id, actorId, kind: "pot_reopened", text: `reopened ${game.name} (its result is out of the balances until it’s finished again)` });
+      return true;
+    });
+  } catch (err) {
+    if (err instanceof ReopenLeaver) return { ok: false, error: `${err.who} has left the group, so this game can’t be reopened. Ask them to rejoin first.` };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    throw err;
+  }
   if (!reopened) return { ok: false, error: "This game changed just now. Open it again to see where it stands." };
   return { ok: true };
 }
@@ -470,7 +493,9 @@ export async function cashOut(gameId: string, actorId: string, input: { memberId
 
 // The end of the game: what everyone still playing has, all at once. With
 // `settle` (the host), the game finishes straight away if it adds up.
-export async function countOut(gameId: string, actorId: string, entries: { memberId: string; amount: string }[], settle: boolean, hooks: Hooks = {}): Promise<Result<{ finished: boolean; gap: boolean }>> {
+// requestKey: the count form's one-time key. The same form sent twice (a double tap, a retry) counts once; and the counts
+// are checked again inside the write, so a different count that landed first can't be counted on top of.
+export async function countOut(gameId: string, actorId: string, entries: { memberId: string; amount: string }[], settle: boolean, hooks: Hooks = {}, opts: { requestKey?: string } = {}): Promise<Result<{ finished: boolean; gap: boolean }>> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
@@ -488,15 +513,36 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
   }
   if (!rows.length && !settle) return { ok: false, error: "Type what each person has." };
   if (rows.length) {
+    const fp = fingerprintOf("pot-count", gameId, settle, ...rows.map((x) => `${x.memberId}:${x.amount}`).sort());
+    const again = async (): Promise<Result<{ finished: boolean; gap: boolean }>> => {
+      const now = await db.potGame.findUnique({ where: { id: gameId }, select: { status: true } });
+      return { ok: true, finished: now?.status === "done", gap: false };
+    };
+    const ks = await keyState(opts.requestKey, fp);
+    if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+    if (ks.state === "done") return again();
     await hooks.afterRead?.();
-    const w = await move(async () => {
-      await db.$transaction(async (tx) => {
-        await openGame(tx, g, gameId);
-        await tx.potMove.createMany({ data: rows.map((x) => ({ gameId, memberId: x.memberId, kind: "return", amount: x.amount, note: "counted at the end", createdById: actorId })) });
+    try {
+      const w = await move(async () => {
+        await db.$transaction(async (tx) => {
+          await openGame(tx, g, gameId);
+          if (opts.requestKey) await tx.requestKey.create({ data: { key: opts.requestKey, result: "count", fingerprint: fp } });
+          // Who is still playing NOW, inside the write: a count that landed first has already brought these people home.
+          const [now, liveMoves] = await Promise.all([
+            tx.potGame.findUnique({ where: { id: gameId }, select: { players: true } }),
+            tx.potMove.findMany({ where: { gameId, deletedAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
+          ]);
+          const stillPlaying = new Set(inPlay(parsePlayers(now?.players ?? "[]"), liveMoves));
+          if (rows.some((x) => !stillPlaying.has(x.memberId))) throw new GameChanged();
+          await tx.potMove.createMany({ data: rows.map((x) => ({ gameId, memberId: x.memberId, kind: "return", amount: x.amount, note: "counted at the end", createdById: actorId })) });
+        });
+        return {};
       });
-      return {};
-    });
-    if (!w.ok) return w;
+      if (!w.ok) return w;
+    } catch (err) {
+      if (isDuplicateKey(err)) return again();
+      throw err;
+    }
   }
   if (!settle || !canRunGame(game, g.members, actorId)) return { ok: true, finished: false, gap: false };
   const missing = [...playing].filter((id) => !rows.some((x) => x.memberId === id));

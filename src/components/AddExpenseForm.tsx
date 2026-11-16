@@ -2,7 +2,8 @@
 
 import { avatarTone } from "@/components/ui";
 import { ExpenseGlyph } from "./ExpenseGlyph";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, useTransition } from "react";
+import { markupBox, markupBoxStart, markupBoxValue } from "@/lib/markup-box";
 import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
 import { computeTotals, fxLine, PAYMENT_METHODS, rateDateLabel, type PaymentMethod } from "@/lib/conversion";
@@ -107,8 +108,9 @@ export function AddExpenseForm({
   const [rateMode, setRateMode] = useState<"auto" | "manual">("auto");
   const [manualRate, setManualRate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "card");
-  const [markupChoice, setMarkupChoice] = useState<ExpenseDraft["markupChoice"]>(initial?.markupChoice ?? "group");
-  const [markupCustom, setMarkupCustom] = useState(initial?.markupCustom ?? "");
+  const [markup, markupDo] = useReducer(markupBox, markupBoxStart(initial?.markupChoice ?? "group", initial?.markupCustom ?? ""));
+  const markupChoice: ExpenseDraft["markupChoice"] = markup.choice;
+  const markupCustom = markup.custom;
   const [showMarkup, setShowMarkup] = useState(false);
   // Editing: keep the rate saved with the expense unless the person asks for today's.
   const [keepSavedRate, setKeepSavedRate] = useState(Boolean(initial && initial.currency !== baseCurrency && initial.rate));
@@ -702,31 +704,25 @@ export function AddExpenseForm({
               </div>
               {showMarkup && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Chip on={markupChoice === "group"} onClick={() => setMarkupChoice("group")}>
+                  <Chip on={markupChoice === "group"} onClick={() => markupDo({ type: "group" })}>
                     Default ({formatPercent(groupMarkupBp)})
                   </Chip>
-                  <Chip on={markupChoice === "none"} onClick={() => setMarkupChoice("none")}>
+                  <Chip on={markupChoice === "none"} onClick={() => markupDo({ type: "none" })}>
                     None
                   </Chip>
                   {["2", "3", "4"].map((p) => (
                     <Chip
                       key={p}
                       on={markupChoice === "custom" && markupCustom === p}
-                      onClick={() => {
-                        setMarkupChoice("custom");
-                        setMarkupCustom(p);
-                      }}
+                      onClick={() => markupDo({ type: "chip", percent: p })}
                     >
                       {p}%
                     </Chip>
                   ))}
                   <span className="flex items-center rounded-full border border-gray-200 bg-white px-3">
                     <input
-                      value={markupChoice === "custom" && !["2", "3", "4"].includes(markupCustom) ? markupCustom : ""}
-                      onChange={(e) => {
-                        setMarkupChoice("custom");
-                        setMarkupCustom(e.target.value);
-                      }}
+                      value={markupBoxValue(markup)}
+                      onChange={(e) => markupDo({ type: "type", text: e.target.value })}
                       inputMode="decimal"
                       placeholder="Custom"
                       aria-label="Custom markup percentage"

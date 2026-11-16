@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { countOutAction } from "@/app/pot-actions";
+import { useRequestKey } from "./FreshKeyInput";
 import { formatMoney, parseAmount } from "@/lib/money";
 import { potResultLine } from "@/lib/pot";
 
@@ -49,6 +50,8 @@ export function PotCount({
   currency: string;
 }) {
   const money = (n: number) => formatMoney(n, currency);
+  // The one-time key of this count: the same form sent twice counts once.
+  const rid = useRequestKey();
   // What's typed (kept if the save comes back with a problem, so nobody types it all again).
   const [typed, setTyped] = useState<Record<string, string>>({});
   const value = (id: string) => {
@@ -69,6 +72,7 @@ export function PotCount({
   return (
     <form action={countOutAction} className="space-y-3" data-allow-repeat="1" aria-label="Count the money">
       <input type="hidden" name="gameId" value={gameId} />
+      <input type="hidden" name="rid" value={rid} suppressHydrationWarning />
       <div>
         <h2 className="font-display text-lg font-semibold tracking-tight">Game over? Count the money</h2>
         <p className="mt-0.5 text-sm text-gray-500">What does each player have in front of them? 0 if they have nothing left.</p>

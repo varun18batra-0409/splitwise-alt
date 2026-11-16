@@ -8,7 +8,8 @@ import { addWaitingBill, billExpenseInput, runBillsForGroup } from "@/lib/home/b
 import { billCommand, saveBillFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { moveOutConfirm } from "@/lib/move-confirm";
 import { revertExpense, undoEvent } from "@/lib/undo";
-import { openGameFor } from "@/lib/pot-db";
+import { finishGame, openGameFor, reopenGame } from "@/lib/pot-db";
+import { setMember } from "@/lib/people";
 import { moneySig } from "@/lib/money-guard";
 import { checkBooks } from "./helpers/money-invariants";
 
@@ -424,6 +425,98 @@ describe("11. D3-5: undoing an edit needs the person undoing to still be in the 
     const shares = await db.expenseShare.findMany({ where: { expenseId: first.id } });
     expect(shares.map((s) => s.amount)).toEqual([20000, 20000, 20000]);
     await checkBooks(w.gid, { legacy: [B] }); // B was set to "left" behind the app's back, owing 20000: the only exception
+  });
+});
+
+// ---- Games (card nights). Asha and Ravi each take 50000 in; Asha takes home 100000, Ravi 0: Asha +50000, Ravi -50000. ----
+async function playedGame(w: World, o: { asha?: number; ravi?: number; name?: string } = {}) {
+  const [A, R] = [w.id("Asha"), w.id("Ravi")];
+  const game = await db.potGame.create({ data: { groupId: w.gid, name: o.name ?? "Friday teen patti", players: JSON.stringify([A, R]), hostId: A } });
+  const line = (memberId: string, kind: string, amount: number) => db.potMove.create({ data: { gameId: game.id, memberId, kind, amount, createdById: A } });
+  await line(A, "take", 50000);
+  await line(R, "take", 50000);
+  if (o.asha !== undefined) await line(A, "return", o.asha);
+  if (o.ravi !== undefined) await line(R, "return", o.ravi);
+  return game.id;
+}
+const potResults = (gid: string) => db.expense.findMany({ where: { groupId: gid, kind: "pot", deletedAt: null }, include: { shares: true } });
+
+describe("9. MB-3: a game's result with someone who has left in it can't be taken back out", () => {
+  it("finished (Asha +50000, Ravi -50000), Ravi paid Asha 50000 and left at 0: reopening is refused, the result stays, all 0", async () => {
+    const w = await world("mb3", { names: ["Asha", "Ravi"], type: "trip" });
+    const [A, R] = [w.id("Asha"), w.id("Ravi")];
+    const gameId = await playedGame(w, { asha: 100000, ravi: 0 });
+    expect((await finishGame(gameId, A)).ok).toBe(true);
+    const [result] = await potResults(w.gid);
+    expect([result.amount, result.paidById, result.shares.map((x) => [x.memberId, x.amount])]).toEqual([50000, A, [[R, 50000]]]);
+    expect(await nets(w, "Asha", "Ravi")).toEqual([50000, -50000]);
+    await pay(w.gid, R, A, 50000);
+    expect(await nets(w, "Asha", "Ravi")).toEqual([0, 0]);
+    expect((await setMember(w.gid, R, R, { leftAt: new Date().toISOString() })).ok).toBe(true); // the game is done, so nothing holds Ravi back
+    // Taking the result out would give Ravi +50000 (his payment with nothing to pay for).
+    expect(await reopenGame(gameId, A)).toEqual({ ok: false, error: "Ravi has left the group, so this game can’t be reopened. Ask them to rejoin first." });
+    expect((await db.potGame.findUniqueOrThrow({ where: { id: gameId } })).status).toBe("done");
+    expect(await potResults(w.gid)).toHaveLength(1);
+    expect(await nets(w, "Asha", "Ravi")).toEqual([0, 0]);
+  });
+
+  it("a reopen racing a group close is refused and the result stays", async () => {
+    const w = await world("mb3b", { names: ["Asha", "Ravi"], type: "trip" });
+    const gameId = await playedGame(w, { asha: 100000, ravi: 0 });
+    expect((await finishGame(gameId, w.id("Asha"))).ok).toBe(true);
+    const r = await reopenGame(gameId, w.id("Asha"), { afterRead: async () => void (await db.group.update({ where: { id: w.gid }, data: { closed: true } })) });
+    expect(r).toEqual({ ok: false, error: "This group was closed while you were saving, so nothing was saved." });
+    expect((await db.potGame.findUniqueOrThrow({ where: { id: gameId } })).status).toBe("done");
+    expect(await potResults(w.gid)).toHaveLength(1);
+    expect(await nets(w, "Asha", "Ravi")).toEqual([50000, -50000]);
+  });
+
+  it("with nobody gone, reopening still works: the result comes out and everyone is 0", async () => {
+    const w = await world("mb3c", { names: ["Asha", "Ravi"], type: "trip" });
+    const gameId = await playedGame(w, { asha: 100000, ravi: 0 });
+    expect((await finishGame(gameId, w.id("Asha"))).ok).toBe(true);
+    expect((await reopenGame(gameId, w.id("Asha"))).ok).toBe(true);
+    expect(await potResults(w.gid)).toHaveLength(0);
+    expect(await nets(w, "Asha", "Ravi")).toEqual([0, 0]);
+  });
+});
+
+describe("10. MB-4: nobody can leave (or be removed) with chips in an open game", () => {
+  const SELF = "You’re still in a game that’s open (Friday teen patti). Ask the host to finish it, then leave.";
+  const OTHER = "Ravi is still in a game that’s open (Friday teen patti). Finish the game first.";
+
+  it("Ravi took 50000 and put back 0 (net 0 in the group): leaving and being removed are refused while the game is open; after it is finished and paid he can leave", async () => {
+    const w = await world("mb4", { names: ["Asha", "Ravi"], type: "trip" });
+    const [A, R] = [w.id("Asha"), w.id("Ravi")];
+    const gameId = await playedGame(w, { ravi: 0 }); // Asha has taken 50000 and not put anything back yet
+    expect(await nets(w, "Asha", "Ravi")).toEqual([0, 0]);
+    expect(await setMember(w.gid, R, R, { leftAt: new Date().toISOString() })).toEqual({ ok: false, error: SELF });
+    expect(await setMember(w.gid, A, R, { leftAt: new Date().toISOString() })).toEqual({ ok: false, error: OTHER });
+    expect((await db.member.findUniqueOrThrow({ where: { id: R } })).leftAt).toBeNull();
+    // The write itself checks too: a game that opens in the gap between the check and the write is caught inside it.
+    const w2 = await world("mb4gap", { names: ["Asha", "Ravi"], type: "trip" });
+    const gap = await setMember(w2.gid, w2.id("Ravi"), w2.id("Ravi"), { leftAt: new Date().toISOString() }, false, { afterRead: async () => void (await playedGame(w2, { ravi: 0 })) });
+    expect(gap).toEqual({ ok: false, error: SELF });
+    expect((await db.member.findUniqueOrThrow({ where: { id: w2.id("Ravi") } })).leftAt).toBeNull();
+    // Asha puts back 100000 and the game is finished: Asha +50000, Ravi -50000. Ravi pays, and now leaves.
+    await db.potMove.create({ data: { gameId, memberId: A, kind: "return", amount: 100000, createdById: A } });
+    expect((await finishGame(gameId, A)).ok).toBe(true);
+    expect(await nets(w, "Asha", "Ravi")).toEqual([50000, -50000]);
+    expect((await setMember(w.gid, R, R, { leftAt: new Date().toISOString() })).ok).toBe(false); // still owes 50000
+    await pay(w.gid, R, A, 50000);
+    expect((await setMember(w.gid, R, R, { leftAt: new Date().toISOString() })).ok).toBe(true);
+    expect(await nets(w, "Asha", "Ravi")).toEqual([0, 0]);
+  });
+
+  it("legacy: someone marked as left behind the app's back with chips in an open game: finishing is refused with its own sentence and writes no result", async () => {
+    const w = await world("mb4legacy", { names: ["Asha", "Ravi"], type: "trip" });
+    const [A, R] = [w.id("Asha"), w.id("Ravi")];
+    const gameId = await playedGame(w, { asha: 100000, ravi: 0 });
+    await db.member.update({ where: { id: R }, data: { leftAt: new Date() } });
+    expect(await finishGame(gameId, A)).toEqual({ ok: false, error: "Ravi has left the group, so this game can’t be finished with them in it. Ask them to rejoin first." });
+    expect((await db.potGame.findUniqueOrThrow({ where: { id: gameId } })).status).toBe("open");
+    expect(await potResults(w.gid)).toHaveLength(0);
+    await checkBooks(w.gid);
   });
 });
 
