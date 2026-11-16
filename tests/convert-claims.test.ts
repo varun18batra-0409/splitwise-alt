@@ -164,6 +164,23 @@ describe("putting a conversion back uses the same safe delete as the payer", () 
     expect(await f.net()).toEqual({ [f.A]: 50000, [f.R]: -50000 });
   });
 
+  it("(U1b) taking the payment off and putting the note back are ONE transaction: if the second step fails, the payment is still counting and the note still covered", async () => {
+    const { changePayment } = await import("@/lib/payment-change");
+    const f = await fixture();
+    await f.claim(50000);
+    const s = await run(f.gid, true);
+    const ch = s.changes[0];
+    const r = changePayment(ch.paymentId!, f.R, true, { inside: async () => { throw new Error("crash between the two steps"); } });
+    await expect(r).rejects.toThrow("crash between the two steps");
+    expect((await db.payment.findUniqueOrThrow({ where: { id: ch.paymentId! } })).deletedAt).toBeNull(); // still counting
+    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: ch.claimId } })).status).toBe("covered");
+    expect(await f.net()).toEqual({ [f.A]: 0, [f.R]: 0 });
+    // A rerun of the undo then does both together: payment off, note waiting, Ravi owes 50000 again.
+    expect(await undoConvertedClaims(s.changes, { apply: true })).toEqual({ apply: true, putBack: 1, skipped: 0 });
+    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: ch.claimId } })).status).toBe("waiting");
+    expect(await f.net()).toEqual({ [f.A]: 50000, [f.R]: -50000 });
+  });
+
   it("(U2) Ravi left (at 0) after the conversion: the undo brings him back owing, so he is never left off zero (Ravi -50000, Asha +50000)", async () => {
     const f = await fixture();
     await f.claim(50000);
@@ -225,18 +242,22 @@ describe("the conversion keeps its undo information as it goes", () => {
     const f2 = await fixture();
     const n1 = await f1.claim(50000);
     const n2 = await f2.claim(50000);
-    const spy = vi.spyOn(db.group, "findUnique").mockRejectedValueOnce(new Error("db down")); // the first note's judgeClaim
-    try {
+    let first = true;
+    const crashFirst = async () => {
+      if (first) {
+        first = false;
+        throw new Error("db down"); // the first note's own step crashes (an explicit hook, not a spy on Prisma)
+      }
+    };
+    {
       const seen: { claimId: string }[] = [];
-      const s = await convertWaitingClaims({ apply: true, groupIds: [f1.gid, f2.gid], now: new Date("2026-11-20T06:00:00Z"), onChange: (c) => seen.push(c) });
+      const s = await convertWaitingClaims({ apply: true, groupIds: [f1.gid, f2.gid], now: new Date("2026-11-20T06:00:00Z"), onChange: (c) => seen.push(c), beforeJudge: crashFirst });
       expect([s.waiting, s.converted, s.expired, s.failed]).toEqual([2, 1, 0, 1]);
       expect(seen).toHaveLength(1);
       // Whichever note was read first crashed: it still waits and changed nothing; the other became one counted payment.
       const statuses = (await db.paymentClaim.findMany({ where: { id: { in: [n1.id, n2.id] } } })).map((c) => c.status).sort();
       expect(statuses).toEqual(["covered", "waiting"]);
       expect((await f1.payments()).length + (await f2.payments()).length).toBe(1);
-    } finally {
-      spy.mockRestore();
     }
   });
 

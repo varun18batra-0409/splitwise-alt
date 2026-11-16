@@ -321,11 +321,29 @@ describe("L4: the recorder's 10-minute Undo counts from the original recording",
     expect(originAtOf(b, [a, b]).toISOString()).toBe(at(0).toISOString());
   });
   it("at minute 9.5 she may still Undo her Undo's line (inside 10 minutes of the recording)", () => {
-    expect(canUndo(e2, [e1, e2], at(9.5), viewer).ok).toBe(true);
+    // (as the screen sees it before she Redoes: her Undo line itself has not been undone yet)
+    const e2live = line("e2", 9, { type: "payment_restore", paymentId: "p1" });
+    expect(canUndo(e2live, [e1, e2live], at(9.5), viewer).ok).toBe(true);
   });
   it("at minute 19 she may NOT Redo again: counted from her own Redo line she would have had until minute 28, counted from the recording it ended at minute 10", () => {
     expect(actorRefusal(e3, viewer, at(19))).toBeNull(); // the old way (the line's own time): the window stretched
     expect(canUndo(e3, [e1, e2, e3], at(19), viewer)).toEqual({ ok: false, reason: "Only A or R can change this payment." });
+  });
+});
+
+describe("L4b: a screen that loads only the latest line still times from the original recording", () => {
+  const T0 = new Date("2026-11-16T10:00:00Z");
+  const at = (min: number) => new Date(T0.getTime() + min * 60_000);
+  const people = ["m", "a", "r"].map((id) => ({ id, name: id.toUpperCase(), accountId: null, leftAt: null, removedAt: null }));
+  const viewer = { id: "m", isAdmin: false, closed: false, members: people, payments: [{ id: "p1", fromId: "a", toId: "r", deletedById: null }] };
+  // Recorded at minute 0 by Meera; her Redo line is written at minute 9 and the screen only loaded that one line.
+  const redo = { id: "e3", kind: "payment_recorded", undo: JSON.stringify({ type: "payment_delete", paymentId: "p1" }), undoneAt: null, expenseId: null, paymentId: "p1", createdAt: at(9), actorId: "m", text: "" };
+  it("with only the latest line the window would wrongly run from minute 9 (open at minute 15); with the origin it is closed", () => {
+    expect(canUndo(redo, [redo], at(15), viewer).ok).toBe(true);
+    expect(canUndo(redo, [redo], at(15), viewer, at(0))).toEqual({ ok: false, reason: "Only A or R can change this payment." });
+  });
+  it("and still open at minute 9.5 with the origin", () => {
+    expect(canUndo(redo, [redo], at(9.5), viewer, at(0)).ok).toBe(true);
   });
 });
 

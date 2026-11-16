@@ -170,7 +170,8 @@ describe("G1-G5: a recorded payment counts at once, and only its two people can 
     expect((await setPaymentDeleted(pay.id, R, true)).ok).toBe(true);
     const deletedEv = await eventOf(pay.id, "payment_deleted");
     expect((await undoEvent(deletedEv.id, A)).ok).toBe(false); // only Ravi can bring it back
-    expect(await setPaymentDeleted(pay.id, M, false)).toEqual({ ok: false, error: "Only Asha or Ravi can change this payment." });
+    // Ravi took it off, so only Ravi can bring it back: Asha (the payer) and Meera (not in the payment) are both told exactly that, the same words.
+    expect(await setPaymentDeleted(pay.id, M, false)).toEqual({ ok: false, error: receiverOnlyText("Ravi") });
     expect(await setPaymentDeleted(pay.id, A, false)).toEqual({ ok: false, error: receiverOnlyText("Ravi") });
     expect(await w.net()).toEqual(startNet({ M, A, R }));
     expect((await undoEvent(deletedEv.id, R)).ok).toBe(true);

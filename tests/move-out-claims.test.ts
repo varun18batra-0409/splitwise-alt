@@ -16,7 +16,9 @@ const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
 const { netBalances } = await import("@/lib/balances");
 const { moveOut, moveOutPreview, MOVE_OUT_KEY_CHANGED, MOVE_OUT_WAITING_NOTE, transfersKey } = await import("@/lib/home/moving-db");
-const { confirmPayment, rejectPayment } = await import("@/lib/payment-ok");
+const { confirmPayment, rejectPayment, waitingForMe } = await import("@/lib/payment-ok");
+const { loadNeedsYou } = await import("@/lib/needs-you");
+const { removedText } = await import("@/lib/active");
 const { undoEvent } = await import("@/lib/undo");
 const { moveOutConfirm } = await import("@/lib/move-confirm");
 const { PAIR_NO_MOVE_OUT } = await import("@/lib/direct-guard");
@@ -206,6 +208,27 @@ describe("FB-1: moving yourself out while you owe someone who has joined", () =>
     await db.paymentClaim.create({ data: { groupId: g2.f.gid, fromId: g2.R, toId: g2.A, amount: 100, currency: "INR", source: "app", status: "waiting", slot: "" } });
     expect((await out(g2.f.gid, g2.A, g2.A)).ok).toBe(true);
     expect((await g2.f.claims())[0].status).toBe("expired");
+  });
+
+  it("8. a person an admin REMOVED can't answer a move-out payment: not 'Got it', not 'Not received'; it is not listed to them; nothing changes", async () => {
+    const { f, A, R } = await f2();
+    expect((await out(f.gid, A, A)).ok).toBe(true);
+    const [pay] = await f.payments();
+    expect([pay.fromId, pay.toId, pay.amount]).toEqual([A, R, 1200000]); // Asha paid Ravi 1200000: both at 0
+    const g = await db.group.findUniqueOrThrow({ where: { id: f.gid } });
+    expect((await waitingForMe(f.gid, R)).map((x) => x.id)).toEqual([pay.id]); // before: listed to Ravi
+    // An admin removes Ravi (he is at 0).
+    await db.member.update({ where: { id: R }, data: { leftAt: new Date(), removedAt: new Date() } });
+    expect(await rejectPayment(pay.id, R)).toEqual({ ok: false, error: removedText(g.name) });
+    expect(await confirmPayment(pay.id, R)).toEqual({ ok: false, error: removedText(g.name) });
+    expect(await waitingForMe(f.gid, R)).toEqual([]);
+    const needs = await loadNeedsYou({ [f.gid]: R }, null, 0, NOW);
+    expect(needs.items.filter((i) => i.kind === "payment")).toEqual([]);
+    // Nothing moved: the payment still counts, unanswered, Asha is still out and both are still at 0.
+    const after = await db.payment.findUniqueOrThrow({ where: { id: pay.id } });
+    expect([after.deletedAt, after.okAt]).toEqual([null, null]);
+    expect((await f.row(A)).leftAt).not.toBeNull();
+    expect(await f.net()).toEqual({ [A]: 0, [R]: 0 });
   });
 
   it("the preview and the confirm question say which payments ask the person paid (and plain payments keep their old words)", async () => {

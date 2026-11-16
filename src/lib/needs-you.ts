@@ -41,14 +41,15 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
   if (myIds.length) {
     const members = await db.member.findMany({
       where: { id: { in: myIds } },
-      select: { id: true, groupId: true, leftAt: true, group: { select: { id: true, name: true, type: true, currency: true, closed: true, deletedAt: true } } },
+      select: { id: true, groupId: true, leftAt: true, removedAt: true, group: { select: { id: true, name: true, type: true, currency: true, closed: true, deletedAt: true } } },
     });
     // Only the member row this phone really is, in groups that still run. (Someone who left can still answer money paid to them.)
     const live = members.filter((m) => memberships[m.groupId] === m.id && !m.group.deletedAt && !m.group.closed);
-    const liveIds = live.map((m) => m.id);
+    // (Someone an admin removed can't answer it, so it isn't listed to them.)
+    const answering = live.filter((m) => !m.removedAt).map((m) => m.id);
     const groupOf = new Map(live.map((m) => [m.id, m.group]));
 
-    const asking = liveIds.length ? await db.payment.findMany({ where: { toId: { in: liveIds }, needsOk: true, okAt: null, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
+    const asking = answering.length ? await db.payment.findMany({ where: { toId: { in: answering }, needsOk: true, okAt: null, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
     // Only a flat move-out's final payments still ask (older rows flagged by the earlier rule are not asked about).
     const moveOut = asking.length ? await moveOutPaymentIds(db, [...new Set(asking.map((p) => p.groupId))]) : new Set<string>();
     const payments = asking.filter((p) => moveOut.has(p.id));

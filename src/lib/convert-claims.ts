@@ -66,8 +66,9 @@ const sayDay = (d: Date) => niceDate(dayKey(d));
 // `apply` false (the default everywhere): nothing is written, the summary says what would happen.
 // `groupIds` (tests only) limits it to those groups; the script never passes it.
 // `onChange` is called with each note's change the moment it is saved (the script appends it to the undo file), so a crash part-way never
+// `beforeJudge` (tests only): runs first inside each note's own step, so a test can make one note's step crash reliably.
 // loses what was already done. If it throws, the run stops there (the change is already in the file or the caller knows it is not).
-export async function convertWaitingClaims(o: { apply: boolean; now?: Date; groupIds?: string[]; onChange?: (c: Change) => void } = { apply: false }): Promise<ConvertSummary> {
+export async function convertWaitingClaims(o: { apply: boolean; now?: Date; groupIds?: string[]; onChange?: (c: Change) => void; beforeJudge?: (c: ClaimRow) => Promise<void> } = { apply: false }): Promise<ConvertSummary> {
   const now = o.now ?? new Date();
   const rows = await db.paymentClaim.findMany({ where: { status: "waiting", ...(o.groupIds ? { groupId: { in: o.groupIds } } : {}) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   const out: ConvertSummary = { apply: o.apply, waiting: rows.length, converted: 0, expired: 0, failed: 0, reasons: {}, changes: [] };
@@ -75,6 +76,7 @@ export async function convertWaitingClaims(o: { apply: boolean; now?: Date; grou
     let change: Change | null = null;
     try {
       // Each note is its own step, including the question of whether it can count: one that fails changes nothing else.
+      await o.beforeJudge?.(c);
       const verdict = await judgeClaim(db, c);
       if (!o.apply) {
         if (verdict.ok) out.converted++;
