@@ -59,7 +59,7 @@ export function TripCountdown({ group, phase, slot = 0, today }: { group: Group;
         {/* The count */}
         <div className="flex min-w-0 flex-1 flex-col justify-center py-4 pl-3.5 pr-3">
           <div className="flex items-center gap-2">
-            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/60">{c?.kicker ?? (phase.kind === "during" ? "On the trip" : "Coming up")}</p>
+            <p className="min-w-0 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-fg/60">{c?.kicker ?? (phase.kind === "during" ? "On the trip" : "Coming up")}</p>
             {phase.kind !== "during" && <TakeOff className={bigColor} />}
           </div>
           <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
