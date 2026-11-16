@@ -22,6 +22,11 @@ export const PAIR_NEW_BLOCKED = "You can’t add new expenses with this person."
 export const PAIR_BLOCKED = "You can’t add expenses with this person.";
 const PAIR_BUSY = "Too many new people added just now. Try again a little later.";
 
+// ONE meaning of "has history" for a pair, used by the invite refusal, the empty-pair retirement, the currency switch, and (as hasHistory
+// below, from the same non-deleted counts) Settle and Home: at least one expense or payment that is not deleted.
+export const LIVE_COUNT = { select: { expenses: { where: { deletedAt: null } }, payments: { where: { deletedAt: null } } } };
+export const pairHasHistory = (g: { _count: { expenses: number; payments: number } }) => g._count.expenses + g._count.payments > 0;
+
 const newCode = () => randomBytes(6).toString("base64url");
 const newMemberId = () => `c${randomBytes(12).toString("hex")}`;
 
@@ -136,13 +141,13 @@ export async function ensureLocalPair(me: { id: string }, rawName: string, opts:
 // - A pair with no expenses or payments at all takes the currency of its first expense (changeGroupCurrency with expectEmpty: it
 //   refuses, writing nothing, if anything is there by the time it runs). Once there is money the currency is fixed.
 export async function prepareDirectSave(groupId: string, myId: string, currency: string, editing: boolean): Promise<string | null> {
-  const g = await db.group.findUnique({ where: { id: groupId }, include: { members: true, _count: { select: { expenses: true, payments: true } } } });
+  const g = await db.group.findUnique({ where: { id: groupId }, include: { members: true, _count: LIVE_COUNT } });
   if (!g || g.deletedAt || g.type !== DIRECT) return null;
   const me = g.members.find((m) => m.id === myId);
   const other = g.members.find((m) => m.id !== myId);
   if (!me || !other) return null;
   if (!editing && me.accountId && other.accountId && (await isBlockedEitherWay(me.accountId, other.accountId))) return PAIR_NEW_BLOCKED;
-  if (!editing && g._count.expenses + g._count.payments === 0 && currency !== g.currency && isSupportedCurrency(currency)) {
+  if (!editing && !pairHasHistory(g) && currency !== g.currency && isSupportedCurrency(currency)) {
     // quiet: an empty pair has no money to convert, so this writes no history line (nobody is told, and nothing is left behind if the save then fails).
     const r = await changeGroupCurrency(groupId, myId, currency, "1", { expectEmpty: true, quiet: true });
     if (!r.ok && !r.needsRate) return r.error;
@@ -237,8 +242,8 @@ export const INVITE_TRIES_PER_HOUR = 20;
 //  2. A per-account hourly limit, then the day's invite-email allowance. EVERY attempt with a valid email is charged, whatever
 //     the email is, so once either is used up all emails get the same answer.
 //  3. Only then: an email of someone you already share a pair WITH HISTORY with gets the plain refusal. A matching pair with no
-//     expense or payment yet gets nothing special: the invitation goes out like any other (accepting it later is refused cleanly,
-//     see claimDirectInvite, and nothing is merged), so the inviter sees the same reply as for anyone else.
+//     expense or payment yet (deleted ones don't count) gets nothing special: the invitation goes out like any other (accepting it
+//     later retires that empty pair and links this one, see claimDirectInvite), so the inviter sees the same reply as for anyone else.
 // Returns the refusal text, or null to carry on. Writes nothing.
 export async function inviteGate(me: { id: string; email: string }, email: string): Promise<string | null> {
   if (email === me.email.toLowerCase()) return "That’s your own email. Type theirs.";
@@ -248,9 +253,9 @@ export async function inviteGate(me: { id: string; email: string }, email: strin
   if (!theirs) return null;
   const pair = await db.group.findUnique({
     where: { pairKey: accountPairKey(me.id, theirs.id) },
-    select: { deletedAt: true, type: true, _count: { select: { expenses: true, payments: true } } },
+    select: { deletedAt: true, type: true, _count: LIVE_COUNT },
   });
-  if (pair && !pair.deletedAt && pair.type === DIRECT && pair._count.expenses + pair._count.payments > 0) return ALREADY_SHARE;
+  if (pair && !pair.deletedAt && pair.type === DIRECT && pairHasHistory(pair)) return ALREADY_SHARE;
   return null;
 }
 
@@ -342,12 +347,14 @@ function esc(s: string) {
 // ---- Accepting that invitation ----
 
 class Closed extends Error {}
+class Taken extends Error {}
 
 export type ClaimResult = { ok: true; groupId: string; memberId: string } | { ok: false; error: string };
 
 // "Join" on an invitation to a pair. In ONE transaction: the invitation closes, the name row becomes this account, and the pair's key
-// becomes the account key. If these two people already share a pair, the key is taken: everything rolls back, the invitation is closed
-// on its own, and nothing is merged.
+// becomes the account key. If these two people already share an account pair with NO history (no expense or payment that isn't
+// deleted), that empty pair is retired in the same transaction (its key cleared, marked deleted) and this one takes its place. If it
+// has any history, the key is taken: everything rolls back, the invitation is closed on its own, and nothing is merged.
 export async function claimDirectInvite(
   account: { id: string; name: string; email: string },
   inv: { id: string; groupId: string; memberId: string; invitedById: string },
@@ -370,11 +377,18 @@ export async function claimDirectInvite(
         data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } },
       });
       if (linked.count !== 1) throw new Closed();
+      // An account pair already holds this key: an empty one is retired (key cleared, marked deleted: nothing is lost, it had no
+      // history), one with history refuses the whole join. Read inside the transaction, so a pair that gains a row meanwhile still counts.
+      const held = await tx.group.findUnique({ where: { pairKey: newKey }, select: { id: true, type: true, deletedAt: true, _count: LIVE_COUNT } });
+      if (held && held.id !== group.id) {
+        if (held.type !== DIRECT || pairHasHistory(held)) throw new Taken();
+        await tx.group.update({ where: { id: held.id }, data: { pairKey: null, deletedAt: held.deletedAt ?? new Date() } });
+      }
       await tx.group.update({ where: { id: group.id }, data: { pairKey: newKey } }); // a unique violation here rolls back all of it
     });
   } catch (err) {
     if (err instanceof Closed) return { ok: false, error: "This invitation is no longer open." };
-    if (isUniqueViolation(err)) {
+    if (err instanceof Taken || isUniqueViolation(err)) {
       await db.invite.updateMany({ where: { id: inv.id, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
       return { ok: false, error: `You and ${sender.name} already share expenses on Loopin, so this can’t be joined. Ask ${sender.name} to add these to that history.` };
     }

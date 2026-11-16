@@ -27,7 +27,8 @@ import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { beforeYouGo, homeHighlights } from "@/lib/home/highlights";
-import { BeforeYouGo } from "@/components/BeforeYouGo";
+import { parseHandPlaces, passportZone, stampDay } from "@/lib/passport";
+import { undatedTripFacts } from "@/lib/passport-db";
 import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
@@ -409,12 +410,13 @@ export default async function Home({
     }
   }
 
-  // The bottom of Home: "Before you go" (the soonest trip that has not started, with its usual weather) and the sliding cards under it
-  // (new postcards, a bill due within 5 days, your month). No trip photos; see src/lib/home/highlights.ts.
+  // The sliding row on Home (one row, in this order; see src/lib/home/highlights.ts): the usual weather for your next trip, your month,
+  // a bill due within 5 days, a postcard, your passport, and the festival for your country when it is on. No trip photos.
   // A group they left shows no bills.
   const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
   const fahrenheit = usesFahrenheit(region.country);
-  const beforeCard = beforeYouGo(
+  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
+  const weatherCard = beforeYouGo(
     trips.map((t) => {
       const stops = stopsOf(t.g);
       return {
@@ -428,10 +430,46 @@ export default async function Home({
       };
     }),
     fahrenheit,
+    homeCountry,
   );
+  // The day a trip's stamp is dated, or null when it has none yet (one rule, shared with the passport: src/lib/passport.ts).
+  // An undated trip is stamped from the spending you may see (src/lib/passport-db.ts undatedTripFacts), the same numbers the passport reads.
+  const stampTz = passportZone(account);
+  const undatedFacts = await undatedTripFacts(
+    all.filter((g) => g.group.type === "trip" && !g.group.tripStart && !g.group.deletedAt).map((g) => ({ groupId: g.group.id, me: { id: g.myId, leftAt: g.leaver?.leftAt ?? null } })),
+    stampTz,
+  );
+  const stampOf = (g: (typeof all)[number]) =>
+    stampDay({ type: g.group.type, deletedAt: g.group.deletedAt, tripStart: g.group.tripStart, undated: undatedFacts.get(g.group.id) ?? null, leftAt: g.leaver?.leftAt ?? null }, today, stampTz);
+  // The same count as the passport: countries with a stamp or a tick (home only if it has one).
+  const passportSet = new Set(
+    [
+      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
+      ...all.filter((g) => stampOf(g) !== null).flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
+    ].filter(Boolean),
+  );
+  // The passport card's stamps: the same places the passport counts, newest first, then countries ticked by hand. Abroad only, one each, at most 2.
+  const keepsakeStamps = [
+    ...all
+      .flatMap((g) => {
+        const when = stampOf(g);
+        return when === null ? [] : [{ g, when }];
+      })
+      .sort((a, b) => b.when.localeCompare(a.when))
+      .flatMap(({ g, when }) => stopsOf(g).filter((st) => st.country).map((st) => ({ code: st.country.toUpperCase(), when, byHand: false }))),
+    ...(account ? parseHandPlaces(account.places).map((pl) => ({ code: pl.c.toUpperCase(), when: "", byHand: true })).reverse() : []),
+  ]
+    .filter((st) => st.code !== homeCountry)
+    .filter((st, i, list) => list.findIndex((o) => o.code === st.code) === i)
+    .slice(0, 2)
+    .flatMap((st) => {
+      const c = countryOf(st.code);
+      return c ? [{ code: c.code, country: c.name, when: st.when, ...(st.byHand ? { byHand: true } : {}) }] : [];
+    });
   const highlights = homeHighlights({
+    weather: weatherCard,
     hasMonth: Boolean(month),
-    // The festival or season coming up in this visitor's country (Christmas, New Year, Diwali, Eid…).
+    // The festival or season coming up in this visitor's country (Christmas, New Year, Diwali, Eid…), only inside its dates.
     season: seasonNow(new Date(), tz, region.country),
     // New postcards and a bill due soon have no line of their own on Home, so the sliding cards bring them up.
     postcardsNew,
@@ -442,6 +480,11 @@ export default async function Home({
       const inDays = daysBetween(today, due);
       return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays, amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
     }),
+    passportCountries: passportSet.size,
+    // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
+    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
+    // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
+    scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0], stamps: keepsakeStamps, postcardPhoto: photoSet("card-postcard-photo")[0] },
   });
 
   // First visit: show what Loopin does instead of an empty screen.
@@ -657,11 +700,8 @@ export default async function Home({
             </Link>
           )}
 
-          {/* Before you go: ONE card for the soonest trip that has not started, with its usual weather. No such trip: no section. */}
-          {beforeCard && <BeforeYouGo card={beforeCard} />}
-
-          {/* The sliding cards, only the useful ones: postcards waiting, a bill due soon, your month. None: no row at all. Swipe, tap a dot,
-              or pause; they glide by themselves unless animations are off. */}
+          {/* ONE sliding row: your next trip's usual weather, your month, a bill due soon, a postcard, your passport, the festival (in its dates).
+              Swipe, tap a dot, or pause; they glide by themselves unless animations are off. */}
           {highlights.length > 0 && (
             <div className="mt-8">
               <HomeBanner>

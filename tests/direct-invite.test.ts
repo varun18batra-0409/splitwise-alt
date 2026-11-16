@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // Inviting a name only you can see ("Invite Rohan by email"), accepting, and the doors that must stay shut.
@@ -15,6 +17,15 @@ const { joinNew, joinExisting, loadByCode, newInviteLink } = await import("@/lib
 const { addRegistered, inviteByEmail, inviteToClaim, knownPeople, searchPeople } = await import("@/lib/invites");
 const { loadGroup } = await import("@/lib/group-data");
 const { mkAccount, mkSharedGroup, addExpense, wipe } = await import("./helpers/direct-fixtures");
+
+const here = dirname(fileURLToPath(import.meta.url));
+// The text of one top-level function: from "export async function name(" to the closing brace at the start of a line.
+const functionBody = (src: string, name: string) => {
+  const start = src.indexOf(`function ${name}(`);
+  expect(start, `${name} not found`).toBeGreaterThan(-1);
+  const end = src.indexOf("\n}\n", start);
+  return src.slice(start, end === -1 ? undefined : end);
+};
 
 const accounts: string[] = [];
 const origin = "https://example.test";
@@ -99,7 +110,7 @@ describe("inviting and accepting", () => {
     expect(await mailTo(a.email)).toBe(0);
   });
 
-  it("17. the race: invited, then a real pair appears, then they accept: refused, nothing merged, the invitation closed", async () => {
+  it("17. the race: invited, then a real pair with history appears, then they accept: refused, nothing merged, the invitation closed", async () => {
     const a = await made("ra", "Asha");
     const e = await made("re", "Rae");
     const local = await ensureLocalPair({ id: a.id }, "Rae", { currency: "INR", myName: "Asha" });
@@ -111,6 +122,8 @@ describe("inviting and accepting", () => {
     await mkSharedGroup("re", [{ id: a.id, name: "Asha" }, { id: e.id, name: "Rae" }]);
     const real = await ensureAccountPair({ id: a.id }, e.id, { currency: "INR", myName: "Asha" });
     if (!real.ok) throw new Error("refused");
+    // The account pair has real history by now (Rae paid 400 for both), so it is not retired: the join is refused.
+    await addExpense(real.groupId, { paidBy: real.otherId, amount: 40000, shares: { [real.myId]: 20000, [real.otherId]: 20000 } });
 
     const out = await acceptInvitation(e, inv.token);
     expect(out.ok).toBe(false);
@@ -179,23 +192,37 @@ describe("invite attempts leak nothing", () => {
     expect(await inviteGate(a, "two@example.org")).toBe(first);
   });
 
-  it("3. a matching pair with NO history is treated like any account: the invitation goes out normally, and accepting it is refused cleanly", async () => {
+  it("3. an EMPTY account pair (deleted rows don't count) is retired on accept; the name-only pair with its history becomes the account pair, balances unchanged", async () => {
     const a = await made("ea", "Asha");
     const d = await made("ed", "Dee");
     await mkSharedGroup("ed", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
-    const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" }); // empty: no expense, no payment
+    const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" }); // no live expense or payment
     const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
     if (!real.ok || !local.ok) throw new Error("refused");
+    // The account pair only ever had an expense that was then deleted: that is NOT history (one meaning everywhere).
+    const gone = await addExpense(real.groupId, { paidBy: real.myId, amount: 20000, shares: { [real.myId]: 10000, [real.otherId]: 10000 } });
+    await db.expense.update({ where: { id: gone.id }, data: { deletedAt: new Date() } });
+    // The name-only pair: Asha paid 90000 for both, so Dee owes 45000 (Asha +45000, Dee -45000).
+    await addExpense(local.groupId, { paidBy: local.myId, amount: 90000, shares: { [local.myId]: 45000, [local.otherId]: 45000 } });
+    // The deleted-only pair is empty, so the invite check does not refuse the email either.
+    expect(await inviteGate(a, d.email)).toBeNull();
     const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
     expect(r).toEqual({ ok: true, email: d.email }); // "Invitation sent to ..." exactly as for anyone
     const inv = (await db.invite.findFirst({ where: { groupId: local.groupId } }))!;
     expect(inv.email).toBe(d.email);
     const out = await acceptInvitation(d, inv.token);
-    expect(out.ok).toBe(false); // the key is taken by the empty pair: nothing merged
+    expect(out.ok).toBe(true);
     const g = await db.group.findUnique({ where: { id: local.groupId }, include: { members: true } });
-    expect(g!.pairKey).toBe(localPairKey(a.id, "Dee (old)"));
-    expect(g!.members.find((m) => m.id === local.otherId)!.accountId).toBeNull();
-    expect((await db.group.findUnique({ where: { id: real.groupId } }))!.pairKey).toBe(accountPairKey(a.id, d.id));
+    expect(g!.pairKey).toBe(accountPairKey(a.id, d.id));
+    expect(g!.deletedAt).toBeNull();
+    expect(g!.members.find((m) => m.id === local.otherId)!.accountId).toBe(d.id);
+    const empty = await db.group.findUnique({ where: { id: real.groupId } });
+    expect(empty!.pairKey).toBeNull();
+    expect(empty!.deletedAt).not.toBeNull();
+    const net = (await loadGroup(local.groupId))!.net;
+    expect(net[local.myId]).toBe(45000);
+    expect(net[local.otherId]).toBe(-45000);
+    expect(await db.expense.count({ where: { groupId: local.groupId, deletedAt: null } })).toBe(1);
   });
 
   it("4. the picker's email check runs before anything is made, and it writes nothing", async () => {
@@ -211,11 +238,12 @@ describe("invite attempts leak nothing", () => {
     expect(await db.group.count({ where: { members: { some: { accountId: a.id } } } })).toBe(groupsBefore);
     expect(await db.invite.count({ where: { email: d.email } })).toBe(0);
     expect(await mailTo(d.email)).toBe(0);
-    // The action asks inviteGate before it makes the name-only pair, and keeps what was typed on the screen.
-    const src = readFileSync("src/app/direct-actions.ts", "utf8");
-    expect(src.indexOf("inviteGate(account")).toBeGreaterThan(-1);
-    expect(src.indexOf("inviteGate(account")).toBeLessThan(src.indexOf("ensureLocalPair(account"));
-    expect(src).toContain("keep");
+    // The action asks inviteGate before it makes the name-only pair, and hands back what was typed so it stays on the screen.
+    const body = functionBody(readFileSync(join(here, "../src/app/direct-actions.ts"), "utf8"), "startDirectWith");
+    const gate = body.indexOf("inviteGate(account");
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(body.indexOf("ensureLocalPair(account"));
+    expect(body).toMatch(/refuse\(refused, \{ name: field\(formData, "name"\), email: typedEmail \}\)/);
   });
 });
 

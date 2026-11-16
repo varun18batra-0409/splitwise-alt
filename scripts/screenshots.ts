@@ -408,15 +408,11 @@ await shot("68-home-first-screen", "/", async (p) => {
 if (wide) await page.setViewportSize(wide);
 // The whole Home at 390 (greeting, stories, money card, Coming up, groups, memories, latest, the month card).
 await shot("69-home-full", "/");
-// "Before you go" and the sliding cards under it (postcards waiting, a bill due, the month; the demo may have only one or none), at 390 and
+// The one sliding row (weather for your next trip, the month, a bill due, a postcard, your passport, the festival when it is on), at 390 and
 // on the narrowest phone (320). Each card is picked by its dot when there are dots.
 for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
   if (w) await page.setViewportSize({ width: w, height: 640 });
-  await shot(`${prefix}-home-before-you-go`, "/", async (p) => {
-    await p.locator("[data-before-you-go]").first().scrollIntoViewIfNeeded();
-    await p.waitForTimeout(300);
-  }, false);
-  for (const n of [1, 2, 3]) {
+  for (const n of [1, 2, 3, 4, 5, 6]) {
     await shot(`${prefix}-home-card-${n}`, "/", async (p) => {
       const pause = p.getByRole("button", { name: /Pause the highlights/ });
       if (await pause.count()) await pause.click();

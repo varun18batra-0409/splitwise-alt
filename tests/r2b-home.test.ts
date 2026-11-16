@@ -29,13 +29,13 @@ describe("1. nothing repeats on Home", () => {
     expect(home).not.toContain("tripTag(");
     expect(home).not.toContain("alsoLine");
   });
-  it("the sliding cards don't say a trip's day count or its countdown again: they are only postcards, a bill and the month; the weather is Before you go", () => {
+  it("the sliding cards don't say a trip's day count or its countdown again: the weather card is the NEXT trip's, never one under way", () => {
     const base = { hasMonth: true, postcardsNew: 1, billsDue: [] };
     const cards = homeHighlights(base).flatMap((h) => (h.kind === "card" ? [h.eyebrow] : []));
-    expect(cards).toEqual(["In your letterbox"]);
+    expect(cards).toEqual(["In your letterbox", "Your trip passport"]);
     expect(cards.join(" ")).not.toMatch(/Day 2/);
     expect(homeHighlights(base).map((h) => h.id)).not.toContain("weather-t");
-    // A trip under way is never Before you go (the countdown card says it); the next trip is.
+    // A trip under way is never the weather card (the countdown card says it); the next trip is.
     const trip = { id: "t", name: "Bangkok", phase: { kind: "during" as const, day: 2, of: 5 }, start: "2026-11-12", end: "2026-11-16", stops: [{ city: "Bangkok", country: "TH" }] };
     expect(beforeYouGo([trip])).toBeNull();
     expect(beforeYouGo([trip, { ...trip, id: "n", phase: { kind: "before" as const, days: 12 }, start: "2026-11-27", end: "2026-12-01" }])?.id).toBe("n");

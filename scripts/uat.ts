@@ -3243,15 +3243,18 @@ async function main() {
     const meta = ((await card.locator("[data-trip-meta]").innerText()) ?? "").replace(/\s+/g, " ").trim();
     assert(/^\d{1,2} [A-Z][a-z]+( \d{4})? · \d+ (people|person)$/.test(meta), `the meta line says “${meta}”`);
     assert((await card.locator("[data-trip-meta] svg").count()) === 1, "the meta line has no dashed curve and pin");
-    // Before you go: ONE card for the soonest trip that has not started, with its usual weather and no photo; a link into the trip.
-    const before = V.locator("[data-before-you-go]");
-    if (await before.count()) {
-      assert((await before.count()) === 1, "Before you go should be one card");
-      await before.getByRole("heading", { name: "Before you go" }).waitFor();
-      assert(/ · SEASONAL WEATHER$/.test((await before.locator("[data-before-eyebrow]").innerText()).trim()), "the Before you go heading line is wrong");
-      assert(/^Usually \d+° by day, \d+° at night$/.test((await before.locator("[data-before-title]").innerText()).trim()), "the Before you go temperatures are wrong");
-      assert((await before.locator("img").count()) === 0, "Before you go has a photo");
-      assert(/^\/groups\//.test((await before.locator("[data-before-open]").getAttribute("href")) ?? ""), "Open the trip goes elsewhere");
+    // The sliding row's FIRST card is the weather for the soonest trip that has not started (no separate Before you go section), with no trip photo; a link into the trip.
+    assert((await V.locator("[data-before-you-go]").count()) === 0, "Home still has a separate Before you go section");
+    const weather = V.locator('[data-highlight^="weather-"]');
+    if (await weather.count()) {
+      assert((await weather.count()) === 1, "the row should have one weather card");
+      const firstId = await V.locator("[data-highlight], [data-month-card]").first().getAttribute("data-highlight");
+      assert(/^weather-/.test(firstId ?? ""), "the weather card is not first in the sliding row");
+      const words = ((await weather.textContent()) ?? "").replace(/\s+/g, " ");
+      assert(/ · SEASONAL WEATHER/.test(words), "the weather card's heading line is wrong");
+      assert(/Usually \d+° by day, \d+° at night/.test(words), "the weather card's temperatures are wrong");
+      assert((await weather.locator("img").count()) === 0, "the weather card has a photo");
+      assert(/^\/groups\//.test((await weather.locator("a").first().getAttribute("href")) ?? ""), "Open the trip goes elsewhere");
     }
   });
 
