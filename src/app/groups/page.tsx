@@ -1,6 +1,8 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
-import { GroupLine, GroupRow } from "@/components/GroupLines";
+import { GroupLine, GroupRow, LeftGroupRow } from "@/components/GroupLines";
+import { leftGroups, leftLine } from "@/lib/left-groups";
+import { db } from "@/lib/db";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { loadOverview } from "@/lib/overview";
@@ -11,7 +13,7 @@ import { Notice } from "@/components/Notice";
 import { GroupSearch } from "@/components/GroupSearch";
 import { ScrollToOnMount } from "@/components/ScrollToOnMount";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
-import { ChevronRight, PlusIcon } from "@/components/icons";
+import { ChevronDown, ChevronRight, PlusIcon } from "@/components/icons";
 import { myCollections } from "@/lib/collect";
 import { countsLine, progress } from "@/lib/collect-rules";
 
@@ -22,6 +24,13 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
   const { deleted } = await searchParams;
   const [tz, memberships, account] = await Promise.all([getTimeZone(), getMemberships(), getAccount()]);
   const [{ open, closed }, deletedGroups] = await Promise.all([loadOverview(memberships), loadDeletedGroups(memberships)]);
+  // Open groups I left or was removed from: kept for good, folded under "Groups you left". (Home keeps using stillIn, so they stay out of its stories.)
+  const left = leftGroups(open);
+  const removers = new Map(
+    left.length === 0
+      ? []
+      : (await db.member.findMany({ where: { id: { in: left.filter((g) => g.leaver?.removed).map((g) => g.myId) } }, select: { id: true, removedById: true } })).map((m) => [m.id, m.removedById] as const),
+  );
   const collections = account ? await myCollections(account.id, 20) : [];
   const live = stillIn(open).sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // Right after a delete (or opening a deleted group's old link), Recently deleted comes first, open, under the message;
@@ -85,6 +94,22 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
         <PlusIcon size={18} />
         Start a group
       </Link>
+      {left.length > 0 && (
+        <details className="group/left mt-6" data-left-groups>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-line px-4 py-2.5 active:bg-mist [&::-webkit-details-marker]:hidden">
+            <span className="font-medium">Groups you left</span>
+            <span className="flex items-center gap-2 text-sm text-fg/60">
+              <span data-left-count>{left.length}</span>
+              <ChevronDown size={18} className="chev" />
+            </span>
+          </summary>
+          <ul className="divide-y divide-line px-1">
+            {left.map((g) => (
+              <LeftGroupRow key={g.group.id} g={g} line={leftLine(g, tz, removers.get(g.myId) || undefined)} />
+            ))}
+          </ul>
+        </details>
+      )}
       {collections.length > 0 && (
         <section className="mt-8" aria-label="Collections" data-collections>
           <h2 className="mb-3 font-display text-lg font-semibold tracking-tight">Collections</h2>

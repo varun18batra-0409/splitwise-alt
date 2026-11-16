@@ -15,6 +15,7 @@ import { leaverOf } from "@/lib/left-view-db";
 import { MoveOutButton } from "@/components/MoveOutButton";
 import { moveOutConfirm } from "@/lib/move-confirm";
 import { DateField } from "@/components/DateField";
+import { pickAdmin } from "@/lib/group-admin";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
@@ -68,12 +69,62 @@ export default async function MoveOutPage({
   // Short, so it stays on one line (no lone "out" on line 2); a long name wraps evenly.
   const title = leaver.id === myId ? "You’re moving out" : `${leaver.name} moves out`;
 
+  // Only the person moving out, or whoever looks after the flat, can confirm a move-out (the server refuses everyone else).
+  // Anyone else in the flat sees the numbers, read-only, with a line saying who can do it.
+  const admin = pickAdmin(group.members);
+  const canConfirm = leaver.id === myId || admin?.id === myId;
+
+  const squaring = p.ok ? (
+    <section>
+      <h2 className="mb-3 font-display text-[19px] font-semibold">Squaring up</h2>
+      <dl className="space-y-2.5 text-sm">
+        <div className="flex justify-between">
+          <dt>Balance today</dt>
+          <dd className="money shrink-0 tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
+        </div>
+        {p.bills.map((b) => (
+          <div key={`${b.name}-${b.period}`} className="flex justify-between">
+            <dt>
+              {b.name}{" "}
+              <span className="text-gray-500">
+                · {monthLabel(b.period)}, {b.days} of {b.monthDays} days
+              </span>
+            </dt>
+            {/* A deduction is neither good nor bad news: plain text, no green, no minus sign. */}
+            <dd className="money shrink-0 tabular-nums text-fg/80" data-deduction>less {money(b.before - b.after)}</dd>
+          </div>
+        ))}
+        {/* Daily bills (milk ...) added with "Add it now" are in the final payments, so they are in this list too (it follows the tick). */}
+        {p.daily
+          .filter((d) => !d.unsupported && d.amount > 0)
+          .map((d) => (
+            <div key={`daily-${d.billId}`} className="hidden justify-between group-has-[input[name=addDaily]:checked]/mv:flex" data-daily-line>
+              <dt>
+                {d.name} <span className="text-gray-500">({d.days} {d.days === 1 ? "day" : "days"})</span>
+              </dt>
+              <dd className="money shrink-0 tabular-nums text-fg/80">+ {money(d.amount)}</dd>
+            </div>
+          ))}
+        {!canConfirm && p.deposit && (
+          <div className="flex justify-between" data-deposit-line>
+            <dt>Deposit {money(p.deposit.amount)}</dt>
+            <dd className="shrink-0 text-gray-500">not chosen yet</dd>
+          </div>
+        )}
+      </dl>
+      {p.bills.length > 0 && (
+        <p className="mt-2 text-xs text-gray-500">Bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>
+      )}
+    </section>
+  ) : null;
+
   return (
     <>
       <PageHeader title={title} back={`/groups/${group.id}/people`} />
       {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
 
       {/* Changing the day reloads the numbers below. */}
+      {canConfirm && (
       <form method="get" className="mb-7 flex items-end gap-2 border-y border-line py-3.5" data-allow-repeat="1">
         <label className="flex-1">
           <span className="block text-sm text-gray-500">Last day in the flat</span>
@@ -83,9 +134,29 @@ export default async function MoveOutPage({
           Update
         </button>
       </form>
+      )}
 
       {!p.ok ? (
         <ErrorNote>{p.error}</ErrorNote>
+      ) : !canConfirm ? (
+        <div className="space-y-6" data-move-out-readonly>
+          {squaring}
+          <p className="flex items-start gap-3 rounded-2xl bg-mist px-4 py-3 text-sm text-gray-500" data-move-out-who>
+            <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" className="mt-0.5 shrink-0">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5M12 8h.01" />
+            </svg>
+            <span>
+              Only <strong className="font-medium text-fg">{leaver.name}</strong>
+              {admin && admin.id !== leaver.id && (
+                <>
+                  {" "}or <strong className="font-medium text-fg">{admin.name}</strong> (admin)
+                </>
+              )}{" "}
+              can confirm this move-out. You’ll get a note when they do.
+            </span>
+          </p>
+        </div>
       ) : (
         <form action={moveOutAction} className="group/mv space-y-8">
           <input type="hidden" name="groupId" value={group.id} />
@@ -96,41 +167,7 @@ export default async function MoveOutPage({
           <input type="hidden" name="expectKeyDaily" value={p.expectKeyDaily} />
           <FreshKey name="rid" />
 
-          <section>
-            <h2 className="mb-3 font-display text-[19px] font-semibold">Squaring up</h2>
-            <dl className="space-y-2.5 text-sm">
-              <div className="flex justify-between">
-                <dt>Balance today</dt>
-                <dd className="money shrink-0 tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
-              </div>
-              {p.bills.map((b) => (
-                <div key={`${b.name}-${b.period}`} className="flex justify-between">
-                  <dt>
-                    {b.name}{" "}
-                    <span className="text-gray-500">
-                      · {monthLabel(b.period)}, {b.days} of {b.monthDays} days
-                    </span>
-                  </dt>
-                  {/* A deduction is neither good nor bad news: plain text, no green, no minus sign. */}
-                  <dd className="money shrink-0 tabular-nums text-fg/80" data-deduction>less {money(b.before - b.after)}</dd>
-                </div>
-              ))}
-              {/* Daily bills (milk ...) added with "Add it now" are in the final payments, so they are in this list too (it follows the tick). */}
-              {p.daily
-                .filter((d) => !d.unsupported && d.amount > 0)
-                .map((d) => (
-                  <div key={`daily-${d.billId}`} className="hidden justify-between group-has-[input[name=addDaily]:checked]/mv:flex" data-daily-line>
-                    <dt>
-                      {d.name} <span className="text-gray-500">({d.days} {d.days === 1 ? "day" : "days"})</span>
-                    </dt>
-                    <dd className="money shrink-0 tabular-nums text-fg/80">+ {money(d.amount)}</dd>
-                  </div>
-                ))}
-            </dl>
-            {p.bills.length > 0 && (
-              <p className="mt-2 text-xs text-gray-500">Bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>
-            )}
-          </section>
+          {squaring}
 
           {p.daily.length > 0 && (
             <section data-daily-bills>

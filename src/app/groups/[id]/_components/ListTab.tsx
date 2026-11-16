@@ -27,7 +27,16 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
     </span>
   );
 
-  const row = (i: Item, on: boolean) => (
+  // A closed group keeps its list as it was: nothing to add, tick or remove.
+  const closed = group.closed;
+
+  const row = (i: Item, on: boolean) =>
+    closed ? (
+      <li key={i.id} className="flex items-center gap-3 border-b border-line py-3">
+        <span className={`min-w-0 flex-1 truncate text-[15px] ${on ? "text-gray-500 line-through" : ""}`}>{i.text}</span>
+        {!on && <span className="shrink-0 text-xs text-gray-400">{nameOf(i.addedById)} added</span>}
+      </li>
+    ) : (
     <li key={i.id} className="flex items-center gap-1 border-b border-line">
       <form action={listToggle} className="min-w-0 flex-1">
         {hidden("groupId", group.id)}
@@ -48,12 +57,19 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
         </form>
       )}
     </li>
-  );
+    );
 
   return (
     <div>
+      {closed && (
+        <div className="mb-4 rounded-2xl bg-mist px-4 py-3" data-list-closed>
+          <p className="font-semibold">{group.type === "couple" ? "This couple space is closed" : "This flat is closed"}</p>
+          <p className="mt-0.5 text-sm text-gray-500">The list is kept as it was. Nothing can be added or ticked.</p>
+        </div>
+      )}
       {notice && <Notice tone="success" params={["bought", "told", "error"]} className="mb-4">{notice}</Notice>}
 
+      {!closed && (
       <form action={listAdd} className="flex gap-2">
         {hidden("groupId", group.id)}
         <label className="flex-1">
@@ -72,7 +88,8 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
           Add
         </button>
       </form>
-      {usual.length > 0 && (
+      )}
+      {!closed && usual.length > 0 && (
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           <span className="text-xs text-gray-500">Usual:</span>
           {usual.map((u) => (
@@ -87,7 +104,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
         </div>
       )}
 
-      {mine.length > 0 && (
+      {!closed && mine.length > 0 && (
         <section className="mt-6 rounded-2xl border border-line bg-white px-4 py-4">
           <p className="font-semibold">
             You bought {mine.length} {mine.length === 1 ? "thing" : "things"}. What did it cost?
@@ -109,7 +126,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
 
       <h2 className="mb-1 mt-6 text-sm font-semibold text-gray-500">To buy · {toBuy.length}</h2>
       {toBuy.length === 0 ? (
-        <p className="py-3 text-sm text-gray-500">Nothing on the list. Add what’s running low.</p>
+        <p className="py-3 text-sm text-gray-500">{closed ? "Nothing was left on the list." : "Nothing on the list. Add what’s running low."}</p>
       ) : (
         <ul>{toBuy.map((i) => row(i, false))}</ul>
       )}
@@ -134,12 +151,14 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
         </>
       )}
 
-      <form action={listGoingShopping} className="mt-6">
-        {hidden("groupId", group.id)}
-        <button type="submit" className="inline-flex min-h-11 items-center text-sm font-medium text-fg underline underline-offset-4">
-          Going shopping? Tell {group.type === "couple" ? "your partner" : "the flat"}
-        </button>
-      </form>
+      {!closed && (
+        <form action={listGoingShopping} className="mt-6">
+          {hidden("groupId", group.id)}
+          <button type="submit" className="inline-flex min-h-11 items-center text-sm font-medium text-fg underline underline-offset-4">
+            Going shopping? Tell {group.type === "couple" ? "your partner" : "the flat"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

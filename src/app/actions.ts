@@ -552,7 +552,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
-  if (group.closed) redirect(`/groups/${group.id}`);
+  if (group.closed) redirect(`/groups/${group.id}?error=${encodeURIComponent("This group is closed, so payments can’t be added. If something’s still owed, an admin can reopen it from Group settings.")}`);
   if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(LEFT_ERROR)}`);
 
   const back = (error: string) =>

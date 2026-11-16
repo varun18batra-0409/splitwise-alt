@@ -277,7 +277,7 @@ export default async function GroupPage({
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
       )}
       {tab === "games" && <GamesTab v={v} games={games} toSettle={toSettle} />}
-      {tab === "balances" && <PeopleTab v={v} paid={sp.paid === "1"} why={sp.why} />}
+      {tab === "balances" && <PeopleTab v={v} paid={sp.paid === "1"} why={sp.why} canUndoMoveOut={group.type === "home" && Boolean(ownMove?.check.ok)} />}
       {tab === "recap" && <RecapTab v={v} />}
       {tab === "memories" && memories && (
         <MemoriesTab v={v} cards={memories.cards} stamp={memories.stamp} postcards={memories.postcards} today={today} canAdd={canAddMoment(momentViewer)} guest={Boolean(momentViewer) && momentViewer!.accountId === null} removed={sp.removed === "1"} />

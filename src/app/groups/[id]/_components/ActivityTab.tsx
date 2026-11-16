@@ -63,6 +63,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
   }
   for (const list of byItem.values()) list.sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
   const historyOf = (_key: "expenseId" | "paymentId", id: string) => byItem.get(id) ?? [];
+  // Someone who left (or was removed) can read the group but not change it: no Edit, Delete, Repeat, Restore or reactions (the server refuses each).
+  const canChange = !group.closed && !v.leaver;
   const limit = Math.max(PAGE, Math.min(5000, shown));
   const page = items.slice(0, limit);
 
@@ -238,7 +240,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
                         {/* Only the payer and the person paid can delete or restore a payment (the server refuses everyone else, the admin too).
                             Not shown to anyone but the person paid, once they took it off themselves. */}
-                        {isParty && !live && !group.closed && !onlyReceiverCanBringBack(item, myId) && (
+                        {isParty && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
                           <form action={restorePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />
@@ -247,7 +249,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                             </button>
                           </form>
                         )}
-                        {isParty && live && !group.closed && (
+                        {isParty && live && canChange && (
                           <form action={removePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />
@@ -277,7 +279,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               const orig = foreign ? originalShares(e) : [];
               const reacted = reactionSummary(reactions.filter((r) => r.expenseId === e.id), myId);
               const isPot = gameResultIds.includes(e.id); // a finished game's result changes through the game, so no swipe Delete (an imported card-game row is ordinary)
-              const swipeable = !deleted && !group.closed && !isPot;
+              const swipeable = !deleted && canChange && !isPot;
               const wrap = (node: ReactNode) =>
                 swipeable ? (
                     <SwipeRow
@@ -336,7 +338,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                     </summary>
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
                       {/* React: one tap (tap yours again to take it back). */}
-                      {!deleted && (
+                      {!deleted && canChange && (
                         <div className="-mx-1 mb-1" role="group" aria-label="React">
                           {(() => {
                             const btn = (emoji: string) => (
@@ -429,7 +431,12 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       <div className="border-t border-line pt-2">
                         <History v={v} events={historyOf("expenseId", e.id)} fallback={`Added by ${nameOf(e.createdById)}, ${when(e.createdAt)}`} />
                       </div>
-                      {!group.closed && (
+                      {v.leaver && (
+                        <p className="pt-1 text-xs text-gray-500" data-left-cant-change>
+                          {v.leaver.removed ? "You were removed from this group, so you can’t change expenses." : "You left this group, so you can’t change expenses."}
+                        </p>
+                      )}
+                      {canChange && (
                         <div className="flex gap-4 pt-1">
                           {isPot ? (
                             <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">

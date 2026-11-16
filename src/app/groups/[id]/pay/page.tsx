@@ -11,6 +11,8 @@ import { Mark } from "@/components/HomeMoney";
 import { groupMark } from "@/lib/home/money-card";
 import { FreshKey } from "@/components/FreshKey";
 import { ErrorNote, PageHeader } from "@/components/ui";
+import { OUTLINE } from "@/components/HomeMoney";
+import { payBlocked } from "@/lib/pay-blocked";
 
 // Record that one person paid another back — any amount, full or part.
 // Smart Settle's suggestions are offered as one-tap fill-ins.
@@ -28,6 +30,23 @@ export default async function RecordPayment({
   const { group, transfers, net } = data;
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
+
+  // A closed group, or someone who left: no form, one clear card instead (a Record tap would save nothing).
+  const blocked = payBlocked({ name: group.name, closed: group.closed, leaver: data.leaver });
+  if (blocked) {
+    return (
+      <>
+        <PageHeader title="Record a payment" back={`/groups/${group.id}`} />
+        <section className="rounded-2xl bg-mist px-5 py-5" data-pay-blocked={blocked.kind}>
+          <h2 className="font-display text-[22px] font-semibold leading-tight tracking-tight">{blocked.title}</h2>
+          <p className="mt-1.5 text-[15px] text-gray-500">{blocked.text}</p>
+          <Link href={`/groups/${group.id}`} className={`${OUTLINE} mt-4 w-full`}>
+            Back to {group.name}
+          </Link>
+        </section>
+      </>
+    );
+  }
 
   const people = group.members.filter((m) => !m.leftAt); // people who left aren't offered
   const isMember = (x?: string) => Boolean(x && people.some((m) => m.id === x));

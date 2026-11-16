@@ -86,14 +86,14 @@ export async function listAdd(formData: FormData) {
 
 export async function listToggle(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  await toggleListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
-  redirect(`/groups/${groupId}?tab=list`);
+  const r = await toggleListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  redirect(`/groups/${groupId}?tab=list${r.ok ? "" : `&error=${encodeURIComponent(r.error)}`}`);
 }
 
 export async function listRemove(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  await removeListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
-  redirect(`/groups/${groupId}?tab=list`);
+  const r = await removeListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  redirect(`/groups/${groupId}?tab=list${r.ok ? "" : `&error=${encodeURIComponent(r.error)}`}`);
 }
 
 export async function listBuy(formData: FormData) {
@@ -106,8 +106,8 @@ export async function listBuy(formData: FormData) {
 
 export async function listGoingShopping(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  await goingShopping(groupId, await me(groupId));
-  redirect(`/groups/${groupId}?tab=list&told=1`);
+  const r = await goingShopping(groupId, await me(groupId));
+  redirect(r.ok ? `/groups/${groupId}?tab=list&told=1` : `/groups/${groupId}?tab=list&error=${encodeURIComponent(r.error)}`);
 }
 
 // ---------- Budgets ----------

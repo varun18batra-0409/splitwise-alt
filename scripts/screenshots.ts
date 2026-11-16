@@ -1216,6 +1216,53 @@ if (!hosted) {
     { name: "G10b-leaver-people", path: `/groups/${gone.id}?tab=balances` },
     { name: "G10c-leaver-memories", path: `/groups/${gone.id}?tab=memories` },
   ]);
+  // Left groups, closed groups and someone else's move-out (the "people who left, and non-admin views" batch).
+  {
+    const hotel = await db.expense.findFirstOrThrow({ where: { groupId: gone.id, description: "Hotel in Koh Samui" }, select: { id: true } });
+    // A trip Varu has closed, and a closed flat with a shopping list; plus an open flat where Nupur (not the admin) opens Riya's move-out.
+    const shut = await trip("Goa 2025", undefined, "Goa");
+    await db.group.update({ where: { id: shut.id }, data: { closed: true, closedAt: new Date() } });
+    const flatOf = (name: string, closed: boolean) =>
+      db.group.create({
+        data: {
+          name, type: "home", currency: "INR", inviteCode: `shotsfl${tag}${Math.random().toString(36).slice(2, 6)}`, ...(closed ? { closed: true, closedAt: new Date() } : {}),
+          members: {
+            create: [
+              { name: "Varu", accountId: varu.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 5000) },
+              { name: "Nupur", accountId: nupur.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 4000) },
+              { name: "Riya", accountId: riya.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 3000) },
+            ],
+          },
+        },
+        include: { members: true },
+      });
+    const shutFlat = await flatOf("Flat 402 (closed)", true);
+    for (const [text, by] of [["Bread", "Nupur"], ["Eggs", "Riya"], ["Dish soap", "Varu"]] as const)
+      await db.listItem.create({ data: { groupId: shutFlat.id, text, addedById: shutFlat.members.find((m) => m.name === by)!.id } });
+    const liveFlat = await flatOf("Flat 402", false);
+    const riyaIn = liveFlat.members.find((m) => m.name === "Riya")!.id;
+    // Riya's "Groups you left" row folded, then tapped open (she left Koh Samui an hour ago).
+    await gshots(riya, [
+      { name: "L1-groups-left-folded", path: "/groups", full: false },
+      {
+        name: "L1b-groups-left-open",
+        path: "/groups",
+        full: false,
+        prepare: async (p) => {
+          await p.locator("[data-left-groups] summary").click();
+          await p.locator("[data-left-group]").first().waitFor({ timeout: 10_000 });
+        },
+      },
+      { name: "L2-leaver-expense-open", path: `/groups/${gone.id}?tab=activity&open=${hotel.id}` },
+      { name: "L3-leaver-people", path: `/groups/${gone.id}/people` },
+      { name: "L4-leaver-pay", path: `/groups/${gone.id}/pay`, full: false },
+    ]);
+    await gshots(varu, [
+      { name: "L5-closed-pay", path: `/groups/${shut.id}/pay`, full: false },
+      { name: "L6-closed-flat-list", path: `/groups/${shutFlat.id}?tab=list` },
+    ]);
+    await gshots(nupur, [{ name: "L7-move-out-not-admin", path: `/groups/${liveFlat.id}/people/${riyaIn}/move` }]);
+  }
 }
 // The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).
 let payPath = "";

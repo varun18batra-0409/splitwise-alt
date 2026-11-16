@@ -20,13 +20,16 @@ export function ClosedBanner({ v }: { v: GroupView }) {
           </Link>
         )}
       </span>
-      <form action={setGroupClosed}>
-        <input type="hidden" name="groupId" value={group.id} />
-        <input type="hidden" name="closed" value="0" />
-        <button type="submit" className="shrink-0 font-medium text-accent">
-          Reopen
-        </button>
-      </form>
+      {/* Reopening is for people still in the group: the server refuses someone who left. */}
+      {!v.leaver && (
+        <form action={setGroupClosed}>
+          <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="closed" value="0" />
+          <button type="submit" className="shrink-0 font-medium text-accent">
+            Reopen
+          </button>
+        </form>
+      )}
     </div>
   );
 }
