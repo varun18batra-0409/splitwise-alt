@@ -30,7 +30,9 @@ export async function createPayment(tx: Tx, p: NewPayment, now = new Date()) {
     data: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount, createdById: p.createdById, needsOk: p.needsOk ?? Boolean(p.okAt), okAt: p.okAt ?? null },
   });
   // At most one claim per pair can be waiting (the unique rule), so this is zero or one row.
-  const waiting = await tx.paymentClaim.findMany({ where: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, status: "waiting" }, select: { id: true } });
+  // Only when this payment is at least what the note said: a smaller one leaves the note waiting (the person paid can still confirm it,
+  // and the "more than owed" check at that moment catches any overlap).
+  const waiting = await tx.paymentClaim.findMany({ where: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, status: "waiting", amount: { lte: p.amount } }, select: { id: true } });
   for (const c of waiting) {
     await tx.paymentClaim.updateMany({
       where: { id: c.id, status: "waiting" },
@@ -74,7 +76,7 @@ export async function restorePayments(tx: Tx, ids: string[], actorId: string, gr
     const back = await tx.payment.updateMany({ where: { id: p.id, deletedAt: { not: null } }, data: { deletedAt: null, deletedById: null } });
     if (back.count !== 1) continue;
     restored.push(p.id);
-    const waiting = await tx.paymentClaim.findMany({ where: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, status: "waiting" }, select: { id: true } });
+    const waiting = await tx.paymentClaim.findMany({ where: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, status: "waiting", amount: { lte: p.amount } }, select: { id: true } });
     for (const c of waiting) {
       await tx.paymentClaim.updateMany({
         where: { id: c.id, status: "waiting" },
@@ -83,4 +85,17 @@ export async function restorePayments(tx: Tx, ids: string[], actorId: string, gr
     }
   }
   return restored;
+}
+
+// A payment that closed an "I've paid" note as "covered" is taken off (deleted, or "Not received"): the note is waiting again, so the person
+// paid can still confirm it. Skipped when another note for the same pair is already waiting (only one may wait: the unique rule).
+// Call inside the same transaction as the deletion.
+export async function reopenCoveredClaims(tx: Tx, paymentIds: string[]): Promise<void> {
+  if (!paymentIds.length) return;
+  const covered = await tx.paymentClaim.findMany({ where: { paymentId: { in: paymentIds }, status: "covered" }, select: { id: true, groupId: true, fromId: true, toId: true } });
+  for (const c of covered) {
+    const other = await tx.paymentClaim.findFirst({ where: { groupId: c.groupId, fromId: c.fromId, toId: c.toId, status: "waiting" }, select: { id: true } });
+    if (other) continue;
+    await tx.paymentClaim.updateMany({ where: { id: c.id, status: "covered" }, data: { status: "waiting", slot: "", paymentId: "", decidedAt: null, decidedById: "" } });
+  }
 }

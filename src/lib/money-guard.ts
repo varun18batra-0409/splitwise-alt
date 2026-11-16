@@ -115,6 +115,34 @@ export async function leaverBalanceBreaks(
   return leavers.filter((m) => (after[m.id] ?? 0) !== (before[m.id] ?? 0) && (after[m.id] ?? 0) !== 0).map((m) => m.name);
 }
 
+// Confirming an "I've paid" note records a payment between two people. If one of them has left, the same rule applies: they may only end
+// with the balance they had, or 0. One narrow extra allowance, for a note made by a move-out (`source` "move_out"): a leaver who owes
+// several people is squared up one person at a time, so each payment may bring them CLOSER to 0 (same side, never past it).
+// Hand-worked: Asha left owing 70000 (Ravi 40000, Meera 30000). Ravi's 40000 takes her from -70000 to -30000: allowed (move_out only).
+// Any other note taking her from -70000 to -30000 is refused. A payment that would take her from 0 to +50000, or from -30000 to +10000, is refused.
+// Returns the names of the leavers it would break, read inside the transaction.
+export async function claimConfirmBreaks(tx: Tx, groupId: string, c: { fromId: string; toId: string; amount: number; source: string }): Promise<string[]> {
+  const leavers = await tx.member.findMany({ where: { groupId, id: { in: [c.fromId, c.toId] }, leftAt: { not: null } }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  if (!leavers.length) return [];
+  const [members, expenses, payments] = await Promise.all([
+    tx.member.findMany({ where: { groupId }, select: { id: true } }),
+    tx.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true } }),
+    tx.payment.findMany({ where: { groupId, deletedAt: null } }),
+  ]);
+  const all = members.map((m) => m.id);
+  const before = netBalances(all, expenses, payments);
+  const after = netBalances(all, expenses, [...payments, { id: "claim-check", fromId: c.fromId, toId: c.toId, amount: c.amount }]);
+  return leavers
+    .filter((m) => {
+      const b = before[m.id] ?? 0;
+      const a = after[m.id] ?? 0;
+      if (a === b || a === 0) return false;
+      const closer = c.source === "move_out" && Math.sign(a) === Math.sign(b) && Math.abs(a) < Math.abs(b);
+      return !closer;
+    })
+    .map((m) => m.name);
+}
+
 // A refusal because a leaver's balance would move. `how`: "deleted" (plus "Ask them to rejoin first."), "undone", "redone".
 export class LeaverBreak extends Error {
   constructor(name: string, how: "deleted" | "undone" | "redone" | "brought back" | "changed here") {

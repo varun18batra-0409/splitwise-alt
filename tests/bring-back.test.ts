@@ -432,9 +432,15 @@ describe("a move-out, undone by the person themself", () => {
     const r = await moveOut(g.id, A, { leaverId: A, lastDay: "2026-10-20", depositTo: B, requestKey: `bbmv-${stamp}-abcdefgh` }, new Date("2026-10-20T06:00:00Z"));
     expect(r.ok).toBe(true);
     expect((await row(A)).leftAt).not.toBeNull();
+    // CHANGED 16 Nov (FB-1): Ada is the one paying (she owes Bea 3000) and Bea has joined, so the square-up is a note that waits for Bea
+    // to confirm it, not a payment counted on Ada's word. Nothing is paid yet, so the balances are exactly as they were: Ada -3000.
     const afterMove = await netsNow();
-    expect(afterMove[A]).toBe(0); // squared up on the way out (a payment from Ada: -3000 + 3000)
+    expect(afterMove[A]).toBe(-3000);
+    expect(afterMove).toEqual(before);
     expect(Object.values(afterMove).reduce((a, b) => a + b, 0)).toBe(0);
+    expect(await db.payment.count({ where: { groupId: g.id } })).toBe(0);
+    const note = await db.paymentClaim.findFirstOrThrow({ where: { groupId: g.id } });
+    expect([note.fromId, note.toId, note.amount, note.status]).toEqual([A, B, 3000, "waiting"]);
     expect((await db.bill.findUniqueOrThrow({ where: { id: wifi.id } })).payer).toBe(S); // handed on
 
     const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, kind: "member_left" }, orderBy: { createdAt: "desc" } });
@@ -452,8 +458,9 @@ describe("a move-out, undone by the person themself", () => {
     const shares = await db.depositShare.findMany({ where: { deposit: { groupId: g.id } } });
     expect(shares.find((x) => x.memberId === A)).toMatchObject({ amount: 3000000, status: "held", toMemberId: "" }); // deposit back with her
     expect(shares.find((x) => x.memberId === B)).toBeUndefined();
-    // The undo takes the square-up payment off too (hand-worked: Ada paid Bea 3000, now deleted), so the balances are exactly what they were before the
-    // move-out: Ada -3000, Bea +6000, Asha -3000 (sum 0).
+    // The undo takes the waiting note back too (hand-worked: Ada's 3000 note to Bea, now withdrawn; nothing was ever paid), so the balances are exactly
+    // what they were before the move-out: Ada -3000, Bea +6000, Asha -3000 (sum 0).
+    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: note.id } })).status).toBe("withdrawn");
     expect(await netsNow()).toEqual(before);
     expect(Object.values(await netsNow()).reduce((a, b) => a + b, 0)).toBe(0);
   });

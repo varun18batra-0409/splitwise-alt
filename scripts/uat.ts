@@ -2350,7 +2350,12 @@ async function main() {
     await go(A, `${gh}/settle`);
     assert((await A.locator("[data-settle-actions]").count()) === 0, "a person who moved out is offered Close group / Mark all paid");
     const sum = Object.values(data.net).reduce((a, b) => a + b, 0);
-    assert(sum === 0 && data.net[asha.id] === 0, `net ${JSON.stringify(data.net)}`);
+    // CHANGED 16 Nov (OB-3 / FB-1): when the person doing this is the one PAYING (here Varun owes Asha), the square-up is an "I've paid" note that Asha
+    // confirms, not a payment counted on Varun's word. So Asha's balance stays what it was until she confirms; it equals exactly what the waiting
+    // note(s) cover. When Asha is the one paying, or nobody owes anything, the payment is recorded as before and she is at 0.
+    const notes = await db.paymentClaim.findMany({ where: { groupId: homeId(), status: "waiting", source: "move_out" } });
+    const stillOwed = notes.reduce((x, c) => x + (c.toId === asha.id ? c.amount : c.fromId === asha.id ? -c.amount : 0), 0);
+    assert(sum === 0 && data.net[asha.id] === stillOwed, `net ${JSON.stringify(data.net)}; waiting notes cover ${stillOwed} of Asha's balance`);
   });
 
   // ===== 10. More checks: the daily job's key, joining when signed in, bills, deposit, speed =====

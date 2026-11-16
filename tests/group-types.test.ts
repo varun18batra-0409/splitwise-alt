@@ -60,6 +60,9 @@ describe("creating a group of each type", () => {
     expect(g.members[0].splitWeight).toBe(55);
     // Changed in Batch B: adding someone puts their NAME in the group at once (with the group's join weight)
     // and invites them; their account is linked when they tap Join.
+    // Varun and Riya share an older group: since 16 Nov only people you share a group with can be added by account.
+    const older = await db.group.create({ data: { name: `Older ${stamp}`, inviteCode: `old-gt-${stamp}`, members: { create: [{ name: "Varun", accountId: me.id, claimedAt: new Date() }, { name: "Riya", accountId: riya.id, claimedAt: new Date() }] } } });
+    made.push(older.id);
     const added = await addRegistered(g.id, g.members[0].id, riya.id, "https://example.com");
     expect(added.ok).toBe(true);
     const partner = await db.member.findFirst({ where: { groupId: g.id, name: "Riya" } });

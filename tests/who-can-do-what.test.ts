@@ -56,6 +56,7 @@ const R = await import("@/app/reaction-actions");
 const { moveOut, saveDepositFor } = await import("@/lib/home/moving-db");
 const { buyIn, finishGame } = await import("@/lib/pot-db");
 const { setExpenseDeleted } = await import("@/lib/save-expense");
+const { rejectPayment } = await import("@/lib/payment-ok");
 const { joinNew } = await import("@/lib/join");
 const { acceptInvitation } = await import("@/lib/invitations");
 const { canSeePassport } = await import("@/lib/passport-db");
@@ -262,6 +263,25 @@ describe("undo", () => {
   }));
 });
 
+describe("undo of 'Not received'", () => {
+  // MB-1 (16 Nov review): once the person paid says "Not received", only THEY can bring the payment back. Before, anyone in the group
+  // (even the person who said they paid) could press Undo and make it count again. Nobody gets an exception, not even the admin.
+  // Asha is the person paid (Meera paid her 1000) and she is also the admin persona, so "admin" is the only one allowed.
+  it("undo 'Not received' (only the person who was paid: Asha)", () => table("undo-not-received", ["admin"], async (_p, w) => {
+    const said = await rejectPayment(w.payment, w.rows.asha);
+    if (!said.ok || !said.eventId) throw new Error("setup failed");
+    await attempt(() => A.undoChange(form({ groupId: w.id, eventId: said.eventId!, back: "group" })));
+    return (await db.payment.findUniqueOrThrow({ where: { id: w.payment } })).deletedAt === null;
+  }));
+
+  it("'Restore payment' in Activity after 'Not received' (only Asha)", () => table("restore-not-received", ["admin"], async (_p, w) => {
+    const said = await rejectPayment(w.payment, w.rows.asha);
+    if (!said.ok) throw new Error("setup failed");
+    await attempt(() => A.restorePayment(form({ groupId: w.id, paymentId: w.payment })));
+    return (await db.payment.findUniqueOrThrow({ where: { id: w.payment } })).deletedAt === null;
+  }));
+});
+
 describe("the group itself", () => {
   it("rename", () => table("rename", JOINED_ACTIVE, async (_p, w) => {
     await attempt(() => A.updateGroupSettings(form({ groupId: w.id, markup: "0", name: `Renamed ${w.name}` })));
@@ -357,6 +377,19 @@ describe("the flat: move-out and deposit", () => {
     const actor = await actorOf(w);
     const r = await moveOut(w.id, actor, { leaverId: w.rows.zed, lastDay: new Date().toISOString().slice(0, 10), requestKey: `wcdw-mv-${++counter}-${stamp}-abcdefgh` });
     return r.ok && (await db.member.findUniqueOrThrow({ where: { id: w.rows.zed } })).leftAt !== null;
+  }));
+
+  // FB-1 (16 Nov review): moving yourself out while you owe someone no longer marks the debt as paid on your word. It is an "I've paid"
+  // note that the person paid confirms. Meera owes Asha 4000 (Asha +4000, Meera -4000), so Meera moving herself out leaves a note and no
+  // payment. (Asha moving herself out is owed money instead: the payment is Meera's to Asha and is recorded as before, so only Meera is "true".)
+  // Before this change the same click recorded a counted payment, which the other person could not refuse.
+  it("move yourself out owing money: a note for the person paid, no payment (Meera only)", () => table("move-out-owing", ["member"], async (_p, w) => {
+    const actor = await actorOf(w);
+    const before = await db.payment.count({ where: { groupId: w.id, deletedAt: null } });
+    const r = await moveOut(w.id, actor, { leaverId: actor, lastDay: new Date().toISOString().slice(0, 10), requestKey: `wcdw-mo-${++counter}-${stamp}-abcdefgh` });
+    if (!r.ok) return false;
+    const claim = await db.paymentClaim.findFirst({ where: { groupId: w.id, fromId: actor, toId: w.rows.asha, status: "waiting", source: "move_out", amount: 4000 } });
+    return claim !== null && (await db.payment.count({ where: { groupId: w.id, deletedAt: null } })) === before;
   }));
 
   it("record the deposit", () => table("deposit", JOINED_ACTIVE, async (_p, w) => {

@@ -204,15 +204,18 @@ describe("T6: the same money recorded another way covers the claim", () => {
     expect((await settleAllAndClose(closed.gid, closed.a, plan)).ok).toBe(true);
     expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: c1.claimId } })).status).toBe("covered");
 
-    // A part payment of ₹100 (10000) from Ravi to Asha covers it as well; a payment the other way does not.
+    // A payment of at least the note's ₹300 (30000) from Ravi to Asha covers it; a payment the other way does not, and (MB-7, 16 Nov) neither
+    // does a SMALLER one: a part payment of ₹100 (10000) used to close the whole ₹300 note, so the other ₹200 could never be confirmed.
     const w = await world();
     const c2 = await claim(w);
     await db.$transaction((tx) => createPayment(tx, { groupId: w.gid, fromId: w.a, toId: w.r, amount: 100, createdById: w.a }));
     expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: c2.claimId } })).status).toBe("waiting");
     await db.$transaction((tx) => createPayment(tx, { groupId: w.gid, fromId: w.r, toId: w.a, amount: 10000, createdById: w.a }));
+    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: c2.claimId } })).status).toBe("waiting"); // 10000 < 30000: still waiting
+    await db.$transaction((tx) => createPayment(tx, { groupId: w.gid, fromId: w.r, toId: w.a, amount: 30000, createdById: w.a }));
     expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: c2.claimId } })).status).toBe("covered");
     expect((await confirmClaim(c2.claimId, w.a)).ok).toBe(false);
-    expect(await payments(w.gid)).toBe(2); // the two direct ones only
+    expect(await payments(w.gid)).toBe(3); // the three direct ones only
   });
 });
 
@@ -323,11 +326,15 @@ describe("T11: who can act", () => {
   });
 
   it("someone who left can still answer for money paid TO them, but can't claim a payment of their own", async () => {
-    const w = await world();
+    // MB-2: a leaver's balance may only end unchanged or at 0. Hand-worked: Asha paid 60000 and her share is 30000,
+    // so she is owed 30000 (Ravi owes 30000, Meera 0). Ravi's 30000 note takes her to exactly 0, so it is allowed.
+    const w = await world({ dinner: 60000, shares: [30000, 30000, 0] });
+    expect(await net(w.gid)).toEqual({ [w.a]: 30000, [w.r]: -30000, [w.m]: 0 });
     const c = await claim(w);
     await db.member.update({ where: { id: w.a }, data: { leftAt: new Date() } });
     expect((await confirmClaim(c.claimId, w.a)).ok).toBe(true);
     expect(await payments(w.gid)).toBe(1);
+    expect((await net(w.gid))[w.a]).toBe(0);
 
     const w2 = await world();
     await db.member.update({ where: { id: w2.r }, data: { leftAt: new Date() } });

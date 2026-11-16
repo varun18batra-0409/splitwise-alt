@@ -91,6 +91,9 @@ export default async function MoveOutPage({
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="leaverId" value={leaver.id} />
           <input type="hidden" name="lastDay" value={lastDay} />
+          {/* What this page worked out: the move-out refuses if the final payments are different by the time it is confirmed. */}
+          <input type="hidden" name="expectKey" value={p.expectKey} />
+          <input type="hidden" name="expectKeyDaily" value={p.expectKeyDaily} />
           <FreshKey name="rid" />
 
           <section>
@@ -210,15 +213,17 @@ export default async function MoveOutPage({
           <div>
             <MoveOutButton
               className={primaryButtonClass}
-              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments, nameOf: Name, money })}
-              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily, nameOf: Name, money }) : undefined}
+              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments.map((t) => ({ ...t, waits: p.waits.includes(`${t.from}>${t.to}`) })), nameOf: Name, money })}
+              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily.map((t) => ({ ...t, waits: p.waitsWithDaily.includes(`${t.from}>${t.to}`) })), nameOf: Name, money }) : undefined}
             >
               Settle {leaver.id === myId ? "up" : leaver.name} &amp; mark as moved out
             </MoveOutButton>
             <p className="mt-3 text-center text-xs leading-relaxed text-gray-500">
               {Name(leaver.id)} stay{leaver.id === myId ? "" : "s"} in the history and leave{leaver.id === myId ? "" : "s"} the bills after {niceDate(lastDay)}.
               <br />
-              The payments above are recorded as paid. Everyone is told.
+              {p.waits.length > 0 || p.waitsWithDaily.length > 0
+                ? "A payment to someone who has joined counts once they confirm it. Any other payment is recorded as paid. Everyone is told."
+                : "The payments above are recorded as paid. Everyone is told."}
             </p>
           </div>
         </form>

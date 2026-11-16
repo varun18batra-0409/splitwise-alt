@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
@@ -252,5 +253,29 @@ describe("upgrading data saved by the older version", () => {
       category: "food", amount: 60000, originalAmount: 60000, originalCurrency: "USD", // the group's currency by now
       convertedAmount: 60000, exchangeRate: "1", markupAmount: 0, shares: 2,
     });
+  });
+});
+
+// OA-1 (16 Nov line review): the upgrade script used to mark as "joined" anyone who appeared as the actor of a history line, on EVERY deploy.
+// But some lines are written for someone else (the daily job adds a repeat bill in the payer's name; a reminder-link payment is typed by whoever
+// holds the link), so a plain name such as a flatmate whose rent the daily job adds became "joined". Payments to him then waited forever for a
+// confirmation nobody could give. The step is gone: every way of joining sets the joined time itself.
+describe("the upgrade script never marks a plain name as joined (OA-1)", () => {
+  it("a name with no account and no joined time, with a repeat-bill line and a reminder-link line in his name, is still a plain name after the script runs", async () => {
+    const ravi = await db.member.create({ data: { groupId, name: "Ravi OA1" } });
+    expect(ravi.claimedAt).toBeNull();
+    await db.groupEvent.create({ data: { groupId, actorId: ravi.id, kind: "expense_added", text: "added Rent · repeat bill (₹9,000.00)" } });
+    await db.groupEvent.create({ data: { groupId, actorId: ravi.id, kind: "payment_recorded", text: "paid Asha ₹500.00 (from the reminder link)" } });
+    execFileSync("node", ["prisma/upgrade-data.mjs"], { stdio: "pipe" });
+    execFileSync("node", ["prisma/upgrade-data.mjs"], { stdio: "pipe" }); // and again: it is safe to run any number of times
+    const after = await db.member.findUniqueOrThrow({ where: { id: ravi.id } });
+    expect(after.claimedAt).toBeNull();
+    expect(after.accountId).toBeNull();
+  });
+
+  it("the script no longer mentions the joined time at all (a static check, so the step can't come back by accident)", () => {
+    const src = readFileSync("prisma/upgrade-data.mjs", "utf8");
+    expect(src).not.toContain("claimedAt");
+    expect(src).not.toContain("groupEvent");
   });
 });

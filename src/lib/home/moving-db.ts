@@ -10,7 +10,9 @@ import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
 import { monthsBetween, payerFor } from "./bills";
 import type { Transfer } from "../settle";
-import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks } from "../money-guard";
+import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, LeaverBreak, leaverBalanceBreaks } from "../money-guard";
+import { needsOkFor } from "../payment-ok";
+import { claimRef, tellReceiver } from "../payment-claims";
 import { lateMoveText, putBackOpen } from "../put-back";
 import type { Prisma } from "@prisma/client";
 import { PAIR_NO_MOVE_OUT } from "../direct-guard";
@@ -20,6 +22,10 @@ import { PAIR_NO_MOVE_OUT } from "../direct-guard";
 type Fail = { ok: false; error: string };
 
 export const CURRENCY_SINCE = "The group currency changed after the move-out, so it can’t be undone.";
+// An "I've paid" note involving the person moving out is still waiting: it would be silently closed by the square-up, so it is sorted out first.
+export const MOVE_OUT_WAITING_NOTE = "There’s an “I’ve paid” waiting to be confirmed. Sort it out on Settle up first, then do the move-out.";
+// The payments shown on the page are not what would be recorded now.
+export const MOVE_OUT_KEY_CHANGED = "Balances changed since you opened this. Check the move-out again.";
 
 async function loadFlat(groupId: string) {
   return db.group.findUnique({
@@ -89,15 +95,40 @@ function stayLabel(lastDay: string, joinedFrom: Date | null): string {
 
 type Charge = { payerId: string; amount: number };
 
+// The final payments, split in two. When the person squaring up is the one PAYING (they move out owing, or they mark someone out who is
+// owed by them), and the person paid has joined (can tap Confirm received), nothing is counted until that person confirms: it becomes an
+// "I've paid" note. Everything else is recorded as paid at once, as before (a name nobody has joined can't confirm anything).
+function splitSquareUp(flat: Flat, actorId: string, transfers: Transfer[]): { claims: Transfer[]; paid: Transfer[] } {
+  const claims: Transfer[] = [];
+  const paid: Transfer[] = [];
+  for (const t of transfers) {
+    const receiver = flat.members.find((m) => m.id === t.to);
+    if (t.from === actorId && needsOkFor(receiver, actorId)) claims.push(t);
+    else paid.push(t);
+  }
+  return { claims, paid };
+}
+
+// The final payments as one comparable text: the move-out page posts it, and the move-out refuses if it is not what would be recorded now.
+export const transfersKey = (ts: Transfer[]) => ts.map((t) => `${t.from}>${t.to}:${t.amount}`).sort().join("|");
+
+// Is an "I've paid" note waiting that involves this person (as payer or as the one paid)?
+async function waitingNoteFor(client: Client, groupId: string, memberId: string): Promise<boolean> {
+  const row = await client.paymentClaim.findFirst({ where: { groupId, status: "waiting", OR: [{ fromId: memberId }, { toId: memberId }] }, select: { id: true } });
+  return Boolean(row);
+}
+
 function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[], charges: Charge[] = []) {
   const month = lastDay.slice(0, 7);
   const monthDays = daysInMonth(month);
   const daysStayed = Number(lastDay.slice(8, 10));
+  // Only people still in the flat take the freed share: someone who moved out earlier left square and stays that way.
+  const stillHere = new Set(flat.members.filter((m) => !m.leftAt && m.id !== leaverId).map((m) => m.id));
   const resplit = bills.map(({ e, period }) => {
     const days = period === month ? daysStayed : 0;
     // What's freed goes to the others the way this expense was already shared.
     const weights = Object.fromEntries(e.shares.map((x) => [x.memberId, x.amount]));
-    return { e, period, days, monthDays: daysInMonth(period), shares: proRataShares(e.shares, leaverId, days, daysInMonth(period), weights) };
+    return { e, period, days, monthDays: daysInMonth(period), shares: proRataShares(e.shares, leaverId, days, daysInMonth(period), weights, stillHere) };
   });
   const credit = resplit.reduce(
     (s, r) => s + (r.e.shares.find((x) => x.memberId === leaverId)?.amount ?? 0) - (r.shares.find((x) => x.memberId === leaverId)?.amount ?? 0),
@@ -132,6 +163,7 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
   const bad = checkDay(lastDay, now);
   if (bad) return { ok: false, error: bad } as Fail;
+  if (await waitingNoteFor(db, groupId, leaverId)) return { ok: false, error: MOVE_OUT_WAITING_NOTE } as Fail;
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
   const p = plan(flat, leaverId, lastDay, bills);
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
@@ -141,6 +173,8 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   const heir = others.find((m) => m.id === actorId)?.id ?? others[0]?.id ?? "";
   const charges = offers.filter((o) => !o.d.unsupported).map((o) => ({ payerId: prechargePayer(o.bill, o.period, leaverId, others.map((m) => m.id), heir), amount: o.d.amount }));
   const withDaily = charges.length ? plan(flat, leaverId, lastDay, bills, charges).payments : p.payments;
+  // Which of the final payments wait for the person paid to confirm (only when the person confirming this is the one paying).
+  const waitsOf = (ts: Transfer[]) => splitSquareUp(flat, actorId, ts).claims.map((t) => `${t.from}>${t.to}`);
   return {
     ok: true as const,
     balanceToday: p.before[leaverId] ?? 0,
@@ -156,6 +190,10 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
     payments: p.payments,
     daily: offers.map((o) => ({ billId: o.bill.id, name: o.bill.name, days: o.d.days, missed: o.d.missed, amount: o.d.amount, unsupported: o.d.unsupported })),
     paymentsWithDaily: withDaily,
+    waits: waitsOf(p.payments), // "from>to" of each final payment that waits for the person paid to confirm
+    waitsWithDaily: waitsOf(withDaily),
+    expectKey: transfersKey(p.payments), // posted back by the page: the move-out refuses if the payments are different by then
+    expectKeyDaily: transfersKey(withDaily),
     daysStayed: p.daysStayed,
     monthDays: p.monthDays,
     deposit: dep ? { amount: dep.amount, heldBy: flat.deposit!.heldBy } : null,
@@ -165,10 +203,12 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
 export async function moveOut(
   groupId: string,
   actorId: string,
-  input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string },
+  // `expectKey`: the final payments the person saw (transfersKey). When given, a move-out whose payments are different now is refused.
+  // The move-out screen always sends it.
+  input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string; expectKey?: string },
   now = new Date(),
   opts: { afterRead?: () => Promise<void> } = {}, // tests only: runs after the reads, before the write begins
-): Promise<{ ok: true; payments: Transfer[]; eventId?: string } | Fail> {
+): Promise<{ ok: true; payments: Transfer[]; claims?: Transfer[]; eventId?: string } | Fail> {
   const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "", input.addDaily ? "daily" : "");
   const ks = await keyState(input.requestKey, fp);
   if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
@@ -193,12 +233,17 @@ export async function moveOut(
   const p = plan(flat, leaver.id, input.lastDay, bills, charges.map((c) => ({ payerId: c.payerId, amount: c.d.amount })));
   const name = (id: string) => flat.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, flat.currency);
+  if (input.expectKey !== undefined && input.expectKey !== transfersKey(p.payments)) return { ok: false, error: MOVE_OUT_KEY_CHANGED };
+  if (await waitingNoteFor(db, groupId, leaver.id)) return { ok: false, error: MOVE_OUT_WAITING_NOTE };
+  const squareUp = splitSquareUp(flat, actorId, p.payments);
 
   const netBefore = netBalances(flat.members.map((m) => m.id), flat.expenses, flat.payments);
   await opts.afterRead?.();
   let eventId: string;
+  let madeClaims: { id: string; t: Transfer }[] = [];
   try {
     eventId = await db.$transaction(async (tx) => {
+      madeClaims = [];
       // First: the flat must still be in the currency the amounts were worked out in, and the person doing it still in it.
       await guardGroup(tx, groupId, { currency: flat.currency, actorId, allowClosed: true });
       // The square-up payments were worked out from these balances: if anything moved since (an expense or payment that
@@ -207,6 +252,21 @@ export async function moveOut(
       // (Someone who joined meanwhile with nothing owed either way is not a change.)
       const sig = (n: Record<string, number>) => JSON.stringify(Object.entries(n).filter(([, v]) => v !== 0).sort(([a], [b]) => a.localeCompare(b)));
       if (sig(netNow) !== sig(netBefore)) throw new Error("BALANCES_CHANGED");
+      // A note involving the leaver was made meanwhile: sort that out first (it would otherwise be closed silently).
+      if (await waitingNoteFor(tx, groupId, leaver.id)) throw new Error("WAITING_NOTE");
+      // Someone who left earlier may only end with the balance they had, or 0: what this move-out changes (the re-split, the daily
+      // charges, and the payments that are recorded now, not the notes) must not move theirs.
+      const stuck = await leaverBalanceBreaks(tx, groupId, flat.members.filter((m) => m.id !== leaver.id).map((m) => m.id), (l) => ({
+        expenses: [
+          ...l.expenses.map((e) => {
+            const r = p.resplit.find((x) => x.e.id === e.id);
+            return r ? { ...e, shares: r.shares } : e;
+          }),
+          ...charges.map((c, i) => ({ id: `move-out-charge-${i}`, paidById: c.payerId, amount: c.d.amount, shares: [{ memberId: leaver.id, amount: c.d.amount }] })),
+        ],
+        payments: [...l.payments, ...squareUp.paid.map((t, i) => ({ id: `move-out-payment-${i}`, fromId: t.from, toId: t.to, amount: t.amount }))],
+      }));
+      if (stuck.length) throw new LeaverBreak(stuck[0], "changed here");
       await claimKey(tx, input.requestKey, "moved", fp);
       // Claim the move-out first: if two people confirm it at the same moment,
       // only the first one goes through (the second finds them already gone).
@@ -280,8 +340,28 @@ export async function moveOut(
         });
         moneyInfo.eventIds.push(chargeEventId);
       }
-      // 2. Square up.
-      for (const t of p.payments) {
+      // 2. Square up. A payment the person making it records for themselves, to someone who can confirm it, is an "I've paid" note:
+      // it counts only when the person paid taps Confirm received (so nobody can be marked as paid up on their own word).
+      for (const t of squareUp.claims) {
+        const claim = await tx.paymentClaim
+          .create({ data: { groupId, fromId: t.from, toId: t.to, amount: t.amount, currency: flat.currency, source: "move_out", status: "waiting", slot: "" } })
+          .catch((e: unknown) => {
+            // The unique rule: another note for this pair appeared at the same moment.
+            throw (e as { code?: string })?.code === "P2002" ? new Error("WAITING_NOTE") : e;
+          });
+        madeClaims.push({ id: claim.id, t });
+        (undoInfo.claims ??= []).push({ id: claim.id, fromId: t.from, toId: t.to, amount: t.amount });
+        const claimEventId = await logEvent(tx, {
+          groupId,
+          actorId,
+          kind: "payment_claimed",
+          text: `says they paid ${name(t.to)} ${money(t.amount)} (waiting for ${name(t.to)} to confirm)`,
+          paymentId: claimRef(claim.id), // names its claim, as every "I've paid" line does
+          touches: [], // no balance moves until it's confirmed
+        });
+        moneyInfo.eventIds.push(claimEventId);
+      }
+      for (const t of squareUp.paid) {
         const pay = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
         moneyInfo.payments.push({ id: pay.id, fromId: t.from, toId: t.to, amount: t.amount });
         const payEventId = await logEvent(tx, {
@@ -352,7 +432,8 @@ export async function moveOut(
         text: actorId === leaver.id ? `moved out (last day ${niceDate(input.lastDay)})` : `marked ${leaver.name} as moved out (last day ${niceDate(input.lastDay)})`,
         details: [
           ...(p.credit ? [`${money(p.credit)} of bills after they left moved to the others`] : []),
-          ...p.payments.map((t) => `${name(t.from)} paid ${name(t.to)} ${money(t.amount)}`),
+          ...squareUp.claims.map((t) => `${name(t.from)} says they paid ${name(t.to)} ${money(t.amount)} (waiting for ${name(t.to)} to confirm)`),
+          ...squareUp.paid.map((t) => `${name(t.from)} paid ${name(t.to)} ${money(t.amount)}`),
           ...charges.map((c) => `${c.bill.name}: ${leaver.name}’s share for ${c.d.days} days, ${money(c.d.amount)}, charged now`),
           ...(dep && depositTo ? [`Deposit ${money(dep.amount)} taken over by ${name(depositTo)}`] : []),
         ],
@@ -364,12 +445,18 @@ export async function moveOut(
     const msg = String((err as Error)?.message ?? err);
     if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof LeaverBreak) return { ok: false, error: err.message };
+    if (msg.includes("WAITING_NOTE")) return { ok: false, error: MOVE_OUT_WAITING_NOTE };
     if (msg.includes("BALANCES_CHANGED")) return { ok: false, error: "Balances just changed. Check the move-out again." };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     if (msg.includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };
     throw err;
   }
-  return { ok: true, payments: p.payments, eventId };
+  // The person paid is told, for each note (after the move-out is saved).
+  for (const c of madeClaims) {
+    tellReceiver({ claimId: c.id, groupId, groupName: flat.name, toId: c.t.to, fromName: name(c.t.from), amountText: money(c.t.amount), fromId: c.t.from });
+  }
+  return { ok: true, payments: p.payments, claims: squareUp.claims, eventId };
 }
 
 // The deposit: who put in what. Never part of balances.
@@ -629,6 +716,12 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
         for (const x of mo.payments) lines.push(`Taken off: ${nameOf(x.fromId)} paid ${nameOf(x.toId)} ${money(x.amount)}`);
         if (mo.payments.length) lines.push("If any of these payments really happened, record it again.");
         await tx.groupEvent.updateMany({ where: { id: { in: mo.eventIds }, undoneAt: null }, data: { undoneAt: at, undoneById: actorId } });
+      }
+      // The move-out's "I've paid" notes: one still waiting is taken back (withdrawn, decided by whoever undoes). One already confirmed
+      // is real money, so its payment stays and doesn't stand in the way. (One declined, expired or covered has nothing left to take back.)
+      for (const x of info.claims ?? []) {
+        const done = await tx.paymentClaim.updateMany({ where: { id: x.id, status: "waiting" }, data: { status: "withdrawn", slot: x.id, decidedAt: at, decidedById: actorId } });
+        if (done.count === 1) lines.push(`Taken back: ${nameOf(x.fromId)} said they paid ${nameOf(x.toId)} ${money(x.amount)}`);
       }
       return logEvent(tx, {
         groupId,

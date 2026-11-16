@@ -9,7 +9,7 @@ import { addListItem, buyListItems, goingShopping, removeListItem, toggleListIte
 import { cleanKey } from "@/lib/once";
 import { tripFromGoalOnce } from "@/lib/goal-trip";
 import { saveBudgetsFor } from "@/lib/home/budgets-db";
-import { moveOut, returnDepositFor, saveDepositFor } from "@/lib/home/moving-db";
+import { MOVE_OUT_KEY_CHANGED, moveOut, returnDepositFor, saveDepositFor } from "@/lib/home/moving-db";
 import { isPairGroup } from "@/lib/direct-guard";
 import { db } from "@/lib/db";
 import { logEvent } from "@/lib/events";
@@ -154,11 +154,18 @@ export async function moveOutAction(formData: FormData) {
   if (myId && leaverId !== myId && !(await isGroupAdmin(groupId, myId))) {
     redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent("Only the person moving out, or whoever looks after this flat, can do this.")}`);
   }
+  // The final payments the page showed (with or without the daily charges, as ticked). Missing = a form from before this check: look again.
+  const addDaily = formData.get("addDaily") === "1";
+  const expectKey = formData.get(addDaily ? "expectKeyDaily" : "expectKey");
+  if (expectKey === null) {
+    redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(MOVE_OUT_KEY_CHANGED)}`);
+  }
   const r = await moveOut(groupId, myId, {
     leaverId,
     lastDay,
     depositTo: String(formData.get("depositTo") ?? "") || undefined,
-    addDaily: formData.get("addDaily") === "1",
+    addDaily,
+    expectKey: String(expectKey),
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   });
   if (!r.ok) redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(r.error)}`);

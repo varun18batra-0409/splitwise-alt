@@ -7,7 +7,7 @@ import { formatMoney } from "./money";
 import { createPayment } from "./payments";
 import { withRetry } from "./once";
 import { needsOkFor } from "./payment-ok";
-import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
+import { claimConfirmBreaks, GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 
 // "I've paid" claims. Ravi says he paid Asha. That is a claim, NOT a payment:
 // it never changes a balance. It waits for Asha's "Confirm received", which
@@ -15,7 +15,8 @@ import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-
 // closes the claim and nothing else changes. See prisma/schema.prisma (PaymentClaim).
 
 export type ClaimStatus = "waiting" | "confirmed" | "declined" | "withdrawn" | "covered" | "expired";
-export type ClaimSource = "link" | "app";
+// "move_out": made by the move-out screen when the person paying is the one moving out (or the one marking them out): the person paid confirms it.
+export type ClaimSource = "link" | "app" | "move_out";
 
 export type ClaimResult =
   | { ok: true; claimId: string; already?: boolean; eventId?: string; paymentId?: string; amount?: number }
@@ -139,6 +140,13 @@ async function declineClaimOnce(claimId: string, myMemberId: string | undefined)
 // must move, so tapping twice records one payment), then the payment is made.
 export const confirmClaim = (claimId: string, myMemberId: string | undefined, o: { over?: boolean } = {}): Promise<ClaimResult> => withRetry(() => confirmClaimOnce(claimId, myMemberId, o));
 
+// Thrown inside the confirm transaction (rolls it back): one of the two has left, and this payment would move their balance somewhere it may not go.
+class LeaverClaim extends Error {
+  constructor(public who: string) {
+    super("leaver");
+  }
+}
+
 class OverClaim extends Error {
   constructor(public over: number) {
     super("more than owed");
@@ -174,7 +182,17 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
     // Compared with what the payer owes the receiver in the settle plan, never their total debt to everyone,
     // so a payer who owes two people can't have a claim to one pass as if it were a claim to the other.
     // Worked out here, inside the write, so a change made since the page loaded can't slip past.
-    const owes = (await ledgerInTx(tx, claim.groupId)).transfers.find((t) => t.from === claim.fromId && t.to === claim.toId)?.amount ?? 0;
+    const ledger = await ledgerInTx(tx, claim.groupId);
+    // Someone who has left may only end with the balance they had, or 0 (a move-out's own note may also bring them closer to 0, never past it).
+    // Asked first: there is no point asking "more than owed?" about a note that can't be confirmed at all.
+    const gone = await claimConfirmBreaks(tx, claim.groupId, { fromId: claim.fromId, toId: claim.toId, amount: claim.amount, source: claim.source });
+    if (gone.length) throw new LeaverClaim(gone[0]);
+    // A move-out's note squares the leaver up with everyone they owe, so it is checked against what they owe in total and what the
+    // receiver is owed (a smart-settle plan may route it differently, which must not look like "more than owed").
+    const owes =
+      claim.source === "move_out"
+        ? Math.min(Math.max(0, -(ledger.net[claim.fromId] ?? 0)), Math.max(0, ledger.net[claim.toId] ?? 0))
+        : ledger.transfers.find((t) => t.from === claim.fromId && t.to === claim.toId)?.amount ?? 0;
     if (claim.amount > owes && !o.over) throw new OverClaim(claim.amount - owes);
     const moved = await tx.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "confirmed", slot: claim.id, decidedAt: new Date(), decidedById: myMemberId } });
     if (moved.count !== 1) return null; // somebody else got there first: record nothing
@@ -198,6 +216,11 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
     return { paymentId: payment.id, eventId };
   }, { timeout: 15000 });
   } catch (err) {
+    if (err instanceof LeaverClaim) {
+      // Nothing was saved. The note is out of date for good, so it is closed (the payer can say they paid again after the person is back).
+      await db.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "expired", slot: claim.id, decidedAt: new Date(), decidedById: myMemberId } });
+      return { ok: false, error: `${err.who} has left the group, so this can’t be confirmed.` };
+    }
     if (err instanceof OverClaim) return { ok: false, error: "More than what’s owed.", over: err.over };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;

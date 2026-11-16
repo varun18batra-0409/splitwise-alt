@@ -2,6 +2,7 @@ import { db } from "./db";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, removedPaymentsBreak } from "./money-guard";
+import { reopenCoveredClaims } from "./payments";
 
 // Payment tracking (older payments only: new "I've paid" taps are claims, see payment-claims.ts). When someone other than the person paid records a payment
 // ("Ravi paid Asha ₹300"), it counts straight away (as before) but Asha is
@@ -54,13 +55,14 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
     if (gone.length) throw new LeaverBreak(gone[0], "changed here");
     const changed = await tx.payment.updateMany({ where: { id: p.id, deletedAt: null, okAt: null }, data: { deletedAt: new Date(), deletedById: myMemberId } });
     if (changed.count !== 1) return "";
+    await reopenCoveredClaims(tx, [p.id]); // a note this payment had closed as "covered" is waiting again, so Asha can still confirm it
     return logEvent(tx, {
       groupId: p.groupId,
       actorId: myMemberId!,
       kind: "payment_deleted",
       text: `hasn’t received ${formatMoney(p.amount, p.group.currency)} from ${p.from.name}, so it’s off the balances`,
       paymentId: p.id,
-      undo: { type: "payment_restore", paymentId: p.id },
+      undo: { type: "payment_restore", paymentId: p.id, byReceiver: true }, // only the person paid can bring it back (see refused-payment.ts)
     });
   });
   } catch (err) {

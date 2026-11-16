@@ -10,12 +10,14 @@ type Share = { memberId: string; amount: number };
 // This month's bill re-split for someone who left part-way: they keep their
 // share for the days they stayed; the rest goes to the others by weight.
 // The expense's total never changes.
-export function proRataShares(shares: Share[], leaverId: string, daysStayed: number, monthDays: number, weights: Record<string, number>): Share[] {
+// `eligible` (when given): only these people can take the freed share, i.e. the ones still in the flat. Someone who moved out earlier
+// keeps exactly the share they had (they left square, so their balance must not move). If nobody eligible shares the bill, it is left as it is.
+export function proRataShares(shares: Share[], leaverId: string, daysStayed: number, monthDays: number, weights: Record<string, number>, eligible?: ReadonlySet<string>): Share[] {
   const theirs = shares.find((s) => s.memberId === leaverId)?.amount ?? 0;
   if (!theirs) return shares;
   const keep = Math.floor((theirs * Math.max(0, Math.min(daysStayed, monthDays))) / monthDays);
   const freed = theirs - keep;
-  const others = shares.filter((s) => s.memberId !== leaverId);
+  const others = shares.filter((s) => s.memberId !== leaverId && (!eligible || eligible.has(s.memberId)));
   if (!others.length || freed === 0) return shares;
   const extra = allocateByWeights(freed, others.map((s) => ({ memberId: s.memberId, weight: weights[s.memberId] ?? 100 })));
   return shares.map((s) =>

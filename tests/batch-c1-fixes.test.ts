@@ -315,7 +315,11 @@ describe("2 and 3: adding from search and the history line never use the start o
       data: { name: `Named ${stamp}-${counter}`, currency: "INR", inviteCode: `c1-named-${counter}-${stamp}`, members: { create: [{ name: "Chandler", accountId: me.id, claimedAt: new Date() }] } },
       include: { members: true },
     });
-    groups.push(g.id);
+    // Joey and Chandler share an older group (since 16 Nov only people you share a group with can be added from search).
+    const older = await db.group.create({
+      data: { name: `Named older ${stamp}-${counter}`, currency: "INR", inviteCode: `c1-namedold-${counter}-${stamp}`, members: { create: [{ name: "Chandler", accountId: me.id, claimedAt: new Date() }, { name: "Joey", accountId: joey.id, claimedAt: new Date() }] } },
+    });
+    groups.push(g.id, older.id);
     const added = await addRegistered(g.id, g.members[0].id, joey.id, "https://loopin.test");
     expect(added.ok && added.name).toBe("Joey");
   });
@@ -449,7 +453,8 @@ describe("10: the 'more than what's owed' page keeps back=settle", () => {
 describe("8: a leaver can answer a claim but is not offered an Undo they can't use", () => {
   it("Asha leaves, confirms Ravi's claim; undoing it as her is refused", async () => {
     const w = await world();
-    await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
+    // MB-2: Asha is owed 30000 (paid 60000, share 30000), all of it by Ravi, so confirming takes her to exactly 0 (allowed).
+    await addExpense(w.gid, w.a, 60000, [[w.a, 30000], [w.r, 30000]], "Dinner");
     const c = await claimOf(w, w.r, w.a);
     await db.member.update({ where: { id: w.a }, data: { leftAt: new Date() } });
     const done = await confirmClaim(c.claimId, w.a);

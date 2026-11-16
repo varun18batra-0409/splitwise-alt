@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currencyCell, detectFormat, guessColumns, looseAmount, looseDate, parseImport, splitNames } from "@/lib/import-formats";
+import { currencyCell, detectFormat, guessColumns, looseAmount, looseDate, nameKey, nameText, parseImport, splitNames } from "@/lib/import-formats";
 import { balancesOf, planRow } from "@/lib/splitwise-csv";
 
 // Bringing a group over from any app's spreadsheet.
@@ -248,3 +248,109 @@ describe("currency written as a symbol (LC-05)", () => {
   });
 });
 
+
+// ---- 16 Nov line review: LM-1 (names matched one way) and LM-2 ("Rs." read as money) ----
+
+describe("LM-2: amounts written with Rs., INR, /- and typographic minus signs", () => {
+  // paise: the dot of "Rs." is never a decimal point, so "Rs.500" is 500 rupees, not 50 paise.
+  const table: [string, string, number | null][] = [
+    ["Rs.500", "INR", 50000],
+    ["Rs. 1,200", "INR", 120000],
+    ["Rs. 500/-", "INR", 50000],
+    ["500 Rs.", "INR", 50000],
+    ["INR 1,234.50", "INR", 123450],
+    ["−40", "EUR", -4000], // U+2212, the typographic minus
+    ["–40", "EUR", -4000], // an en-dash at the start
+    ["(40)", "EUR", -4000], // unchanged
+    ["1.234,50", "EUR", 123450], // unchanged
+    ["₹ 500", "INR", 50000], // unchanged
+    ["abc", "INR", null], // unchanged: no digits at all
+    ["", "INR", 0], // unchanged: an empty cell
+  ];
+  for (const [input, cur, want] of table) {
+    it(`${JSON.stringify(input)} in ${cur} is ${want}`, () => {
+      expect(looseAmount(input, cur)).toBe(want);
+    });
+  }
+});
+
+describe("LM-1: one way to match names, so a share is never silently dropped", () => {
+  // Hand-worked: Asha paid 100.00 (10000 paise). Shares: Asha 50 and "Ravi  Kumar" (two spaces in the header) 50.
+  // Before: the header's two spaces were kept as typed, the person was stored with one space, and the lookup missed (index -1), so Ravi's 5000 vanished:
+  // nets [5000, 0] and the group was out by 5000. Now: nets [5000, -5000], an expense of 10000 with shares 5000 / 5000.
+  it("a double space in a share column's name still finds the person", () => {
+    const { p, net } = nets("Title,Amount,Paid by,Asha's share,Ravi  Kumar's share\nDinner,100,Asha,50,50\n");
+    expect(p.people).toEqual(["Asha", "Ravi Kumar"]);
+    expect(p.rows[0].nets).toEqual([5000, -5000]);
+    expect(net).toEqual({ Asha: 5000, "Ravi Kumar": -5000 });
+    const plan = planRow(p.rows[0]);
+    expect(plan.type === "expense" && [plan.amount, plan.payers.reduce((t, x) => t + x.a, 0), plan.shares.reduce((t, x) => t + x.a, 0), plan.shares.map((x) => x.a)]).toEqual([10000, 10000, 10000, [5000, 5000]]);
+  });
+
+  // Asha paid 300.00 for "Ravi  Kumar": nets [30000, -30000]; Ravi's share is the whole 30000 (before, the unmatched name fell back to "everyone").
+  it("a double space in the 'paid for' column finds the person, and it is not turned into 'everyone'", () => {
+    const { p, net } = nets("Title,Amount,Paid by,Paid for\nCab,300,Asha,Ravi  Kumar\n");
+    expect(p.people).toEqual(["Asha", "Ravi Kumar"]);
+    expect(p.rows[0].nets).toEqual([30000, -30000]);
+    expect(net).toEqual({ Asha: 30000, "Ravi Kumar": -30000 });
+  });
+
+  it("a non-breaking space is a space, in every column", () => {
+    // Cab: Asha pays 300 for Ravi Kumar (+30000 / -30000). Taxi: Ravi Kumar (typed with a non-breaking space) pays 60 for Asha (+6000 / -6000).
+    const { p, net } = nets("Title,Amount,Paid by,Paid for\nCab,300,Asha,Ravi Kumar\nTaxi,60,Ravi\u00a0Kumar,Asha\n");
+    expect(p.people).toEqual(["Asha", "Ravi Kumar"]);
+    expect(net).toEqual({ Asha: 24000, "Ravi Kumar": -24000 });
+  });
+
+  it("case and edge spaces don't matter either", () => {
+    const { p } = nets("Title,Amount,Paid by,Paid for\nCab,300,asha,  RAVI   kumar \nTaxi,60,Ravi Kumar,ASHA\n");
+    expect(p.people).toHaveLength(2);
+    expect(p.skipped).toEqual([]);
+  });
+
+  it("a 41-letter name is cut to 40 in the stored name and matches itself everywhere", () => {
+    const long = "N".repeat(41);
+    expect(nameText(long)).toBe("N".repeat(40));
+    expect(nameKey(long)).toBe("n".repeat(40));
+    const { p, net } = nets(`Title,Amount,Paid by,Paid for\nCab,300,Asha,${long}\nTaxi,60,${long},Asha\n`);
+    expect(p.people).toEqual(["Asha", "N".repeat(40)]);
+    expect(p.skipped).toEqual([]);
+    expect(net).toEqual({ Asha: 24000, ["N".repeat(40)]: -24000 });
+  });
+
+  it("two different long names with the same first 40 letters can't be told apart: the file is refused, not mixed up", () => {
+    const a = `${"X".repeat(40)}a`;
+    const b = `${"X".repeat(40)}b`;
+    const r = parseImport(`Title,Amount,Paid by,Paid for\nCab,300,Asha,${a}\nTaxi,60,${b},Asha\n`);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/same for the first 40 letters/);
+  });
+
+  it("in a Loopin spreadsheet too: a double-spaced name in the header, the paid-by cell and a payment all match", () => {
+    const head = "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Asha's share (INR),Ravi  Kumar's share (INR)";
+    const file = [head, "2026-10-18,Expense,Dinner,,Food,Ravi  Kumar,100.00,,,,,,,50.00,50.00", "2026-10-19,Payment,Asha paid Ravi  Kumar,,,Asha,20.00,,,,,,,,"].join("\r\n");
+    const { p, net } = nets(file);
+    expect(p.skipped).toEqual([]);
+    // Dinner: Ravi +5000 (paid 10000, own share 5000), Asha -5000. Payment: Asha paid Ravi 2000: Asha +2000, Ravi -2000.
+    expect(net).toEqual({ Asha: -3000, "Ravi Kumar": 3000 });
+  });
+
+  it("two people whose header names match once cleaned up (a Loopin file) are refused", () => {
+    const head = "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Asha's share (INR),ASHA 's share (INR)";
+    const r = parseImport([head, "2026-10-18,Expense,Dinner,,Food,Asha,100.00,,,,,,,50.00,50.00"].join("\r\n"));
+    expect(r.ok).toBe(false);
+  });
+
+  it("a name that isn't one of the people is a skipped line, never a quiet drop (Loopin file)", () => {
+    const head = "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Asha's share (INR),Ravi's share (INR)";
+    const { p } = nets([head, "2026-10-18,Expense,Dinner,,Food,Asha,100.00,,,,,,,50.00,50.00", "2026-10-19,Expense,Lunch,,Food,Zed,100.00,,,,,,,50.00,50.00"].join("\r\n"));
+    expect(p.rows).toHaveLength(1);
+    expect(p.skipped.map((x) => x.reason)).toEqual(["“Zed” isn’t one of the people"]);
+  });
+
+  it("an empty 'paid for' cell still means everyone", () => {
+    const { net } = nets("Title,Amount,Paid by,Paid for\nSnacks,90,Asha,\nTaxi,30,Ravi,Asha\n");
+    // Snacks: everyone in the file (Asha, Ravi) 4500 each: Asha +4500, Ravi -4500. Taxi: Ravi +3000, Asha -3000.
+    expect(net).toEqual({ Asha: 1500, Ravi: -1500 });
+  });
+});

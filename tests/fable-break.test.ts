@@ -275,22 +275,27 @@ describe("passport privacy: added by someone else, undone, brought back", () => 
   // Changed in Batch B: being added now puts a NAME in the group (no account on the row) and sends an
   // invitation, so there is nothing of theirs to show until they tap Join.
   it("someone brought back by undoing an undo is still just a name, with nothing of theirs shared", async () => {
-    const { addRegistered } = await import("@/lib/invites");
+    const { addRegistered, inviteByEmail } = await import("@/lib/invites");
     const { canSeePassport } = await import("@/lib/passport-db");
     const stranger = await db.account.create({ data: { email: `fb-stranger-${Date.now()}@test.dev`, name: "Stranger" } });
     const victim = await db.account.create({ data: { email: `fb-victim-${Date.now()}@test.dev`, name: "Victim", passportChoiceAt: new Date() } });
     const g = await db.group.create({ data: { name: "Fb privacy", inviteCode: `fbp-${Date.now()}`, members: { create: [{ name: "Stranger", accountId: stranger.id, claimedAt: new Date() }] } }, include: { members: true } });
     groups.push(g.id);
     const me = g.members[0].id;
+    // CHANGED 16 Nov (AS-1): a stranger who shares no group with the victim can no longer add them by account at all: refused, nothing written.
     const r = await addRegistered(g.id, me, victim.id, "http://localhost");
-    expect(r.ok).toBe(true);
+    expect(r).toEqual({ ok: false, error: "That person isn't on Loopin." });
+    expect(await db.member.count({ where: { groupId: g.id } })).toBe(1);
+    // The same passport-privacy story with a typed email (which is still allowed): they are only a name, invited.
+    const typed = await inviteByEmail(g.id, me, victim.email, "http://localhost");
+    expect(typed.bad).toEqual([]);
     expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(false);
     const added = await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "members_added" }, orderBy: { createdAt: "desc" } });
     const un = await undoEvent(added!.id, me);
     expect(un.ok).toBe(true);
     const redo = await undoEvent(un.ok ? un.eventId! : "", me);
     expect(redo.ok).toBe(true);
-    expect(await db.member.count({ where: { groupId: g.id, name: "Victim" } })).toBe(1);
+    expect(await db.member.count({ where: { groupId: g.id, name: { not: "Stranger" } } })).toBe(1); // the invited name ("Fb Victim", made from the typed email)
     expect(await db.member.count({ where: { groupId: g.id, accountId: victim.id } })).toBe(0); // the account is not on the row
     expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(false);
     await db.account.deleteMany({ where: { id: { in: [stranger.id, victim.id] } } }).catch(() => undefined);

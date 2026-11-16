@@ -207,7 +207,7 @@ describe("DEF-041: being added by someone doesn't open your passport to them", (
   // Changed in Batch B: adding someone now only puts a name in the group and invites them, so their
   // passport stays hidden until they tap Join (before, until they opened the group).
   it("their passport stays hidden until they join", async () => {
-    const { addRegistered } = await import("@/lib/invites");
+    const { addRegistered, inviteByEmail } = await import("@/lib/invites");
     const { canSeePassport, passportFriends } = await import("@/lib/passport-db");
     const s = Date.now();
     const victim = await db.account.create({ data: { email: `victim-${s}@x.loopin.test`, name: "Vic", passportChoiceAt: new Date(), places: JSON.stringify([{ c: "TH", city: "Phuket" }]) } });
@@ -215,8 +215,10 @@ describe("DEF-041: being added by someone doesn't open your passport to them", (
     try {
       const g = await group("Forced", "INR", ["Stan"]);
       await db.member.update({ where: { id: g.m("Stan") }, data: { accountId: stranger.id, claimedAt: new Date() } });
-      const r = await addRegistered(g.id, g.m("Stan"), victim.id, "http://localhost:3000");
-      expect(r.ok).toBe(true);
+      // CHANGED 16 Nov (AS-1): adding by account needs a shared group, so a stranger is refused; the typed-email invite still works and is what this checks.
+      expect(await addRegistered(g.id, g.m("Stan"), victim.id, "http://localhost:3000")).toEqual({ ok: false, error: "That person isn't on Loopin." });
+      const r = await inviteByEmail(g.id, g.m("Stan"), victim.email, "http://localhost:3000");
+      expect(r.bad).toEqual([]);
       expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(false);
       expect((await passportFriends(stranger.id)).some((f) => f.accountId === victim.id)).toBe(false);
       // Victim taps Join: from then on it's a shared group like any other.

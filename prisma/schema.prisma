@@ -331,6 +331,9 @@ model Invite {
   token       String    @default("") // random code for this one invitation (the Join / Not now buttons and the invite link)
   declinedAt  DateTime? // "Not now": the card is hidden, the name row stays
   memberId    String    @default("") // the name-only row this invitation is for (the token itself is random)
+  // Added later (add-only, default false): true when the person was picked from their Loopin account, not typed in by email.
+  // Then the People screen never shows the email address to anyone (it was not typed by the person who invited them).
+  fromAccount Boolean   @default(false)
 
   @@unique([groupId, email])
 }

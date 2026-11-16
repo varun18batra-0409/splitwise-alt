@@ -4,7 +4,7 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, wit
 import { loadGroup } from "./group-data";
 import { logEvent, markUndone, type UndoMark } from "./events";
 import { formatMoney } from "./money";
-import { createPayment, RestoreRefused, restorePayments } from "./payments";
+import { createPayment, reopenCoveredClaims, RestoreRefused, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
 import type { Prisma } from "@prisma/client";
 import { PAIR_NO_CLOSE } from "./direct-guard";
@@ -221,8 +221,10 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
     // Someone who has left may only end with the balance they had, or 0.
     const goneHere = deleted ? await removedPaymentsBreak(tx, groupId, paymentIds) : await restoredPaymentsBreak(tx, groupId, paymentIds);
     if (goneHere.length) throw new LeaverBreak(goneHere[0], deleted ? "undone" : "redone"); // this is the Undo / Redo of "Mark all paid"
-    if (deleted) await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
-    else await restorePayments(tx, paymentIds, actorId, groupId);
+    if (deleted) {
+      await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
+      await reopenCoveredClaims(tx, paymentIds); // a note these payments had closed as "covered" is waiting again
+    } else await restorePayments(tx, paymentIds, actorId, groupId);
     return logEvent(tx, {
       groupId,
       actorId,

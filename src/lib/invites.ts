@@ -26,8 +26,25 @@ export type Found = { accountId: string; name: string; inGroup: boolean; known: 
 
 // What the invite screen shows for an invitation that has no name row of its own: the typed email only to the
 // person who invited; everyone else just sees who invited.
-export function inviteRowLabel(invite: { email: string; invitedById: string }, viewerId: string, inviterName: string): string {
+export function inviteRowLabel(invite: { email: string; invitedById: string; fromAccount?: boolean }, viewerId: string, inviterName: string): string {
+  if (invite.fromAccount) return invite.invitedById === viewerId ? "Invited on Loopin" : `Invited by ${inviterName}`; // picked from an account: no email is ever shown
   return invite.invitedById === viewerId ? invite.email : `Invited by ${inviterName}`;
+}
+
+// This person's row in a group (not a pair, not deleted) that the actor's account is also really in: the people the search is allowed to show.
+// The one question behind both "what name did the search show" and "may this person be added by account at all".
+async function sharedGroupRow(targetAccountId: string, actorAccountId: string | null | undefined): Promise<{ name: string } | null> {
+  if (!actorAccountId || !targetAccountId) return null;
+  return db.member.findFirst({
+    where: { accountId: targetAccountId, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: actorAccountId, ...JOINED } } } },
+    select: { name: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+// Do these two accounts share a group (neither a pair, not deleted, both really joined)? Anyone else can't be found by search, so can't be added by account.
+export async function sharesGroupWith(targetAccountId: string, actorAccountId: string | null | undefined): Promise<boolean> {
+  return Boolean(await sharedGroupRow(targetAccountId, actorAccountId));
 }
 
 // The name the search showed for this person: their own name, else their name in a group the two of you share.
@@ -35,15 +52,23 @@ export function inviteRowLabel(invite: { email: string; invitedById: string }, v
 export async function shownNameFor(account: { id: string; name: string }, actorAccountId: string | null | undefined): Promise<string> {
   const own = account.name.trim();
   if (own) return own;
-  if (actorAccountId) {
-    const row = await db.member.findFirst({
-      where: { accountId: account.id, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: actorAccountId, ...JOINED } } } },
-      select: { name: true },
-      orderBy: { createdAt: "asc" },
-    });
-    if (row?.name.trim()) return row.name.trim();
-  }
+  const row = await sharedGroupRow(account.id, actorAccountId);
+  if (row?.name.trim()) return row.name.trim();
   return "Someone";
+}
+
+// What the People screen says about a name that has an invitation waiting. `invites` are the open invitations for that name, newest first.
+// Someone picked from their Loopin account (`fromAccount`) never has their email shown to anyone: the person who picked them never typed it,
+// and showing it would hand over the private address of anyone they share a group with. A typed address is shown, as before, to whoever may
+// cancel the invitation (the admin and the person who sent it). Pure, so it can be tested without the screen.
+export const INVITED_ON_LOOPIN = "Invited on Loopin. Cancel the invitation if it’s the wrong person.";
+export function waitingNote(o: { invites: { fromAccount: boolean; email: string }[]; by: string; mayCancel: boolean; mayInvite: boolean }): string {
+  const fromAccount = o.invites.some((i) => i.fromAccount);
+  if (o.mayCancel && fromAccount) return INVITED_ON_LOOPIN;
+  if (o.mayCancel) {
+    return `Invited at ${o.invites[0]?.email ?? ""}. Wrong address, or they sign in with another one? Cancel the invitation${o.mayInvite ? ", or invite a different email below" : ""}.`;
+  }
+  return `Invited by ${o.by}. They can change it if the address is wrong.`;
 }
 
 // A name that isn't taken in the group yet ("Joey", then "Joey 2"…).
@@ -167,7 +192,8 @@ async function inviteOne(
   actor: Actor,
   email: string,
   wantedName: string,
-  o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later; row?: { id: string; name: string }; noAlert?: boolean },
+  // `fromAccount`: the person was picked from their Loopin account, not typed in by email (so their email is never shown on People).
+  o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later; row?: { id: string; name: string }; noAlert?: boolean; fromAccount?: boolean },
 ): Promise<{ memberId: string; eventId: string; name: string } | { error: string }> {
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email } } });
   const priorOpen = Boolean(prior && !prior.acceptedAt && !prior.declinedAt);
@@ -191,9 +217,10 @@ async function inviteOne(
     const token = kept && prior?.token && inviteMemberId(prior) === kept.id ? prior.token : newInviteToken();
     await tx.invite.upsert({
       where: { groupId_email: { groupId: group.id, email } },
-      create: { groupId: group.id, email, invitedById: actor.id, token, memberId },
+      create: { groupId: group.id, email, invitedById: actor.id, token, memberId, fromAccount: Boolean(o.fromAccount) },
       // While an invitation is open it stays with whoever sent it first; a new one (after it was closed) belongs to the new sender.
-      update: { invitedById: prior && priorOpen ? prior.invitedById : actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId },
+      // Once it is marked "from an account" it stays so while open: a typed re-invite must not show the address to the first sender, who never typed it.
+      update: { invitedById: prior && priorOpen ? prior.invitedById : actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId, fromAccount: Boolean(o.fromAccount) || Boolean(prior && priorOpen && prior.fromAccount) },
     });
     return { memberId, eventId };
   });
@@ -263,7 +290,7 @@ async function inviteBackTo(
     const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email: account.email } } });
     noAlert = Boolean(prior && !prior.acceptedAt && !prior.declinedAt && inviteMemberId(prior) === row.id);
   }
-  const r = await inviteOne(group, actor, account.email, row.name, { origin: o.origin, account, mail: o.mail && !noAlert, later: o.later, row, noAlert });
+  const r = await inviteOne(group, actor, account.email, row.name, { origin: o.origin, account, mail: o.mail && !noAlert, later: o.later, row, noAlert, fromAccount: true });
   if ("error" in r) return { ok: false, error: r.error };
   const eventId = await logEvent(db, { groupId: group.id, actorId: actor.id, kind: "member_invited", text: `invited ${row.name} back to the group` });
   return { ok: true, eventId };
@@ -280,6 +307,10 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   const account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { ok: false, error: "That person isn't on Loopin." };
   const existing = group.members.find((m) => m.accountId === accountId);
+  // Only people the actor could have found in search: someone who already has a row in THIS group (inviting a person who left back), or someone
+  // who shares another group with the actor. Anyone else gets the same reply as an account that doesn't exist, and nothing is written.
+  // (Before this, any account id from the form was accepted, and the People screen then showed that person's private email to the adder.)
+  if (!existing && !(await sharesGroupWith(accountId, actor.accountId))) return { ok: false, error: "That person isn't on Loopin." };
   if (existing && !existing.leftAt && !existing.removedAt) return { ok: false, error: `${existing.name} is already in this group.` };
   if (existing) {
     // Left on their own, or removed by the person who looks after the group: an invitation to their own row (only the admin may
@@ -292,7 +323,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   }
   const mail = await inviteMailOk(actor);
   const actorAccountId = (await db.member.findUnique({ where: { id: actorId }, select: { accountId: true } }))?.accountId;
-  const r = await inviteOne(group, actor, account.email, await shownNameFor(account, actorAccountId), { origin, account, mail, later: opts.later });
+  const r = await inviteOne(group, actor, account.email, await shownNameFor(account, actorAccountId), { origin, account, mail, later: opts.later, fromAccount: true });
   if ("error" in r) return { ok: false, error: r.error };
   return { ok: true, ...r, email: account.email };
 }

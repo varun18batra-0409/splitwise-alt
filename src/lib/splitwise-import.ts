@@ -35,6 +35,14 @@ export async function importSplitwise(
 
   const plans = rows.map(planRow);
   const net = balancesOf(plans, people.length);
+  // Checked before anything is saved: every expense's payers and shares must each add up to its amount, a payment must be a real amount
+  // between two different people, and everyone's balances together must be 0. A file that fails any of these (a name that was matched wrongly,
+  // an amount that was read wrongly) would leave the new group's balances not adding up, so it is refused instead of saved.
+  const sumOf = (xs: { a: number }[]) => xs.reduce((t, x) => t + x.a, 0);
+  const unsafe =
+    plans.some((p) => (p.type === "payment" ? !(p.amount > 0) || p.from === p.to : sumOf(p.payers) !== p.amount || sumOf(p.shares) !== p.amount)) ||
+    net.reduce((t, x) => t + x, 0) !== 0;
+  if (unsafe) return { ok: false, error: "This file couldn’t be read safely, so nothing was brought over. Check the names and amounts in it and try again." };
   const matches = parsed.expected ? parsed.expected.every((x, i) => x === net[i]) : null;
   const names = cleanNames(people);
   if (names.length !== people.length) return { ok: false, error: "Some names in this file couldn’t be used (two people with the same name?). Rename them in the other app and export again." };

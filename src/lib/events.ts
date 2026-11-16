@@ -146,7 +146,7 @@ export type UndoPayload =
   | { type: "expense_restore"; expenseId: string }
   | { type: "expense_revert"; expenseId: string; before: ExpenseState }
   | { type: "payment_delete"; paymentId: string }
-  | { type: "payment_restore"; paymentId: string }
+  | { type: "payment_restore"; paymentId: string; byReceiver?: boolean } // byReceiver: the person paid took it off, so only they can bring it back (missing on older lines)
   | { type: "group_set"; data: { name?: string; cardMarkupBp?: number; secondaryCurrency?: string; closed?: boolean; closedAt?: string | null } }
   | {
       type: "currency_restore";
@@ -192,6 +192,8 @@ export type MoveOutUndo = {
     receiverBefore: { amount: number; status: string };
     receiverAfter: { amount: number; status: string };
   };
+  // The "I've paid" notes the move-out made (the leaver, or whoever marked them out, says they paid): taken back by the undo while still waiting.
+  claims?: { id: string; fromId: string; toId: string; amount: number }[];
   // What the move-out did to the money, so the undo can take all of it back (add-only: missing = recorded before full undo existed).
   money?: {
     currency: string;

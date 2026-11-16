@@ -9,6 +9,7 @@ import { viewerDetails } from "@/lib/left-view";
 import { niceDate, rateText } from "@/lib/format";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { canUndo } from "@/lib/undo";
+import { onlyReceiverCanBringBack } from "@/lib/refused-payment";
 import { deleteExpense, removePayment, restoreExpense, restorePayment, undoChange } from "@/app/actions";
 import { SwipeRow } from "@/components/SwipeRow";
 import type { ReactNode } from "react";
@@ -233,7 +234,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       </summary>
                       <div className="mb-3 ml-[3.25rem] space-y-2 rounded-xl bg-mist p-3 text-sm text-gray-600">
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
-                        {!live && !group.closed && (
+                        {/* Not shown to anyone but the person paid, once they said "Not received" (the server refuses too). */}
+                        {!live && !group.closed && !onlyReceiverCanBringBack(item, myId) && (
                           <form action={restorePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />

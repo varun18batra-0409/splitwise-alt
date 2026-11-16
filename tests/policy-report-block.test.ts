@@ -388,6 +388,9 @@ describe("blocking: group invites", () => {
     const dev = await account(`Dev${stamp.slice(-4)}`);
     const eve = await account(`Eve${stamp.slice(-4)}`);
     await blockAccount(dev.id, t.asha.id); // Dev blocked Asha
+    // Dev and Eve share an older group with Asha (since 16 Nov only people you share a group with can be added by account).
+    const older = await db.group.create({ data: { name: `Older gi ${stamp}`, inviteCode: `rb-older-gi-${stamp}`, members: { create: [t.asha, dev, eve].map((a) => ({ name: a.name, accountId: a.id, claimedAt: new Date() })) } } });
+    groupIds.push(older.id);
     const toDev = await addRegistered(t.g.id, t.ma.id, dev.id, "https://loopin.test");
     const toEve = await addRegistered(t.g.id, t.ma.id, eve.id, "https://loopin.test");
     if (!toDev.ok || !toEve.ok) throw new Error("expected both to be added");

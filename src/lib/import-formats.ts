@@ -133,15 +133,19 @@ export function parseImport(text: string, opts: { map?: ColumnMap; currency?: st
   return { ...parseGenericCsv(text, map, opts.currency ?? d.currency), format: "generic" };
 }
 
-// Money in any common spelling: "1,234.50", "₹ 500", "$12", "-40", "(40)".
+// Money in any common spelling: "1,234.50", "₹ 500", "$12", "-40", "(40)", "Rs.500", "Rs. 500/-", "500 Rs.", "INR 1,234.50", "−40".
 export function looseAmount(raw: string, currency: string): number | null {
   let s = (raw ?? "").trim();
   if (!s) return 0;
+  s = s.replace(/^[\u2212\u2013]/, "-"); // a typographic minus or an en-dash at the start is a minus sign
+  s = s.replace(/\/-\s*$/, ""); // "500/-" (the Indian way of writing a whole-rupee amount)
   let neg = false;
   if (/^\(.*\)$/.test(s)) {
     neg = true;
     s = s.slice(1, -1);
   }
+  // Letters go together with ONE dot after them, so the "." of "Rs." is never read as a decimal point ("Rs.500" is 500, not 0.50).
+  s = s.replace(/[A-Za-z]+\.?/g, "");
   s = s.replace(/[^\d.,\-]/g, "");
   if (s.startsWith("-")) {
     neg = !neg;
@@ -194,6 +198,16 @@ export function splitNames(cell: string): string[] {
     .filter(Boolean);
 }
 
+// One way to compare names, everywhere in an import: composed Unicode, spaces trimmed and collapsed (a non-breaking space counts as a space),
+// cut to 40 characters (the longest name a person row keeps), then compared without regard to case.
+// `nameText` is the form shown (and stored); `nameKey` is what two names are compared by.
+export const nameText = (n: string) => (n ?? "").normalize("NFC").trim().replace(/\s+/g, " ").slice(0, 40).trim();
+export const nameKey = (n: string) => nameText(n).toLowerCase();
+// The whole name, for telling two different long names apart when their first 40 characters are the same.
+const fullKey = (n: string) => (n ?? "").normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase();
+const UNMATCHED = "a name couldn’t be matched";
+const SAME_NAMES = "Two people in this file have names that are the same for the first 40 letters, so Loopin can’t tell them apart. Shorten those names in the other app and export again.";
+
 function finish(people: string[], rows: SwRow[], skipped: { line: number; reason: string }[], currency: string, otherCurrencies: string[] = []): SwParsed {
   if (!people.length) return { ok: false, error: "No people were found in this file." };
   if (people.length > 50) return { ok: false, error: "Loopin groups can have up to 50 people." };
@@ -209,9 +223,11 @@ export function parseLoopinCsv(text: string): SwParsed {
   const head = table[0].map((h) => h.trim());
   const currency = /\(([A-Z]{3})\)/.exec(head[6] ?? "")?.[1] ?? "INR";
   const shareCols = head.map((x, i) => (/'s share \(/i.test(x) ? i : -1)).filter((i) => i >= 0);
-  const people = shareCols.map((i) => head[i].replace(/'s share \([A-Z]{3}\)$/i, "").trim());
+  const people = shareCols.map((i) => nameText(head[i].replace(/'s share \([A-Z]{3}\)$/i, "")));
   const statusCol = head.findIndex((x) => lower(x) === "status");
-  const index = new Map(people.map((p, i) => [p.toLowerCase(), i]));
+  // Names are matched one way (nameKey) everywhere below; two people whose names are the same by that rule can't be told apart.
+  const index = new Map(people.map((p, i) => [nameKey(p), i]));
+  if (index.size !== people.length) return { ok: false, error: SAME_NAMES };
   const rows: SwRow[] = [];
   const skipped: { line: number; reason: string }[] = [];
   table.slice(1).forEach((cells, k) => {
@@ -223,8 +239,8 @@ export function parseLoopinCsv(text: string): SwParsed {
     const nets = people.map(() => 0);
     if (type === "payment") {
       // "Asha paid Ravi": from the Paid by column, to the other name in the description.
-      const from = index.get(lower(cells[5]));
-      const rest = (cells[2] ?? "").replace(new RegExp(`^${escapeRe(cells[5] ?? "")}\\s+paid\\s+`, "i"), "").trim().toLowerCase();
+      const from = index.get(nameKey(cells[5] ?? ""));
+      const rest = nameKey((cells[2] ?? "").replace(new RegExp(`^${escapeRe(cells[5] ?? "")}\\s+paid\\s+`, "i"), ""));
       const to = index.get(rest);
       if (from === undefined || to === undefined || from === to) return skipped.push({ line, reason: "the payment’s people couldn’t be matched" });
       nets[from] += Math.abs(amount);
@@ -239,13 +255,13 @@ export function parseLoopinCsv(text: string): SwParsed {
     if (parts.length > 1) {
       for (const part of parts) {
         const m = /^(.*\S)\s+(-?[\d,]+(?:\.\d+)?)$/.exec(part.trim());
-        const i = m ? index.get(m[1].toLowerCase()) : undefined;
+        const i = m ? index.get(nameKey(m[1])) : undefined;
         const a = m ? looseAmount(m[2], currency) : null;
         if (i === undefined || a === null) return skipped.push({ line, reason: "who paid couldn’t be read" });
         nets[i] += sign * Math.abs(a);
       }
     } else {
-      const i = index.get(paidCell.toLowerCase());
+      const i = index.get(nameKey(paidCell));
       if (i === undefined) return skipped.push({ line, reason: `“${paidCell}” isn’t one of the people` });
       nets[i] += amount;
     }
@@ -296,9 +312,16 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
 
   // Everyone in the file: payers, names in the "for" column, or the share columns' names.
   const names: string[] = [];
+  const whole = new Map<string, string>(); // nameKey → the whole name, to catch two different long names with the same first 40 characters
+  let clash = false;
   const add = (n: string) => {
-    const t = n.trim().replace(/\s+/g, " ").slice(0, 40);
-    if (t && !names.some((x) => x.toLowerCase() === t.toLowerCase())) names.push(t);
+    const t = nameText(n);
+    if (!t) return;
+    const k = t.toLowerCase();
+    const full = fullKey(n);
+    if (whole.has(k) && whole.get(k) !== full) clash = true;
+    whole.set(k, whole.get(k) ?? full);
+    if (!names.some((x) => nameKey(x) === k)) names.push(t);
   };
   const shareCols = map.split === "shares" ? (map.shareCols ?? []) : [];
   const shareName = (i: number) => head[i].replace(/['’]s\b|\b(share|owes?|owed|portion|part)\b|\(.*?\)/gi, "").trim() || head[i];
@@ -308,7 +331,8 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
     for (const p of splitNames(cell(r, map.paidBy))) add(p);
     if (map.split === "column") for (const p of splitNames(cell(r, map.forCol))) add(p);
   }
-  const index = (n: string) => names.findIndex((x) => x.toLowerCase() === n.trim().toLowerCase());
+  if (clash) return { ok: false, error: SAME_NAMES };
+  const index = (n: string) => names.findIndex((x) => nameKey(x) === nameKey(n));
 
   const rows: SwRow[] = [];
   const skipped: { line: number; reason: string }[] = [];
@@ -321,8 +345,11 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
     const amount = looseAmount(cell(r, map.amount), currency);
     if (amount === null) return skipped.push({ line, reason: "the amount couldn’t be read" });
     if (amount === 0) return skipped.push({ line, reason: "no amount" });
-    const payers = splitNames(cell(r, map.paidBy)).map(index).filter((i) => i >= 0);
-    if (!payers.length) return skipped.push({ line, reason: "nobody is named as paying" });
+    const paidNames = splitNames(cell(r, map.paidBy));
+    if (!paidNames.length) return skipped.push({ line, reason: "nobody is named as paying" });
+    const payers = paidNames.map(index);
+    // A name that can't be matched is never dropped quietly (that would leave the balances not adding up): the line is left out and listed.
+    if (payers.some((i) => i < 0)) return skipped.push({ line, reason: UNMATCHED });
     const nets = names.map(() => 0);
     // Paid: shared equally between the payers named (usually one).
     spreadEqually(Math.abs(amount), payers).forEach(([i, a]) => (nets[i] += a));
@@ -333,13 +360,17 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
       for (const col of shareCols) {
         const s = looseAmount(cell(r, col), currency);
         if (s === null) return skipped.push({ line, reason: "a share couldn’t be read" });
-        nets[index(shareName(col))] -= Math.abs(s);
+        const person = index(shareName(col));
+        if (person < 0) return skipped.push({ line, reason: UNMATCHED });
+        nets[person] -= Math.abs(s);
         sum += Math.abs(s);
       }
       if (sum !== Math.abs(amount)) return skipped.push({ line, reason: "its shares don’t add up to the amount" });
     } else {
-      who = map.split === "column" ? splitNames(cell(r, map.forCol)).map(index).filter((i) => i >= 0) : names.map((_, i) => i);
-      if (!who.length) who = names.map((_, i) => i);
+      // Everyone, when the "for" cell is empty (or the split is "everyone"); otherwise exactly the people named, and every name must match.
+      const listed = map.split === "column" ? splitNames(cell(r, map.forCol)) : [];
+      who = listed.length ? listed.map(index) : names.map((_, i) => i);
+      if (who.some((i) => i < 0)) return skipped.push({ line, reason: UNMATCHED });
       spreadEqually(Math.abs(amount), who).forEach(([i, a]) => (nets[i] -= a));
     }
     const looksPayment = /payment|settle|transfer|reimburs|paid back/i.test(cell(r, map.type));

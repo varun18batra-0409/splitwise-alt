@@ -6,6 +6,7 @@ import { withRetry } from "./once";
 import { diffExpense, expenseState, itemsForState, logEvent, markUndone, parseDetails, parseUndo, touchedByExpense, UndoTaken, type UndoMark, type UndoPayload } from "./events";
 import { POT_EDIT_ERROR, setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { isGameResult } from "./pot-result";
+import { NOT_RECEIVED_TEXT_START, receiverOnlyText } from "./refused-payment";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
 import { isPairGroup, PAIR_NO_PEOPLE } from "./direct-guard";
@@ -189,6 +190,12 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): stri
     const holder = payload.members.find((m) => m.accountId);
     if (holder && ev.actorId !== actorId) return `Only the person who made that change can undo it. You can add ${holder.name} again with Add people.`;
     if (holder && !putBackOpen(ev.createdAt, now)) return lateRecreateText(holder.name);
+  }
+  // The person paid said "Not received" (or deleted the payment themselves): only they can bring it back, so nobody can overrule them.
+  // Lines written before the flag existed are recognised by their words. (The server also reads the payment itself: setPaymentDeleted.)
+  if (payload.type === "payment_restore" && ev.actorId !== actorId) {
+    const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START)));
+    if (byReceiver) return receiverOnlyText(find(ev.actorId ?? "")?.name ?? "the person who was paid");
   }
   // A closed group refuses these undos on the server (reopen it first), so the screen never offers them.
   if (payload.type === "member_set" && payload.moveOut && payload.data.leftAt === null && viewer.closed) return CLOSED_MOVE_OUT_TEXT;
