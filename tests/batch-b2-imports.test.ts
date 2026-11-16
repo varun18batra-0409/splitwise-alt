@@ -40,7 +40,7 @@ describe("LM-3: one clear number per cell", () => {
     expect(looseAmount("12/03", "INR")).toBeNull(); // was 1203
     expect(looseAmount("1.234", "INR")).toBeNull(); // 1.234 or 1,234? Not guessed
     expect(looseAmount("1,2,3", "INR")).toBeNull();
-    expect(looseAmount("1 234", "INR")).toBeNull();
+    expect(looseAmount("1 23", "INR")).toBeNull(); // a group of 2 after a space is not thousands
   });
   it("what was already read stays read: typographic minus, Rs., brackets, Indian grouping, zeros after the point in yen", () => {
     expect(looseAmount("−40", "EUR")).toBe(-4000); // U+2212
@@ -264,5 +264,109 @@ describe("LM-7: guessing categories is fast and gives the same answers", () => {
     const t0 = Date.now();
     for (let i = 0; i < 5000; i++) guessCategory(`${w[i % 10]} ${w[(i * 7) % 10]} ${i}`);
     expect(Date.now() - t0).toBeLessThan(12_000);
+  });
+});
+
+// ---- Review follow-ups (five Low items) ----
+
+describe("follow-up 1: spellings that used to be read are read again", () => {
+  it("'+500', 'INR Rs 500', '500.000', '1 234,56' (EUR), '1 234', non-breaking space, and \"1'234.50\"", () => {
+    expect(looseAmount("+500", "INR")).toBe(50000);
+    expect(looseAmount("Rs +500", "INR")).toBe(50000);
+    expect(looseAmount("INR Rs 500", "INR")).toBe(50000);
+    expect(looseAmount("₹ Rs. 500 INR", "INR")).toBe(50000);
+    expect(looseAmount("500.000", "INR")).toBe(50000);
+    expect(looseAmount("500.000", "JPY")).toBe(500);
+    expect(looseAmount("500.001", "INR")).toBeNull(); // a real digit past the decimals is never dropped
+    expect(looseAmount("1 234,56", "EUR")).toBe(123456);
+    expect(looseAmount("1\u00a0234,56", "EUR")).toBe(123456);
+    expect(looseAmount("1 234", "INR")).toBe(123400); // groups of exactly 3: one thousand two hundred thirty-four
+    expect(looseAmount("12 345 678.50", "INR")).toBe(1234567850);
+    expect(looseAmount("1'234.50", "CHF")).toBe(123450);
+    expect(looseAmount("1’234’567", "INR")).toBe(123456700);
+    expect(looseAmount("1 2345", "INR")).toBeNull(); // not groups of 3
+    expect(looseAmount("1'23.50", "CHF")).toBeNull();
+  });
+});
+
+describe("follow-up 2: a word after the number is never dropped silently", () => {
+  it("'1.5k', '2 lakh' and '12 USD' in a rupee file can't be read; the file's own currency words are fine", () => {
+    expect(looseAmount("1.5k", "INR")).toBeNull();
+    expect(looseAmount("2 lakh", "INR")).toBeNull();
+    expect(looseAmount("12 USD", "INR")).toBeNull();
+    expect(looseAmount("$12", "INR")).toBeNull();
+    expect(looseAmount("12 USD", "USD")).toBe(1200);
+    expect(looseAmount("500 Rs.", "INR")).toBe(50000);
+    expect(looseAmount("500 INR", "INR")).toBe(50000);
+    expect(looseAmount("12 EUR", "EUR")).toBe(1200);
+  });
+  it("in a file the three lines are skipped with a reason and the clean line imports", () => {
+    const p = ok("Title,Amount,Paid by,Paid for\nA,1.5k,Asha,Ravi\nB,2 lakh,Asha,Ravi\nC,12 USD,Asha,Ravi\nD,100 INR,Asha,Ravi\n");
+    expect(p.skipped).toEqual([2, 3, 4].map((line) => ({ line, reason: "the amount couldn’t be read" })));
+    expect(checked(p)).toEqual({ Asha: 10000, Ravi: -10000 });
+  });
+});
+
+describe("follow-up 3: the quick line takes the first number once counts and years are set aside", () => {
+  const M = [{ id: "me", name: "Varun" }, { id: "r", name: "Ravi" }];
+  const amt = (t: string) => parseQuickLine(t, M, "me").amount;
+  it("the four cases", () => {
+    expect(amt("Train 1500 12951")).toBe("1500");
+    expect(amt("Lunch 300 Goa 2026")).toBe("300");
+    expect(amt("Dinner for 4 2400")).toBe("2400");
+    expect(amt("2 beers 600 Ravi paid")).toBe("600");
+  });
+  it("other counts, years, and a sign", () => {
+    expect(amt("Cab 150 x 4")).toBe("150");
+    expect(amt("Tickets 3 people 900")).toBe("900");
+    expect(amt("Dinner 2000")).toBe("2000"); // a lone year-like number is still the amount
+    expect(amt("Dinner 2024 for 2")).toBe("2024");
+    expect(amt("Cab for 3 ₹240 1.2k")).toBe("240");
+  });
+});
+
+describe("follow-up 4: a deleted line shows payer names only", () => {
+  const members = [{ id: "me", name: "Varun" }, { id: "a", name: "Asha" }];
+  const split = JSON.stringify([{ m: "a", a: 200000 }, { m: "me", a: 100000 }]);
+  const exp = (description: string, deletedAt: Date | null) => ({
+    description, category: "food", amount: 300000, paidById: "a", payers: split, originalAmount: 120000, originalCurrency: "THB", exchangeRate: "2.5", markupAmount: 500, paymentMethod: "",
+    createdAt: new Date("2026-10-01T10:00:00Z"), spentAt: null, deletedAt, shares: [{ memberId: "me", amount: 150000 }, { memberId: "a", amount: 150000 }],
+  });
+  it("group spreadsheet: 'Asha + Varun' with no amounts, no original currency or rate; the live line keeps its amounts", () => {
+    const csv = groupCsv({ name: "Goa", currency: "INR" }, members, [exp("Live", null), exp("Gone", new Date())], []);
+    const rows = readCsv(csv.slice(1)).filter((r) => r.length > 1).slice(1);
+    const live = rows.find((r) => r[2] === "Live")!, gone = rows.find((r) => r[2] === "Gone")!;
+    expect(live[5]).toBe("Asha 2000.00 + Varun 1000.00");
+    expect(live[8]).toBe("THB");
+    expect(gone[5]).toBe("Asha + Varun");
+    expect([gone[6], gone[7], gone[8], gone[9], gone[10]]).toEqual(["", "", "", "", ""]);
+    expect(gone[3]).toBe("Deleted (it was 3000.00)");
+  });
+  it("'all my data': same, and bringing the file back in still skips the deleted line", () => {
+    const csv = myDataCsv(null, [{ name: "Goa", currency: "INR", type: "trip", closed: false, myId: "me", members, expenses: [exp("Live", null), exp("Gone", new Date())], payments: [] }], new Date("2026-10-05T10:00:00Z"));
+    const gone = readCsv(csv.slice(1)).find((r) => r[4] === "Gone")!;
+    expect(gone[7]).toBe("Asha + You");
+    expect([gone[8], gone[10], gone[11], gone[12], gone[13]]).toEqual(["", "", "", "", ""]);
+    const p = ok(groupCsv({ name: "Goa", currency: "INR" }, members, [exp("Live", null), exp("Gone", new Date())], []));
+    expect(p.rows.map((r) => r.description)).toEqual(["Live"]);
+    expect(p.skipped).toEqual([{ line: 3, reason: "it was deleted" }]);
+    // Live: Asha paid 2000.00 + Varun 1000.00 of 3000.00, shares 1500.00 each → Asha +50000, Varun −50000 (paise: 200000−150000, 100000−150000)
+    expect(checked(p)).toEqual({ Varun: -50000, Asha: 50000 });
+  });
+});
+
+describe("follow-up 5: a bracket that is a name, not a currency", () => {
+  it("'Share (ANN)' and 'Share (BOB)' with payers ANN and BOB: 2 people; ANN paid 100.00, 50.00 each → ANN +5000, BOB −5000", () => {
+    const p = ok("Title,Amount,Paid by,Share (ANN),Share (BOB)\nDinner,100,ANN,50,50\nCab,40,BOB,20,20\n");
+    expect(p.people).toEqual(["ANN", "BOB"]);
+    expect(p.rows[0].nets).toEqual([5000, -5000]);
+    // Cab 40.00 paid by BOB: BOB +2000, ANN −2000 → ANN 5000−2000, BOB −5000+2000
+    expect(checked(p)).toEqual({ ANN: 3000, BOB: -3000 });
+  });
+  it("a bracket that isn't a currency Loopin knows is a name even when nobody paid under it; a real currency in brackets still isn't", () => {
+    const p = ok("Title,Amount,Paid by,Share (Zed),Share (Qui)\nDinner,100,Zed,50,50\n");
+    expect(p.people).toEqual(["Zed", "Qui"]);
+    const q = ok("Title,Amount,Paid by,Asha's share (INR),Ravi's share (INR)\nDinner,100,Asha,50,50\n");
+    expect(q.people).toEqual(["Asha", "Ravi"]);
   });
 });

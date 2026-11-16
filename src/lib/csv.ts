@@ -81,7 +81,8 @@ export function groupCsv(
   // One payer: their name. Several: each with their part ("You 2000.00 + Asha 1000.00").
   const paidByCell = (e: Expense) => {
     const list = payersOf(e);
-    return list.length > 1 ? list.map((p) => `${name(p.memberId)} ${plain(p.amount, cur)}`).join(" + ") : name(list[0].memberId);
+    // A deleted line shows who paid, never how much (the amounts would add spending that was taken back).
+    return list.length > 1 ? list.map((p) => (e.deletedAt ? name(p.memberId) : `${name(p.memberId)} ${plain(p.amount, cur)}`)).join(" + ") : name(list[0].memberId);
   };
   const header = [
     "Date", "Type", "Description", "Notes", "Category", "Paid by", `Amount (${cur})`,
@@ -98,7 +99,7 @@ export function groupCsv(
       cells: [
         dayKey(date, tz), typeLabel(e.kind), e.description, wasNote(e.notes ?? "", sign(e) * e.amount, !!e.deletedAt), getCategory(e.category).label, paidByCell(e),
         e.deletedAt ? "" : plain(sign(e) * e.amount, cur),
-        foreign && !e.deletedAt ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
+        foreign && !e.deletedAt ? plain(e.originalAmount, e.originalCurrency) : "", foreign && !e.deletedAt ? e.originalCurrency : "", foreign && !e.deletedAt ? e.exchangeRate : "",
         e.markupAmount && !e.deletedAt ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
         ...cols.map((m) => {
           const s = e.shares.find((x) => x.memberId === m.id);
@@ -225,9 +226,9 @@ export function myDataCsv(
         cells: [
           g.name, g.type, dayKey(date, tz), typeLabel(e.kind), e.description,
           gone ? [e.notes ?? "", `Deleted (it was ${plain(sign * e.amount, cur)})`].filter(Boolean).join(" · ") : (e.notes ?? ""), getCategory(e.category).label,
-          list.length > 1 ? list.map((p) => `${name(p.memberId)} ${plain(p.amount, cur)}`).join(" + ") : name(list[0].memberId),
+          list.length > 1 ? list.map((p) => (gone ? name(p.memberId) : `${name(p.memberId)} ${plain(p.amount, cur)}`)).join(" + ") : name(list[0].memberId),
           gone ? "" : plain(sign * e.amount, cur), cur, !gone && mine ? plain(sign * mine, cur) : "", gone ? "" : plain(sign * (paidMine - mine), cur),
-          foreign && !gone ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", status(e.deletedAt),
+          foreign && !gone ? plain(e.originalAmount, e.originalCurrency) : "", foreign && !gone ? e.originalCurrency : "", status(e.deletedAt),
         ],
       });
     }

@@ -137,8 +137,10 @@ export function parseImport(text: string, opts: { map?: ColumnMap; currency?: st
 // One clear number only: a cell with anything else mixed into the digits ("500 x 2", "1e3", "12/03", "1 2"), a thousands grouping that
 // doesn't make sense ("1,2,3"), or more decimals than the currency has ("1,234.567", "1.234") is NOT read (null), so the line is skipped
 // and listed rather than turned into a different number. Zeros after the point are fine ("500.00" in yen).
-const EDGE_START = /^[\s₹$£€¥￥฿]*(?:[A-Za-z]+\.?)?[\s₹$£€¥￥฿]*/;
-const EDGE_END = /[\s₹$£€¥￥฿]*(?:[A-Za-z]+\.?)?[\s₹$£€¥￥฿]*$/;
+// Currency words and signs are taken off the two ends of the cell, as many as are written ("INR Rs 500"), but only ones that mean THIS file's
+// currency: "12 USD" in a rupee file, "2 lakh" and "1.5k" are not read (the cell is then not a number, so the line is skipped and listed).
+const TOKEN_START = /^\s*([A-Za-z]*[₹$£€¥￥฿]|[A-Za-z]+\.?)\s*/;
+const TOKEN_END = /\s*([A-Za-z]*[₹$£€¥￥฿]|[A-Za-z]+\.?)\s*$/;
 export function looseAmount(raw: string, currency: string): number | null {
   let s = (raw ?? "").trim();
   if (!s) return 0;
@@ -149,23 +151,34 @@ export function looseAmount(raw: string, currency: string): number | null {
     neg = true;
     s = s.slice(1, -1);
   }
-  // A currency word or sign is only taken off the two ends of the cell (with ONE dot after a word, so the "." of "Rs." is never a decimal
-  // point: "Rs.500" is 500, not 0.50). Letters between digits ("1e3", "500 x 2") stay, and the cell is then not a number.
-  const edges = (x: string) => x.replace(EDGE_START, "").replace(EDGE_END, "");
+  // One dot after a word is part of the word, so the "." of "Rs." is never a decimal point ("Rs.500" is 500, not 0.50).
+  const mine = (tok: string) => {
+    const t = tok.trim();
+    return currencyCell(t, currency).code === currency || currencyCell(t.replace(/\.$/, ""), currency).code === currency;
+  };
+  const edges = (x: string) => {
+    for (let m = TOKEN_START.exec(x); m && mine(m[1]); m = TOKEN_START.exec(x)) x = x.slice(m[0].length);
+    for (let m = TOKEN_END.exec(x); m && mine(m[1]); m = TOKEN_END.exec(x)) x = x.slice(0, m.index);
+    return x.trim();
+  };
   s = edges(s);
-  if (/^[-\u2212\u2013]/.test(s)) {
-    neg = !neg;
+  const sign = /^[-+\u2212\u2013]/.exec(s)?.[0];
+  if (sign) {
+    if (sign !== "+") neg = !neg;
     s = edges(s.slice(1));
   }
   if (/^\.\d+$/.test(s)) s = `0${s}`;
+  // "1 234,56" / "1 234.50" (a space, or a non-breaking space, between groups of exactly 3) and "1'234.50" (an apostrophe between groups of 3).
+  const grouped = /^(\d{1,3}(?:[ \u00a0\u202f'’]\d{3})+)(?:,(\d{1,2})|\.(\d+))?$/.exec(s);
+  if (grouped) s = grouped[1].replace(/[ \u00a0\u202f'’]/g, "") + (grouped[2] !== undefined ? `.${grouped[2]}` : grouped[3] !== undefined ? `.${grouped[3]}` : "");
   // "1.234,50" (comma decimals) → "1234.50"; otherwise commas are thousands, in groups of 3 (1,234,567) or the Indian way (12,34,567).
-  if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(s) || /^\d+,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(s) || /^\d+,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
   else if (/^(\d+|\d{1,3}(,\d{3})+|\d{1,2}(,\d{2})+,\d{3})(\.\d+)?$/.test(s)) s = s.replace(/,/g, "");
   else return null;
   const d = decimalsOf(currency);
   const [whole, frac = ""] = s.split(".");
-  // More decimals than the currency has can't be placed without rounding: only up to two zeros ("500.00") are let through.
-  if (frac.length > d && !(frac.length <= 2 && /^0+$/.test(frac.slice(d)))) return null;
+  // More decimals than the currency has can't be placed without rounding: only zeros past the currency's own decimals ("500.000", "500.00" in yen) are let through.
+  if (frac.length > d && !/^0+$/.test(frac.slice(d))) return null;
   const v = Number(whole + frac.slice(0, d).padEnd(d, "0"));
   if (!Number.isSafeInteger(v) || v > MAX_MINOR) return null;
   return v === 0 ? 0 : neg ? -v : v;
@@ -344,13 +357,16 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   };
   const shareCols = map.split === "shares" ? (map.shareCols ?? []) : [];
   // "Asha's share" → Asha, "Owes Asha" → Asha, "Share (Asha)" → Asha (a name in brackets counts when nothing else names the person).
+  const payerKeys = new Set(body.flatMap((r) => splitNames(cell(r, map.paidBy)).map(nameKey)));
+  // A 3-letter bracket is a currency ("Asha's share (INR)") unless it is a payer's name or isn't a currency Loopin knows ("Share (ANN)").
+  const isCurrencyWord = (x: string) => /^[A-Za-z]{3}$/.test(x) && isSupportedCurrency(x.toUpperCase()) && !payerKeys.has(nameKey(x));
   const shareName = (i: number) => {
     const h = head[i] ?? "";
     const words = (x: string) => x.replace(/['’]s\b|\b(share|owes?|owed|portion|part)\b/gi, "").replace(/\s+/g, " ").trim();
     const outside = words(h.replace(/\(.*?\)/g, ""));
     if (outside) return outside;
     const inside = words(/\(([^)]*)\)/.exec(h)?.[1] ?? "");
-    return inside && !/^[A-Z]{3}$/.test(inside) ? inside : h;
+    return inside && !isCurrencyWord(inside) ? inside : h;
   };
   for (const i of shareCols) add(shareName(i));
   for (const r of body) {
