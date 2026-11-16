@@ -225,10 +225,12 @@ export const hasHistory = (e: DirectEntry): boolean => e.expenseCount > 0 || e.p
 
 // ---- Inviting someone you added by name ----
 
+export const ALREADY_SHARE = "You already share expenses with the person who has this email. Open them from Settle up or the + button.";
+
 export type InviteReply = { ok: true; email: string } | { ok: false; error: string };
 
-// Only the account holder of a name-only pair, and only while the other row is still a name. The reply is the same whether or not
-// the email is on Loopin, is your own, or belongs to someone you already share a pair with (in those cases nothing is written or sent).
+// Only the account holder of a name-only pair, and only while the other row is still a name. Your own email, or the email of someone
+// you already share a pair with, is refused in plain words (nothing is written or sent). Any other email, on Loopin or not, sends the same way.
 export async function inviteDirectPerson(
   groupId: string,
   actorId: string,
@@ -244,22 +246,17 @@ export async function inviteDirectPerson(
   const row = group.members.find((m) => m.id !== actorId);
   if (!actor?.accountId || !row) return { ok: false, error: "Only the person who added this name can invite them." };
   if (row.accountId || row.claimedAt || row.removedAt) return { ok: false, error: `${row.name} is already on Loopin.` };
-  if (!(await inviteMailOk({ id: actor.id, accountId: actor.accountId }))) {
-    return { ok: false, error: `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Try again tomorrow.` };
-  }
   const me = await db.account.findUnique({ where: { id: actor.accountId }, select: { id: true, email: true, name: true } });
   if (!me) return { ok: false, error: "Sign in to invite." };
-  const theirs = await db.account.findUnique({ where: { email }, select: { id: true } });
-  // Your own email: said plainly (that tells nobody anything).
+  // Your own email: said plainly.
   if (email === me.email.toLowerCase()) return { ok: false, error: "That’s your own email. Type theirs." };
-  // Someone you already share a pair with: looks exactly like a normal send (the person's page shows "Invitation sent to …" and can
-  // cancel it), but nothing is invited or sent. Only a small note of the address is kept for that page (see openInviteEmail).
+  // Someone you already share a pair with: said plainly too. Nothing is written, invited or sent, and it uses none of the day's email allowance.
+  const theirs = await db.account.findUnique({ where: { email }, select: { id: true } });
   if (theirs && (await db.group.findUnique({ where: { pairKey: accountPairKey(me.id, theirs.id) }, select: { id: true } }))) {
-    await db.$transaction([
-      db.invite.updateMany({ where: { groupId, memberId: row.id, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
-      db.requestKey.upsert({ where: { key: decoyKey(groupId, row.id) }, create: { key: decoyKey(groupId, row.id), result: email }, update: { result: email, createdAt: new Date() } }),
-    ]);
-    return { ok: true, email };
+    return { ok: false, error: ALREADY_SHARE };
+  }
+  if (!(await inviteMailOk({ id: actor.id, accountId: actor.accountId }))) {
+    return { ok: false, error: `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Try again tomorrow.` };
   }
 
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId, email } } });
@@ -273,7 +270,6 @@ export async function inviteDirectPerson(
       create: { groupId, email, invitedById: actor.id, token, memberId: row.id },
       update: { invitedById: actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId: row.id },
     }),
-    db.requestKey.deleteMany({ where: { key: decoyKey(groupId, row.id) } }),
   ]);
 
   const actorName = actor.name;
@@ -296,18 +292,14 @@ export async function inviteDirectPerson(
   return { ok: true, email };
 }
 
-// The address shown as "Invitation sent to …" on the person's page: the open invitation, or the note kept when the address was
-// someone you already share with (so both look the same).
-const decoyKey = (groupId: string, rowId: string) => `direct-decoy:${groupId}:${rowId}`;
-
+// The address shown as "Invitation sent to …" on the person's page: the open invitation, if any.
 export async function openInviteEmail(groupId: string, rowId: string): Promise<string | null> {
   const real = await db.invite.findFirst({ where: { groupId, memberId: rowId, acceptedAt: null, declinedAt: null }, select: { email: true } });
-  if (real) return real.email;
-  return (await db.requestKey.findUnique({ where: { key: decoyKey(groupId, rowId) }, select: { result: true } }))?.result || null;
+  return real?.email ?? null;
 }
 
 // "Cancel invitation" on a pair, so a mistyped address can be fixed. Only a member of the pair who has an account; the other row must
-// still be a name. Closes every open invitation for it and drops the note. Balances and history are not touched; nothing is logged.
+// still be a name. Closes every open invitation for it. Balances and history are not touched; nothing is logged.
 export async function cancelDirectInvite(groupId: string, actorId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt || group.type !== DIRECT) return { ok: false, error: "This isn’t there any more." };
@@ -317,7 +309,6 @@ export async function cancelDirectInvite(groupId: string, actorId: string): Prom
   if (row.accountId || row.claimedAt || row.removedAt) return { ok: false, error: `${row.name} is already on Loopin.` };
   await db.$transaction([
     db.invite.updateMany({ where: { groupId, memberId: row.id, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
-    db.requestKey.deleteMany({ where: { key: decoyKey(groupId, row.id) } }),
   ]);
   return { ok: true };
 }

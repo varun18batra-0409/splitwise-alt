@@ -98,6 +98,8 @@ export async function inviteDirect(formData: FormData) {
   if (!myId) redirect("/private");
   const { origin, ip } = await originOf();
   if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/people/${groupId}?${new URLSearchParams({ error: "Too many invites from here. Wait a bit." })}`);
-  const r = await inviteDirectPerson(groupId, myId, field(formData, "email"), origin, (job) => after(job));
-  redirect(`/people/${groupId}?${new URLSearchParams(r.ok ? { invited: "1" } : { error: r.error })}`);
+  const typed = field(formData, "email");
+  const r = await inviteDirectPerson(groupId, myId, typed, origin, (job) => after(job));
+  // A refusal shows under the email field (with what was typed still in it), not as a banner.
+  redirect(`/people/${groupId}?${new URLSearchParams(r.ok ? { invited: "1" } : { inviteError: r.error, email: typed.trim().slice(0, 200) })}`);
 }

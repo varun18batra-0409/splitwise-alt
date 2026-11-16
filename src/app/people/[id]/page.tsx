@@ -31,7 +31,7 @@ import { STALE_KEY_ERROR } from "@/lib/once";
 // Only the two of you can open it (a name nobody else has joined is visible to its owner alone). It never mentions any group.
 const SHEET_NOTE = "This records a payment made outside Loopin. No money will be transferred.";
 
-type SP = { settle?: string; paid?: string; ok?: string; notgot?: string; invited?: string; error?: string; did?: string; undone?: string; open?: string; n?: string; tab?: string };
+type SP = { settle?: string; paid?: string; ok?: string; notgot?: string; invited?: string; inviteError?: string; email?: string; error?: string; did?: string; undone?: string; open?: string; n?: string; tab?: string };
 
 export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const { id } = await params;
@@ -238,14 +238,19 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               </form>
             </div>
           ) : (
-            <details>
+            <details open={Boolean(sp.inviteError)}>
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[15px] font-medium [&::-webkit-details-marker]:hidden">
                 Invite {name} by email
                 <span aria-hidden className="text-fg/60">›</span>
               </summary>
               <form action={inviteDirect} className="mt-2 space-y-3">
                 <input type="hidden" name="groupId" value={group.id} />
-                <input name="email" type="email" inputMode="email" required maxLength={200} placeholder="name@example.com" aria-label={`${name}'s email`} autoComplete="off" className={inputClass} />
+                <input name="email" type="email" inputMode="email" required maxLength={200} placeholder="name@example.com" aria-label={`${name}'s email`} autoComplete="off" defaultValue={sp.inviteError ? (sp.email ?? "").slice(0, 200) : ""} aria-invalid={sp.inviteError ? true : undefined} aria-describedby={sp.inviteError ? "invite-error" : undefined} className={inputClass} />
+                {sp.inviteError && (
+                  <p id="invite-error" role="alert" className="text-[14px] leading-snug text-fg" data-invite-error>
+                    {sp.inviteError.slice(0, 300)}
+                  </p>
+                )}
                 <p className="text-[13.5px] leading-snug text-fg/60">They’ll see your shared expenses once they join. Until then only you can.</p>
                 <button type="submit" className="min-h-11 w-full rounded-full border border-fg/25 text-[15px] font-semibold active:bg-fg/10">
                   Send invitation

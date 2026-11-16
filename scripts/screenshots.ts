@@ -274,6 +274,7 @@ if (!desktop && !hosted) {
     for (const w of [390, 320] as const) {
       await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
       for (const [n, path] of [
+        ["home", "/"],
         ["choice", "/add"],
         ["picker", "/add/person"],
         ["add", `/groups/${pair.groupId}/add`],

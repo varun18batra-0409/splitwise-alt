@@ -66,17 +66,23 @@ describe("inviting and accepting", () => {
     expect((await db.invite.findUnique({ where: { id: invites[0].id } }))!.acceptedAt).not.toBeNull();
   });
 
-  it("16. someone you already share a pair with: the same reply, no invitation, no mail", async () => {
+  it("16. someone you already share a pair with: refused in plain words, no invitation, no mail, no note; a stranger still sends", async () => {
     const a = await made("ja", "Asha");
     const d = await made("jd", "Dee");
+    const s2 = await made("js", "Stranger");
     await mkSharedGroup("jd", [{ id: a.id, name: "Asha" }, { id: d.id, name: "Dee" }]);
     const real = await ensureAccountPair({ id: a.id }, d.id, { currency: "INR", myName: "Asha" });
     const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
     if (!real.ok || !local.ok) throw new Error("refused");
     const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
-    expect(r.ok).toBe(true);
+    expect(r).toEqual({ ok: false, error: "You already share expenses with the person who has this email. Open them from Settle up or the + button." });
     expect(await db.invite.count({ where: { groupId: local.groupId } })).toBe(0);
     expect(await mailTo(d.email)).toBe(0);
+    expect(await db.requestKey.count({ where: { key: { startsWith: "direct-decoy:" } } })).toBe(0);
+    // Someone on Loopin you share no pair with: a normal send (one invitation, one mail).
+    expect((await inviteDirectPerson(local.groupId, local.myId, s2.email, origin)).ok).toBe(true);
+    expect(await db.invite.count({ where: { groupId: local.groupId } })).toBe(1);
+    expect(await mailTo(s2.email)).toBe(1);
   });
 
   it("inviting yourself says so plainly (that tells nobody anything) and writes nothing", async () => {

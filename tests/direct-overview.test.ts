@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // Home and Settle with a pair beside a group. Hand-worked (paise):
 //   Pair P (Asha and Rohan): Asha paid 120000, equal -> Rohan owes Asha 60000.
 //   Group G (Asha and Rohan): Rohan paid 80000, equal -> Asha owes Rohan 40000.
-// Never netted: Home's switch on shows "owed ₹600" and "owe ₹400" as two lines (net +₹200 in total, never the one line "₹200").
+// Home always counts pairs (founder decision, 16 Nov). Never netted: Home shows "owed ₹600" and "owe ₹400" as two lines (net +₹200 in total, never the one line "₹200").
 // A rupee pair and a dollar pair with no saved rate are never added together.
 vi.mock("@/lib/rate-cache", async (orig) => ({ ...(await orig<typeof import("@/lib/rate-cache")>()), displayRate: async () => ({ ok: false, message: "no rate" }) }));
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
@@ -12,7 +12,7 @@ const { db } = await import("@/lib/db");
 const { loadOverview } = await import("@/lib/overview");
 const { ensureAccountPair } = await import("@/lib/direct-db");
 const { settleAcrossCore } = await import("@/lib/cross-settle-db");
-const { moneyPeople, pairPeopleGroup } = await import("@/lib/home/money-card");
+const { moneyPeople, pairPeopleGroup, moneyMode } = await import("@/lib/home/money-card");
 const { loadGroupView } = await import("@/lib/group-data");
 const { mkAccount, mkSharedGroup, addExpense, wipe, stamp } = await import("./helpers/direct-fixtures");
 
@@ -21,7 +21,8 @@ let G = { id: "", a: "", r: "" };
 let pair = { groupId: "", aRow: "", rRow: "" };
 let xPair = { groupId: "", aRow: "" }, yPair = { groupId: "", aRow: "" };
 let a2 = "";
-const save = process.env.HOME_INCLUDES_DIRECT;
+let S = "", K = "", T = "";
+let sPair = { groupId: "", aRow: "" }, sGroup = { id: "", a: "" }, tPair = { groupId: "", aRow: "" }, tGroup = { id: "", a: "" };
 
 beforeAll(async () => {
   A = (await mkAccount("oa", "Asha")).id;
@@ -47,18 +48,35 @@ beforeAll(async () => {
   yPair = { groupId: py.groupId, aRow: py.myId };
   await addExpense(px.groupId, { paidBy: px.myId, amount: 120000, shares: { [px.myId]: 60000, [px.otherId]: 60000 } });
   await addExpense(py.groupId, { paidBy: py.otherId, amount: 5000, currency: "USD", shares: { [py.myId]: 2500, [py.otherId]: 2500 } });
+
+  // Sam: Kabir owes Sam 2291600 in a group (Sam paid 4583200, equal) and Sam owes Rohan 60000 directly (Rohan paid 120000, equal).
+  S = (await mkAccount("os", "Sam")).id;
+  K = (await mkAccount("ok", "Kabir")).id;
+  const gk = await mkSharedGroup("ok", [{ id: S, name: "Sam" }, { id: K, name: "Kabir" }]);
+  sGroup = { id: gk.id, a: gk.memberOf(S) };
+  await addExpense(gk.id, { paidBy: gk.memberOf(S), amount: 4583200, shares: { [gk.memberOf(S)]: 2291600, [gk.memberOf(K)]: 2291600 } });
+  const ps = await ensureAccountPair({ id: S }, R, { currency: "INR", myName: "Sam" });
+  if (!ps.ok) throw new Error("refused");
+  sPair = { groupId: ps.groupId, aRow: ps.myId };
+  await addExpense(ps.groupId, { paidBy: ps.otherId, amount: 120000, shares: { [ps.myId]: 60000, [ps.otherId]: 60000 } });
+
+  // Tara: her only group with Rohan is all settled (no money), and she owes Rohan 60000 directly.
+  T = (await mkAccount("ot", "Tara")).id;
+  const gt = await mkSharedGroup("ot", [{ id: T, name: "Tara" }, { id: R, name: "Rohan" }]);
+  tGroup = { id: gt.id, a: gt.memberOf(T) };
+  const pt = await ensureAccountPair({ id: T }, R, { currency: "INR", myName: "Tara" });
+  if (!pt.ok) throw new Error("refused");
+  tPair = { groupId: pt.groupId, aRow: pt.myId };
+  await addExpense(pt.groupId, { paidBy: pt.otherId, amount: 120000, shares: { [pt.myId]: 60000, [pt.otherId]: 60000 } });
 });
 afterAll(async () => {
-  if (save === undefined) delete process.env.HOME_INCLUDES_DIRECT;
-  else process.env.HOME_INCLUDES_DIRECT = save;
-  await wipe([A, R, a2, X, Y]);
+  await wipe([A, R, a2, X, Y, S, K, T]);
 });
 
 const mine = () => ({ [G.id]: G.a, [pair.groupId]: pair.aRow });
 
 describe("a pair beside a group", () => {
   it("10. the pair is its own entry; the group lists, Settle's group items and the group's own money stay the group's", async () => {
-    delete process.env.HOME_INCLUDES_DIRECT;
     const o = await loadOverview(mine());
     expect(o.all.map((g) => g.group.id)).toEqual([G.id]);
     expect(o.open.map((g) => g.group.id)).toEqual([G.id]);
@@ -69,24 +87,38 @@ describe("a pair beside a group", () => {
     expect(o.settleItems[0].parts.map((p) => p.groupId)).toEqual([G.id]);
   });
 
-  it("11. switch off: Home is the groups' own numbers; switch on: two lines, never one", async () => {
-    delete process.env.HOME_INCLUDES_DIRECT;
-    const off = await loadOverview(mine());
-    expect(off.owedLines).toEqual([]);
-    expect(off.oweLines).toEqual(["₹400"]);
-    expect(off.netCommon).toEqual({ value: -40000, converted: false });
-
-    process.env.HOME_INCLUDES_DIRECT = "1";
+  it("11. Home counts the pair: two lines (owed ₹600, owe ₹400), never one netted line", async () => {
     const on = await loadOverview(mine());
-    expect(on.owedLines).toEqual(["₹600"]);
-    expect(on.oweLines).toEqual(["₹400"]);
-    expect(on.netCommon).toEqual({ value: 20000, converted: false });
-    expect(on.settleItems).toHaveLength(1); // Smart Settle across groups never sees the pair, switch or no switch
+    expect(on.owedLines).toEqual(["₹600"]); // the pair, counted once
+    expect(on.oweLines).toEqual(["₹400"]); // the group, counted once
+    expect(on.netCommon).toEqual({ value: 20000, converted: false }); // 60000 - 40000
+    expect(on.settleItems).toHaveLength(1); // Smart Settle across groups never sees the pair
     expect(on.settleItems[0].net).toBe(-40000);
   });
 
+  it("11b. a pair and a group with different people: each counted once (Kabir 2291600 in a group, owe Rohan 60000 directly)", async () => {
+    const o = await loadOverview({ [sGroup.id]: sGroup.a, [sPair.groupId]: sPair.aRow });
+    expect(o.owedLines).toEqual(["₹22,916"]);
+    expect(o.oweLines).toEqual(["₹600"]);
+    expect(o.netCommon).toEqual({ value: 2231600, converted: false }); // 2291600 - 60000
+  });
+
+  it("11c. groups all settled, owe Rohan 60000 directly: the card is 'owe' ₹600, never square", async () => {
+    const o = await loadOverview({ [tGroup.id]: tGroup.a, [tPair.groupId]: tPair.aRow });
+    expect(o.oweLines).toEqual(["₹600"]);
+    expect(o.owedLines).toEqual([]);
+    expect(o.netCommon).toEqual({ value: -60000, converted: false });
+    expect(moneyMode({ owedLines: o.owedLines.length, oweLines: o.oweLines.length, netValue: o.netValue })).toBe("owe");
+    const groups = [
+      ...o.open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
+      ...o.direct.map(pairPeopleGroup),
+    ];
+    const owe = moneyPeople(groups, "owe", o.common, o.toCommon);
+    expect(owe.map((p) => p.amount)).toEqual([60000]);
+    expect(owe[0].rowKey).toBe(`direct:${tPair.groupId}`); // the button opens /settle#direct-<pair id>
+  });
+
   it("12. never netted: the money card has the two separate people, and one settle can't mix a pair with a group", async () => {
-    process.env.HOME_INCLUDES_DIRECT = "1";
     const o = await loadOverview(mine());
     const groups = [
       ...o.open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
@@ -113,7 +145,6 @@ describe("a pair beside a group", () => {
   });
 
   it("two currencies with no saved rate stay as two amounts, never added", async () => {
-    process.env.HOME_INCLUDES_DIRECT = "1";
     const o = await loadOverview({ [xPair.groupId]: xPair.aRow, [yPair.groupId]: yPair.aRow });
     expect(o.owedLines).toEqual(["₹600"]);
     expect(o.oweLines).toEqual(["$25"]);
@@ -123,7 +154,6 @@ describe("a pair beside a group", () => {
   });
 
   it("13. someone with only a pair (no group) still has Settle entries and a readable pair page", async () => {
-    process.env.HOME_INCLUDES_DIRECT = "1";
     const o = await loadOverview({ [pair.groupId]: pair.aRow });
     expect(o.all).toHaveLength(0);
     expect(o.direct).toHaveLength(1);

@@ -4,7 +4,7 @@ import { crossSettle } from "./cross-settle";
 import { convertAmount } from "./conversion";
 import { after } from "next/server";
 import { displayRate } from "./rate-cache";
-import { homeIncludesDirect, isDirect } from "./direct";
+import { isDirect } from "./direct";
 import { directEntries, hasHistory } from "./direct-db";
 
 // Everything the home screen and the Settle screen need about all my groups:
@@ -22,8 +22,8 @@ export async function loadOverview(memberships: Record<string, string>) {
   const direct = directAll.filter(hasHistory); // pairs with any history (Settle and Home)
   const open = all.filter((g) => !g.group.closed);
   const closed = all.filter((g) => g.group.closed);
-  // Home's big total counts pairs only while the switch is on (undecided; off by default). Settle always shows them in their own section.
-  const counted = homeIncludesDirect() ? direct : [];
+  // Home's big total counts every pair with history, each exactly once (founder decision, 16 Nov). Settle also shows them in their own section.
+  const counted = direct;
 
   // Totals per currency across open groups (groups can use different currencies), plus pairs when counted.
   const totals = new Map<string, { owed: number; owe: number }>();

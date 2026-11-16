@@ -15,8 +15,6 @@ export const NOT_DIRECT = { type: { not: DIRECT } } as const;
 
 // Entry points (the + choice, the picker, "Add expense with someone"). Only these are switchable; the exclusions are always on.
 export const directEntryOn = (): boolean => process.env.DIRECT_EXPENSES !== "0";
-// Home's big total and money card include pairs only when this is on (undecided: off by default).
-export const homeIncludesDirect = (): boolean => process.env.HOME_INCLUDES_DIRECT === "1";
 
 const tidy = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 

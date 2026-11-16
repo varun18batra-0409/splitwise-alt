@@ -48,7 +48,6 @@ import { greetingWord } from "@/lib/home/owe-card";
 import { PassStack } from "@/components/PassStack";
 import { TripCountdown } from "@/components/TripCountdown";
 import { homeTicket, mixedDirections, moneyMode, moneyPeople, pairPeopleGroup, type InvolvedGroup } from "@/lib/home/money-card";
-import { homeIncludesDirect } from "@/lib/direct";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadHomeMemories } from "@/lib/moments-db";
@@ -172,10 +171,10 @@ export default async function Home({
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
   // Who the money is with, each side on its own: the same transfers Settle up uses, largest first. Money both ways stays as two lines
   // on the ticket (never netted together), so both sides are worked out whenever anything is open.
-  // People you share expenses with directly join the list only while Home's total counts them (HOME_INCLUDES_DIRECT); each stays a separate entry.
+  // People you share expenses with directly join the list, and Home's total counts them; each stays a separate entry.
   const peopleGroups = [
     ...open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
-    ...(homeIncludesDirect() ? overview.direct.map(pairPeopleGroup) : []),
+    ...overview.direct.map(pairPeopleGroup),
   ];
   const owePeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owe", common, toCommon);
   const owedPeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owed", common, toCommon);

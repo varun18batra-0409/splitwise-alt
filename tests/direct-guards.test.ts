@@ -32,7 +32,6 @@ beforeAll(() => {
 });
 afterAll(async () => {
   await db.block.deleteMany({ where: { OR: [{ blockerId: { in: accounts } }, { blockedId: { in: accounts } }] } });
-  await db.requestKey.deleteMany({ where: { key: { startsWith: "direct-decoy:" }, result: { contains: stamp } } });
   await wipe(accounts);
 });
 
@@ -174,7 +173,7 @@ describe("L2 and L3. an invitation that can be seen and cancelled", () => {
     expect(await mailTo(a.email)).toBe(0);
   });
 
-  it("the email of someone you already have a pair with looks like a normal send, sends nothing, and can be cancelled", async () => {
+  it("the email of someone you already share a pair with is refused in plain words: nothing written, nothing sent; a stranger's email still sends", async () => {
     const a = await made("l2b", "Asha");
     const d = await made("l2d", "Dee");
     const other = await made("l2o", "Olly");
@@ -183,21 +182,18 @@ describe("L2 and L3. an invitation that can be seen and cancelled", () => {
     const local = await ensureLocalPair({ id: a.id }, "Dee (old)", { currency: "INR", myName: "Asha" });
     if (!real.ok || !local.ok) throw new Error("refused");
 
-    const r = await inviteDirectPerson(local.groupId, local.myId, d.email, origin);
-    expect(r).toEqual({ ok: true, email: d.email });
+    const r = await inviteDirectPerson(local.groupId, local.myId, d.email.toUpperCase(), origin);
+    expect(r).toEqual({ ok: false, error: "You already share expenses with the person who has this email. Open them from Settle up or the + button." });
     expect(await db.invite.count({ where: { groupId: local.groupId } })).toBe(0);
     expect(await mailTo(d.email)).toBe(0);
-    // The person's page reads this: "Invitation sent to <email>" with Cancel, the same as after a real send.
-    expect(await openInviteEmail(local.groupId, local.otherId)).toBe(d.email);
+    expect(await openInviteEmail(local.groupId, local.otherId)).toBeNull(); // no "Invitation sent to ..." on the person's page
+    expect(await db.requestKey.count({ where: { key: { startsWith: "direct-decoy:" } } })).toBe(0); // no hidden note
 
-    // Cancelled, the form is back and the note is gone.
-    expect(await cancelDirectInvite(local.groupId, local.myId)).toEqual({ ok: true });
-    expect(await openInviteEmail(local.groupId, local.otherId)).toBeNull();
-
-    // A genuine address can then be sent.
+    // An email that belongs to someone you do NOT share a pair with sends as normal.
     expect((await inviteDirectPerson(local.groupId, local.myId, other.email, origin)).ok).toBe(true);
     expect(await openInviteEmail(local.groupId, local.otherId)).toBe(other.email);
     expect(await mailTo(other.email)).toBe(1);
+    expect(await db.invite.count({ where: { groupId: local.groupId } })).toBe(1);
   });
 
   it("a mistyped address can be cancelled and corrected: the first invitation closes, only the new one is open, balances untouched", async () => {
