@@ -291,7 +291,7 @@ describe("5. FB-7: the move-out undo needs each daily charge exactly as it was w
     const w = await world("fb7");
     const { ch, eventId } = await raviOut(w);
     const refused = async () => {
-      expect(await undoEvent(eventId, w.id("Meera"))).toEqual({ ok: false, error: T3("Milk · 1–13 Nov (Ravi’s share)") });
+      expect(await undoEvent(eventId, w.id("Asha"))).toEqual({ ok: false, error: T3("Milk · 1–13 Nov (Ravi’s share)") });
       expect((await db.member.findUniqueOrThrow({ where: { id: w.id("Ravi") } })).leftAt).not.toBeNull();
       expect(await db.payment.count({ where: { groupId: w.gid, deletedAt: null } })).toBe(1);
       expect((await db.groupEvent.findUniqueOrThrow({ where: { id: eventId } })).undoneAt).toBeNull();
@@ -302,7 +302,7 @@ describe("5. FB-7: the move-out undo needs each daily charge exactly as it was w
     await refused();
     // Put back exactly as written, the undo goes through (20800 comes off Asha, Ravi's payment is taken off, all 0).
     await db.expense.update({ where: { id: ch.id }, data: { amount: 20800, originalAmount: 20800, convertedAmount: 20800, shares: { updateMany: { where: { memberId: w.id("Ravi") }, data: { amount: 20800 } } } } });
-    expect((await undoEvent(eventId, w.id("Meera"))).ok).toBe(true);
+    expect((await undoEvent(eventId, w.id("Asha"))).ok).toBe(true);
     expect(await nets(w, "Asha", "Ravi", "Meera")).toEqual([0, 0, 0]);
   });
 });

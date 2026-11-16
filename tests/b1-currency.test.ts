@@ -334,7 +334,8 @@ describe("4. E2 through the database with C gone", () => {
     const w = await world("e2", ["A", "R", "C"]);
     await dinner(w);
     await payment(w, "C", "A", 3333, 1);
-    expect(Object.values(await checkBooks(w.gid))).toEqual([3333, -3333, 0]);
+    const start = await checkBooks(w.gid);
+    expect([start[w.id("A")], start[w.id("R")], start[w.id("C")]]).toEqual([3333, -3333, 0]);
     expect((await setMember(w.gid, w.id("A"), w.id("C"), { leftAt: new Date().toISOString() })).ok).toBe(true);
     const r = await changeGroupCurrency(w.gid, w.id("A"), "JPY", "1.7");
     if (!r.ok) throw new Error(r.error);
