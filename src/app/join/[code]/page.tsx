@@ -4,7 +4,8 @@ import { invitationFor } from "@/lib/invitations";
 import { pickAdmin } from "@/lib/group-admin";
 import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";
-import { getAccount, getMemberships } from "@/lib/identity";
+import { getAccount, getMemberships, guestGroupsOnPhone } from "@/lib/identity";
+import { GoogleSignInLink } from "@/components/GuestMoveSheet";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
 import { Avatar, ErrorNote, inputClass, primaryButtonClass } from "@/components/ui";
 import { GoogleG } from "@/components/GoogleG";
@@ -60,6 +61,8 @@ export default async function JoinPage({
   }
 
   const account = await getAccount();
+  // Signing in with Google from here also moves the guest groups this phone holds, so it lists them first (like /signin).
+  const guestGroups = account ? [] : await guestGroupsOnPhone();
   const memberships = await getMemberships();
   // Taken out of this group by whoever looks after it: the link doesn't bring them back in.
   const removedMe = account ? group.members.find((m) => m.accountId === account.id && m.removedAt) : undefined;
@@ -129,10 +132,10 @@ export default async function JoinPage({
           <p className="mt-5 text-[15px] leading-snug text-fg/80">Sign in to join and keep your groups across devices.</p>
           <div className="mt-4 space-y-2.5">
             {googleConfigured() && (
-              <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
+              <GoogleSignInLink href={`/api/auth/google/start?${new URLSearchParams({ back })}`} groups={guestGroups} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
                 <GoogleG />
                 Continue with Google
-              </a>
+              </GoogleSignInLink>
             )}
             <Link
               href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`}

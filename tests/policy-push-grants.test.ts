@@ -88,7 +88,7 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
 
     const me = await account("Xavier");
     state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) });
-    await signInAs(me.id);
+    await signInAs(me.id, { confirmed: [t.x.id] });
 
     expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).accountId).toBe(me.id);
     expect(await rowsFor(t.x.id)).toEqual([]); // both phones' rows are gone
@@ -117,14 +117,14 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     await sub(t.z.id, epZ);
     const me = await account("Xena");
     state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) }); // this phone holds X only
-    await signInAs(me.id);
+    await signInAs(me.id, { confirmed: [t.x.id] });
     expect(await rowsFor(t.x.id)).toEqual([]);
     expect(await rowsFor(t.z.id)).toEqual([epZ]);
     expect(state.set[PUSH_RESYNC_COOKIE]).toBe("1");
     state.set = {};
     const other = await account("Xenia");
     state.cookie = await phone1({});
-    await signInAs(other.id); // holds no names: nothing linked, nothing dropped
+    await signInAs(other.id, { confirmed: [] }); // holds no names: nothing linked, nothing dropped
     expect(await rowsFor(t.z.id)).toEqual([epZ]);
     expect(state.set[PUSH_RESYNC_COOKIE]).toBeUndefined();
   });
@@ -136,7 +136,7 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     await db.member.update({ where: { id: t.x.id }, data: { grantEpoch: 2 } });
     const me = await account("Stale");
     state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 1) });
-    await signInAs(me.id);
+    await signInAs(me.id, { confirmed: [t.x.id] });
     expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).accountId).toBeNull();
     expect(await rowsFor(t.x.id)).toEqual([ep]);
   });

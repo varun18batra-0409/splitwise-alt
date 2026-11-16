@@ -715,6 +715,22 @@ if (!hosted) {
     await shot("108b-want-to-go", "/passport?tab=want", undefined, false);
     await db.wishShare.create({ data: { ownerId: meera.id, friendId: acc.id, country: "*" } });
     await shot("108c-want-to-go-match", "/passport?tab=want", undefined, false);
+    // CB-3: Varun has also given Meera his whole list, so on the "Just Japan" sheet she shows a locked tick, "Sees your whole list" (390 and 320 wide).
+    await db.wishShare.create({ data: { ownerId: acc.id, friendId: meera.id, country: "*" } });
+    try {
+      const wasSize = page.viewportSize();
+      for (const w of desktop ? [] : ([390, 320] as const)) {
+        await page.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+        await shot(`CB3-share-locked-${w}`, "/passport?tab=want", async (p) => {
+          await p.locator("[data-wish-share]").first().click();
+          await p.locator('select[name="scope"]').selectOption("JP");
+          await p.waitForTimeout(300);
+        }, false);
+      }
+      if (wasSize) await page.setViewportSize(wasSize);
+    } finally {
+      await db.wishShare.deleteMany({ where: { ownerId: acc.id, friendId: meera.id, country: "*" } });
+    }
     const got = await db.postcard.create({
       data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi forgot the rules of every card game, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
     });
@@ -1298,6 +1314,96 @@ for (const n of [2, 3, 4, 5, 6]) {
 await context.addCookies([{ name: "lp_tour", value: "1", url: base }]);
 await shot("33-start", "/");
 await shot("34-signup", "/signin?mode=signup", undefined, false);
+
+// ===== Founder sign-off batch (mockups s1 to s6), at 390 and 320 wide: AS-3 sign-in check, sign-up heading, start screen in a visitor's own money,
+// plain category labels, 44 px taps on the collection page. Phones only. =====
+if (!desktop) {
+  const widths = [390, 320] as const;
+  const dims = (w: number) => ({ width: w, height: w === 320 ? 640 : 844 });
+  const fresh = async (opts: { locale: string; cookies?: { name: string; value: string }[] }) => {
+    const c = await browser.newContext({
+      viewport: screen,
+      deviceScaleFactor: 2,
+      ...(ios ? { isMobile: true, hasTouch: true } : {}),
+      colorScheme: "dark",
+      reducedMotion: "reduce",
+      locale: opts.locale,
+      extraHTTPHeaders: { "accept-language": `${opts.locale},en;q=0.9` },
+    });
+    if (opts.cookies?.length) await c.addCookies(opts.cookies.map((k) => ({ ...k, url: base })));
+    return c;
+  };
+  const snapAt = async (c: Awaited<ReturnType<typeof fresh>>, name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) => {
+    const p = await c.newPage();
+    try {
+      for (const w of widths) {
+        await p.setViewportSize(dims(w));
+        await p.goto(base + path, { waitUntil: hosted ? "load" : "networkidle", timeout: 30_000 });
+        await p.waitForTimeout(700);
+        if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+        await p.screenshot({ path: `${out}/${name}-${w}.png`, fullPage });
+        console.log("✓", `${name}-${w}`);
+      }
+    } catch (e) {
+      console.log("✗", name, String(e).split("\n")[0]);
+    } finally {
+      await p.close();
+    }
+  };
+
+  // VA2-3 / VD2-4 / VI2-36: the start screen in the visitor's own money (dollars here, rupees for India), one footer, a world photo.
+  for (const [tag, locale] of [["us", "en-US"], ["in", "en-IN"]] as const) {
+    const c = await fresh({ locale, cookies: [{ name: "lp_tour", value: "1" }] });
+    await snapAt(c, `SO-start-${tag}`, "/");
+    await c.close();
+  }
+  // VI2-36: sign-in with its new "Create an account" link, and the sign-up page with its own heading.
+  {
+    const c = await fresh({ locale: "en-US", cookies: [{ name: "lp_tour", value: "1" }] });
+    await snapAt(c, "SO-signin", "/signin", undefined, false);
+    await snapAt(c, "SO-signup", "/signin?mode=signup", undefined, false);
+    await c.close();
+  }
+
+  // AS-3: a phone that holds three guest groups. The check shows when the typed code is sent (the same sheet shows before Google and
+  // fingerprint or face). Local copy only: it makes three small groups and removes them again.
+  if (!hosted) {
+    const { db } = await import("../src/lib/db");
+    const stamp = Date.now();
+    const made: string[] = [];
+    const held: Record<string, string> = {};
+    try {
+      for (const [name, type, others] of [["Flat 402", "home", 2], ["Thailand trip", "trip", 3], ["Us", "couple", 1]] as const) {
+        const g = await db.group.create({
+          data: { name, type, inviteCode: `so-${stamp}-${made.length}`, members: { create: [{ name: "Dev" }, ...Array.from({ length: others }, (_, i) => ({ name: `Friend ${i + 1}` }))] } },
+          include: { members: true },
+        });
+        made.push(g.id);
+        held[g.id] = `${g.members.find((m) => m.name === "Dev")!.id}~0`;
+      }
+      const c = await fresh({ locale: "en-IN", cookies: [{ name: SESSION_COOKIE, value: await encodeSession({ m: held }) }] });
+      await snapAt(c, "AS3-guest-sheet", "/signin?e=dev@example.test&sent=1", async (p) => {
+        await p.locator('input[name="code"]').fill("123456");
+        await p.getByRole("button", { name: "Sign in", exact: true }).click();
+        await p.locator("[data-guest-sheet]").waitFor({ timeout: 5000 });
+        await p.waitForTimeout(500);
+      }, false);
+      await c.close();
+    } catch (e) {
+      console.log("✗ AS3-guest-sheet (set-up failed)", String(e).split("\n")[0]);
+    } finally {
+      if (made.length) await db.group.deleteMany({ where: { id: { in: made } } }).catch(() => undefined);
+    }
+  }
+
+  // VA1-48 and CB-17 / VA2-37: the trip report with its plain labels, and the organiser's collection page with 44 px taps (demo person's phone).
+  for (const w of widths) {
+    await page.setViewportSize(dims(w));
+    await shot(`SO-trip-report-${w}`, `${g}/report`);
+    if (collectCode) await shot(`SO-collect-organiser-${w}`, `/c/${collectCode}`);
+  }
+  await page.setViewportSize(screen);
+}
 
 // A visitor from the US, as a person would: the tour, then signed in, a new
 // group in dollars, an expense, the profile and Home. (Local copy only.)

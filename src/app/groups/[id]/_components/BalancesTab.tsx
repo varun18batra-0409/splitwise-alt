@@ -79,7 +79,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                           </span>
                         ) : null;
                       })()}
-                      <span className={`block text-xs text-gray-400 ${foreign ? "break-words" : "truncate"}`} data-foreign-part={foreign ? "1" : undefined} title={foreign ? foreignExact : undefined} data-exact={foreign ? foreignExact : undefined}>
+                      <span className={`block text-[13px] text-fg/65 ${foreign ? "break-words" : "truncate"}`} data-foreign-part={foreign ? "1" : undefined} title={foreign ? foreignExact : undefined} data-exact={foreign ? foreignExact : undefined}>
                         {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>
                     </span>
@@ -97,7 +97,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                   </summary>
                   <div className="mb-3 space-y-2">
                     {m.accountId && m.id !== myId && (
-                      <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist" data-passport-link>
+                      <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line px-4 text-sm font-semibold active:bg-mist" data-passport-link>
                         <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
                       </Link>
                     )}

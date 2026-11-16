@@ -26,11 +26,12 @@ describe("start screen", () => {
     for (const s of ['href="/groups/new"', "<JoinByLink />", 'href="/signin"', "Already here?", "Coming from another app?", "How Loopin works", "Quick start"]) expect(home).toContain(s);
     expect(home).not.toContain("Start with one group");
   });
-  it("the hero is decorative and the receipt adds up (3,240 + 4,800 = 8,040)", () => {
+  it("the hero is decorative and its receipt is in the visitor's own money (see sample-receipt.test.ts for the sums)", () => {
     const hero = src("src/components/StartHero.tsx");
     expect(hero).toContain("aria-hidden");
-    expect(3240 + 4800).toBe(8040);
-    for (const s of ["₹3,240", "₹4,800", "₹8,040", "Group expense"]) expect(hero).toContain(s);
+    for (const s of ["formatMoney(r.dinner", "formatMoney(r.boat", "formatMoney(r.total", "Group expense", "place-santorini"]) expect(hero).toContain(s);
+    expect(hero).not.toContain("₹");
+    expect(src("src/app/(home)/page.tsx")).toContain("<StartHero currency={region.currency} />");
   });
   it("the invite-link button has its new name", () => expect(src("src/components/JoinByLink.tsx")).toContain("Join with a link"));
 });

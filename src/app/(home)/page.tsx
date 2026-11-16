@@ -514,7 +514,7 @@ export default async function Home({
         <>
           {/* Start screen: nothing here yet. Two photos and a receipt, the promise, then the ways in. */}
           <section aria-label="Start" className="text-fg" data-start-card>
-            <StartHero />
+            <StartHero currency={region.currency} />
             <h1 className="font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-tight">
               Good times. <span className="block">Shared fairly.</span>
             </h1>
@@ -532,15 +532,6 @@ export default async function Home({
                 </Link>
               </p>
             )}
-            <p className="mt-1 text-center text-xs text-fg/55">
-              <Link href="/terms" className="inline-flex min-h-11 items-center px-2">
-                Terms
-              </Link>
-              <span aria-hidden>·</span>
-              <Link href="/privacy" className="inline-flex min-h-11 items-center px-2">
-                Privacy
-              </Link>
-            </p>
           </section>
 
           <div className="mt-6 grid grid-cols-2 gap-3">

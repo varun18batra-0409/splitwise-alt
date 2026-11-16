@@ -2,8 +2,7 @@ import Link from "@/components/Link";
 import { verifyCode } from "@/app/actions";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { safePath } from "@/lib/paths";
-import { getAccount, getMemberships } from "@/lib/identity";
-import { db } from "@/lib/db";
+import { getAccount, guestGroupsOnPhone } from "@/lib/identity";
 
 // Where the link in the sign-in email lands. It asks for one tap instead of
 // signing in straight away, so email scanners that open links can't use up
@@ -20,11 +19,9 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
   const other = now && now.email && now.email.toLowerCase() !== email.toLowerCase() ? now.email : "";
   // Groups this phone is in without an account move to the account that signs
   // in, so name them: nobody should hand their groups over without seeing it.
-  const ids = Object.values(await getMemberships());
-  const moving = ids.length
-    ? await db.member.findMany({ where: { id: { in: ids }, accountId: null, group: { deletedAt: null } }, select: { group: { select: { name: true } } }, take: 6 })
-    : [];
-  const names = moving.map((m) => m.group.name);
+  // Only the groups named here are moved (the form sends their ids).
+  const moving = await guestGroupsOnPhone();
+  const names = moving.map((g) => g.name);
 
   return (
     <>
@@ -52,6 +49,7 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="back" value={back} />
+            <input type="hidden" name="move" value={moving.map((g) => g.memberId).join(",")} />
             <button type="submit" className={primaryButtonClass}>
               {other ? "Yes, switch" : "Yes, sign me in"}
             </button>

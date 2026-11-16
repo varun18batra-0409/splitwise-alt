@@ -98,7 +98,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                 </a>
                 <div className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] text-gray-400">UPI ID</span>
+                    <span className="block text-xs text-fg/60">UPI ID</span>
                     <span className="block truncate font-mono text-sm">{c.upiId}</span>
                   </span>
                   <CopyButton text={c.upiId} label="Copy" />
@@ -125,7 +125,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           </div>
         </section>
   );
-  const chip = "rounded-full border border-fg/25 px-3 py-1.5 text-xs font-semibold text-fg/85 active:bg-mist";
+  const chip = "inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg/85 active:bg-mist";
   // The organiser's own buttons on a person's row: an outline pill (never cream: Share collection link is the one cream button).
   const confirmButton = "inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10";
   const initial = (name: string) => (
@@ -145,7 +145,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           <Link href="/" className="font-display text-xl font-semibold tracking-tight">
             loopin
           </Link>
-          <span className="text-xs text-fg/55">No sign-up needed</span>
+          <span className="text-[13px] text-fg/65">No sign-up needed</span>
         </header>
       )}
 
@@ -328,7 +328,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                 <form action={undoPaidAction}>
                   <input type="hidden" name="code" value={c.code} />
                   <input type="hidden" name="entryId" value={e.id} />
-                  <button type="submit" className="inline-flex min-h-11 items-center text-xs font-semibold underline">
+                  <button type="submit" className="inline-flex min-h-11 min-w-11 items-center justify-center text-sm font-semibold underline">
                     Undo
                   </button>
                 </form>
@@ -353,18 +353,18 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       {due.length > 0 && (
         <section aria-label="Still to pay" className="mt-8">
           <h2 className="mb-2 flex items-baseline justify-between font-display text-lg font-semibold tracking-tight">
-            Still to pay <span className="font-sans text-xs font-normal text-gray-400">{due.length}</span>
+            Still to pay <span className="font-sans text-[13px] font-normal text-fg/60">{due.length}</span>
           </h2>
           <ul className="divide-y divide-line">
             {due.map((e) => (
-              <li key={e.id} className="flex items-center gap-3 py-2.5">
+              <li key={e.id} className={`flex items-center gap-3 py-2.5 ${isOrganiser ? "flex-wrap gap-y-1" : ""}`}>
                 {isOrganiser ? initial(e.name) : <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border-2 border-fg/25" />}
-                <span className="min-w-0 flex-1 truncate text-[15px]">
+                <span className={`min-w-0 flex-1 text-[15px] ${isOrganiser ? "min-w-[6.5rem] break-words" : "truncate"}`}>
                   {e.name}
-                  {isOrganiser && e.accountId && <span className="ml-2 align-middle text-xs text-fg/55">on Loopin</span>}
+                  {isOrganiser && e.accountId && <span className="block text-[13px] leading-tight text-fg/65">on Loopin</span>}
                 </span>
                 {isOrganiser && (
-                  <span className="flex shrink-0 items-center gap-2">
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
                     {e.accountId &&
                       !closed &&
                       orgForm(
@@ -376,7 +376,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                           </svg>
                           <span className="sr-only">Remind {e.name} in Loopin</span>
                         </>,
-                        "flex h-8 w-8 items-center justify-center rounded-full border border-fg/25 text-fg/75 active:bg-mist",
+                        "flex h-11 w-11 items-center justify-center rounded-full border border-fg/25 text-fg/75 active:bg-mist",
                       )}
                     {!e.accountId && e.phone && !closed && (
                       <a
@@ -384,7 +384,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Remind ${e.name} on WhatsApp`}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-fg/25 text-fg/75 active:bg-mist"
+                        className="flex h-11 w-11 items-center justify-center rounded-full border border-fg/25 text-fg/75 active:bg-mist"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                           <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
@@ -392,7 +392,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                       </a>
                     )}
                     {c.amount > 0 && orgForm("cash", e.id, "Paid cash", chip)}
-                    {orgForm("remove", e.id, "✕", "flex h-8 w-8 items-center justify-center rounded-full text-gray-400 active:bg-mist", `Take ${e.name} off the list?`)}
+                    {orgForm("remove", e.id, "✕", "flex h-11 w-11 items-center justify-center rounded-full text-fg/60 active:bg-mist", `Take ${e.name} off the list?`)}
                   </span>
                 )}
               </li>
@@ -405,7 +405,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       {paid.length > 0 && (
         <section aria-label="Paid" className="mt-8">
           <h2 className="mb-2 flex items-baseline justify-between font-display text-lg font-semibold tracking-tight">
-            Paid <span className="font-sans text-xs font-normal text-gray-400">{paid.length}</span>
+            Paid <span className="font-sans text-[13px] font-normal text-fg/60">{paid.length}</span>
           </h2>
           <ul className="divide-y divide-line">
             {paid.map((e) =>
@@ -417,15 +417,15 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                       {e.name} · <span className="money tabular-nums">{money(e.amount)}</span>
                     </span>
                     {/* A neutral status, never a coloured fill: a drawn tick once the organiser has confirmed it. */}
-                    <span className="flex items-center gap-1 text-[13px] text-fg/60">
+                    <span className="flex items-center gap-1 text-sm text-fg/70">
                       {e.status === "confirmed" && <CheckIcon size={13} />}
                       {e.status === "confirmed" ? "Confirmed" : "Says paid"}
                       {e.method === "cash" ? " · cash" : ""}
                     </span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {e.status === "paid" ? orgForm("confirm", e.id, "Confirm received", confirmButton) : orgForm("unconfirm", e.id, "Uncheck", "inline-flex min-h-11 items-center text-xs text-fg/60 underline")}
-                    {orgForm("remove", e.id, "✕", "flex h-8 w-8 items-center justify-center rounded-full text-gray-400 active:bg-mist", `Take ${e.name} off the list? Their tick goes too.`)}
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    {e.status === "paid" ? orgForm("confirm", e.id, "Confirm received", confirmButton) : orgForm("unconfirm", e.id, "Uncheck", "inline-flex min-h-11 min-w-11 items-center justify-center px-1 text-sm text-fg/75 underline")}
+                    {orgForm("remove", e.id, "✕", "flex h-11 w-11 items-center justify-center rounded-full text-fg/60 active:bg-mist", `Take ${e.name} off the list? Their tick goes too.`)}
                   </span>
                 </li>
               ) : (
@@ -441,7 +441,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px]">{e.name}</span>
-                  <span className="block text-xs text-gray-400">
+                  <span className="block text-[13px] text-fg/60">
                     {money(e.amount)}
                     {e.method === "cash" ? " · cash" : ""} · {e.status === "confirmed" ? `checked by ${c.organiser}` : "says paid"}
                   </span>
@@ -451,7 +451,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             )}
           </ul>
           {isOrganiser && p.paidCount > p.checked && (
-            <p className="mt-2 text-xs text-gray-400">“Says paid” means they ticked it. Tap Confirm received once you see the money.</p>
+            <p className="mt-2 text-[13px] text-fg/60">“Says paid” means they ticked it. Tap Confirm received once you see the money.</p>
           )}
         </section>
       )}
@@ -474,12 +474,12 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       {isOrganiser && (
         <section aria-label="Close or delete" className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
           {closed ? orgForm("reopen", undefined, "Reopen collection", chip) : orgForm("close", undefined, "Close collection", chip, "Close it? People won’t be able to tick their name any more. You can reopen it.")}
-          {orgForm("delete", undefined, "Delete", "text-xs text-fg/75 underline", "Delete this collection for everyone? This can’t be undone.")}
+          {orgForm("delete", undefined, "Delete", "inline-flex min-h-11 items-center px-1 text-sm text-fg/75 underline", "Delete this collection for everyone? This can’t be undone.")}
         </section>
       )}
 
       {!isOrganiser && (
-        <p className="mt-12 text-center text-xs text-gray-400">
+        <p className="mt-12 text-center text-[13px] text-fg/60">
           Loopin never touches the money: you pay {c.organiser} directly.
           <br />
           <Link href="/collect/new" className="mt-1 inline-flex min-h-11 items-center font-semibold text-fg underline">

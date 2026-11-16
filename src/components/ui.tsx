@@ -67,7 +67,7 @@ export function ErrorNote({ children }: { children: React.ReactNode }) {
 
 export function Avatar({ name }: { name: string }) {
   return (
-    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${avatarTone(name)}`}>
+    <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${avatarTone(name)}`}>
       {name.trim().charAt(0).toUpperCase()}
     </span>
   );

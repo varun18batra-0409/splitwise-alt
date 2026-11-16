@@ -206,8 +206,8 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
                     <span className="flex h-5 justify-center text-[#26231d]">
                       <BadgeIcon id={b.id} size={20} />
                     </span>
-                    <span className="mt-0.5 block text-[10px] font-bold leading-[1.15]">{b.title}</span>
-                    <span className="block truncate text-[9px] text-[#5c564a]">{b.earned ? b.why : `${b.have} of ${b.need}`}</span>
+                    <span className="mt-0.5 block text-[11px] font-bold leading-[1.15]">{b.title}</span>
+                    <span className="block break-words text-[11px] leading-[1.15] text-[#4a4538]">{b.earned ? b.why : `${b.have} of ${b.need}`}</span>
                   </li>
                 ))}
               </ul>

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { JOINED, confirmUsedPending } from "./membership";
+import { coverFor } from "./covers";
 import { PUSH_RESYNC_COOKIE, PUSH_RESYNC_MAX_AGE } from "./push-resync";
 import { SESSION_COOKIE, SESSION_MAX_AGE, decodeSession, encodeSession, today, type Session } from "./session";
 
@@ -150,15 +151,60 @@ export async function setMyMemberId(groupId: string, memberId: string, opts: { k
   await writeSession({ ...s, m: { ...s.m, [groupId]: grantValue(memberId, row?.grantEpoch ?? 0) } });
 }
 
-// After a successful email sign-in: everyone this phone already is joins the
-// account, and the account's groups come to this phone.
-export async function signInAs(accountId: string, opts: { keepEndpoint?: string } = {}) {
+// The guest groups this phone holds right now (names not linked to any account, still valid on this phone): what
+// signing in would move into the account, so the sign-in screens can list them first. Newest first, at most `limit`.
+export type GuestGroup = { memberId: string; groupId: string; name: string; people: number; cover: { kind: string; src?: string }; letter: string };
+export async function guestGroupsOnPhone(limit = 12): Promise<GuestGroup[]> {
+  const held = Object.values((await resolveMemberships()).out);
+  if (!held.length) return [];
+  const rows = await db.member.findMany({
+    where: { id: { in: held }, accountId: null, group: { deletedAt: null } },
+    select: { id: true, group: { select: { id: true, name: true, cover: true, type: true, coverAt: true, createdAt: true, _count: { select: { members: { where: { leftAt: null } } } } } } },
+  });
+  return rows
+    .sort((a, b) => b.group.createdAt.getTime() - a.group.createdAt.getTime())
+    .slice(0, limit)
+    .map((r) => ({ memberId: r.id, groupId: r.group.id, name: r.group.name, people: r.group._count.members, cover: coverFor(r.group), letter: r.group.name }));
+}
+
+// What the person agreed to move, as sent by the sign-in screens: a list of guest member ids. Anything that isn't a plain
+// id string is dropped. (signInAs only ever moves names this phone really holds, so a made-up id does nothing.)
+export function parseConfirmed(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [];
+  return [...new Set(list.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 64))].slice(0, 50);
+}
+
+// Google leaves the app and comes back, so what the person agreed to is kept for a few minutes in a cookie that only a
+// form the person pressed (a server action) can set. The way back from Google reads it once and removes it.
+const MOVE_COOKIE = "lp_move";
+export async function setMoveConfirmation(ids: string[]) {
+  (await cookies()).set(MOVE_COOKIE, ids.join(","), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production" && process.env.E2E_PLAIN_HTTP !== "1",
+    path: "/api/auth/google",
+    maxAge: 600,
+  });
+}
+export async function takeMoveConfirmation(): Promise<string[]> {
+  const jar = await cookies();
+  const raw = jar.get(MOVE_COOKIE)?.value;
+  jar.delete({ name: MOVE_COOKIE, path: "/api/auth/google" });
+  return parseConfirmed(raw);
+}
+
+// After a successful sign-in (any way): the names in `confirmed` that this phone really holds join the account, and the
+// account's groups come to this phone. Names the person did NOT confirm stay exactly as they were: guest names on this
+// phone, not linked to anyone (so no confirmation, or an empty one, moves nothing). `confirmed` has no default on purpose.
+export async function signInAs(accountId: string, opts: { confirmed: readonly string[]; keepEndpoint?: string }) {
   const s = await readSession();
   const entries = Object.values(s.m).map(parseGrant);
-  // Only names this phone still holds validly (same epoch, not linked to anyone) join the account; an old copy can't.
-  // Linking raises the epoch, so any other phone still holding the guest name loses it.
+  const agreed = new Set(opts.confirmed);
+  // Only names this phone still holds validly (same epoch, not linked to anyone) AND the person confirmed join the account;
+  // an old copy can't. Linking raises the epoch, so any other phone still holding the guest name loses it.
   const nowLinked: string[] = [];
   for (const e of entries) {
+    if (!agreed.has(e.id)) continue;
     const r = await db.member.updateMany({ where: { id: e.id, accountId: null, grantEpoch: e.epoch }, data: { accountId, grantEpoch: { increment: 1 } } });
     if (r.count === 1) nowLinked.push(e.id);
   }
