@@ -49,7 +49,7 @@ import { MoneyCard, type StubCover, type TripPassView } from "@/components/HomeM
 import { greetingWord } from "@/lib/home/owe-card";
 import { PassStack } from "@/components/PassStack";
 import { TripCountdown } from "@/components/TripCountdown";
-import { homeTicket, mixedDirections, moneyMode, moneyPeople, pairPeopleGroup, type InvolvedGroup } from "@/lib/home/money-card";
+import { homeNetCard } from "@/lib/home/money-card";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadHomeMemories } from "@/lib/moments-db";
@@ -100,7 +100,7 @@ export default async function Home({
     // Postcards that arrived and are unread (none from people you blocked, none still sealed).
     getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
   ]);
-  const { all, direct, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
+  const { all, direct, open, closed, common, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
   const now = new Date();
   const today = todayKey(now, tz);
@@ -163,44 +163,15 @@ export default async function Home({
   // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
   const live = stillIn(open);
   const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
-  // The balance card's big number (all groups together, or per currency).
-  // Big amounts show whole units (display only); the exact amount rides along in the tooltip.
-  const heroOf = (money: (n: number) => string) =>
-    netCommon ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${money(Math.abs(netCommon.value))}` : netLines.join(" · ");
-  const heroText = heroOf((n) => formatMoney(n, common)); // exact, the same figure as the group and Settle up (rounding stays on summaries)
-  const heroExact = heroOf((n) => formatMoney(n, common));
-  // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
-  const acrossCurrencies = !netCommon && mixedDirections(netLines);
-  const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
-  // Who the money is with, each side on its own: the same transfers Settle up uses, largest first. Money both ways stays as two lines
-  // on the ticket (never netted together), so both sides are worked out whenever anything is open.
-  // People you share expenses with directly join the list, and Home's total counts them; each stays a separate entry.
-  const peopleGroups = [
-    ...open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
-    ...overview.direct.map(pairPeopleGroup),
-  ];
-  const owePeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owe", common, toCommon);
-  const owedPeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owed", common, toCommon);
-  // The groups the money runs through: how much is with you in each (in the common currency; a group with no
-  // saved rate counts 0 and only wins when nothing else is there).
-  const involved: InvolvedGroup[] = open
-    .filter((g) => !g.leaver && g.transfers.some((t) => t.from === g.myId || t.to === g.myId))
-    .map((g) => ({
-      id: g.group.id,
-      name: g.group.name,
-      type: g.group.type,
-      weight: g.transfers
-        .filter((t) => t.from === g.myId || t.to === g.myId)
-        .reduce((sum, t) => sum + (g.group.currency === common ? t.amount : (toCommon(t.amount, g.group.currency) ?? 0)), 0),
-    }));
-  const ticket = homeTicket({
-    mode,
-    acrossCurrencies,
-    owe: owePeople,
-    owed: owedPeople,
+  // The slim Net card: everything you're owed minus everything you owe, groups and non-group (direct pairs) together, with the two
+  // kinds as small lines. Only Home combines them; Settle up keeps them apart. Same balances and saved rates as Home's total always used.
+  const netCard = homeNetCard({
+    items: [
+      ...open.map((g) => ({ currency: g.group.currency, net: g.myBalance, direct: false })),
+      ...direct.map((p) => ({ currency: p.currency, net: p.net, direct: true })),
+    ],
     common,
-    hero: { text: heroText.replace(/^([≈ ]*)[+−]/, "$1"), exact: heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined },
-    groups: involved,
+    toCommon,
   });
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
@@ -622,7 +593,7 @@ export default async function Home({
 
           {/* Money (the mockup's short "You owe" card: label, the exact amount, who and where, faces, ONE full-width cream button, no photo);
               nothing sits under it: what needs you is in Updates behind the bell. */}
-          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} />
+          <MoneyCard card={netCard} />
 
           {/* Coming up: the countdown card for each trip that is next (the trip's polaroid, "12 days to go", everyone going, Share),
               earliest first, swiped sideways. Founder, 15 Nov: this card, not the mockup's. */}

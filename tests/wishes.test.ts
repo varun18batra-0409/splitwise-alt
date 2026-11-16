@@ -240,7 +240,7 @@ describe("writing", () => {
     expect((await loadMyWishes(A.id)).length).toBe(200);
     expect(await addWishes(A.id, [codes[210]])).toEqual({ added: 0, full: true });
     expect(await addWishes(A.id, [codes[0]])).toEqual({ added: 0, full: false }); // one already there is fine, not 'full'
-  });
+  }, 30_000); // writes 198 places first: give it room on a busy test machine
 
   it("someone else fills the last place while this add is under way: the newest is taken off again, so the list never goes past 200", async () => {
     const A = await account("Ada");

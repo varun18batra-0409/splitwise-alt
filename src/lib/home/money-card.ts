@@ -583,3 +583,73 @@ export function sinceLastPayment(
   const first = fresh[0];
   return { since: first ? dayOf(first.spentAt ?? first.createdAt) : null, items: fresh.length };
 }
+
+// ---- Home's slim "Net" card ----
+// ONE slim card (founder, 16 Nov): the NET of everything you're owed minus everything you owe, groups and non-group (direct pairs) together,
+// with at most two small lines under it ("Group +₹22,916", "Non-group −₹600"). This combining happens only on Home: Settle up and every other
+// screen keep groups and pairs apart. Each item is one group's balance for you (what Home's total already counts) or one pair's balance,
+// in its own currency; positive = you're owed. Conversion uses the same saved rates as Home's total (toCommon); a currency with no saved rate
+// is never added into another: the card then shows each currency on its own, exactly as the old card's total did, and no split lines.
+export type NetItem = { currency: string; net: number; direct: boolean };
+export type NetCardLine = { kind: "group" | "direct"; sign: "+" | "−"; amount: number; text: string };
+export type NetCard =
+  | { kind: "square"; label: string; text: string; href: "/settle"; aria: string }
+  | { kind: "net"; tone: "owed" | "owe" | "plain"; label: string; amount: string; value: number | null; approx: boolean; lines: NetCardLine[]; href: "/settle"; aria: string };
+
+export function homeNetCard(x: { items: NetItem[]; common: string; toCommon: (amount: number, currency: string) => number | null }): NetCard {
+  const open = x.items.filter((i) => i.net !== 0);
+  if (open.length === 0) {
+    return { kind: "square", label: "All square", text: "Nobody owes anybody", href: "/settle", aria: "All square. Nobody owes anybody. Open Settle up" };
+  }
+  const sum = { group: 0, direct: 0 };
+  const approxKind = { group: false, direct: false };
+  let approx = false;
+  let allConverted = true;
+  for (const i of open) {
+    const abs = Math.abs(i.net);
+    const c = i.currency === x.common ? abs : x.toCommon(abs, i.currency);
+    if (c === null) {
+      allConverted = false;
+      continue;
+    }
+    const k = i.direct ? "direct" : "group";
+    if (i.currency !== x.common) {
+      approx = true;
+      approxKind[k] = true;
+    }
+    sum[k] += i.net > 0 ? c : -c;
+  }
+  if (!allConverted) {
+    // Some currency has no saved rate: each currency on its own ("₹500 · €20"), the way the old total showed it.
+    const per = new Map<string, number>();
+    for (const i of open) per.set(i.currency, (per.get(i.currency) ?? 0) + i.net);
+    const entries = [...per].filter(([, n]) => n !== 0);
+    const dirs = new Set(entries.map(([, n]) => (n > 0 ? "+" : "−")));
+    if (entries.length === 0) {
+      return { kind: "net", tone: "plain", label: "Net · evens out", amount: formatMoney(0, x.common), value: null, approx: false, lines: [], href: "/settle", aria: "Net, it evens out. Open Settle up" };
+    }
+    if (dirs.size > 1) {
+      const amount = entries.map(([c, n]) => `${n > 0 ? "+" : "−"}${formatMoney(Math.abs(n), c)}`).join(" · ");
+      return { kind: "net", tone: "plain", label: "Net · across currencies", amount, value: null, approx: false, lines: [], href: "/settle", aria: `Net, across currencies ${amount}. Open Settle up` };
+    }
+    const owed = entries[0][1] > 0;
+    const amount = entries.map(([c, n]) => formatMoney(Math.abs(n), c)).join(" · ");
+    const say = owed ? "you’re owed" : "you owe";
+    return { kind: "net", tone: owed ? "owed" : "owe", label: `Net · ${say}`, amount, value: null, approx: false, lines: [], href: "/settle", aria: `Net, ${say} ${amount}. Open Settle up` };
+  }
+  const value = sum.group + sum.direct;
+  const tone = value > 0 ? "owed" : value < 0 ? "owe" : "plain";
+  const amount = `${approx ? "≈ " : ""}${formatMoney(Math.abs(value), x.common)}`;
+  const say = tone === "owed" ? "you’re owed" : tone === "owe" ? "you owe" : "evens out";
+  const line = (kind: "group" | "direct"): NetCardLine => {
+    const v = sum[kind];
+    const sign = v > 0 ? "+" : "−";
+    return { kind, sign, amount: v, text: `${kind === "group" ? "Group" : "Non-group"} ${approxKind[kind] ? "≈ " : ""}${sign}${formatMoney(Math.abs(v), x.common)}` };
+  };
+  // Both kinds must have something (a line that nets to 0 is hidden); with only one left it would just repeat the net, so none show.
+  const lines = sum.group !== 0 && sum.direct !== 0 ? [line("group"), line("direct")] : [];
+  // Screen readers hear the Group / Non-group split too (the link's label replaces what is inside it).
+  const split = lines.length ? ` ${lines.map((l) => l.text).join(", ")}.` : "";
+  const aria = tone === "plain" ? `Net, it evens out.${split} Open Settle up` : `Net, ${say} ${amount}.${split} Open Settle up`;
+  return { kind: "net", tone, label: `Net · ${say}`, amount, value, approx, lines, href: "/settle", aria };
+}

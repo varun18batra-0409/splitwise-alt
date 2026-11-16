@@ -163,6 +163,16 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
     if (msg === "reopened-since") return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
     throw err;
   }
+  // Redo puts the payments back: their payer and person paid are told by their own message, as when they were first recorded
+  // (push.ts leaves them out of the group-wide message for this line).
+  if (apply) {
+    try {
+      const back = await db.payment.findMany({ where: { id: { in: paymentIds }, groupId, deletedAt: null }, select: { id: true, fromId: true, toId: true, amount: true } });
+      await tellAll(groupId, actorId, back);
+    } catch {
+      /* never an error for the person who redid it */
+    }
+  }
   return { ok: true, eventId };
 }
 

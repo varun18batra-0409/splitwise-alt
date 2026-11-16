@@ -358,7 +358,9 @@ describe("R1 item 10: one balance, one number", () => {
     const home = readFileSync("src/app/(home)/page.tsx", "utf8");
     // Polaroids show a status word only (the amount lives once, on the money pass).
     expect(home).not.toContain("show: (n: number) => formatMoney(n, g.group.currency)");
-    expect(home).toContain("const heroText = heroOf((n) => formatMoney(n, common))");
+    // The slim Net card prints exact money too (formatMoney in homeNetCard, never the rounded summary forms).
+    expect(readFileSync("src/lib/home/money-card.ts", "utf8")).toContain("formatMoney(Math.abs(value), x.common)");
+    expect(home).toContain("homeNetCard({");
     expect(home).toContain("homeMoney(month.share, month.currency)"); // "November in numbers" stays rounded
   });
 });

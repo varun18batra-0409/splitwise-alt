@@ -152,9 +152,7 @@ describe("the money card is the mockup's: compact, no photo: label, exact amount
     expect(buttonLabel({ side: "owe", action: act("Pay Asha") })).toBe("Review & settle");
     expect(buttonLabel({ side: "owed", action: { ...act("Remind Kabir"), key: "remind" as const } })).toBe("Remind Kabir");
     expect(buttonLabel({ side: "owed", action: { ...act("Remind 3 people"), key: "remind" as const } })).toBe("Remind 3 people");
-    // the card keeps the action's own key and address; only the words change
-    expect(hm).toContain("label: buttonLabel(line), fullLabel:");
-    expect(hm).toContain("data-money-action={a.key}");
+    // (Home's card no longer has a button, 16 Nov: these words are kept for the code that still uses them.)
   });
   it("amount size by length: 8 characters or fewer is big, 9 to 10 middle, longer is smallest (so a lakh amount is never clipped)", () => {
     expect(homeAmountTier("₹19,054.88")).toBe("l"); // 10 characters
@@ -162,34 +160,25 @@ describe("the money card is the mockup's: compact, no photo: label, exact amount
     expect(homeAmountTier("₹6,17,283.94")).toBe("m"); // 12
     expect(homeAmountTier("₹12,34,567.88")).toBe("m"); // 13
   });
-  it("one dark rounded card (22px), all left-aligned, with NO photo (no clip-path ellipse, no letter fallback, no stub props); the data hooks stay; the compact boarding pass is not on Home", () => {
+  it("one slim dark rounded card (22px) that is ONE link to Settle up: no photo, no buttons, no faces, no stamp; the data hooks stay", () => {
     expect(hm).toContain("rounded-[22px]");
     const money = hm.slice(hm.indexOf("// ---- Home's money card"), hm.indexOf('// "Coming up": the trips that are next'));
     expect(money).toContain("bg-[#16161a]");
     expect(money).toContain("shadow-[inset_0_0_0_1px_#26262c]");
-    for (const gone of ["clip-path", "data-card-photo", "CoverBox", "StubCover", "<Image", "sideStubs", "stub="]) expect(money, gone).not.toContain(gone);
-    const page = src("src/app/(home)/page.tsx");
-    expect(page).not.toContain("sideStubs");
-    expect(page).not.toContain("stub={stub}");
-    expect(page).not.toContain("photoFor(");
-    // The full-width pill, on every card of the stack too.
-    expect(money).toContain("${bright ? CREAM : OUTLINE} w-full");
+    expect(money).toContain("min-h-[80px]");
+    expect(money).toContain("<Link href={card.href} aria-label={card.aria}");
+    for (const gone of ["clip-path", "CoverBox", "StubCover", "<Image", "stub=", "ActionButton", "CREAM", "OUTLINE", "<button", "Remind", "data-settled-stamp", "data-square-add", "Faces"]) expect(money, gone).not.toContain(gone);
+    for (const h of ["data-balance-card", "data-money-mode", "data-tone", "data-ticket", "data-net-balance", "data-net-line"]) expect(money).toContain(h);
+    expect(money).toContain("text-owe");
+    expect(money).toContain("text-owed");
     // The boarding-pass pieces stay for Settle up.
     for (const keep of ["export function TicketShell", "export function PassRoute", "export function PassFields"]) expect(hm).toContain(keep);
-    for (const h of ["data-balance-card", "data-money-mode", "data-tone", "data-ticket", "data-net-balance", "data-money-people", "data-money-action", "data-ticket-line", "data-settled-stamp", "data-square-add"]) expect(hm).toContain(h);
-    // The need line is gone from Home: no line under the card, and Home passes no `need` to it.
+    const page = src("src/app/(home)/page.tsx");
+    expect(page).toContain("<MoneyCard card={netCard} />");
+    expect(page).not.toContain("homeTicket");
+    expect(page).not.toContain("compact");
     expect(hm).not.toContain("data-need-line");
-    expect(hm).not.toContain("NeedLineView");
-    expect(src("src/app/(home)/page.tsx")).not.toContain("need={");
     expect(hm).not.toContain("CompactBody");
-    expect(hm).not.toContain("CompactRoute");
-    expect(hm).toContain("text-owe");
-    expect(hm).toContain("text-owed");
-    expect(hm).toContain("<ActionButton a={action}");
-    // all square: the label, "All square", "Nobody owes anybody", a quiet link, the stamp
-    expect(hm).toContain('Your money</p>');
-    expect(hm).toContain("Add an expense");
-    expect(src("src/app/(home)/page.tsx")).not.toContain("compact");
   });
 });
 
