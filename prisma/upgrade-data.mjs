@@ -60,13 +60,10 @@ for (const e of noCreator) await db.expense.update({ where: { id: e.id }, data: 
 const noRecorder = await db.payment.findMany({ where: { createdById: "" }, select: { id: true, fromId: true } });
 for (const p of noRecorder) await db.payment.update({ where: { id: p.id }, data: { createdById: p.fromId } });
 
-// 4. "Joined" status (new): anyone who has ever done something in their group
-//    clearly picked their name on a phone.
-const actors = await db.groupEvent.findMany({ select: { actorId: true }, distinct: ["actorId"] });
-const joined = await db.member.updateMany({
-  where: { claimedAt: null, id: { in: actors.map((a) => a.actorId) } },
-  data: { claimedAt: new Date() },
-});
+// 4. (Removed on purpose.) This step used to mark anyone who appeared as the "actor" of a group event as
+//    "joined". But events are also written on someone else's behalf (a repeat bill, a reminder-link payment),
+//    so a plain name like a flatmate got marked as joined on every deploy. Every way of joining now sets the
+//    joined time itself, so nothing needs stamping here. Do not bring this back.
 
 // 5. Expense days used to be stored as noon Indian time (06:30 UTC). Days are
 //    now stored as noon UTC, which is the same calendar day everywhere.
@@ -95,7 +92,7 @@ await db.requestKey.deleteMany({ where: { createdAt: { lt: new Date(Date.now() -
 await db.errorLog.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86_400_000) } } });
 
 if (redated) console.log(`Data upgrade: ${redated} expense days moved to noon UTC.`);
-if (joined.count || moved || old.length || noCreator.length || noRecorder.length) {
+if (moved || old.length || noCreator.length || noRecorder.length) {
   console.log(
     `Data upgrade: ${moved} categories updated, ${old.length} expenses given currency details, ` +
       `${noCreator.length + noRecorder.length} items given an owner.`,
