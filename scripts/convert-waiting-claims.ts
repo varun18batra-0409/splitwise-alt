@@ -5,9 +5,10 @@
 //
 // Each waiting note that can safely count becomes a counted payment (from the note's payer, as if just recorded, no phone notifications).
 // Every other note is closed, with a history line asking the payer to record it again. See src/lib/convert-claims.ts for the exact rules.
-// An apply writes an id-only undo file (no names, no amounts) that scripts/undo-convert-waiting-claims.ts reads.
+// An apply writes an id-only undo file (no names, no amounts, one line per note, added the moment that note is saved, so a crash never
+// loses what was already done) that scripts/undo-convert-waiting-claims.ts reads.
 // It prints counts only. It never prints a name, an amount, a token or a secret, and only the HOST of the database.
-import { writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { convertWaitingClaims } from "@/lib/convert-claims";
 
 function host(): string {
@@ -28,17 +29,17 @@ async function main() {
     process.exit(2);
   }
   console.log(`${apply ? "APPLYING" : "Dry run (nothing is written)"} on ${host()}`);
-  const s = await convertWaitingClaims({ apply });
+  const file = `convert-waiting-claims-undo-${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`;
+  if (apply) {
+    writeFileSync(file, "", { mode: 0o600 });
+    console.log(`Undo file: ${file} (ids only, one line per note, written as it goes). Keep it until you are sure.`);
+  }
+  const s = await convertWaitingClaims({ apply, onChange: apply ? (c) => appendFileSync(file, `${JSON.stringify(c)}\n`) : undefined });
   console.log(`Notes waiting: ${s.waiting}`);
   console.log(`${apply ? "Converted into counted payments" : "Would be converted into counted payments"}: ${s.converted}`);
   console.log(`${apply ? "Closed (record it again)" : "Would be closed (record it again)"}: ${s.expired}`);
   for (const [reason, n] of Object.entries(s.reasons)) console.log(`  closed because ${reason}: ${n}`);
   if (s.failed) console.log(`Notes whose own step failed (nothing changed for them): ${s.failed}`);
-  if (apply) {
-    const file = `convert-waiting-claims-undo-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    writeFileSync(file, JSON.stringify(s.changes, null, 2), { mode: 0o600 });
-    console.log(`Undo file written: ${file} (ids only). Keep it until you are sure.`);
-  }
 }
 
 main()

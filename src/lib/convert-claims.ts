@@ -6,6 +6,7 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { guardGroup, ledgerInTx } from "./money-guard";
 import { createPayment } from "./payments";
+import { changePayment } from "./payment-change";
 
 // Batch C data step: the "I've paid" notes still waiting on the live app. A note is a claim that never counted; from Batch C nothing waits
 // for anyone, so each waiting note is dealt with ONCE, right after the deploy (so old code can't make new ones in between):
@@ -64,31 +65,37 @@ const sayDay = (d: Date) => niceDate(dayKey(d));
 
 // `apply` false (the default everywhere): nothing is written, the summary says what would happen.
 // `groupIds` (tests only) limits it to those groups; the script never passes it.
-export async function convertWaitingClaims(o: { apply: boolean; now?: Date; groupIds?: string[] } = { apply: false }): Promise<ConvertSummary> {
+// `onChange` is called with each note's change the moment it is saved (the script appends it to the undo file), so a crash part-way never
+// loses what was already done. If it throws, the run stops there (the change is already in the file or the caller knows it is not).
+export async function convertWaitingClaims(o: { apply: boolean; now?: Date; groupIds?: string[]; onChange?: (c: Change) => void } = { apply: false }): Promise<ConvertSummary> {
   const now = o.now ?? new Date();
   const rows = await db.paymentClaim.findMany({ where: { status: "waiting", ...(o.groupIds ? { groupId: { in: o.groupIds } } : {}) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   const out: ConvertSummary = { apply: o.apply, waiting: rows.length, converted: 0, expired: 0, failed: 0, reasons: {}, changes: [] };
   for (const c of rows) {
-    const verdict = await judgeClaim(db, c);
-    if (!o.apply) {
-      if (verdict.ok) out.converted++;
-      else {
-        out.expired++;
-        out.reasons[verdict.reason] = (out.reasons[verdict.reason] ?? 0) + 1;
-      }
-      continue;
-    }
+    let change: Change | null = null;
     try {
-      const change = verdict.ok ? await convertOne(c, now) : await expireOne(c, verdict.reason, now);
-      if (change.kind === "converted") out.converted++;
-      else {
-        out.expired++;
-        if (change.reason) out.reasons[change.reason] = (out.reasons[change.reason] ?? 0) + 1;
+      // Each note is its own step, including the question of whether it can count: one that fails changes nothing else.
+      const verdict = await judgeClaim(db, c);
+      if (!o.apply) {
+        if (verdict.ok) out.converted++;
+        else {
+          out.expired++;
+          out.reasons[verdict.reason] = (out.reasons[verdict.reason] ?? 0) + 1;
+        }
+        continue;
       }
-      out.changes.push(change);
+      change = verdict.ok ? await convertOne(c, now) : await expireOne(c, verdict.reason, now);
     } catch {
       out.failed++;
+      continue;
     }
+    if (change.kind === "converted") out.converted++;
+    else {
+      out.expired++;
+      if (change.reason) out.reasons[change.reason] = (out.reasons[change.reason] ?? 0) + 1;
+    }
+    out.changes.push(change);
+    o.onChange?.(change);
   }
   return out;
 }
@@ -143,9 +150,10 @@ async function expireOne(c: ClaimRow, reason: Reason, now: Date): Promise<Change
   });
 }
 
-// Put a conversion back (the undo file lists the ids it made). Converted notes: the payment is taken off and the note waits again, unless
-// another note for the same pair is waiting now (only one may wait). Closed notes: the note waits again on the same terms.
-// Every history line the conversion wrote is marked undone. Returns how many of each were put back.
+// Put a conversion back (the undo file lists the ids it made). Converted notes: the payment is taken off the same safe way as when the payer
+// deletes it (the group must be open, and anyone who has left comes back owing so they stay at 0) and the note waits again, unless another note
+// for the same pair is waiting now (only one may wait) or the payment can't be taken off now (counted as skipped). Closed notes: the note
+// waits again on the same terms. Every history line the conversion wrote is marked undone. Returns how many of each were put back.
 export async function undoConvertedClaims(changes: Change[], o: { apply: boolean; now?: Date } = { apply: false }): Promise<{ apply: boolean; putBack: number; skipped: number }> {
   const now = o.now ?? new Date();
   let putBack = 0;
@@ -162,12 +170,29 @@ export async function undoConvertedClaims(changes: Change[], o: { apply: boolean
       skipped++;
       continue;
     }
+    if (ch.kind === "converted") {
+      // Read-only first (a dry run says the same): the payment must still be counting, the group open, and the payer not removed.
+      const pay = ch.paymentId ? await db.payment.findUnique({ where: { id: ch.paymentId }, select: { deletedAt: true, groupId: true } }) : null;
+      const group = await db.group.findUnique({ where: { id: c.groupId }, select: { deletedAt: true, closed: true } });
+      const payer = await db.member.findFirst({ where: { id: c.fromId, groupId: c.groupId }, select: { removedAt: true } });
+      if (!pay || pay.deletedAt || pay.groupId !== c.groupId || !group || group.deletedAt || group.closed || !payer || payer.removedAt) {
+        skipped++;
+        continue;
+      }
+    }
     if (!o.apply) {
       putBack++;
       continue;
     }
+    if (ch.kind === "converted" && ch.paymentId) {
+      // The payer deletes it: the group checks, the closed check, leavers brought back owing, deletedById set (payment-change.ts).
+      const r = await changePayment(ch.paymentId, c.fromId, true);
+      if (!r.ok) {
+        skipped++;
+        continue;
+      }
+    }
     await db.$transaction(async (tx) => {
-      if (ch.kind === "converted" && ch.paymentId) await tx.payment.updateMany({ where: { id: ch.paymentId, deletedAt: null }, data: { deletedAt: now, deletedById: null } });
       await tx.paymentClaim.updateMany({ where: { id: c.id, status: expect }, data: { status: "waiting", slot: "", paymentId: "", decidedAt: null, decidedById: "" } });
       if (ch.eventId) await tx.groupEvent.updateMany({ where: { id: ch.eventId, undoneAt: null }, data: { undoneAt: now, undoneById: c.fromId } });
     });

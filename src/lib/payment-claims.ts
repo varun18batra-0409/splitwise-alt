@@ -109,47 +109,54 @@ export function tellParties(c: {
   }
 }
 
-// One settle-up across several groups: each person is told once, with what it comes to for them in total.
-export type AcrossPart = { groupId: string; groupName: string; paymentId: string; fromId: string; toId: string; amount: number };
+// One settle-up across several groups: each person is told once, with what it comes to for them in each currency (never added together).
+export type AcrossPart = { groupId: string; groupName: string; currency: string; paymentId: string; fromId: string; toId: string; amount: number };
 
-// What a person reads about a cross-group settle-up. `net` is minor units: positive = they get it, negative = they pay it.
-// Hand-worked: Ravi pays Asha 100000 in Goa and Asha pays Ravi 40000 in Flat. Asha's net is +60000: "(you get ₹600)".
-export function acrossBody(actorName: string, groupNames: string[], net: number, amountText: string): string {
-  const where = groupNames.length > 2 ? `${groupNames.slice(0, -1).join(", ")} and ${groupNames[groupNames.length - 1]}` : groupNames.join(" and ");
-  const tail = net === 0 ? "it comes to nothing for you" : net > 0 ? `you get ${amountText}` : `you pay ${amountText}`;
-  return `${actorName} recorded a settle-up with you across ${where} (${tail}). ${WRONG}`;
+const listOf = (xs: string[]) => (xs.length > 2 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs.join(" and "));
+
+// What a person reads about a cross-group settle-up. `nets` is minor units per currency: positive = they get it, negative = they pay it.
+// Hand-worked: Ravi pays Asha 100000 INR in Goa and Asha pays Ravi 40000 INR in Flat. Asha's net is {INR: +60000}: "(you get ₹600)".
+// With 2000 USD more owed to her in a third group: {INR: +60000, USD: +2000}: "(you get ₹600 and $20)". Different currencies are never added.
+// Opposite ways: {INR: +60000, USD: -2000}: "(you get ₹600 and you pay $20)".
+export function acrossBody(actorName: string, groupNames: string[], nets: Record<string, number>, money: (minor: number, currency: string) => string): string {
+  const get = Object.entries(nets).filter(([, n]) => n > 0).map(([c, n]) => money(n, c));
+  const pay = Object.entries(nets).filter(([, n]) => n < 0).map(([c, n]) => money(-n, c));
+  const tail = !get.length && !pay.length ? "it comes to nothing for you" : [get.length ? `you get ${listOf(get)}` : "", pay.length ? `you pay ${listOf(pay)}` : ""].filter(Boolean).join(" and ");
+  return `${actorName} recorded a settle-up with you across ${listOf(groupNames)} (${tail}). ${WRONG}`;
 }
 
-export function tellAcross(c: { actorName: string; actorMemberIds: string[]; parts: AcrossPart[]; money: (n: number) => string; bundleId: string }): void {
+// Who is told, and what it comes to for each: one entry per person (by account when they have one), per currency. Pure.
+export function acrossRecipients(parts: AcrossPart[], actorMemberIds: string[], accountOf: (memberId: string) => string | null): { key: string; memberId: string; nets: Record<string, number>; groups: string[] }[] {
+  const byPerson = new Map<string, { memberId: string; nets: Record<string, number>; groups: Set<string> }>();
+  for (const p of parts) {
+    for (const [id, sign] of [[p.toId, 1], [p.fromId, -1]] as const) {
+      if (actorMemberIds.includes(id)) continue;
+      const k = accountOf(id) ?? id; // one person, several groups: one message
+      const cur = byPerson.get(k) ?? { memberId: id, nets: {}, groups: new Set<string>() };
+      cur.nets[p.currency] = (cur.nets[p.currency] ?? 0) + sign * p.amount;
+      cur.groups.add(p.groupName);
+      byPerson.set(k, cur);
+    }
+  }
+  return [...byPerson].map(([key, w]) => ({ key, memberId: w.memberId, nets: w.nets, groups: [...w.groups] }));
+}
+
+export function tellAcross(c: { actorName: string; actorMemberIds: string[]; parts: AcrossPart[]; money: (minor: number, currency: string) => string; bundleId: string }): void {
   try {
     after(async () => {
       try {
         const { db } = await import("./db");
         const { sendPushTo } = await import("./push");
-        const ids = [...new Set(c.parts.flatMap((p) => [p.fromId, p.toId]))].filter((id) => !c.actorMemberIds.includes(id));
-        if (!ids.length) return;
         const people = await db.member.findMany({ where: { id: { in: [...new Set(c.parts.flatMap((p) => [p.fromId, p.toId]))] } }, select: { id: true, accountId: true } });
-        const keyOf = (id: string) => people.find((m) => m.id === id)?.accountId ?? id; // one person, several groups: one message
-        const byPerson = new Map<string, { memberId: string; net: number; groups: Set<string> }>();
-        for (const p of c.parts) {
-          for (const [id, sign] of [[p.toId, 1], [p.fromId, -1]] as const) {
-            if (c.actorMemberIds.includes(id)) continue;
-            const k = keyOf(id);
-            const cur = byPerson.get(k) ?? { memberId: id, net: 0, groups: new Set<string>() };
-            cur.net += sign * p.amount;
-            cur.groups.add(p.groupName);
-            byPerson.set(k, cur);
-          }
-        }
-        for (const [k, who] of byPerson) {
+        for (const who of acrossRecipients(c.parts, c.actorMemberIds, (id) => people.find((m) => m.id === id)?.accountId ?? null)) {
           const part = c.parts.find((p) => p.fromId === who.memberId || p.toId === who.memberId);
           await sendPushTo(
             [who.memberId],
             {
-              title: `💸 ${[...who.groups].join(" · ")}`,
-              body: acrossBody(c.actorName, [...who.groups], who.net, c.money(Math.abs(who.net))),
+              title: `💸 ${who.groups.join(" · ")}`,
+              body: acrossBody(c.actorName, who.groups, who.nets, c.money),
               url: part ? `/groups/${part.groupId}?tab=activity&open=${part.paymentId}` : "/settle",
-              tag: `across-${c.bundleId}-${k}`,
+              tag: `across-${c.bundleId}-${who.key}`,
             },
             "payments.claimed",
             c.actorMemberIds[0],

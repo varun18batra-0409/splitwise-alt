@@ -41,9 +41,8 @@ export async function undoIPaidAction(f: FormData) {
   if (read.kind !== "paid") redirect(`/p/${token}`);
   const s = read;
   // Someone with no sign-in never brings anyone back into the group: if either person has left, this is for them to do in Loopin.
-  const people = await db.member.findMany({ where: { id: { in: [s.link.fromId, s.link.toId] }, groupId: s.group.id }, select: { leftAt: true, removedAt: true } });
-  if (people.some((m) => m.leftAt || m.removedAt)) back(token, { error: "Open Loopin to change this." });
-  const r = await changePayment(s.link.paymentId, s.link.fromId, true);
+  // That is checked inside the same transaction as the delete, so a leaving that lands in between can't be missed.
+  const r = await changePayment(s.link.paymentId, s.link.fromId, true, { noLeavers: true });
   if (!r.ok) back(token, { error: r.error });
   // The link forgets that payment, so it asks for what is owed again.
   await db.payLink.updateMany({ where: { id: s.link.id, paymentId: s.link.paymentId }, data: { paymentId: "" } });

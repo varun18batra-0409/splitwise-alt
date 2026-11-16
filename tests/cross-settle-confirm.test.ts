@@ -33,14 +33,17 @@ const { eraseGroups } = await import("@/lib/purge");
 const A = await import("@/app/actions");
 
 const ids: string[] = [];
+const accountIds: string[] = [];
 afterAll(async () => {
   state.cookie = "";
   await eraseGroups(ids);
+  await db.account.deleteMany({ where: { id: { in: accountIds } } });
 });
 
-async function makeGroup(name: string) {
+// A payment across groups is netted only with the SAME account in every group (a phone number alone is not enough on the server).
+async function makeGroup(name: string, ashaAccountId?: string) {
   const g = await db.group.create({
-    data: { name, currency: "INR", inviteCode: `xc-${name}-${Date.now()}-${Math.random()}`, members: { create: [{ name: "Varun", claimedAt: new Date() }, { name: "Asha", phone: "+91 98765 43210" }] } },
+    data: { name, currency: "INR", inviteCode: `xc-${name}-${Date.now()}-${Math.random()}`, members: { create: [{ name: "Varun", claimedAt: new Date() }, { name: "Asha", phone: "+91 98765 43210", ...(ashaAccountId ? { accountId: ashaAccountId, claimedAt: new Date() } : {}) }] } },
     include: { members: true },
   });
   ids.push(g.id);
@@ -52,8 +55,10 @@ const expense = (groupId: string, paidById: string, amount: number, a: string, b
     data: { groupId, description: "x", amount, splitType: "equal", paidById, createdById: paidById, originalAmount: amount, convertedAmount: amount, shares: { create: [{ memberId: a, amount: amount / 2 }, { memberId: b, amount: amount / 2 }] } },
   });
 async function setup() {
-  const goa = await makeGroup("Goa");
-  const flat = await makeGroup("Flat");
+  const asha = await db.account.create({ data: { email: `xc-asha-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`, name: "Asha" } });
+  accountIds.push(asha.id);
+  const goa = await makeGroup("Goa", asha.id);
+  const flat = await makeGroup("Flat", asha.id);
   await expense(goa.id, goa.asha, 200000, goa.me, goa.asha);
   await expense(flat.id, flat.me, 80000, flat.me, flat.asha);
   state.cookie = await encodeSession({ m: { [goa.id]: goa.me, [flat.id]: flat.me }, t: today() });

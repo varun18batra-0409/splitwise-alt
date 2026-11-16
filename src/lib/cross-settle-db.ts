@@ -57,6 +57,16 @@ export async function settleAcrossCore(
     info.set(p.groupId, { direct: g.type === "direct", name: g.name, currency: g.currency, names: new Map(g.members.map((m) => [m.id, m.name])) });
   }
 
+  // One payment across groups is always with ONE other person: the same account in every part. (A request made by hand could pair
+  // a debt to Asha in one group with a debt to Bob in another as one linked payment that neither of them could delete.) A part whose
+  // other person has no account can't be shown to be the same person, so it is never netted with another group.
+  if (parts.length > 1) {
+    const others = parts.map((p) => (memberships[String(p.groupId)] === p.fromId ? p.toId : p.fromId));
+    const rows = await db.member.findMany({ where: { id: { in: others } }, select: { id: true, groupId: true, accountId: true } });
+    const accounts = parts.map((p, i) => rows.find((r) => r.id === others[i] && r.groupId === p.groupId)?.accountId ?? null);
+    if (accounts.some((a) => !a) || new Set(accounts).size !== 1) return "error";
+  }
+
   // A pair (expenses with one person) is settled on its own, never together with another group: with a pair among several parts
   // nothing is recorded anywhere.
   if (parts.length > 1 && [...info.values()].some((c) => c.direct)) return "error";
@@ -83,7 +93,7 @@ export async function settleAcrossCore(
           // Every part's payment first, so each part's line can name all of them.
           for (const p of sorted) {
             const pay = await createPayment(tx, { groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount, createdById: memberships[p.groupId] });
-            made.push({ groupId: p.groupId, groupName: info.get(p.groupId)!.name, paymentId: pay.id, fromId: p.fromId, toId: p.toId, amount: p.amount });
+            made.push({ groupId: p.groupId, groupName: info.get(p.groupId)!.name, currency: info.get(p.groupId)!.currency, paymentId: pay.id, fromId: p.fromId, toId: p.toId, amount: p.amount });
           }
           const across = bundle ? { id: bundle, parts: made.map((m) => ({ groupId: m.groupId, paymentId: m.paymentId })) } : undefined;
           for (const m of made) {
@@ -112,7 +122,7 @@ export async function settleAcrossCore(
     const actorMemberIds = sorted.map((p) => memberships[p.groupId]);
     if (made.length > 1) {
       const actorName = info.get(sorted[0].groupId)!.names.get(actorMemberIds[0]) ?? "Someone";
-      tellAcross({ actorName, actorMemberIds, parts: made, money: (n) => formatMoney(n, info.get(sorted[0].groupId)!.currency), bundleId: bundle });
+      tellAcross({ actorName, actorMemberIds, parts: made, money: formatMoney, bundleId: bundle });
     } else if (made.length === 1) {
       const m = made[0];
       const c = info.get(m.groupId)!;

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { hasLeft, LEFT_ERROR } from "./active";
+import { hasLeft, LEFT_ERROR, removedText, wasRemoved } from "./active";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, withRetry } from "./once";
 import { loadGroup } from "./group-data";
 import { logEvent, markUndone, type UndoMark } from "./events";
@@ -108,6 +108,7 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (group.type === "direct") return { ok: false, error: PAIR_NO_CLOSE };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
+  if (await wasRemoved(groupId, actorId)) return { ok: false, error: removedText(group.name) };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
   if (apply && group.closed) return { ok: false, error: "The group is already closed." };
@@ -251,6 +252,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
+  if (await wasRemoved(groupId, actorId)) return { ok: false, error: removedText(group.name) };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   // Only the people in each payment can take them off or put them back (whoever recorded them for others, for 10 minutes: undo.ts).

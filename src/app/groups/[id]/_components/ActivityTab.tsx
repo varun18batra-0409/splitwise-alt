@@ -256,6 +256,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                                 groupName: group.name,
                                 acrossGroups: v.acrossNames.get(item.id),
                                 leftNames: [item.fromId, item.toId].filter((id) => group.members.some((m) => m.id === id && (m.leftAt || m.removedAt))).map((id) => group.members.find((m) => m.id === id)?.name ?? ""),
+                                leftPaidNames: [item.toId].filter((id) => group.members.some((m) => m.id === id && (m.leftAt || m.removedAt))).map((id) => group.members.find((m) => m.id === id)?.name ?? ""),
                               })}
                               className="text-sm font-medium text-red-700"
                             >

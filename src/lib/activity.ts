@@ -104,6 +104,7 @@ function originalOf(e: ExpenseRow, myId: string, deleted: boolean) {
 
 // `asks`: the ids of a flat move-out's final payments (moveOutPaymentIds). Only those can be "waiting" for the person paid to say Got it / Not received;
 // every other payment counts at once and reads plainly ("Asha paid Ravi"), even an older one flagged needsOk by the earlier rule.
+// A payment that was confirmed (okAt set) still shows "Confirmed ✓", because that is what happened.
 export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], myId: string, events: EventRow[] = [], asks?: Set<string>): ActivityItem[] {
   const items: ActivityItem[] = [
     ...expenses.map((e): ActivityItem => {
@@ -140,7 +141,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         effect: p.deletedAt ? 0 : p.fromId === myId ? p.amount : p.toId === myId ? -p.amount : 0,
         createdById: p.createdById ?? p.fromId,
         deletedById: p.deletedAt ? (p.deletedById ?? "") : null,
-        status: p.okAt ? (asks?.has(p.id) ? "ok" : undefined) : p.needsOk && asks?.has(p.id) ? "waiting" : undefined,
+        status: p.okAt ? "ok" : p.needsOk && asks?.has(p.id) ? "waiting" : undefined,
       }),
     ),
     ...events

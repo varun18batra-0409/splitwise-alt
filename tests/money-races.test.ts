@@ -32,8 +32,16 @@ import type { RateAnswer } from "@/lib/rate-cache";
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let counter = 0;
 const groups: string[] = [];
+const accountIds: string[] = [];
+async function raceAccount(name: string) {
+  const a = await db.account.create({ data: { email: `race-${name.toLowerCase()}-${++counter}-${stamp}@example.test`, name } });
+  accountIds.push(a.id);
+  return a.id;
+}
+
 afterAll(async () => {
   await eraseGroups(groups);
+  await db.account.deleteMany({ where: { id: { in: accountIds } } });
 });
 
 const rate80 = async (): Promise<RateAnswer> => ({ ok: true, rate: "80", date: "2026-11-12" });
@@ -45,10 +53,10 @@ const draft = (groupId: string, paidById: string, over: Partial<SaveExpenseInput
 });
 const key = (tag: string) => `race-${tag}-${stamp}-${++counter}`;
 
-async function make(names: string[], o: { type?: string; currency?: string } = {}) {
+async function make(names: string[], o: { type?: string; currency?: string; accounts?: Record<string, string> } = {}) {
   const n = ++counter;
   const g = await db.group.create({
-    data: { name: `Race ${n} ${stamp}`, type: o.type ?? "other", currency: o.currency ?? "INR", inviteCode: `race-${n}-${stamp}`, members: { create: names.map((name) => ({ name })) } },
+    data: { name: `Race ${n} ${stamp}`, type: o.type ?? "other", currency: o.currency ?? "INR", inviteCode: `race-${n}-${stamp}`, members: { create: names.map((name) => ({ name, ...(o.accounts?.[name] ? { accountId: o.accounts[name], claimedAt: new Date() } : {}) })) } },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
   groups.push(g.id);
@@ -264,8 +272,10 @@ describe("FIN-02: settle across groups records only the plan the person saw", ()
 
   async function twoGroups() {
     // Trip: Asha paid ₹2,000 for both, so Varun owes Asha 100000. Flat: Varun paid ₹800 for both, so Asha owes Varun 40000.
-    const trip = await make(["Varun", "Asha"]);
-    const flat = await make(["Varun", "Asha"]);
+    // One cross-group payment is always with the same person, shown by the same account in both groups.
+    const accounts = { Varun: await raceAccount("Varun"), Asha: await raceAccount("Asha") };
+    const trip = await make(["Varun", "Asha"], { accounts });
+    const flat = await make(["Varun", "Asha"], { accounts });
     await addExpense(trip.id, trip.ids.Asha, 200000, [[trip.ids.Varun, 100000], [trip.ids.Asha, 100000]], "Hotel");
     await addExpense(flat.id, flat.ids.Varun, 80000, [[flat.ids.Varun, 40000], [flat.ids.Asha, 40000]], "Groceries");
     const parts = [
@@ -915,16 +925,20 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(await net(g.id)).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
   });
 
-  it("N4: the pay-link take-back never leaves someone who left off zero (C, who was paid 30000 and left, is brought back owed 30000)", async () => {
+  it("N4: the pay-link take-back never brings anyone back: with C (paid 30000) gone it is refused inside the delete and changes nothing; the signed-in delete brings C back owed 30000", async () => {
     const g = await make(["B", "C"]);
     await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi");
     const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // C: +30000 − 30000 = 0
     await db.member.update({ where: { id: g.ids.C }, data: { leftAt: new Date() } });
     expect(await db.$transaction((tx) => removedPaymentsBreak(tx, g.id, [pay.id]))).toEqual(["C"]);
-    // The take-back goes through the one delete path: it no longer leaves C at +30000. C (who left) is brought back owed 30000, in the same step.
+    // The link goes through the one delete path with noLeavers: the check is inside the same transaction as the delete (L3).
     const src = readFileSync(path.resolve(__dirname, "..", "src/app/pay-link-actions.ts"), "utf8");
-    expect(src).toContain("changePayment(s.link.paymentId, s.link.fromId, true)");
+    expect(src).toContain("changePayment(s.link.paymentId, s.link.fromId, true, { noLeavers: true })");
     const { changePayment } = await import("@/lib/payment-change");
+    expect(await changePayment(pay.id, g.ids.B, true, { noLeavers: true })).toEqual({ ok: false, error: "Open Loopin to change this." });
+    expect((await db.payment.findUniqueOrThrow({ where: { id: pay.id } })).deletedAt).toBeNull();
+    expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.C } })).leftAt).not.toBeNull(); // nobody was brought back
+    // Signed in, the same delete is allowed: it no longer leaves C at +30000. C (who left) is brought back owed 30000, in the same step.
     expect((await changePayment(pay.id, g.ids.B, true)).ok).toBe(true);
     expect((await db.member.findUniqueOrThrow({ where: { id: g.ids.C } })).leftAt).toBeNull();
     const l = await db.$transaction((tx) => ledgerInTx(tx, g.id));

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { hasLeft, LEFT_ERROR } from "./active";
+import { hasLeft, LEFT_ERROR, removedText, wasRemoved } from "./active";
 import { logEvent, markUndone, parseUndo, type Db, type PaymentAcross, type UndoMark } from "./events";
 import { formatMoney } from "./money";
 import { withRetry } from "./once";
@@ -35,6 +35,14 @@ export class NotSquare extends Error {
 class ReceiverOnly extends Error {}
 class LeaverBack extends Error {}
 class Moved extends Error {}
+class Removed extends Error {
+  constructor(public groupName: string) {
+    super(groupName);
+  }
+}
+class NoLeavers extends Error {}
+
+export const OPEN_LOOPIN_TEXT = "Open Loopin to change this.";
 
 const NOT_SQUARE_TEXT = "Balances just changed. Look again, then try once more.";
 
@@ -106,6 +114,7 @@ export type ChangeOpts = {
   mark?: UndoMark; // when this is an Undo: the change being undone, marked in the same transaction
   undoing?: boolean;
   recorderOk?: boolean; // the caller checked: this person recorded it for others and is inside the 10-minute Undo window
+  noLeavers?: boolean; // the sign-in-free pay link: refuse (inside the same transaction) if either person has left or been removed, so it never brings anyone back
   afterRead?: () => Promise<void>; // tests only: runs after the reads and before the write begins
 };
 
@@ -127,6 +136,8 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
   }
   if (payment.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
+  // Someone an admin removed can't delete or restore payments themselves (the other person in the payment still can).
+  if (!opts.noLeavers && (await wasRemoved(payment.groupId, actorId))) return { ok: false, error: removedText(payment.group.name) };
   // A payment the person paid took off can only be brought back by them: anyone else (even a non-party) is told that, in those words.
   if (!deleted && payment.deletedAt && onlyReceiverCanBringBack(payment, actorId)) return { ok: false, error: receiverOnlyText(payment.to.name) };
   if (!opts.recorderOk) {
@@ -144,6 +155,11 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
       // First: the group is still open and in the same currency (and, for a restore, this person still in it).
       await guardGroup(tx, payment.groupId, { currency: payment.group.currency, ...(deleted ? {} : { actorId }) });
       await markUndone(tx, opts.mark);
+      // Again inside the transaction (a removal could have landed since the first look).
+      if (opts.noLeavers) {
+        const gone = await tx.member.count({ where: { groupId: payment.groupId, id: { in: [payment.fromId, payment.toId] }, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] } });
+        if (gone) throw new NoLeavers();
+      } else if (await tx.member.count({ where: { id: actorId!, groupId: payment.groupId, removedAt: { not: null } } })) throw new Removed(payment.group.name);
       if (!deleted) {
         // Again inside the transaction, from the row as it is now (the first look could be out of date).
         const nowRow = await tx.payment.findUnique({ where: { id: payment.id }, select: { deletedById: true, toId: true } });
@@ -205,6 +221,8 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
 
 function mapError(err: unknown): string | null {
   if (err instanceof ReceiverOnly) return receiverOnlyText(err.message);
+  if (err instanceof Removed) return removedText(err.message);
+  if (err instanceof NoLeavers) return OPEN_LOOPIN_TEXT;
   if (err instanceof RestoreRefused) return err.message;
   if (err instanceof GroupChanged) return groupChangedText(err);
   if (err instanceof LeaverBack) return err.message;
@@ -235,8 +253,14 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
     if (id) actorIn.set(r.groupId, id);
   }
   actorIn.set(clicked.groupId, actorId); // in the group they are acting from, they are the one acting
+  // Someone an admin removed can't delete or restore payments themselves (the other person in each payment still can).
+  for (const r of rows) {
+    const mine = actorIn.get(r.groupId);
+    if (mine && (await wasRemoved(r.groupId, mine))) return { ok: false, error: removedText(r.group.name) };
+  }
+  // Said to anyone who asks, so it never names a group they may not be in.
   if (!rows.every((r) => actorIn.get(r.groupId) === r.fromId || actorIn.get(r.groupId) === r.toId)) {
-    return { ok: false, error: `This was one payment across ${where}. Only ${clicked.from.name} or ${clicked.to.name} can change it.` };
+    return { ok: false, error: `This was one payment across groups. Only ${clicked.from.name} or ${clicked.to.name} can change it.` };
   }
   for (const r of rows) {
     if (r.group.deletedAt) return { ok: false, error: `Restore ${r.group.name} first.` };
@@ -261,6 +285,9 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
       async (tx) => {
         for (const r of sorted) await guardGroup(tx, r.groupId, { currency: r.group.currency, ...(deleted ? {} : { actorId: actorIn.get(r.groupId) }) });
         await markUndone(tx, opts.mark);
+        for (const r of sorted) {
+          if (await tx.member.count({ where: { id: actorIn.get(r.groupId) ?? "", groupId: r.groupId, removedAt: { not: null } } })) throw new Removed(r.group.name);
+        }
         // The lines of the same change in the other groups are marked undone with it, so no group shows a stale Undo.
         if (opts.mark) {
           await tx.groupEvent.updateMany({
@@ -285,7 +312,7 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
             groupId: r.groupId,
             actorId: mine,
             kind: deleted ? "payment_deleted" : "payment_restored",
-            text: `${deleted ? "deleted" : "restored"} the payment ${r.from.name} → ${r.to.name} (${moneyOf(r)}) (one payment across ${where})`,
+            text: `${deleted ? "deleted" : "restored"} the payment ${r.from.name} → ${r.to.name} (${moneyOf(r)}) (part of one payment across groups)`,
             paymentId: r.id,
             undo: deleted ? { type: "payment_restore", paymentId: r.id, across, ...(mine === r.toId ? { byReceiver: true } : {}) } : { type: "payment_delete", paymentId: r.id, across },
           });
@@ -357,15 +384,23 @@ export async function bringBackAfterDelete(tx: Tx, o: { groupId: string; groupNa
 }
 
 // The question asked before deleting a payment in Activity. Pure.
-export function deleteQuestion(i: { groupName: string; acrossGroups?: string[]; leftNames?: string[] }): string {
+// `leftNames`: the payer or person paid who has left. `leftPaidNames`: of those, the ones who were PAID (they come back owed it, not owing it).
+// Only the payer and the person paid ever read this, and they are in all the groups it names.
+export function deleteQuestion(i: { groupName: string; acrossGroups?: string[]; leftNames?: string[]; leftPaidNames?: string[] }): string {
   let q = "Delete this payment? Balances will go back to before it was recorded.";
   const g = i.acrossGroups ?? [];
   if (g.length > 1) {
     const where = g.length > 2 ? `${g.slice(0, -1).join(", ")} and ${g[g.length - 1]}` : g.join(" and ");
-    q += ` This was one payment across ${where}. Deleting it takes it off in both.`;
+    q += ` This was one payment across ${where}. Deleting it takes it off in ${g.length > 2 ? "all of them" : "both"}.`;
   }
   const left = i.leftNames ?? [];
-  if (left.length === 1) q += ` ${left[0]} has left, so ${left[0]} comes back into ${i.groupName}, owing it.`;
-  else if (left.length > 1) q += ` ${left.slice(0, -1).join(", ")} and ${left[left.length - 1]} have left, so they come back into ${i.groupName}, owing it.`;
+  const paid = new Set(i.leftPaidNames ?? []);
+  const it = (n: string) => (paid.has(n) ? "owed it" : "owing it");
+  if (left.length === 1) q += ` ${left[0]} has left, so ${left[0]} comes back into ${i.groupName}, ${it(left[0])}.`;
+  else if (left.length > 1) {
+    // Both the payer and the person paid left: one owes it and the other is owed it.
+    const allSame = left.every((n) => paid.has(n) === paid.has(left[0]));
+    q += ` ${left.slice(0, -1).join(", ")} and ${left[left.length - 1]} have left, so they come back into ${i.groupName}${allSame ? `, ${it(left[0])}` : `: ${left.map((n) => `${n} ${paid.has(n) ? "owed" : "owing"}`).join(" and ")}`}.`;
+  }
   return q;
 }

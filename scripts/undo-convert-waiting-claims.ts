@@ -21,7 +21,9 @@ async function main() {
     console.error("Refusing to apply: add --backup-done once a backup of the database has been taken and the founder has said go.");
     process.exit(2);
   }
-  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  // One line per note (the conversion writes as it goes), or one JSON list (an older file).
+  const text = readFileSync(file, "utf8").trim();
+  const parsed: unknown = text.startsWith("[") ? JSON.parse(text) : text.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
   if (!Array.isArray(parsed)) throw new Error("not an undo file");
   const changes: Change[] = parsed
     .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === "object")

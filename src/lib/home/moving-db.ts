@@ -22,7 +22,7 @@ type Fail = { ok: false; error: string };
 
 export const CURRENCY_SINCE = "The group currency changed after the move-out, so it can’t be undone.";
 // An "I've paid" note involving the person moving out is still waiting: it would be silently closed by the square-up, so it is sorted out first.
-export const MOVE_OUT_WAITING_NOTE = "There’s an “I’ve paid” waiting to be confirmed. Sort it out on Settle up first, then do the move-out.";
+export const MOVE_OUT_WAITING_NOTE = "An older “I’ve paid” is still being sorted. Try again in a few minutes.";
 // The payments shown on the page are not what would be recorded now.
 export const MOVE_OUT_KEY_CHANGED = "Balances changed since you opened this. Check the move-out again.";
 

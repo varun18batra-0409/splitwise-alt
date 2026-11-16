@@ -1,6 +1,6 @@
 import { parsePayers } from "./payers";
 import { chargeLock, chargeLockedText } from "./home/charge-lock";
-import { LEFT_ERROR } from "./active";
+import { LEFT_ERROR, removedText } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
 import { diffExpense, expenseState, itemsForState, logEvent, markUndone, parseDetails, parseUndo, touchedByExpense, UndoTaken, type UndoMark, type UndoPayload } from "./events";
@@ -80,8 +80,39 @@ export function viewerRefusal(ev: EventLike, viewer: UndoViewer): string | null 
   if (!me) return "Only people in this group can undo its changes.";
   const early = parseUndo(ev.undo);
   const ownLeave = early?.type === "member_set" && early.data.leftAt === null && !("removedAt" in early.data) && ev.kind === "member_left" && early.memberId === viewer.id;
-  if (me.leftAt && (!ownLeave || me.removedAt)) return LEFT_ERROR;
+  if (me.leftAt && (!ownLeave || me.removedAt)) return me.removedAt && isPaymentUndo(early) ? removedText() : LEFT_ERROR;
   return null;
+}
+
+// An undo that takes a payment off or puts it back.
+const isPaymentUndo = (p: UndoPayload | null) => p?.type === "payment_delete" || p?.type === "payment_restore" || p?.type === "payments_set" || p?.type === "settle_all";
+
+// What one recording of payments is, so every line about it (the recording, an Undo of it, a Redo of that...) can be matched: one payment,
+// or the set of a "Mark all paid" / "Settle everything". Null for anything else.
+function payKey(p: UndoPayload | null): string | null {
+  if (!p) return null;
+  if (p.type === "payment_delete" || p.type === "payment_restore") return `p:${p.paymentId}`;
+  if (p.type === "payments_set" || p.type === "settle_all") return `s:${[...p.paymentIds].sort().join(",")}`;
+  return null;
+}
+
+// When the payments this line is about were FIRST recorded: the oldest line of the same payments. The recorder's 10-minute Undo counts from
+// then, so Undo and Redo (which write new lines) can never stretch it. Pure: `all` is whatever history the caller has.
+export function originAtOf(ev: { undo: string; createdAt: Date }, all: { undo: string; createdAt: Date }[]): Date {
+  const key = payKey(parseUndo(ev.undo));
+  if (!key) return ev.createdAt;
+  let at = ev.createdAt;
+  for (const x of all) if (payKey(parseUndo(x.undo)) === key && x.createdAt.getTime() < at.getTime()) at = x.createdAt;
+  return at;
+}
+
+// The same, reading the group's whole history (the server cannot trust a short list).
+async function originAtDb(ev: { groupId: string; undo: string; createdAt: Date }): Promise<Date> {
+  const u = parseUndo(ev.undo);
+  const firstId = u && (u.type === "payment_delete" || u.type === "payment_restore" ? u.paymentId : u.type === "payments_set" || u.type === "settle_all" ? u.paymentIds[0] : undefined);
+  if (!firstId) return ev.createdAt;
+  const rows = await db.groupEvent.findMany({ where: { groupId: ev.groupId, undo: { contains: firstId } }, select: { undo: true, createdAt: true }, take: 500 });
+  return originAtOf(ev, rows);
 }
 
 // An old move-out (saved before Undo could also take back the bill shares and square-up payments) that did move money.
@@ -160,7 +191,7 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
 // Also refused: anyone else undoing something the person did to THEMSELF (their own leave, or their own undo of a rejoin) that would
 // put them back in. The only undo of that kind allowed to someone else is the admin's own removal action (the event is the admin's).
 // The person who took someone with an account out can undo that, but only for 10 minutes (put-back.ts); after that the person is invited back.
-export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): string | null {
+export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, originAt?: Date): string | null {
   const payload = parseUndo(ev.undo);
   if (!payload) return null;
   const actorId = viewer.id;
@@ -205,7 +236,9 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date): stri
   }
   // Only the payer and the person paid can take a payment off or put it back, and only for payments the screen knows about (the server
   // reads the payment itself). Someone who recorded it for others (Mark paid, Mark all paid, Settle everything) may Undo it for 10 minutes.
-  const recorder = ev.actorId === actorId && putBackOpen(ev.createdAt, now);
+  // Someone an admin removed can't change payments themselves (the other person in the payment still can).
+  if (isPaymentUndo(payload) && find(actorId)?.removedAt) return removedText();
+  const recorder = ev.actorId === actorId && putBackOpen(originAt ?? ev.createdAt, now);
   if (!recorder && (payload.type === "payment_delete" || payload.type === "payment_restore")) {
     const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
     if (pay && pay.fromId !== actorId && pay.toId !== actorId) return `Only ${find(pay.fromId)?.name ?? "the payer"} or ${find(pay.toId)?.name ?? "the person paid"} can change this payment.`;
@@ -236,7 +269,7 @@ export function canUndo(ev: EventLike, all: EventLike[], now: Date, viewer: Undo
   if (refused) return { ok: false, reason: refused };
   const history = historyCheck(ev, all, (id) => viewer.members.find((m) => m.id === id)?.name);
   if (!history.ok) return history;
-  const no = actorRefusal(ev, viewer, now);
+  const no = actorRefusal(ev, viewer, now, originAtOf(ev, all));
   return no ? { ok: false, reason: no } : { ok: true };
 }
 
@@ -398,7 +431,8 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
     return { ok: false, error: actorLeft ? leaverFacing(ev, check) : blockedMessage(check, { nameOf, tz }) };
   }
   const payload = parseUndo(ev.undo)!;
-  const no = actorRefusal(ev, viewer, now);
+  const originAt = await originAtDb(ev);
+  const no = actorRefusal(ev, viewer, now, originAt);
   if (no) return { ok: false, error: no };
 
   // The "undone" mark is written inside the reversal's own transaction (see markUndone), so it is saved together
@@ -408,7 +442,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   let result: UndoResult;
   try {
     // Someone who recorded it for others may Undo it for 10 minutes: the payment code then lets them through (it reads the same window).
-    const recorderOk = ev.actorId === actorId && putBackOpen(ev.createdAt, now);
+    const recorderOk = ev.actorId === actorId && putBackOpen(originAt, now);
     result = await apply(payload, ev.groupId, actorId, ev.text, mark, { actorId: ev.actorId, createdAt: ev.createdAt }, { memberships: opts.memberships, recorderOk });
   } catch (err) {
     if (err instanceof UndoTaken) return { ok: false, error: err.message };

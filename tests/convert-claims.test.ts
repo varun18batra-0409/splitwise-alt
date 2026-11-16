@@ -149,3 +149,105 @@ describe("putting a conversion back", () => {
     expect(await undoConvertedClaims(s.changes, { apply: true })).toEqual({ apply: true, putBack: 0, skipped: 1 });
   });
 });
+
+// Review fixes (M5). Hand-worked on the same fixture: Ravi owes Asha 50000; a note for 50000 becomes the payment Ravi -> Asha 50000
+// (both at 0); taking it off again puts Ravi at -50000 and Asha at +50000.
+describe("putting a conversion back uses the same safe delete as the payer", () => {
+  it("(U1) it is deleted BY the payer (deletedById = Ravi) and the payer's own delete line is written", async () => {
+    const f = await fixture();
+    await f.claim(50000);
+    const s = await run(f.gid, true);
+    expect(await undoConvertedClaims(s.changes, { apply: true })).toEqual({ apply: true, putBack: 1, skipped: 0 });
+    const pay = (await f.payments())[0];
+    expect([pay.deletedById, pay.deletedAt === null]).toEqual([f.R, false]);
+    expect((await f.events()).filter((e) => e.kind === "payment_deleted")).toHaveLength(1);
+    expect(await f.net()).toEqual({ [f.A]: 50000, [f.R]: -50000 });
+  });
+
+  it("(U2) Ravi left (at 0) after the conversion: the undo brings him back owing, so he is never left off zero (Ravi -50000, Asha +50000)", async () => {
+    const f = await fixture();
+    await f.claim(50000);
+    const s = await run(f.gid, true);
+    await db.member.update({ where: { id: f.R }, data: { leftAt: new Date("2026-11-21T00:00:00Z") } });
+    expect(await undoConvertedClaims(s.changes, { apply: true })).toEqual({ apply: true, putBack: 1, skipped: 0 });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.R } })).leftAt).toBeNull();
+    expect(await f.net()).toEqual({ [f.A]: 50000, [f.R]: -50000 });
+  });
+
+  it("(U3) the group was closed since: the row is skipped, the payment still counts and the note stays covered", async () => {
+    const f = await fixture();
+    const note = await f.claim(50000);
+    const s = await run(f.gid, true);
+    await db.group.update({ where: { id: f.gid }, data: { closed: true } });
+    expect(await undoConvertedClaims(s.changes, { apply: false })).toEqual({ apply: false, putBack: 0, skipped: 1 });
+    expect(await undoConvertedClaims(s.changes, { apply: true })).toEqual({ apply: true, putBack: 0, skipped: 1 });
+    expect((await f.payments()).filter((p) => !p.deletedAt)).toHaveLength(1);
+    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: note.id } })).status).toBe("covered");
+    expect(await f.net()).toEqual({ [f.A]: 0, [f.R]: 0 });
+  });
+
+  it("(U4) the payer was removed by an admin since: skipped (a removed person can't delete payments); the payment still counts", async () => {
+    const f = await fixture();
+    const note = await f.claim(50000);
+    const s = await run(f.gid, true);
+    const when = new Date("2026-11-21T00:00:00Z");
+    await db.member.update({ where: { id: f.R }, data: { leftAt: when, removedAt: when, removedById: f.A } });
+    expect(await undoConvertedClaims(s.changes, { apply: true })).toEqual({ apply: true, putBack: 0, skipped: 1 });
+    expect((await f.payments()).filter((p) => !p.deletedAt)).toHaveLength(1);
+    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: note.id } })).status).toBe("covered");
+  });
+
+  it("(U5) the payment was already deleted by someone since: skipped, the note is not revived", async () => {
+    const f = await fixture();
+    const note = await f.claim(50000);
+    const s = await run(f.gid, true);
+    await db.payment.updateMany({ where: { groupId: f.gid }, data: { deletedAt: new Date(), deletedById: f.A } });
+    expect(await undoConvertedClaims(s.changes, { apply: true })).toEqual({ apply: true, putBack: 0, skipped: 1 });
+    expect((await db.paymentClaim.findUniqueOrThrow({ where: { id: note.id } })).status).toBe("covered");
+  });
+});
+
+describe("the conversion keeps its undo information as it goes", () => {
+  it("(C1) each change is handed over the moment its note is saved, in order, and equals what the summary lists", async () => {
+    const f1 = await fixture();
+    const f2 = await fixture();
+    await f1.claim(50000);
+    await f2.claim(60000); // more than owed: closed
+    const seen: { claimId: string; kind: string }[] = [];
+    const s = await convertWaitingClaims({ apply: true, groupIds: [f1.gid, f2.gid], now: new Date("2026-11-20T06:00:00Z"), onChange: (c) => seen.push(c) });
+    expect([s.converted, s.expired, s.failed]).toEqual([1, 1, 0]);
+    expect(seen).toEqual(s.changes);
+    expect(seen.map((c) => c.kind).sort()).toEqual(["converted", "expired"]);
+  });
+
+  it("(C2) a note whose own check crashes is counted as failed and changes nothing; the next note still converts and is handed over", async () => {
+    const f1 = await fixture();
+    const f2 = await fixture();
+    const n1 = await f1.claim(50000);
+    const n2 = await f2.claim(50000);
+    const spy = vi.spyOn(db.group, "findUnique").mockRejectedValueOnce(new Error("db down")); // the first note's judgeClaim
+    try {
+      const seen: { claimId: string }[] = [];
+      const s = await convertWaitingClaims({ apply: true, groupIds: [f1.gid, f2.gid], now: new Date("2026-11-20T06:00:00Z"), onChange: (c) => seen.push(c) });
+      expect([s.waiting, s.converted, s.expired, s.failed]).toEqual([2, 1, 0, 1]);
+      expect(seen).toHaveLength(1);
+      // Whichever note was read first crashed: it still waits and changed nothing; the other became one counted payment.
+      const statuses = (await db.paymentClaim.findMany({ where: { id: { in: [n1.id, n2.id] } } })).map((c) => c.status).sort();
+      expect(statuses).toEqual(["covered", "waiting"]);
+      expect((await f1.payments()).length + (await f2.payments()).length).toBe(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("(C3) the command appends each note to the undo file as it goes, and the undo command reads lines as well as an older list (source check: they are command files)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const run1 = readFileSync("scripts/convert-waiting-claims.ts", "utf8");
+    expect(run1).toContain("appendFileSync(file");
+    expect(run1).toContain("onChange");
+    expect(run1).not.toContain("JSON.stringify(s.changes");
+    const undo1 = readFileSync("scripts/undo-convert-waiting-claims.ts", "utf8");
+    expect(undo1).toContain('text.startsWith("[")');
+    expect(undo1).toContain("split(");
+  });
+});
