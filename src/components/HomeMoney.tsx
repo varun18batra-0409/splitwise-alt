@@ -4,12 +4,11 @@ import { ShareCountdown } from "@/components/ShareCountdown";
 import { ExactAmount } from "@/components/ExactAmount";
 import { GroupCover } from "@/components/GroupCover";
 import { PassStack } from "@/components/PassStack";
-import { orderPasses, routeCode, type GroupMark, type PassField, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
-import { buttonLabel, cardLabel, homeAmountTier, sideLine } from "@/lib/home/owe-card";
+import { routeCode, type GroupMark, type NetCard, type PassField, type TicketAction, type TicketLine } from "@/lib/home/money-card";
 import type { TripPass } from "@/lib/home/coming-up";
 import type { CoverChoice } from "@/lib/covers";
 
-// Home's money card (below, MoneyCard) is the 15 Nov mockup's compact "You owe" card (no photo). The boarding-pass pieces (TicketShell, PassRoute, PassFields, Amount)
+// Home's money card (below, MoneyCard) is the 16 Nov slim "Net" card. The boarding-pass pieces (TicketShell, PassRoute, PassFields, Amount)
 // stay for Settle up, a group's pay screens and the trip pass.
 // No tinted wash and no coloured border: only the amount carries the colour (orange you owe, green you're owed).
 // Below it, a quiet line for what waits on you. Lower down, "Coming up": a pass like it for each trip that is next.
@@ -75,26 +74,6 @@ export function ActionButton({ a, className }: { a: TicketAction; className: str
   return (
     <Link href={a.href} aria-label={a.fullLabel !== a.label ? a.fullLabel : undefined} className={className} data-money-action={a.key} data-emphasis={a.bright ? "bright" : "quiet"}>
       <span className="min-w-0 truncate">{a.label}</span>
-    </Link>
-  );
-}
-
-function Faces({ line }: { line: TicketLine }) {
-  return (
-    <Link href={line.peopleHref} aria-label={`${line.phrase}. See who, in Settle up`} className="-my-2 flex min-h-11 items-center self-start pr-2 active:opacity-70" data-money-people>
-      <span aria-hidden className="flex">
-        {line.faces.map((f, i) => (
-          <span key={i} className="-ml-1.5 grid h-6 w-6 place-items-center rounded-full border-2 border-[#16161a] bg-[#2a2a31] text-[11px] font-bold text-fg/90 first:ml-0">
-            {f}
-          </span>
-        ))}
-        {/* "4 PPL" with three faces: the fourth shows as +1. */}
-        {line.count > line.faces.length && (
-          <span className="-ml-1.5 grid h-6 min-w-6 place-items-center rounded-full border-2 border-[#16161a] bg-[#2a2a31] px-1 text-[10.5px] font-bold text-fg/80" data-faces-more>
-            +{line.count - line.faces.length}
-          </span>
-        )}
-      </span>
     </Link>
   );
 }
@@ -241,100 +220,53 @@ export function PassFields({ fields }: { fields: PassField[] }) {
   );
 }
 
-// ---- Home's money card (the 15 Nov mockup, compact, no photo) ----
-// One dark rounded card, everything left-aligned: the label, the exact amount in the display serif, who and where, the faces and ONE
-// full-width cream pill. Money both ways is two of these in a swipeable stack (larger first, only the first has the cream pill).
-// Nothing is worked out here: homeTicket decides, this only draws.
-const HOME_AMOUNT = { xl: "text-[34px] min-[360px]:text-[40px]", l: "text-[30px] min-[360px]:text-[34px]", m: "text-[24px] min-[360px]:text-[28px]" } as const;
-
-function MoneyShell({ label, attrs, children }: { label: string; attrs: Record<string, string | undefined>; children: React.ReactNode }) {
+// ---- Home's money card: ONE slim "Net" card (founder, 16 Nov) ----
+// Left: a small label and the net amount in the display serif. Right: up to two small lines (Group / Non-group). The whole card is ONE link
+// to Settle up, so there are no buttons inside it (reminders live on Settle up). Nothing is worked out here: homeNetCard decides, this draws.
+export function MoneyCard({ card }: { card: NetCard }) {
+  const base = "flex min-h-[80px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-[22px] bg-[#16161a] px-4 py-3.5 text-fg shadow-[inset_0_0_0_1px_#26262c] transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100 min-[360px]:px-[18px]";
+  if (card.kind === "square") {
+    return (
+      <Link href={card.href} aria-label={card.aria} className={base} data-balance-card data-money-card="net" data-money-mode="square" data-tone="square" data-ticket="square">
+        <span className="block min-w-0">
+          <span className="block text-[13px] leading-none text-[#b9b6ae]">{card.label}</span>
+          <span className="mt-1.5 block whitespace-nowrap font-display text-[18px] font-medium leading-tight tracking-[-0.01em] min-[360px]:text-[20px]" data-ticket-context>
+            {card.text}
+          </span>
+        </span>
+      </Link>
+    );
+  }
+  const tone = card.tone === "owed" ? "text-owed" : card.tone === "owe" ? "text-owe" : "text-fg";
   return (
-    <section aria-label={label} className="relative flex flex-col rounded-[22px] bg-[#16161a] px-4 py-4 text-fg shadow-[inset_0_0_0_1px_#26262c] min-[360px]:px-[18px]" {...attrs}>
-      {children}
-    </section>
-  );
-}
-
-function HomeAmount({ text, exact, tone, tier }: { text: string; exact?: string; tone: "owe" | "owed" | "plain"; tier: "xl" | "l" | "m" }) {
-  return (
-    <p
-      className={`mt-1 whitespace-nowrap font-display font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums [overflow-wrap:normal] ${HOME_AMOUNT[tier]} ${tone === "owe" ? "text-owe" : tone === "owed" ? "text-owed" : "text-fg"}`}
-      data-net-balance
-      data-exact={exact && exact !== text ? exact : undefined}
-      title={exact}
+    <Link
+      href={card.href}
+      aria-label={card.aria}
+      className={base}
+      data-balance-card
+      data-money-card="net"
+      data-money-mode={card.tone === "plain" ? "even" : card.tone}
+      data-tone={card.tone === "plain" ? "square" : card.tone}
+      data-ticket="net"
     >
-      {exact && exact !== text ? <ExactAmount amount={text} exact={exact} /> : text}
-    </p>
-  );
-}
-
-function SideCard({ line, bright, attrs, label }: { line: TicketLine; bright: boolean; attrs: Record<string, string | undefined>; label?: string }) {
-  // The spoken name starts with the words on the button ("Review & settle. Pay Asha Shah ₹54,122").
-  const action = { ...line.action, label: buttonLabel(line), fullLabel: line.side === "owe" ? `Review & settle. ${line.action.fullLabel}` : line.action.fullLabel };
-  return (
-    <MoneyShell label={label ?? (line.side === "owe" ? "What you owe" : "What you are owed")} attrs={attrs}>
-      <p className="text-[14px] leading-none text-fg/70">{cardLabel(line.side)}</p>
-      <HomeAmount text={line.amount} exact={line.exact} tone={line.side} tier={homeAmountTier(line.amount)} />
-      <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-fg/65 [overflow-wrap:normal] [text-wrap:balance]" data-ticket-context>
-        {sideLine(line)}
-      </p>
-      {line.faces.length > 0 && (
-        <div className="mt-1.5">
-          <Faces line={line} />
-        </div>
-      )}
-      <div className={line.faces.length > 0 ? "pt-2.5" : "pt-3"}>
-        <ActionButton a={action} className={`${bright ? CREAM : OUTLINE} w-full`} />
-      </div>
-    </MoneyShell>
-  );
-}
-
-export function MoneyCard({ ticket, mode, tone }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain" }) {
-  const attrs = { "data-balance-card": "", "data-money-mode": mode, "data-tone": tone === "plain" ? "square" : tone, "data-ticket": ticket.kind };
-  return (
-    <>
-      {ticket.kind === "both" ? (
-        // Money both ways: two cards in a swipeable stack, the larger first. Only the first has the cream button.
-        <PassStack label="Your money, two passes" attrs={attrs}>
-          {orderPasses(ticket.lines).map((l, i) => (
-            <SideCard key={l.side} line={l} bright={i === 0} attrs={{ "data-ticket-line": l.side }} />
-          ))}
-        </PassStack>
-      ) : ticket.kind === "one" ? (
-        <SideCard line={ticket.line} bright attrs={attrs} label="Your money" />
-      ) : ticket.kind === "square" ? (
-        <MoneyShell label="Your money" attrs={attrs}>
-          <p className="text-[14px] leading-none text-fg/70">Your money</p>
-          <HomeAmount text={ticket.amount} tone="plain" tier="l" />
-          <p className="mt-2 text-[14px] leading-snug text-fg/65" data-ticket-context>
-            {ticket.label}
-          </p>
-          {/* The stamp sits beside the link (never on top of the words), tilted like a real one: stamp artwork, not green. */}
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <Link href="/add" className="flex min-h-11 items-center text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
-              Add an expense
-            </Link>
-            <span aria-hidden data-settled-stamp className="pointer-events-none mr-1 shrink-0 -rotate-[8deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[15px] font-semibold tracking-[0.16em] text-fg/35">
-              SETTLED
+      <span className="block min-w-0">
+        <span className="block text-[13px] leading-none text-[#b9b6ae]" data-net-label>
+          {card.label}
+        </span>
+        <span className={`mt-1.5 block whitespace-nowrap font-display font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums [overflow-wrap:normal] ${bothAmountSize(card.amount)} ${tone}`} data-net-balance>
+          {card.amount}
+        </span>
+      </span>
+      {card.lines.length > 0 && (
+        <span className="flex min-w-0 flex-col gap-0.5 text-right text-[13px] leading-tight tabular-nums" data-net-lines>
+          {card.lines.map((l) => (
+            <span key={l.kind} className={`whitespace-nowrap ${l.sign === "+" ? "text-owed" : "text-owe"}`} data-net-line={l.kind}>
+              {l.text}
             </span>
-          </div>
-        </MoneyShell>
-      ) : (
-        <MoneyShell label="Your money" attrs={attrs}>
-          <p className="line-clamp-2 text-[14px] leading-tight text-fg/70">{ticket.label}</p>
-          <HomeAmount text={ticket.amount} exact={ticket.exact} tone="plain" tier={homeAmountTier(ticket.amount)} />
-          {ticket.context && (
-            <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-fg/65 [text-wrap:balance]" data-ticket-context>
-              {ticket.context}
-            </p>
-          )}
-          <div className="pt-3">
-            <ActionButton a={ticket.action} className={`${CREAM} w-full`} />
-          </div>
-        </MoneyShell>
+          ))}
+        </span>
       )}
-    </>
+    </Link>
   );
 }
 

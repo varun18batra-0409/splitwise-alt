@@ -329,7 +329,8 @@ if (!desktop && !hosted) {
   const flat = await members(flatId);
   const [V, A, R, M] = ["Varun", "Asha", "Ravi", "Meera"].map((n) => trip.get(n)!);
   const [FV, FK] = ["Varun", "Kabir"].map((n) => flat.get(n)!);
-  const card = () => page.getByRole("region", { name: "Your money" });
+  // The slim Net card is one link (a region no more): found by its hook.
+  const card = () => page.locator("[data-balance-card]").first();
   const read = async () => {
     await page.setViewportSize(screen);
     await page.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
@@ -357,16 +358,17 @@ if (!desktop && !hosted) {
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
   // (The card has no photo any more, so no stray letter ends the text.)
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
+    // The slim Net card says the net of groups and non-group together. These states only add group expenses, so no "Group / Non-group" lines show.
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You owe ₹54,122 To Asha( · .+?)? Review & settle$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "net", has: /^net \| Net · you owe ₹54,122$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "net", has: /^net \| Net · you’re owed ₹22,916$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| You’re owed ₹31,480 From 3 people( · .+?)?( [A-Z]){0,3}( \+\d)? Remind 3 people$/ }],
-    // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You’re owed ₹22,916 From Kabir( · .+?)? Remind Kabir You owe ₹4,200 To Asha( · .+?)? Review & settle$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "net", has: /^net \| Net · you’re owed ₹31,480$/ }],
+    // Money both ways, in two groups: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat). The card now NETS them: 2291600 - 420000 = 1871600 paise = ₹18,716 owed to him.
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "net", has: /^net \| Net · you’re owed ₹18,716$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| Your money All square Nobody owes anybody.*(SETTLED.*Add an expense|Add an expense.*SETTLED)$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| All square Nobody owes anybody$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -388,7 +390,7 @@ if (!desktop && !hosted) {
         await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
         await shot(`n${w}-home-state-${name}`, "/");
       }
-      // A long first name on the narrowest phone: the card says "To Bhagyalakshmi · …" (wrapping between words, never mid-word) and the amount stays whole.
+      // A long first name on the narrowest phone (the slim card names nobody now; kept so the before/after set stays the same).
       if (name === "owe") {
         const asha = await db.member.findUnique({ where: { id: A } });
         await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });
