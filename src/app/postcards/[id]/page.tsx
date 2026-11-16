@@ -12,7 +12,7 @@ import { PostcardOneSide } from "@/components/postcards/OneSide";
 import { POSTCARD_FONTS_URL } from "@/lib/postcards/catalog";
 import { cardProps } from "@/lib/postcards/view";
 import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
-import { REACTIONS, reactionOf } from "@/lib/postcards/looks";
+import { REACTIONS, reactionOf, sealBackLine } from "@/lib/postcards/looks";
 import { reactPostcardAction } from "@/app/postcard-actions";
 import { SafetyLinks } from "@/components/SafetyLinks";
 
@@ -94,18 +94,25 @@ export default async function PostcardPage({ params, searchParams }: { params: P
       <div className="mx-auto mt-8 max-w-[420px] space-y-3">
         {!mine && !shut && (
           <section aria-label="Seal it back" className="mb-6">
-            <p className="mb-3 text-center text-[13px] font-semibold text-fg/55">Press a seal back on it</p>
-            <div className="flex justify-center gap-3">
-              {REACTIONS.map((x) => (
-                <form key={x.id} action={reactPostcardAction}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <input type="hidden" name="reaction" value={x.id} />
-                  <button type="submit" aria-label={`Seal: ${x.name}`} aria-pressed={p.reaction === x.id} data-haptic="success" className={`flex w-[58px] flex-col items-center gap-1.5 transition-transform active:scale-90 ${p.reaction && p.reaction !== x.id ? "opacity-45" : ""}`}>
-                    <SealMark id={x.id} k={`b${x.id}`} className="w-[46px]" />
-                    <span className="text-[10.5px] leading-tight text-fg/65">{x.name}</span>
-                  </button>
-                </form>
-              ))}
+            <p className={`mb-3 text-center text-[13px] font-semibold ${r ? "text-fg" : "text-fg/55"}`} data-seal-line aria-live="polite">
+              {sealBackLine(p.reaction)}
+            </p>
+            <div className="grid grid-cols-5 gap-1">
+              {REACTIONS.map((x) => {
+                const chosen = p.reaction === x.id;
+                return (
+                  <form key={x.id} action={reactPostcardAction} className="min-w-0">
+                    <input type="hidden" name="id" value={p.id} />
+                    <input type="hidden" name="reaction" value={x.id} />
+                    <button type="submit" aria-label={`Seal: ${x.name}`} aria-pressed={chosen} data-haptic="success" data-seal-choice={x.id} data-seal-chosen={chosen ? "1" : undefined} className={`flex w-full flex-col items-center gap-1.5 transition-transform active:scale-90 motion-reduce:transition-none ${p.reaction && !chosen ? "opacity-45" : ""}`}>
+                      <span className={`block rounded-full ${chosen ? "w-[54px] outline outline-2 outline-offset-2 outline-fg" : "w-[44px]"}`}>
+                        <SealMark id={x.id} k={`b${x.id}`} className="w-full" />
+                      </span>
+                      <span className={`text-center text-[10.5px] leading-tight ${chosen ? "font-bold text-fg" : "text-fg/65"}`}>{x.name}</span>
+                    </button>
+                  </form>
+                );
+              })}
             </div>
           </section>
         )}

@@ -2,6 +2,7 @@
 
 import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { PRINT_PAD, PRINT_PAD_BOTTOM, SCRIM_ALPHA, SCRIM_HEIGHT, bandCqw, bandSide, marginInk, printBox, scrimTop, scrimWanted, titleSizeCqw, wordsOnMargin } from "@/lib/postcards/lettering";
 import { ONESIDE, ONESIDE_SIGN, ONESIDE_STAMP, ONESIDE_WAVES, fitOf, photoSizeOf } from "@/lib/postcards/format";
 import { oneSideFont } from "@/lib/postcards/fit";
 import type { BackProps, FrontProps } from "./Card";
@@ -124,24 +125,36 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
   const at = wordsAtOf(p.wordsAt ?? "bottom");
   const t = toneOf(p.tone ?? "white");
   const media = print ? await svgImage(printSvg(print, "x")) : img ? await loadImage(img) : null;
-  // The soft shade behind light words, over the rectangle (x, y, w, h) the picture fills.
-  const shade = (x: number, y: number, w: number, h: number) => {
-    if (!(img && p.words && !t.dark)) return;
-    const g = at === "top" ? ctx.createLinearGradient(0, y + h * 0.55, 0, y) : at === "middle" ? ctx.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w * 0.6) : ctx.createLinearGradient(0, y + h * 0.45, 0, y + h);
-    g.addColorStop(0, at === "middle" ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0)");
-    g.addColorStop(1, at === "middle" ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.42)");
-    ctx.fillStyle = g;
-    ctx.fillRect(x, y, w, h);
-  };
+  const l = letteringOf(p.lettering);
+  const long = (p.words ?? "").length > 11;
+  const titleCqw = titleSizeCqw(Boolean(l.caps), long, wordsSizeOf(p.wordsSize ?? 100) / 100);
+  const margin = Boolean(p.words) && wordsOnMargin(fit);
+  const band = margin ? (bandCqw(titleCqw) * W) / 100 : 0; // in pixels
+  const side = bandSide(at);
+  const cq = W / 100; // one "cqw" in pixels
   if (fit === "full") {
     if (f !== "none") ctx.filter = f;
     if (media) cover(ctx, media, 0, 0, W, H);
     ctx.filter = "none";
-    shade(0, 0, W, H);
+    // The soft dark scrim behind light words, only where the words are.
+    if (scrimWanted(fit, t.dark, Boolean(p.words))) {
+      const y0 = scrimTop(at) * H;
+      const y1 = y0 + SCRIM_HEIGHT * H;
+      const g = ctx.createLinearGradient(0, y0, 0, y1);
+      const on = `rgba(0,0,0,${SCRIM_ALPHA})`;
+      const off = "rgba(0,0,0,0)";
+      if (at === "top") [[0, on], [0.55, on], [1, off]].forEach(([o, c]) => g.addColorStop(o as number, c as string));
+      else if (at === "middle") [[0, off], [0.3, on], [0.7, on], [1, off]].forEach(([o, c]) => g.addColorStop(o as number, c as string));
+      else [[0, off], [0.45, on], [1, on]].forEach(([o, c]) => g.addColorStop(o as number, c as string));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y0, W, y1 - y0);
+    }
   } else if (fit === "border") {
     ctx.fillStyle = "#f4f0e6";
     ctx.fillRect(0, 0, W, H);
-    const [x, y, w, h] = [W * 0.05, H * 0.05, W * 0.9, H * 0.9];
+    const top = margin && side === "top" ? band : H * 0.05;
+    const bottom = margin && side === "bottom" ? band : H * 0.05;
+    const [x, y, w, h] = [W * 0.05, top, W * 0.9, H - top - bottom];
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
@@ -149,8 +162,11 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
     if (f !== "none") ctx.filter = f;
     if (media) cover(ctx, media, x, y, w, h);
     ctx.filter = "none";
-    shade(x, y, w, h);
     ctx.restore();
+  } else if (margin) {
+    const box = printBox(bandCqw(titleCqw), print ? 3 / 2 : 4 / 3);
+    const cy = (side === "top" ? band : 0) + (box.area * cq) / 2;
+    drawPrint(ctx, media, f, W / 2, cy, box.w * cq, print ? 3 / 2 : 4 / 3, PRINT_PAD / box.w, PRINT_PAD_BOTTOM / box.w, -3, W * 0.16, W * 0.046);
   } else {
     drawPrint(ctx, media, f, W / 2, H / 2, W * 0.62, print ? 3 / 2 : 4 / 3, 1.6 / 62, 6 / 62, -3, W * 0.16, W * 0.046);
   }
@@ -161,16 +177,19 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
     ctx.strokeRect(W * 0.032, W * 0.032, W - W * 0.064, H - W * 0.064);
   }
   if (p.words) {
-    const l = letteringOf(p.lettering);
-    const long = p.words.length > 11;
-    const size = ((W * (l.caps ? (long ? 11 : 15) : long ? 9.5 : 13.5)) / 100) * (wordsSizeOf(p.wordsSize ?? 100) / 100);
+    const size = (W * titleCqw) / 100;
     await document.fonts.load(`${l.italic ? "italic " : ""}${Math.round(size)}px "${l.family}"`).catch(() => {});
-    ctx.fillStyle = t.c;
+    ctx.fillStyle = margin ? marginInk(t) : t.c;
     ctx.textAlign = "center";
-    ctx.shadowColor = t.dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
+    ctx.shadowColor = margin ? "transparent" : t.dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
     ctx.shadowBlur = 30;
     ctx.font = `600 ${Math.round(W * 0.021)}px system-ui, sans-serif`;
-    const base = at === "top" ? H * 0.09 + size * 1.7 : at === "middle" ? H / 2 + size * 0.45 : H * 0.91;
+    let base = at === "top" ? H * 0.09 + size * 1.7 : at === "middle" ? H / 2 + size * 0.45 : H * 0.91;
+    if (margin) {
+      // The title's baseline sits in the middle of the band (the little line above it takes the room it needs).
+      const bandTop = side === "top" ? 0 : H - band;
+      base = bandTop + band / 2 + 1.6 * cq + size * 0.3;
+    }
     // "GREETINGS FROM", letter-spaced by hand (canvas has no letter-spacing everywhere).
     const kick = "GREETINGS FROM".split("").join(String.fromCharCode(0x200a, 0x200a));
     ctx.fillText(kick, W / 2, base - size * 0.95);

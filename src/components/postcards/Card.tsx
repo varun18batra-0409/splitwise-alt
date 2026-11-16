@@ -1,5 +1,6 @@
 import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { fitOf, type Fit } from "@/lib/postcards/format";
+import { PRINT_PAD, PRINT_PAD_BOTTOM, SCRIM_ALPHA, SCRIM_HEIGHT, bandCqw, bandSide, marginInk, printBox, scrimTop, scrimWanted, titleSizeCqw, wordsOnMargin } from "@/lib/postcards/lettering";
 import { ADDRESS_MIN_SCALE, addressLineScale, handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 
 // A postcard, front and back, drawn at any width (sizes are in "cqw": a share of the card's width),
@@ -26,30 +27,54 @@ export function PostcardFront({ front, photo, words, lettering, tone = "white", 
     // eslint-disable-next-line @next/next/no-img-element
     <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: filter === "none" ? "saturate(1.06) contrast(1.04)" : filter }} data-front-photo data-look={look || "none"} />
   ) : null;
-  const shade =
-    img && words && !t.dark && fit !== "taped" ? (
-      <span
-        aria-hidden
-        className="absolute inset-0"
-        style={{ background: at === "top" ? "linear-gradient(0deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" : at === "middle" ? "radial-gradient(80% 60% at 50% 50%,rgba(0,0,0,0.3),rgba(0,0,0,0) 75%)" : "linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" }}
-      />
-    ) : null;
+  const caps = Boolean(l.caps);
+  const title = titleSizeCqw(caps, long, scale);
+  const margin = Boolean(words) && wordsOnMargin(fit);
+  const band = margin ? bandCqw(title) : 0;
+  const side = bandSide(at);
+  // Light words over the photo get a soft dark scrim, only where the words are (never on the margin: there the words are on paper).
+  const scrim = scrimWanted(fit, t.dark, Boolean(words)) ? (
+    <span
+      aria-hidden
+      data-words-scrim
+      className="pointer-events-none absolute inset-x-0"
+      style={{
+        top: `${scrimTop(at) * 100}%`,
+        height: `${SCRIM_HEIGHT * 100}%`,
+        background:
+          at === "top"
+            ? `linear-gradient(to bottom,rgba(0,0,0,${SCRIM_ALPHA}) 0%,rgba(0,0,0,${SCRIM_ALPHA}) 55%,rgba(0,0,0,0) 100%)`
+            : at === "middle"
+              ? `linear-gradient(to bottom,rgba(0,0,0,0) 0%,rgba(0,0,0,${SCRIM_ALPHA}) 30%,rgba(0,0,0,${SCRIM_ALPHA}) 70%,rgba(0,0,0,0) 100%)`
+              : `linear-gradient(to top,rgba(0,0,0,${SCRIM_ALPHA}) 0%,rgba(0,0,0,${SCRIM_ALPHA}) 55%,rgba(0,0,0,0) 100%)`,
+      }}
+    />
+  ) : null;
+  const box = printBox(band, print ? 3 / 2 : 4 / 3);
+  const ink = margin ? marginInk(t) : t.c;
   return (
     <div className={`relative aspect-[3/2] overflow-hidden rounded-[3px] bg-[#e9e2d4] text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_24px_48px_-18px_rgba(0,0,0,0.85),0_6px_14px_-6px_rgba(0,0,0,0.6)] [container-type:inline-size] ${className}`} data-postcard-front data-fit={fit}>
       {fit === "full" ? (
         <>
           {media}
-          {shade}
+          {scrim}
         </>
       ) : fit === "border" ? (
-        // A white border: the picture sits inside a margin of paper, and the shading for the words stays inside the picture.
+        // A white border: the picture sits inside a margin of paper. With words, the bottom (or top) margin is deeper and holds them.
         <>
           <span aria-hidden className="absolute inset-0 bg-[#f4f0e6]" />
-          <div className="absolute inset-[5%] overflow-hidden" data-print-frame>
+          <div className={`absolute overflow-hidden ${margin ? "inset-x-[5%]" : "inset-[5%]"}`} style={margin ? { top: side === "top" ? `${band}cqw` : "5%", bottom: side === "top" ? "5%" : `${band}cqw` } : undefined} data-print-frame>
             {media}
-            {shade}
           </div>
         </>
+      ) : margin ? (
+        // A taped print with words: the print sits in the room the words leave, and the words go on the card under it.
+        <div className="absolute inset-x-0 flex items-center justify-center" style={{ height: `${box.area}cqw`, top: side === "top" ? `${band}cqw` : 0 }}>
+          <div className="relative box-border bg-[#fbf8f1] shadow-[0_1.2cqw_3cqw_-1.2cqw_rgba(40,30,10,0.55)]" style={{ width: `${box.w}cqw`, transform: "rotate(-3deg)", padding: `${PRINT_PAD}cqw ${PRINT_PAD}cqw ${PRINT_PAD_BOTTOM}cqw` }} data-print-frame>
+            <div className={`relative overflow-hidden ${print ? "aspect-[3/2]" : "aspect-[4/3]"}`}>{media}</div>
+            <span aria-hidden className="absolute -top-[2.4cqw] left-1/2 block h-[4.6cqw] w-[16cqw] -translate-x-1/2 rotate-[-6deg] bg-[rgba(226,212,170,0.82)]" />
+          </div>
+        </div>
       ) : (
         // A taped print: a white-edged print, slightly tilted, held by a strip of tape, on the card's cream.
         <div className="absolute left-1/2 top-1/2 box-border w-[62cqw] bg-[#fbf8f1] shadow-[0_1.2cqw_3cqw_-1.2cqw_rgba(40,30,10,0.55)]" style={{ transform: "translate(-50%,-50%) rotate(-3deg)", padding: "1.6cqw 1.6cqw 6cqw" }} data-print-frame>
@@ -60,7 +85,14 @@ export function PostcardFront({ front, photo, words, lettering, tone = "white", 
       <span aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.2] mix-blend-multiply" style={{ backgroundImage: GRAIN }} />
       {fit === "full" && <span aria-hidden className="pointer-events-none absolute inset-[3.2%] border border-white/60" />}
       {words && (
-        <div className={`pointer-events-none absolute inset-x-[6%] text-center ${at === "top" ? "top-[9%]" : at === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-[9%]"}`} data-words-at={at} style={{ color: t.c, textShadow: t.dark ? "0 1px 14px rgba(255,255,255,0.45)" : "0 2px 18px rgba(0,0,0,0.35)" }} data-front-words data-tone={t.id}>
+        <div
+          className={`pointer-events-none absolute inset-x-[6%] text-center ${margin ? `flex flex-col items-center justify-center ${side === "top" ? "top-0" : "bottom-0"}` : at === "top" ? "top-[9%]" : at === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-[9%]"}`}
+          data-words-at={at}
+          data-words-margin={margin ? side : undefined}
+          style={{ color: ink, height: margin ? `${band}cqw` : undefined, textShadow: margin ? "none" : t.dark ? "0 1px 14px rgba(255,255,255,0.45)" : "0 2px 18px rgba(0,0,0,0.35)" }}
+          data-front-words
+          data-tone={t.id}
+        >
           <div className="font-sans text-[2.1cqw] font-semibold uppercase tracking-[0.34em] opacity-95">Greetings from</div>
           <div
             className="leading-[0.95]"
@@ -68,7 +100,7 @@ export function PostcardFront({ front, photo, words, lettering, tone = "white", 
               fontFamily: `'${l.family}', Georgia, serif`,
               fontStyle: l.italic ? "italic" : undefined,
               letterSpacing: l.caps ? "0.06em" : "-0.01em",
-              fontSize: `${(l.caps ? (long ? 11 : 15) : long ? 9.5 : 13.5) * scale}cqw`,
+              fontSize: `${title}cqw`,
             }}
           >
             {words}

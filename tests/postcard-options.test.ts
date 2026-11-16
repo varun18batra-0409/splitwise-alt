@@ -133,7 +133,7 @@ describe("postcard editor: a dropped choice is drawn as the nearest one offered 
     const seal = on.find((t) => t.id === "seal")!;
     expect([seal.x, seal.y, seal.w]).toEqual([0.4, 0.74, 0.13]);
     const coffee = on.find((t) => t.id === "coffee")!;
-    expect([coffee.x, coffee.y, coffee.w]).toEqual([0.58, 0.55, 0.3]);
+    expect([coffee.x, coffee.y, coffee.w]).toEqual([0.02, 0.68, 0.26]);
     const flower = on.find((t) => t.id === "flower")!;
     expect([flower.x, flower.y, flower.w]).toEqual([0.05, 0.62, 0.16]);
   });

@@ -66,7 +66,7 @@ export default async function PostcardsPage({ searchParams }: { searchParams: Pr
         <span aria-hidden className="w-9 shrink-0 rotate-[-4deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(withHome(onIssue[0] ?? "r:newyear", home), "alb") }} />
         <span className="min-w-0 flex-1">
           <span className="block font-display text-[17px] font-semibold">Stamp album</span>
-          <span className="block text-[13px] text-fg/55">{onIssue.length ? "A limited stamp is on issue now" : "Rare stamps you’ve collected"}</span>
+          <span className="block text-[13px] text-fg/55">{onIssue.length ? "A limited stamp is on issue now" : "Rare stamps to collect"}</span>
         </span>
         <span aria-hidden className="text-xl">›</span>
       </Link>
