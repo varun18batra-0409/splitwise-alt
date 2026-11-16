@@ -1609,13 +1609,13 @@ async function main() {
     // Story labels: one line, at most 10 characters.
     for (const t of await V.locator("[data-story-label]").allInnerTexts()) assert([...t.trim()].length <= 10, `a story label is too long: ${t}`);
   });
-  await step(V, "Home", "The sliding cards at the bottom (under “Before you go”): only postcards waiting, a bill due soon, the festival card for where you are and the month, so 0 to 4 of them, no two the same, each with words and a button that goes somewhere, no trip photos; none: no row", async () => {
+  await step(V, "Home", "The ONE sliding row: weather for your next trip first, then the month, a bill due soon, a postcard, your passport and the festival when it is on, so 2 to 6 of them, no two the same, each with words and a button that goes somewhere, with no trip photos", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');
     const n = await slides.count();
-    assert(n <= 4, `${n} cards`);
-    assert((await V.locator('[aria-roledescription="slide"] img').count()) === 0, "a sliding card still has a photo");
-    for (const t of await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) assert(!/Wish they were here|spent today|payments? squares? it|stamp in your passport|Who’s booking what|While you’re in|countries and counting|Where to next/.test(t), `an old trip or filler card is back: ${t}`);
+    assert(n >= 2 && n <= 6, `${n} cards`);
+    if ((await V.locator("[data-weather-art]").count()) > 0) assert((await slides.first().locator("[data-weather-art]").count()) === 1, "the weather card is not the first card");
+    for (const t of await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) assert(!/Wish they were here|spent today|payments? squares? it|Who’s booking what|While you’re in|Where to next/.test(t), `an old trip or filler card is back: ${t}`);
     assert((await V.locator('[aria-roledescription="slide"]').filter({ hasText: "Coming from another app" }).count()) === 0, "the switching card is back on Home");
     const texts = await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.replace(/\s+/g, " ").trim()));
     assert(new Set(texts).size === texts.length, `the same card twice: ${texts.join(" / ")}`);

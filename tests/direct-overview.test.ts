@@ -55,6 +55,8 @@ beforeAll(async () => {
   const gk = await mkSharedGroup("ok", [{ id: S, name: "Sam" }, { id: K, name: "Kabir" }]);
   sGroup = { id: gk.id, a: gk.memberOf(S) };
   await addExpense(gk.id, { paidBy: gk.memberOf(S), amount: 4583200, shares: { [gk.memberOf(S)]: 2291600, [gk.memberOf(K)]: 2291600 } });
+  // Sam and Rohan share an open group (no money in it), so a pair between them is allowed.
+  await mkSharedGroup("osr", [{ id: S, name: "Sam" }, { id: R, name: "Rohan" }]);
   const ps = await ensureAccountPair({ id: S }, R, { currency: "INR", myName: "Sam" });
   if (!ps.ok) throw new Error("refused");
   sPair = { groupId: ps.groupId, aRow: ps.myId };
