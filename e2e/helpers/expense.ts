@@ -53,11 +53,10 @@ export async function fillExpense(page: Page, x: ExpenseInput) {
     await page.getByRole("button", { name: "Only some" }).click();
     for (const p of s.who) await chip(page, p).last().click();
   } else if (s.kind === "one") {
-    await page.getByRole("button", { name: /Custom/ }).click();
-    await page.getByRole("button", { name: "One person", exact: true }).click();
+    // One person is "Only some" with just them tapped (the one row of split choices, 16 Nov).
+    await page.getByRole("button", { name: "Only some" }).click();
     await chip(page, s.who).last().click();
   } else if (s.kind !== "everyone") {
-    await page.getByRole("button", { name: /Custom/ }).click();
     const tab = s.kind === "amounts" ? "Amounts" : s.kind === "percent" ? "%" : "Shares";
     await page.getByRole("button", { name: tab, exact: true }).click();
     const suffix = s.kind === "amounts" ? "amount" : s.kind === "percent" ? "percentage" : "shares";

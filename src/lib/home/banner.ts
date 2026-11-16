@@ -63,6 +63,13 @@ export function monthNumbers(
   return { month, name, wrapped, share: Math.max(0, share), currency: common, converted, count, top: topId ? getCategory(topId).short : null };
 }
 
+// What the month card does (founder, 16 Nov): with no share this month there is nothing to say, so no card and no dot;
+// with exactly one expense it is one slim line ("November · 1 expense · your share ₹…") instead of a big, mostly empty card.
+export function monthCardMode(m: MonthNumbers | null): "none" | "slim" | "full" {
+  if (!m || m.share === 0) return "none";
+  return m.count === 1 ? "slim" : "full";
+}
+
 export type Season = {
   id: string;
   eyebrow: string;

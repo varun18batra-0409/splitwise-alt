@@ -7,7 +7,9 @@ import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
 import { computeTotals, fxLine, PAYMENT_METHODS, rateDateLabel, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
-import { amountEcho, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { amountEchoFor, amountSizeClass, regroupAmount } from "@/lib/amount-input";
+import { AmountInput } from "./AmountInput";
 import { QuickLine } from "./QuickLine";
 import { BillScan, type ScannedBill } from "./BillScan";
 import { useRequestKey } from "./FreshKeyInput";
@@ -81,9 +83,10 @@ export function AddExpenseForm({
 
   // 1–4: what, how much, category, currency
   const [name, setName] = useState(initial?.name ?? "");
-  const [amount, setAmount] = useState(initial?.amount ?? "");
-  // The amount box always holds the plain typed amount ("1500", "1500.50"): its text never changes format on focus or blur,
-  // so the browser never rewrites the value under the cursor (select-all, caret and typing all behave as normal).
+  const [amount, setAmount] = useState(regroupAmount(initial?.amount ?? "", initial?.currency ?? baseCurrency));
+  // The amount box shows grouped digits as you type (1,23,456.50 for rupees): the founder chose this on 16 Nov, reversing the earlier
+  // "plain digits only" rule. AmountInput keeps the caret after the same digit, so the number never jumps under the finger.
+  // The text sent to the server is this same text; parseAmount ignores the commas.
   const today = todayKey(new Date(), tz);
   const yesterday = addDays(today, -1);
   const [date, setDate] = useState(initial?.date ?? today);
@@ -100,6 +103,8 @@ export function AddExpenseForm({
   const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category || null); // null (or "") = smart guess from the name
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
+  // A new currency can group differently (rupees: 1,23,456; others: 123,456), so the box is regrouped when it changes.
+  useEffect(() => setAmount((a) => regroupAmount(a, currency)), [currency]);
   const [showCategories, setShowCategories] = useState(false);
 
   // Conversion (only when currency ≠ group currency)
@@ -148,7 +153,6 @@ export function AddExpenseForm({
     initialItems?.length ? initialItems.map((x, i) => ({ k: i + 1, ...x })) : [{ k: 1, name: "", amount: "", people: [] }],
   );
 
-  const [showOnly, setShowOnly] = useState(false);
   const [showFx, setShowFx] = useState(false); // currency details (rate, card fee, calculation)
   const [usingLast, setUsingLast] = useState(false); // the last split in this group was filled in
   // "Same as last time" goes away as soon as anything changes the split from what was filled in.
@@ -220,7 +224,6 @@ export function AddExpenseForm({
     pickSplit({ kind: "everyone-equally" });
     setSelected(memberIds);
     setShowPeople(false);
-    setShowOnly(false);
     setUsingLast(false);
   }
 
@@ -319,7 +322,7 @@ export function AddExpenseForm({
   const base = (minor: number) => formatMoney(minor, baseCurrency);
   const orig = (minor: number) => formatMoney(minor, currency);
   const cur = currencyInfo(currency);
-  const echo = amountEcho(amount, currency);
+  const echo = amountEchoFor(amount, currency);
   const fxMaths = foreign && totals.ok
     ? fxLine({ originalAmount: totals.originalAmount, originalCurrency: currency, baseCurrency, exchangeRate: totals.exchangeRate, convertedAmount: totals.convertedAmount, markupBp: totals.markupBp, markupAmount: totals.markupAmount, amount: totals.total })
     : null;
@@ -353,6 +356,37 @@ export function AddExpenseForm({
   // "Our split" is on: everyone, by the group's own shares, unchanged.
   const groupSplitOn =
     Boolean(groupShares) && forMode === "everyone" && splitType === "shares" && memberIds.every((id) => (shares[id] ?? "1") === groupShares?.[id]);
+  // The one row of choices. Amounts, %, Shares and Items keep whoever was picked under "Only some" (an expense saved as
+  // "selected" with amounts, percentages or shares opens on that choice, for those people, and saves the same data).
+  const choice: "everyone" | "only" | "exact" | "percent" | "shares" | "items" = byItem
+    ? "items"
+    : splitType !== "equal"
+      ? splitType
+      : forMode === "everyone"
+        ? "everyone"
+        : "only";
+  // The people list is open under Amounts / % / Shares / Items. The group's own split stays closed until Shares is tapped.
+  const peopleOpen = byItem || (splitType !== "equal" && (showPeople || !groupSplitOn));
+  function chooseOnly() {
+    if (choice === "only") return;
+    const keep = forMode === "selected" && !byItem ? selected : forMode === "one" && !byItem && onePersonId ? [onePersonId] : [];
+    pickSplit({ kind: "only-some" });
+    setShowPeople(false);
+    setSelected(keep);
+  }
+  function chooseHow(id: "exact" | "percent" | "shares" | "items") {
+    // Fewer than two people picked can't be split by amounts, percentages or shares: start from everyone.
+    const picked = forMode === "selected" ? selected.length : forMode === "one" ? 1 : memberIds.length;
+    pickSplit({ kind: "how", id });
+    if (id !== "items" && forMode !== "everyone" && picked < 2) setForMode("everyone"); // after pickSplit, which keeps the old forMode
+    setShowPeople(true);
+  }
+  function toggleOnly(id: string) {
+    const cur = forMode === "one" ? (onePersonId ? [onePersonId] : []) : selected;
+    setByItem(false);
+    setForMode("selected");
+    setSelected(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  }
   const shareOf = (id: string) => (preview.ok ? preview.expense.shares.find((s) => s.memberId === id)?.amount ?? 0 : null);
   function stepShare(id: string, delta: number) {
     setShares((prev) => {
@@ -376,10 +410,9 @@ export function AddExpenseForm({
     // currency would otherwise change the amount a lot without anyone noticing.
     const switched = code !== currency ? `The bill looks like it's in ${code}, so the currency changed from ${currency}. Change it back if that's wrong.` : "";
     if (switched) chooseCurrency(code, false);
-    if (b.total) setAmount(String(b.total));
+    if (b.total) setAmount(regroupAmount(String(b.total), code));
     if (b.date && b.date <= today && b.date >= `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`) {
-      setDate(b.date);
-      if (b.date !== today) setShowDate(true);
+      setDate(b.date); // the "Today" pill then shows that day; the three date buttons open only when it is tapped
     }
     if (b.items.length) {
       setItems(b.items.slice(0, MAX_ITEM_LINES).map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
@@ -452,28 +485,8 @@ export function AddExpenseForm({
       })
     : [];
   // The amount is the hero: big for short amounts, stepping down so a lakh-sized amount still fits a 320px phone.
-  const heroSize = amount.length <= 6 ? "text-[clamp(52px,17vw,72px)]" : amount.length <= 8 ? "text-[clamp(40px,13vw,56px)]" : "text-[clamp(30px,9.5vw,42px)]";
-  // With one person: "both of you", "just Rohan", "just you".
-  const pairFor = (): string => {
-    if (participants.length >= 2) return "both of you";
-    return participants[0] === myId ? "just you" : `just ${pair?.otherName ?? who(participants[0] ?? onePersonId)}`;
-  };
-  const forSummary = pair
-    ? pairFor()
-    : forMode === "everyone" ? "everyone" : forMode === "one" ? who(onePersonId) : `${participants.length} ${participants.length === 1 ? "person" : "people"}`;
-  const splitSummary =
-    participants.length <= 1
-      ? "100% to them"
-      : byItem
-        ? "by item"
-        : splitType === "equal"
-          ? "split equally"
-          : splitType === "exact"
-            ? "custom amounts"
-            : splitType === "shares"
-              ? "by shares"
-              : "by percentage";
-
+  // Commas count, so the size steps down with the length of what is shown and a huge amount still fits on one line.
+  const heroSize = amountSizeClass(amount, "hero");
   return (
     // Saving is already safe to repeat (one request key per form, and the
     // buttons are off while saving), so the page-wide double-tap lock isn't needed here.
@@ -506,16 +519,16 @@ export function AddExpenseForm({
           </svg>
         </button>
         {/* The input is exactly as wide as its text: a hidden copy of the text sets the width of the grid cell.
-            The box holds the plain typed amount, so the browser never rewrites it under the cursor. */}
+            The box shows grouped digits as you type; AmountInput keeps the caret after the same digit. */}
         <div className={`mt-2 flex w-full justify-center leading-[1.05] ${heroSize}`}>
           <span className="inline-grid min-w-0 max-w-full">
             <span aria-hidden className="money invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center">
               {amount || "0"}
             </span>
-            <input
+            <AmountInput
+              currency={currency}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              inputMode="decimal"
+              onValueChange={setAmount}
               placeholder="0"
               autoComplete="off"
               aria-label="Amount"
@@ -793,7 +806,6 @@ export function AddExpenseForm({
                   onClick={() => {
                     setByItem(true);
                     setShowPeople(true);
-                    setShowOnly(false);
                   }}
                   className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-owed"
                   data-split-by-item
@@ -817,13 +829,12 @@ export function AddExpenseForm({
                 onFill={(q, extra) => {
                   if (extra?.currency && extra.currency !== currency && isSupportedCurrency(extra.currency)) chooseCurrency(extra.currency);
                   if (q.name) setName(q.name);
-                  if (q.amount) setAmount(q.amount);
+                  if (q.amount) setAmount(regroupAmount(q.amount, extra?.currency && isSupportedCurrency(extra.currency) ? extra.currency : currency));
                   if (q.paidById) {
                     setMultiPay(false);
                     setPaidById(q.paidById);
                   }
                   if (q.forIds) {
-                    setShowOnly(false);
                     setByItem(false);
                     setSplitType("equal");
                     if (q.forIds.length === memberIds.length) setForMode("everyone");
@@ -952,72 +963,60 @@ export function AddExpenseForm({
         </div>
       )}
 
-      {/* How to split: equal for everyone (default), or differently */}
+      {/* How to split: one row of choices (founder, 16 Nov). "Only some" is an equal split among the people you tap (one person too);
+          Amounts, %, Shares and Items open the people list right under the row. The row wraps; it never scrolls sideways. */}
       <section>
         <span className={labelClass}>How to split?</span>
-        <div className="relative -mx-5" data-split-row>
-        <div className="flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none]">
+        <div className="flex flex-wrap gap-2" data-split-row>
           {groupShares && (
             <Chip
-              on={!byItem && !showPeople && !showOnly && groupSplitOn}
+              on={!byItem && !showPeople && groupSplitOn}
               onClick={() => {
                 pickSplit({ kind: "group-split" });
                 setShowPeople(false);
-                setShowOnly(false);
                 setShares(groupShares);
               }}
             >
               {splitName} <span className="opacity-60">{groupSplitLabel}</span>
             </Chip>
           )}
-          <Chip
-            on={!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
-            onClick={resetSplit}
-          >
+          <Chip on={choice === "everyone"} onClick={resetSplit}>
             {pair ? "Both equally" : "Everyone equally"}
           </Chip>
-          {members.length > 2 && (
-            <Chip
-              on={!byItem && (showOnly || (!showPeople && forMode === "selected" && splitType === "equal"))}
-              onClick={() => {
-                const wasSelected = forMode === "selected" && !byItem;
-                pickSplit({ kind: "only-some" });
-                setShowPeople(false);
-                setShowOnly(true);
-                if (!wasSelected) setSelected([]);
-              }}
-            >
-              Only some
+          {members.length > 1 && (
+            <Chip on={choice === "only"} onClick={chooseOnly}>
+              {pair ? "Just one" : "Only some"}
             </Chip>
           )}
-          <Chip
-            on={showPeople || (!showOnly && !groupSplitOn && (forMode === "one" || splitType !== "equal"))}
-            onClick={() => {
-              setShowOnly(false);
-              setShowPeople(true);
-            }}
-          >
-            Custom
+          <Chip on={choice === "exact"} onClick={() => chooseHow("exact")}>
+            Amounts
+          </Chip>
+          <Chip on={choice === "percent"} onClick={() => chooseHow("percent")}>
+            %
+          </Chip>
+          <Chip on={choice === "shares" && !(groupSplitOn && !showPeople)} onClick={() => chooseHow("shares")}>
+            Shares
+          </Chip>
+          <Chip on={choice === "items"} onClick={() => chooseHow("items")}>
+            Items
           </Chip>
         </div>
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent" />
-        </div>
-        {showOnly && !showPeople && (
+        {usingLast && (
+          <p className="mt-2 text-sm text-gray-500">
+            <span className="text-gray-400">Same as last time</span>{" "}
+            <button type="button" onClick={resetSplit} className="font-medium text-fg underline underline-offset-4">
+              Reset
+            </button>
+          </p>
+        )}
+        {choice === "only" && (
           <div className="mt-3">
             <p className="mb-2 text-sm text-gray-500">Tap who it was for · split equally</p>
             <div className="flex flex-wrap gap-2">
               {members.map((m) => {
-                const on = forMode === "selected" && selected.includes(m.id);
+                const on = forMode === "one" ? onePersonId === m.id : selected.includes(m.id);
                 return (
-                  <Chip
-                    key={m.id}
-                    on={on}
-                    onClick={() => {
-                      setByItem(false);
-                      setForMode("selected");
-                      setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]));
-                    }}
-                  >
+                  <Chip key={m.id} on={on} onClick={() => toggleOnly(m.id)}>
                     {on && "✓ "}
                     {who(m.id)}
                   </Chip>
@@ -1026,83 +1025,24 @@ export function AddExpenseForm({
             </div>
           </div>
         )}
-        {!showPeople && !showOnly && !groupSplitOn && (forMode !== "everyone" || splitType !== "equal") && (
-          <p className="mt-2 text-sm text-gray-500">
-            For <strong className="text-fg">{forSummary}</strong> · {splitSummary}
-            {usingLast && (
-              <>
-                {" "}
-                · <span className="text-gray-400">same as last time</span>{" "}
-                <button type="button" onClick={resetSplit} className="font-medium text-fg underline underline-offset-4">
-                  Reset
-                </button>
-              </>
-            )}
-          </p>
-        )}
-        {showPeople && (
+        {peopleOpen && (
           <div className="mt-3 space-y-6 rounded-2xl border border-line px-4 pb-4 pt-4">
             {byItem ? (
               <p className="text-sm text-gray-500" data-item-note>Split by item: each line says who it’s for.</p>
             ) : (
-            <div>
-              <span className={labelClass}>Who was it for?</span>
-              <Segmented
-                options={[
-                  { id: "everyone", label: pair ? "Both of you" : "Everyone" },
-                  { id: "selected", label: "Selected" },
-                  { id: "one", label: pair ? "Just one" : "One person" },
-                ]}
-                value={forMode}
-                onChange={(v) => setForMode(v as ForMode)}
-              />
-              {forMode === "selected" && (
-                <ul className="mt-3 space-y-1">
-                  {members.map((m) => (
-                    <li key={m.id}>
-                      <label className="flex items-center gap-3 py-1.5">
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(m.id)}
-                          onChange={() =>
-                            setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]))
-                          }
-                          className="h-5 w-5"
-                        />
-                        {who(m.id)}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {forMode === "one" && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {members.map((m) => (
-                    <Chip key={m.id} on={m.id === onePersonId} onClick={() => setOnePersonId(m.id)}>
-                      {who(m.id)}
-                    </Chip>
-                  ))}
-                </div>
-              )}
-            </div>
+              forMode !== "everyone" && (
+                // An expense saved for only some people with amounts, percentages or shares keeps exactly those people.
+                <p className="text-sm text-gray-500" data-only-note>
+                  Only for <strong className="text-fg">{participants.map((id) => who(id)).join(", ")}</strong>.{" "}
+                  <button type="button" onClick={() => setForMode("everyone")} className="font-medium text-fg underline underline-offset-4">
+                    Include everyone
+                  </button>
+                </p>
+              )
             )}
 
             {participants.length > 1 ? (
               <div>
-                <span className={labelClass}>How should it be split?</span>
-                <Segmented
-                  options={[
-                    { id: "equal", label: "Equally" },
-                    { id: "exact", label: "Amounts" },
-                    { id: "percent", label: "%" },
-                    { id: "shares", label: "Shares" },
-                    { id: "items", label: "Items" },
-                  ]}
-                  value={byItem ? "items" : splitType}
-                  onChange={(v) => {
-                    pickSplit({ kind: "how", id: v as SplitType | "items" });
-                  }}
-                />
                 {byItem && (
                   <div className="mt-3 space-y-2.5" data-item-split>
                     {items.map((it, i) => {
@@ -1201,7 +1141,7 @@ export function AddExpenseForm({
                     ))}
                   </div>
                 )}
-                {splitType === "shares" && (
+                {!byItem && splitType === "shares" && (
                   <ul className="mt-3 divide-y divide-line">
                     {participants.map((id) => {
                       const amt = shareOf(id);
@@ -1229,7 +1169,7 @@ export function AddExpenseForm({
                     })}
                   </ul>
                 )}
-                {(splitType === "exact" || splitType === "percent") && (
+                {!byItem && (splitType === "exact" || splitType === "percent") && (
                   <ul className="mt-3 divide-y divide-gray-100">
                     {participants.map((id) => (
                       <li key={id} className="flex items-center gap-3 py-2">

@@ -114,7 +114,7 @@ await shot("22-settle-everything", `${g}/settle`, async (p) => {
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
-  await p.getByRole("button", { name: /Custom/ }).click();
+  await p.getByRole("button", { name: "Shares", exact: true }).click(); // the one row of split choices (16 Nov)
   await p.locator("[data-more] > button").click(); // More: notes, several payers, spin
   await p.getByRole("button", { name: /Today.*Change/ }).first().click();
   await p.waitForTimeout(300);
@@ -201,7 +201,6 @@ await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.getByLabel("Amount", { exact: true }).fill("3000");
   await p.locator("[data-more] > button").click();
   await p.getByRole("switch", { name: /More than one person paid/ }).click();
-  await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: "Shares", exact: true }).click();
 });
 await shot("42-filters", `${g}?tab=activity`, async (p) => {
@@ -1532,6 +1531,41 @@ if (!hosted && !desktop && !ios) {
     console.log("✗ GD- shots (set-up failed)", String(e).split("\n")[0]);
   }
 }
+
+// 16 Nov (founder-approved mockups s1 to s5): the one split row, grouped digits as you type, "Add expense" on every group overview, and the
+// Home month card. Each is taken at 390 and 320 wide; the page is put back to normal after.
+for (const width of [390, 320]) {
+  await page.setViewportSize({ width, height: 844 });
+  const w = `b11c-${width}`;
+  await shot(`${w}-add-split-only-some`, `${g}/add`, async (p) => {
+    await p.getByRole("button", { name: "Only some" }).click();
+    await p.locator("[data-split-row]").scrollIntoViewIfNeeded();
+  }, false);
+  await shot(`${w}-add-split-shares`, `${g}/add`, async (p) => {
+    await p.getByRole("button", { name: "Shares", exact: true }).click();
+    await p.locator("[data-split-row]").scrollIntoViewIfNeeded();
+  }, false);
+  await shot(`${w}-add-date-open`, `${g}/add`, async (p) => {
+    await p.getByRole("button", { name: /Today.*Change/ }).first().click();
+  }, false);
+  await shot(`${w}-add-amount-grouped`, `${g}/add`, async (p) => {
+    await p.getByLabel("Amount", { exact: true }).pressSequentially("123456.5");
+  }, false);
+  await shot(`${w}-add-amount-huge`, `${g}/add`, async (p) => {
+    await p.getByLabel("Amount", { exact: true }).pressSequentially("123456789012.50");
+  }, false);
+  await shot(`${w}-pay-amount-grouped`, `${g}/pay`, async (p) => {
+    const box = p.getByLabel(/^Amount \(/);
+    await box.fill("");
+    await box.pressSequentially("1234567.5");
+  }, false);
+  await shot(`${w}-group-overview-add-expense`, g, undefined, false);
+  await shot(`${w}-flat-overview-add-expense`, `/groups/${demo.flat.id}`, undefined, false);
+  await shot(`${w}-moment-caption-placeholder`, `${g}/moments/new`, undefined, false);
+  await shot(`${w}-budgets-grouped`, `${g}/budgets`);
+  await rowCard(`${w}-home-month-card`, 2);
+}
+await page.setViewportSize(screen);
 await browser.close();
 }
 

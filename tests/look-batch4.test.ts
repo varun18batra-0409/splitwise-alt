@@ -12,7 +12,9 @@ describe("amount boxes are exactly as wide as their digits", () => {
       expect(s).toContain("invisible col-start-1 row-start-1");
       expect(s).not.toMatch(/size=\{Math\.max\(2/);
       // Add expense keeps the big hero amount (stepping down for long amounts); the payment form keeps its smaller one.
-      expect(s).toContain(f.includes("AddExpenseForm") ? "clamp(52px,17vw,72px)" : "clamp(34px,10vw,40px)");
+      // (16 Nov: the sizes now live in amountSizeClass, which steps down further for very long amounts; the first step is unchanged.)
+      expect(s).toContain(f.includes("AddExpenseForm") ? 'amountSizeClass(amount, "hero")' : 'amountSizeClass(amount, "pay")');
+      expect(src("src/lib/amount-input.ts")).toContain(f.includes("AddExpenseForm") ? "clamp(52px,17vw,72px)" : "clamp(34px,10vw,40px)");
     });
   }
 });

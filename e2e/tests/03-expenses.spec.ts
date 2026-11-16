@@ -91,8 +91,9 @@ test("Insights add up: your share and group spend match what was entered, and Ho
   }
 });
 
-// The amount box always holds the plain typed amount ("1500"): it never changes format on focus or blur, so the browser never rewrites
-// it under the cursor. These are the real ways people edit it; each ends with exactly "2000" in the box and ₹2,000 saved.
+// CHANGED on 16 Nov by the founder (Option A): the amount box shows grouped digits AS YOU TYPE ("1,500", "2,000"), reversing the earlier
+// "plain digits only" rule. It still never changes on focus or blur, and nothing rewrites the number under the cursor: the caret stays after
+// the same digit (see tests/amount-input.test.ts). These are the real ways people edit it; each ends with "2,000" in the box and ₹2,000 saved.
 async function saveEditedAs(page: Page, name: string, shown: string) {
   await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();
@@ -109,17 +110,17 @@ test("editing a ₹1,500 expense, desktop-style: press and release the mouse on 
   await addEqualExpense(A, group.path, "Hotel press", "1500");
   await openEdit(A, group.path, "Hotel press");
   const amount = A.getByLabel("Amount", { exact: true });
-  await expect(amount).toHaveValue("1500"); // the same plain text focused or not
+  await expect(amount).toHaveValue("1,500"); // the same text focused or not
   const box = (await amount.boundingBox())!;
   await A.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await A.mouse.down();
   await A.waitForTimeout(150); // a real press lasts a moment
   await A.mouse.up();
   await expect(amount).toBeFocused();
-  await expect(amount).toHaveValue("1500"); // nothing rewrote it under the cursor
+  await expect(amount).toHaveValue("1,500"); // nothing rewrote it under the cursor
   await A.keyboard.press("ControlOrMeta+A");
   await A.keyboard.type("2000");
-  await expect(amount).toHaveValue("2000");
+  await expect(amount).toHaveValue("2,000");
   await saveEditedAs(A, "Hotel press", "2,000");
 });
 
@@ -127,7 +128,7 @@ test("editing a ₹1,500 expense with the keyboard: Tab into the box, select all
   await addEqualExpense(A, group.path, "Hotel tab", "1500");
   await openEdit(A, group.path, "Hotel tab");
   const amount = A.getByLabel("Amount", { exact: true });
-  await expect(amount).toHaveValue("1500");
+  await expect(amount).toHaveValue("1,500");
   // Walk back from the name box with Shift+Tab until the amount box has focus: a keyboard arrival, no mouse.
   await A.locator("#expense-name").focus();
   let arrived = false;
@@ -136,10 +137,10 @@ test("editing a ₹1,500 expense with the keyboard: Tab into the box, select all
     arrived = await A.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Amount");
   }
   expect(arrived, "the amount box can be reached with the keyboard").toBe(true);
-  await expect(amount).toHaveValue("1500");
+  await expect(amount).toHaveValue("1,500");
   await A.keyboard.press("ControlOrMeta+A");
   await A.keyboard.type("2000");
-  await expect(amount).toHaveValue("2000");
+  await expect(amount).toHaveValue("2,000");
   await saveEditedAs(A, "Hotel tab", "2,000");
 });
 
@@ -147,14 +148,14 @@ test("editing a ₹1,500 expense by hand: click at the end, Backspace four times
   await addEqualExpense(A, group.path, "Hotel back", "1500");
   await openEdit(A, group.path, "Hotel back");
   const amount = A.getByLabel("Amount", { exact: true });
-  await expect(amount).toHaveValue("1500");
+  await expect(amount).toHaveValue("1,500");
   const box = (await amount.boundingBox())!;
   await amount.click({ position: { x: box.width - 1, y: box.height / 2 } }); // the end of the text
-  await expect(amount).toHaveValue("1500");
+  await expect(amount).toHaveValue("1,500");
   for (let i = 0; i < 4; i++) await A.keyboard.press("Backspace");
   await expect(amount).toHaveValue("");
   await A.keyboard.type("2000");
-  await expect(amount).toHaveValue("2000");
+  await expect(amount).toHaveValue("2,000");
   await saveEditedAs(A, "Hotel back", "2,000");
 });
 

@@ -23,7 +23,7 @@ import { homeMoney } from "@/lib/home/display";
 import { climateFor, tripMonth, usesFahrenheit, weatherWords } from "@/lib/climate";
 import { Polaroid } from "@/components/Polaroid";
 import { coverFor, coverOf } from "@/lib/covers";
-import { monthNumbers, seasonNow } from "@/lib/home/banner";
+import { monthCardMode, monthNumbers, seasonNow } from "@/lib/home/banner";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { beforeYouGo, homeHighlights } from "@/lib/home/highlights";
@@ -158,7 +158,10 @@ export default async function Home({
   // The month card: your month so far.
   // Your month across every group you're in (closed ones too: it was still your money), the same
   // way Insights counts it.
-  const month = monthNumbers(rows.monthGroups, toCommon, common, now, tz);
+  const monthAll = monthNumbers(rows.monthGroups, toCommon, common, now, tz);
+  // No share this month: no card and no dot (founder, 16 Nov).
+  const monthMode = monthCardMode(monthAll);
+  const month = monthMode === "none" ? null : monthAll;
   const region = visitorRegion(await headers());
   // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
   const live = stillIn(open);
@@ -680,7 +683,23 @@ export default async function Home({
               <HomeBanner>
                 {highlights.map((h) =>
                   h.kind === "month" ? (
-                    month && (
+                    month && monthMode === "slim" ? (
+                      // Exactly one expense: one slim line, not a large card with one number in it.
+                      <div key="month" className="flex flex-1 flex-col">
+                        <div className="relative flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-10 pt-4" data-month-card data-month-slim>
+                          <p className="relative min-w-0 text-[15px] text-fg/85" data-month-line>
+                            {month.name} · 1 expense · your share{" "}
+                            <span className="money font-semibold tabular-nums text-fg" title={formatMoney(month.share, month.currency)}>
+                              {month.converted ? "≈ " : ""}
+                              {homeMoney(month.share, month.currency)}
+                            </span>
+                          </p>
+                          <Link href={`/search?m=${month.month}`} className="relative shrink-0 text-sm font-medium text-fg underline underline-offset-4">
+                            See {month.name}
+                          </Link>
+                        </div>
+                      </div>
+                    ) : month && (
                       <div key="month" className="flex flex-1 flex-col">
                         <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-12 pt-5" data-month-card>
                           {/* The month's name, large and faint behind the numbers. */}

@@ -190,7 +190,11 @@ describe("R1 item 15: Add expense small copy", () => {
     expect(form).not.toContain('aria-label="Money spent or money back"');
     expect(form).not.toContain('"More options"');
   });
-  it("the amount box stays plain digits while typing (no grouping reintroduced)", () => {
+  // CHANGED on 16 Nov by the founder: grouped digits as you type are wanted (reversing the 15 Nov "plain digits" rule). The grouping
+  // happens in AmountInput, which keeps the caret after the same digit; the form no longer calls a grouping function in onChange itself.
+  it("the amount box shows grouped digits as you type, through AmountInput (caret kept by digit count)", () => {
+    expect(form).toContain("<AmountInput");
+    expect(form).toContain("onValueChange={setAmount}");
     expect(form).not.toMatch(/onChange=\{\(e\) => setAmount\(groupDigits/);
   });
 });

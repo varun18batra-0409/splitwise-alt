@@ -2,7 +2,7 @@ import Link from "@/components/Link";
 import { ActivityRow } from "@/components/ActivityRow";
 import { ChartIcon, GearIcon, PlusIcon } from "@/components/icons";
 import { OUTLINE } from "@/components/HomeMoney";
-import { groupTicketSides, type GroupFacts } from "@/lib/home/money-card";
+import type { GroupFacts } from "@/lib/home/money-card";
 import { recentRows } from "@/lib/group-overview";
 import { itemHref } from "@/lib/paths";
 import { dayLabel } from "@/lib/activity";
@@ -15,10 +15,9 @@ type Strip = { count: number; latest: string[]; canAdd: boolean } | null;
 // A trip's (or any plain group's) first tab, as the founder's mockup 03: your money ticket, a quiet "Add expense", the latest three
 // expenses, and "Trip recap" and "Group settings" at the bottom. The small moments strip sits under the ticket and opens the Memories tab.
 export function OverviewTab({ v, facts, strip }: { v: GroupView; facts: GroupFacts; strip: Strip }) {
-  const { group, myId, net } = v;
-  const sides = groupTicketSides({ mine: net[myId] ?? 0, myId, transfers: v.transfers, nameOf: v.nameOf });
-  // The settled pass already has its own quiet "Add an expense", so the outline button is for when money is owed either way.
-  const canAdd = !group.closed && !v.leaver && sides.length > 0;
+  const { group, myId } = v;
+  // "Add expense" is always here (founder, 16 Nov): whether you owe, are owed or are all square. Only a closed group, or someone who has left, goes without.
+  const canAdd = !group.closed && !v.leaver;
   const rows = recentRows(group.expenses, group.payments, myId, 3, v.moveOutIds);
   const now = new Date();
   return (

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { AmountInput } from "./AmountInput";
 import { saveBill } from "@/app/bill-actions";
 import { BILL_TEMPLATES } from "@/lib/home/bills";
 import { billAmountText, billEachText } from "@/lib/bill-preview";
 import { formatMoney, parseAmount } from "@/lib/money";
+import { regroupAmount } from "@/lib/amount-input";
 import { inputClass, primaryButtonClass } from "./ui";
 import { SelectField } from "@/components/SelectField";
 
@@ -73,7 +75,7 @@ export function BillForm({
   const tpl = BILL_TEMPLATES.find((t) => t.id === template) ?? BILL_TEMPLATES[0];
   const [name, setName] = useState(initial?.name ?? tpl.name);
   const [nature, setNature] = useState<"fixed" | "varies" | "daily">(initial?.nature ?? tpl.nature);
-  const [amount, setAmount] = useState(initial?.amount ?? "");
+  const [amount, setAmount] = useState(regroupAmount(initial?.amount ?? "", currency)); // grouped as you type (founder, 16 Nov)
   const [day, setDay] = useState<number>(initial?.day ?? tpl.day);
   const [payer, setPayer] = useState(initial?.payer ?? myId);
   const [split, setSplit] = useState<"group" | "equal" | "some" | "percent" | "amounts">(initial?.split ?? (splitLabel ? "group" : "equal"));
@@ -190,12 +192,12 @@ export function BillForm({
         </span>
         <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
           <span className="nobreak shrink-0 text-sm text-gray-400">{currency}</span>
-          <input
+          <AmountInput
             name="amount"
-            inputMode="decimal"
+            currency={currency}
             aria-label="Amount"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onValueChange={setAmount}
             placeholder={nature === "daily" ? "60" : "4,000"}
             className="money w-full bg-transparent py-3.5 text-xl outline-none"
           />

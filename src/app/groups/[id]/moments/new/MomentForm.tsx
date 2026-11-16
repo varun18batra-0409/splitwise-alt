@@ -119,9 +119,9 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
           onKeyDown={(e) => {
             if (e.key === "Enter") e.preventDefault();
           }}
-          placeholder="The boat we almost missed"
+          placeholder="e.g. The boat we almost missed"
           autoComplete="off"
-          className={`${inputClass} emoji-font resize-none leading-snug`}
+          className={`${inputClass} emoji-font resize-none leading-snug placeholder:text-fg/35!`}
           aria-invalid={over}
         />
       </label>
