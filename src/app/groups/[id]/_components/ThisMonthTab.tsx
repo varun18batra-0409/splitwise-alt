@@ -8,6 +8,7 @@ import { Amt } from "@/components/Amt";
 import { overviewMoney } from "@/lib/money-display";
 import { BillsIcon, CartIcon, ChevronRight, DepositIcon, PieIcon, PlusIcon } from "@/components/icons";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
+import { BILL_EMOJI } from "@/lib/home/bills";
 
 // Extra parts of This month that come from bills, budgets, goals, the deposit
 // and insights (each section is hidden when it has nothing to show).
@@ -138,7 +139,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
       {next && (
         <section aria-label="Next bill" data-next-bill className="rounded-[20px] border border-line bg-white p-4">
           <div className="flex items-center gap-3.5">
-            <ExpenseGlyph title={next.name} category="bills" size={44} />
+            <ExpenseGlyph title={next.name} category="bills" emoji={BILL_EMOJI[next.icon]} size={44} />
             <div className="min-w-0 flex-1">
               <p className="text-[13px] text-fg/60">Next bill</p>
               <p className="break-words font-display text-[18px] font-semibold leading-tight tracking-tight">

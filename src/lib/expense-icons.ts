@@ -1,4 +1,4 @@
-import { getCategory } from "./categories";
+import { getCategory, guessCategory } from "./categories";
 
 // The little picture next to an expense: from what it says ("Airfare" → ✈️,
 // "Train to Agra" → 🚆, "Car rental" → 🚗, "Dinner" → 🍽️), else its
@@ -66,9 +66,22 @@ const RULES: Rule[] = [
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const COMPILED = RULES.map((r) => ({ ...r, re: new RegExp(`(?<![\\p{L}\\p{N}])(${r.words.map(esc).join("|")})(?![\\p{L}\\p{N}])`, "iu") }));
 
+// An expense filed under "Other" (or with no category of its own) takes the category its name points to, so "Dinner at Jay Fai"
+// shows the fork and knife on Home, in the group and everywhere else, not a receipt. Remembered per name (it is asked for on every row).
+const GUESSED = new Map<string, string>();
+function guessed(title: string): string {
+  const hit = GUESSED.get(title);
+  if (hit !== undefined) return hit;
+  const id = guessCategory(title);
+  if (GUESSED.size > 500) GUESSED.clear();
+  GUESSED.set(title, id);
+  return id;
+}
+
 export function expenseIcon(title: string, category: string): string {
   const cat = getCategory(category);
   const t = String(title ?? "");
   if (t) for (const r of COMPILED) if ((r.cat === cat.id || cat.id === "other") && r.re.test(t)) return r.icon;
+  if (cat.id === "other" && t) return getCategory(guessed(t)).emoji;
   return cat.emoji;
 }

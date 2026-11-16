@@ -86,8 +86,9 @@ describe("R1 item 7: one monthly estimate", () => {
 
 describe("R1 items 8 and 11: the invite page", () => {
   const page = src("src/app/groups/[id]/invite/page.tsx");
-  it("has one 'More ways to share' control, and the old duplicates are gone", () => {
-    expect(page.match(/More ways to share/g)?.length).toBe(2); // the comment and the summary
+  it("has one 'More ways to add people' control, and the old duplicates are gone", () => {
+    expect(page.match(/More ways to add people <span/g)?.length).toBe(1); // the one summary (the rest is comments)
+    expect(page).not.toContain("More ways to share");
     expect(page).not.toContain("Share the group link or QR code");
     expect(page).not.toContain("More ways <span");
     expect(page.match(/data-more-ways/g)?.length).toBe(1);

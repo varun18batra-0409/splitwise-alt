@@ -1,6 +1,6 @@
 import Link from "@/components/Link";
 import { ChevronRightIcon } from "@/components/MomentIcons";
-import { timeAgo } from "@/lib/moments-text";
+import { glueLastWord, timeAgo } from "@/lib/moments-text";
 import type { MomentCard } from "@/lib/moments-db";
 
 // A list of moments as rows (a small photo, who added it and when, the words). Used by the Our moments page and by a group's Memories tab,
@@ -21,7 +21,7 @@ export function MomentsFeed({ cards, groupId, now, className = "space-y-3" }: { 
                 <span className="shrink-0 font-semibold">{c.authorName}</span>
                 <span className="shrink-0 whitespace-nowrap text-fg/55" data-moment-time>· {timeAgo(c.createdAt, now)}</span>
               </span>
-              {c.caption && <span className="emoji-font-display block truncate font-display text-[15px] italic text-fg/75">“{c.caption}”</span>}
+              {c.caption && <span className="emoji-font-display block break-words font-display text-[15px] italic text-fg/75">“{glueLastWord(c.caption)}”</span>}
             </span>
             <ChevronRightIcon size={20} className="shrink-0 text-fg/55" />
           </Link>

@@ -11,6 +11,8 @@ export const DELETE_MOMENT_TEXT = "This removes the photo for everyone. It canâ€
 // links that ask first; Report and Block are for everyone else.
 export function MomentMenu({ card, back, canDelete, canReport, guest, openHref }: { card: MomentCard; back: string; canDelete: boolean; canReport: boolean; guest: boolean; openHref?: string }) {
   const quiet = "flex min-h-11 w-full items-center px-3 text-left text-[15px] font-medium text-fg/75 active:text-fg";
+  // Delete and Remove take something away for everyone: in the danger colour (the same red the app uses for errors).
+  const danger = "flex min-h-11 w-full items-center px-3 text-left text-[15px] font-medium text-red-600 active:opacity-70";
   const first = card.authorName === "You" ? "" : card.authorName;
   if (!openHref && !canDelete && !canReport && !guest) return null;
   return (
@@ -27,7 +29,7 @@ export function MomentMenu({ card, back, canDelete, canReport, guest, openHref }
         {canDelete && (
           <form action={deleteMomentAction}>
             <input type="hidden" name="momentId" value={card.id} />
-            <ConfirmButton message={DELETE_MOMENT_TEXT} className={quiet}>
+            <ConfirmButton message={DELETE_MOMENT_TEXT} className={danger}>
               {card.authorIsMe ? "Delete this moment" : "Remove this moment"}
             </ConfirmButton>
           </form>

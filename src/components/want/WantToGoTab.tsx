@@ -7,7 +7,7 @@ import { addWishesAction } from "@/app/wish-actions";
 import { Flag } from "@/components/Flag";
 import { countryPhoto } from "@/lib/country-photos";
 import { countryOf } from "@/lib/geo";
-import { SHARE_ALL, WISH_LIMIT, joinNames } from "@/lib/wishes";
+import { SHARE_ALL, WISH_LIMIT, joinNames, unmatchedPlaces } from "@/lib/wishes";
 import { currentFriends, existingPlans, loadMyWishes, matches, mySharing, sharedWithMe } from "@/lib/wishes-db";
 
 // The Want to go tab: a private list of places. Matches first (a place you both want and each showed the other), then your
@@ -18,6 +18,8 @@ export async function WantToGoTab({ accountId, wished, full }: { accountId: stri
   const plans = await existingPlans(accountId, ms);
   const name = (c: string) => countryOf(c)?.name ?? c;
   const places = [...mine].sort((a, b) => name(a).localeCompare(name(b), "en")).map((code) => ({ code, name: name(code) }));
+  // A place in a match card is not repeated in "Your list" (it still counts as yours: sharing and Add a place use the whole list).
+  const listed = unmatchedPlaces(places, ms.flatMap((m) => m.countries));
   const seen = shares.filter((s) => s.now).map((s) => ({ friendId: s.friendId, country: s.country }));
   const who = (c: string, now: boolean) => [...new Set(shares.filter((s) => s.now === now && (s.country === c || s.country === SHARE_ALL)).map((s) => s.name))].sort((a, b) => a.localeCompare(b, "en"));
 
@@ -48,7 +50,8 @@ export async function WantToGoTab({ accountId, wished, full }: { accountId: stri
           </div>
         ) : (
           <div className="space-y-3" data-wish-cards>
-            {places.map((p) => {
+            {listed.length === 0 && <p className="text-sm text-fg/75">Everything on your list is in a match above.</p>}
+            {listed.map((p) => {
               const now = who(p.code, true);
               const away = who(p.code, false);
               return (

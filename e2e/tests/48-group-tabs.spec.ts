@@ -46,12 +46,21 @@ test("a trip's tabs: four tabs, old addresses open, Memories has no money, Trip 
   }
 
   // Every old address opens a real screen, with the right tab lit.
-  const want: [string, string][] = [["?tab=activity", "Expenses"], ["?tab=expenses", "Expenses"], ["?tab=balances", "People"], ["?tab=people", "People"], ["?tab=memories", "Memories"], ["?tab=overview", "Overview"], ["?tab=charts", "Overview"], ["?tab=nonsense", "Overview"]];
+  const want: [string, string][] = [["?tab=activity", "Expenses"], ["?tab=expenses", "Expenses"], ["?tab=balances", "People"], ["?tab=people", "People"], ["?tab=memories", "Memories"], ["?tab=overview", "Overview"], ["?tab=nonsense", "Overview"]];
   for (const [q, lit] of want) {
     const res = await page.goto(`${trip.path}${q}`);
     expect(res?.status(), q).toBeLessThan(400);
     await settled(page);
     await expect(page.getByRole("navigation", { name: "Group sections" }).locator("[aria-current=page]"), q).toHaveText(lit);
+  }
+
+  // Trip recap (?tab=charts) has its own title bar (Back, "Charts", the group's name): no tab bar, and no "‹ Overview" link.
+  {
+    const res = await page.goto(`${trip.path}?tab=charts`);
+    expect(res?.status()).toBeLessThan(400);
+    await settled(page);
+    await expect(page.locator("[data-sub-header] h1")).toHaveText("Charts");
+    await expect(page.getByRole("navigation", { name: "Group sections" })).toHaveCount(0);
   }
 
   // Memories: no money and no balance.
@@ -63,13 +72,15 @@ test("a trip's tabs: four tabs, old addresses open, Memories has no money, Trip 
   await expect(page.locator("[data-group-balance]")).toHaveCount(0);
   await expect(page.locator("[data-balance]")).toHaveCount(0);
 
-  // Overview → Trip recap opens the charts (with "‹ Overview" back).
+  // Overview → Trip recap opens the charts (with its own Back button, to the Overview).
   await page.goto(trip.path);
   await settled(page);
   await page.locator("[data-group-recap]").click();
   await page.waitForURL(/tab=charts/);
   await settled(page);
-  await expect(page.locator("[data-recap-back]")).toBeVisible();
+  await expect(page.locator("[data-sub-back]")).toBeVisible();
+  await page.locator("[data-sub-back]").click();
+  await page.waitForURL((u) => u.pathname === trip.path && !u.search.includes("tab=charts"));
 
   // Invite pill opens the invite screen.
   await page.goto(trip.path);

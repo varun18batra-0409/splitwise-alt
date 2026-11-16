@@ -23,20 +23,25 @@ describe("All square tiles", () => {
       ["5 days", "3 of you"],
     ]);
   });
-  it("hidden: counts instead of money, and no ₹ anywhere", () => {
+  it("hidden: the same three tiles, only the money blanked (₹ ••••), and no figure of what was spent (VI1-36)", () => {
     const tiles = squareTiles(n, { hide: true, formatSpent: inr });
     expect(tiles).toEqual([
+      ["₹\u00a0••••", "spent together"],
       ["2", "expenses"],
-      ["2", "payments made"],
       ["5 days", "3 of you"],
     ]);
-    expect(JSON.stringify(tiles)).not.toMatch(/₹|\d,\d{3}/);
+    expect(JSON.stringify(tiles)).not.toMatch(/1,200|1200|\d,\d{3}/);
+    // The labels are the same as when amounts are shown, so nothing says a payment was made.
+    expect(tiles.map((t) => t[1])).toEqual(squareTiles(n, { hide: false, formatSpent: inr }).map((t) => t[1]));
+    expect(JSON.stringify(tiles)).not.toMatch(/payment/);
   });
-  it("hidden with no payments made: two tiles, still no money", () => {
+  it("hidden with no payments made: still the same three tiles, and the same shape as with payments", () => {
     const none = squareNumbers({ expenses, payments: [], people: 2 });
     const tiles = squareTiles(none, { hide: true, formatSpent: inr });
-    expect(tiles.length).toBe(2);
-    expect(JSON.stringify(tiles)).not.toContain("₹");
+    expect(tiles.length).toBe(3);
+    expect(tiles.map((t) => t[1])).toEqual(["spent together", "expenses", "people"]);
+    expect(JSON.stringify(tiles)).not.toMatch(/\d,\d{3}|1200/);
+    expect(squareTiles(n, { hide: true, formatSpent: inr }).length).toBe(tiles.length);
   });
 });
 

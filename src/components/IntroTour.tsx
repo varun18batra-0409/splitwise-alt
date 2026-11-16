@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "@/components/Link";
-import { GetAppButton } from "./GetApp";
-import { HomeIcon } from "./icons";
 import { GroupCover } from "./GroupCover";
 import type { CoverChoice } from "@/lib/covers";
 
@@ -294,25 +292,10 @@ export function IntroTour({
     <div className="intro-tour -mb-24 flex min-h-[calc(100dvh-3rem)] flex-col">
       <header className="flex items-center justify-between">
         <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
-        <span className="flex items-center gap-3">
-          <GetAppButton variant="icon" className="h-9" />
-          {/* A full page load (not an in-app hop), so Home re-reads "tour seen" and shows the start screen. */}
-          <a
-            href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              seen();
-              window.location.assign("/");
-            }}
-            aria-label="Home"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-gray-700 active:bg-mist"
-          >
-            <HomeIcon size={18} />
-          </a>
-          <Link href={startHref} onClick={seen} className="hit -my-1 px-1 py-2.5 text-sm text-gray-500">
-            Skip
-          </Link>
-        </span>
+        {/* Skip is the only way out of the tour before the end. */}
+        <Link href={startHref} onClick={seen} className="hit -my-1 px-1 py-2.5 text-sm text-gray-500" data-tour-skip>
+          Skip
+        </Link>
       </header>
 
       <div className="mt-6 flex gap-1.5" role="tablist" aria-label="Tour">
@@ -352,9 +335,16 @@ export function IntroTour({
       </div>
 
       <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
-          {cta}
-        </Link>
+        {/* "Next" is the main button; on the last step it becomes the way in ("Create your first group"). */}
+        {last ? (
+          <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-tour-main>
+            {cta}
+          </Link>
+        ) : (
+          <button type="button" onClick={() => go(active + 1)} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-tour-next data-tour-main>
+            Next
+          </button>
+        )}
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -368,17 +358,23 @@ export function IntroTour({
           <span className="text-xs tabular-nums text-gray-400" data-tour-at>
             {active + 1} / {slides.length}
           </span>
-          <button type="button" onClick={() => go(last ? 0 : active + 1)} className="rounded-full px-4 py-2 text-sm font-medium text-fg active:bg-mist" data-tour-next>
-            {last ? "See it again" : "Next"}
-          </button>
+          {/* A small "See it again" only on the last step; the other steps have just Back and the count. */}
+          {last ? (
+            <button type="button" onClick={() => go(0)} className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist" data-tour-again>
+              See it again
+            </button>
+          ) : (
+            <span aria-hidden className="w-[84px]" />
+          )}
         </div>
-        {/* One link under the button: sign-in when it applies, otherwise the guide. */}
+        {/* One link under the button on the last step: sign-in when it applies, otherwise the guide. */}
         {last && !signInHref && (
           <Link href="/how-it-works" onClick={seen} className="block text-center text-xs text-gray-500" data-tour-guide-link>
             <span className="font-medium text-fg underline underline-offset-4">Every feature, explained</span>
           </Link>
         )}
-        {signInHref && (
+        {/* The sign-in line shows on the last step only. */}
+        {last && signInHref && (
           <Link href={signInHref} className="block text-center text-xs text-gray-500">
             Save your groups to your email · <span className="font-medium text-fg underline underline-offset-4">Sign up or sign in</span>
           </Link>

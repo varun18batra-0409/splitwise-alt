@@ -252,6 +252,14 @@ async function settleNav(page: Page) {
   if (PROFILE === "iphone") await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => undefined);
 }
 const slowLoads: string[] = []; // pages whose "load" took over 10 s during a layout sweep (reported, not failed)
+// Add people keeps the link, Copy and WhatsApp up top; the rest is behind "More ways to add people", one row each. Opens what is closed.
+async function openWay(page: Page, way: "qr" | "search" | "contacts" | "email") {
+  const more = page.locator("[data-more-ways]");
+  if (!(await more.evaluate((d) => (d as HTMLDetailsElement).open))) await more.locator("> summary").click();
+  const row = more.locator(`[data-way="${way}"]`);
+  if (!(await row.evaluate((d) => (d as HTMLDetailsElement).open))) await row.locator("> summary").click();
+}
+
 async function go(page: Page, path: string, opts: { quick?: boolean } = {}) {
   for (let attempt = 0; ; attempt++) {
     await settleNav(page);
@@ -549,7 +557,10 @@ async function main() {
     await V.waitForURL(/\/invite\?new=1/);
     g = new URL(V.url()).pathname.replace(/\/invite$/, "");
     await V.getByText("is ready. Now bring your people in").waitFor();
-    for (const t of ["People on Loopin", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
+    // The main card has the link, Copy and WhatsApp; the other ways are behind "More ways to add people" (closed to start with).
+    assert(!(await V.locator("[data-more-ways]").evaluate((d) => (d as HTMLDetailsElement).open)), "More ways to add people starts open");
+    await V.locator("[data-more-ways] > summary").click();
+    for (const t of ["Share the link", "Show a QR code", "Search by name or email", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
     // F3: the "(you)" row never says "Not on Loopin yet". F14: WhatsApp and Copy link up front, the rest under More ways to share, WhatsApp as the one cream button.
     assert(!/Not on Loopin yet/.test(await V.locator("li").filter({ hasText: "(you)" }).first().innerText()), "the (you) row says “Not on Loopin yet”");
     await V.locator("[data-more-ways] > summary").waitFor();
@@ -598,6 +609,7 @@ async function main() {
   });
   await step(V, "Joining", "Add by email: Zoe is in the group at once as a name (“Invited · hasn’t joined yet”) and gets an invitation email", async () => {
     await go(V, `${g}/invite`);
+    await openWay(V, "email");
     await V.getByLabel("Email addresses to invite").fill(email("zoe"));
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);
@@ -620,6 +632,7 @@ async function main() {
   });
   await step(V, "Joining", "Invite emails carry an unsubscribe link: one tap stops them, and the next invite to that address isn't sent", async () => {
     await go(V, `${g}/invite`);
+    await openWay(V, "email");
     await V.getByLabel("Email addresses to invite").fill(email("optout"));
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);
@@ -636,6 +649,7 @@ async function main() {
     const before = await db.outbox.count({ where: { to: email("optout") } });
     await db.invite.deleteMany({ where: { email: email("optout") } });
     await go(V, `${g}/invite`);
+    await openWay(V, "email");
     await V.getByLabel("Email addresses to invite").fill(email("optout"));
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=|error=/);
@@ -894,7 +908,11 @@ async function main() {
   await step(V, "Simple screens", "Activity has one Filter button that opens search, category and person", async () => {
     await go(V, `${g}?tab=activity`);
     assert(!(await V.getByLabel("Category").isVisible()), "filters showing before tapping Filter");
-    await V.getByText("Filter", { exact: true }).click();
+    await V.locator("[data-filter-open]").click();
+    // A bottom sheet: "Show results" is fixed at its bottom, inside the screen (never under the bar).
+    await V.locator("[data-filter-sheet]").waitFor();
+    const sr = (await V.locator("[data-filter-submit]").boundingBox())!;
+    assert(sr.y + sr.height <= (V.viewportSize()?.height ?? 844), "Show results is below the screen");
     await V.getByLabel("Category").selectOption("food");
     await V.getByRole("button", { name: "Show results" }).click();
     await V.waitForURL(/cat=food/);
@@ -1137,6 +1155,7 @@ async function main() {
     await V.waitForURL(/\/invite\?new=1/);
     const path = new URL(V.url()).pathname.replace(/\/invite$/, "");
     // Asha is a friend from the first group: search by name and add.
+    await openWay(V, "search");
     await V.getByLabel("Search people on Loopin").fill("Asha");
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
     await V.waitForURL(/invited=/);
@@ -1212,6 +1231,7 @@ async function main() {
     await V.getByRole("button", { name: /Use 55 \/ 45/ }).click();
     await V.waitForURL(/\/invite\?new=1/);
     gc = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    await openWay(V, "search");
     await V.getByLabel("Search people on Loopin").fill("Asha");
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
     await V.waitForURL(/invited=/);
@@ -1307,8 +1327,10 @@ async function main() {
     await signup(x.page, "Sheldon", email("sheldon"));
     await x.ctx.close();
     await go(V, `${g3}/invite`);
+    await openWay(V, "search");
     await V.getByLabel("Search people on Loopin").fill("Sheldon");
     await V.getByText(/Not someone you share a group with/).waitFor();
+    await openWay(V, "search");
     await V.getByLabel("Search people on Loopin").fill(email("sheldon"));
     // The same neutral row for any email (nobody can check who has an account); on Loopin → added straight away.
     await V.locator("[data-add-by-email]").waitFor();
@@ -1845,6 +1867,7 @@ async function main() {
     const gid3 = g3.split("/").pop()!;
     const invite3 = async () => {
       await go(V, `${g3}/invite`);
+      await openWay(V, "email");
       await V.getByLabel("Email addresses to invite").fill(email("ravi"));
       await V.getByRole("button", { name: "Invite", exact: true }).click();
       await V.waitForURL(/invited=|error=/);
@@ -1868,6 +1891,7 @@ async function main() {
   });
   await step(V, "Add people", "Adding the email of someone already on Loopin gets the same reply as any email; they see an invitation on Home and in Alerts", async () => {
     await go(V, `${g2}/invite`);
+    await openWay(V, "email");
     await V.getByLabel("Email addresses to invite").fill(email("ravi"));
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);
@@ -2082,7 +2106,9 @@ async function main() {
     assert(!/Flat\b|Card night|The Pot/.test(all.replace(/Flat expenses/g, "")), "the tour still says Flat / Card night / The Pot");
     assert(!/Get the Loopin app/.test(all), "the tour has a “Get the Loopin app” card");
     assert((await page.locator("[data-story-lines] li").allTextContents()).length === 3, "the story poster doesn't show its three Wrapped lines");
-    assert(await page.getByText("Create your first group").first().isVisible(), "no “Create your first group”");
+    // "Next" is the main button on the early steps and "Skip" the only way out; "Create your first group" is the main button only on the last step.
+    assert(await page.locator("[data-tour-next]").first().isVisible(), "no “Next” main button");
+    assert((await page.getByText("Create your first group").count()) === 0 || !(await page.getByRole("link", { name: "Create your first group" }).isVisible()), "“Create your first group” shows before the last step");
     assert(await page.getByRole("link", { name: "Skip" }).first().isVisible(), "no Skip");
     await ctx.close();
   });
@@ -2151,6 +2177,7 @@ async function main() {
     await V.getByRole("button", { name: /Create group/ }).click();
     await V.waitForURL(/\/invite\?new=1/);
     gh = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    await openWay(V, "search");
     await V.getByLabel("Search people on Loopin").fill("Asha");
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
     await V.waitForURL(/invited=/);
@@ -2198,11 +2225,12 @@ async function main() {
     assert(elec === 0, "Electricity was added without an amount");
     await go(A, `${gh}?tab=bills`);
     assert(await A.getByRole("link", { name: "Enter amount" }).count(), "Asha sees no “Enter amount”");
-    // Each bill says where it stands: Electricity "Needs amount" (orange), Rent "Added this month" (green).
-    assert((await A.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
+    // Each bill says where it stands: Rent "Added this month" (green); Electricity is marked needs-amount, but shows only its "Enter amount" button (no second pill).
+    assert((await A.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity is not marked as needing an amount");
+    assert((await A.getByText("Needs amount", { exact: true }).count()) === 0, "a “Needs amount” pill shows next to “Enter amount”");
     await go(V, `${gh}?tab=bills`);
     assert((await V.locator('[data-bill-state="recorded"]').filter({ hasText: "Added this month" }).count()) === 1, "Rent has no “Added this month” chip");
-    assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
+    assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity is not marked as needing an amount");
   });
   await step(A, "Flat", "Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all", async () => {
     await go(A, `${gh}?tab=bills`);
@@ -2379,6 +2407,7 @@ async function main() {
   });
   await step(V, "Speed", "People search answers fast (5 searches, each timed)", async () => {
     await go(V, `${g}/invite`);
+    await openWay(V, "search");
     const box = V.getByLabel("Search people on Loopin");
     const times: number[] = [];
     for (const term of ["As", "Ash", "Ra", "Zo", "Rav"]) {
@@ -2994,7 +3023,7 @@ async function main() {
 
   await step(V, "Add people", "The invite screen shows the group's link and a QR code", async () => {
     await go(V, `${g}/invite`);
-    await V.locator("[data-more-ways] > summary").click(); // F14: WhatsApp and Copy link are the main ways; the QR is under More ways to share
+    await openWay(V, "qr"); // WhatsApp and Copy link are the main ways; the QR is under More ways to add people
     await V.waitForTimeout(500);
     assert((await V.locator("svg").filter({ has: V.locator("path") }).count()) > 0, "no QR code");
     assert(/\/join\//.test(await V.locator("main").innerText()) || (await V.locator('a[href*="/join/"], input[value*="/join/"]').count()) > 0, "no invite link shown");

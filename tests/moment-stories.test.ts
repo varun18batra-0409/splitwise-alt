@@ -65,9 +65,14 @@ describe("the circles at the top of Our moments", () => {
     expect(s[2].frames).toHaveLength(1); // acc-sam-2: m2
     expect(s[1].id).not.toBe(s[2].id);
   });
-  it("one person with two moments is still one circle", () => {
+  it("one person with two moments is one circle, and no trip circle repeating it (VA1-33)", () => {
     const s = momentPageStories([card("m2", "Riya", false, 1), card("m1", "Riya", false, 2)], "g1", "Goa", now);
-    expect(s.map((x) => x.label)).toEqual(["Goa", "Riya"]);
+    expect(s.map((x) => x.label)).toEqual(["Riya"]);
+    expect(s[0].frames).toHaveLength(2);
+  });
+  it("one moment: one circle, not the same photo twice (VA1-33)", () => {
+    const s = momentPageStories([card("m1", "Nupur", false, 0.1)], "g1", "Krabi weekend", now, { photo: "/places/krabi.jpg", cover: { kind: "beach" } });
+    expect(s.map((x) => x.label)).toEqual(["Nupur"]);
   });
   it("R1 item 6: the group circle shows the group's picture, never a member's photo; each person shows their own newest photo; no photo twice", () => {
     const cards = [card("m3", "Nupur", false, 0.1), card("m2", "Riya", false, 2), card("m1", "Nupur", false, 6)];

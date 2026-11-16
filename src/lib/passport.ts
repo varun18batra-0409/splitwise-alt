@@ -298,6 +298,11 @@ export function passportShared(a: { passportShare: string; passportChoiceAt: Dat
   return a.passportShare !== "private" && Boolean(a.passportChoiceAt);
 }
 
+// The little lock label next to "Your stamps": the real setting, in the same words everywhere.
+export function passportLockLabel(a: { passportShare: string; passportChoiceAt: Date | null | undefined }): "Your groups" | "Only you" {
+  return passportShared(a) ? "Your groups" : "Only you";
+}
+
 // Should /passport still ask "Show your places to people in your groups?" Only when there is no
 // recorded answer. Someone who had already switched it off ("private") has answered: not asked again.
 export function passportNeedsAnswer(a: { passportShare: string; passportChoiceAt: Date | null | undefined }): boolean {

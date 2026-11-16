@@ -46,6 +46,19 @@ async function shot(name: string, path: string, prepare?: (p: Page) => Promise<v
   }
 }
 
+// The navigation batch's screens: the same screen at 390 (the usual size) and again at 320 wide (saved as n320-…), so a reviewer can check
+// nothing is cut off or pushed sideways on the narrowest phone. Phones only: the desktop run takes the one size.
+async function shot320(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
+  if (desktop) return;
+  await page.setViewportSize({ width: 320, height: 640 });
+  await shot(`n320-${name}`, path, prepare, fullPage);
+  await page.setViewportSize(screen);
+}
+async function both(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
+  await shot(name, path, prepare, fullPage);
+  await shot320(name, path, prepare, fullPage);
+}
+
 // One card of Home's sliding row, on its own: the row is brought into view and paused, then moved straight to card n (no click,
 // so the floating tab bar can't get in the way). A row with fewer cards: nothing is saved for the missing ones.
 async function rowCard(name: string, n: number) {
@@ -80,11 +93,30 @@ await shot("07-group-switcher", g, async (p) => {
   await p.locator("details.group\\/switch summary").click();
   await p.waitForTimeout(300);
 }, false);
-await shot("08-invite", `${g}/invite`, async (p) => {
-  // The QR code sits under "More ways to share".
+// Add people: the link, Copy and one big WhatsApp up top; everything else behind "More ways to add people" (closed first, then open, then a row open).
+await both("08-invite-closed", `${g}/invite`, undefined, false);
+await both("08-invite", `${g}/invite`, async (p) => {
   await p.locator("[data-more-ways] > summary").click();
   await p.waitForTimeout(300);
 });
+await both("08-invite-qr", `${g}/invite`, async (p) => {
+  await p.locator("[data-more-ways] > summary").click();
+  await p.locator('[data-way="qr"] > summary').click();
+  await p.waitForTimeout(300);
+});
+// Expenses: the Filter button opens a bottom sheet with "Show results" fixed at its bottom.
+await both("B11-filter-sheet", `${g}?tab=activity`, async (p) => {
+  await p.locator("[data-filter-open]").click();
+  await p.waitForTimeout(500);
+}, false);
+// Bills, Shopping list and Charts: their own title bar (Back, the title, the group's name), no tab bar.
+await both("B11-flat-bills", `/groups/${demo.flat.id}?tab=bills`);
+await both("B11-flat-list", `/groups/${demo.flat.id}?tab=list`);
+await both("B11-trip-charts", `${g}?tab=charts`);
+// A flat's settings: "Also show amounts in" stays, "Card fees abroad" is gone (unless a markup is already saved).
+await both("B11-flat-settings", `/groups/${demo.flat.id}/settings`);
+// Memories: the group chips are never cut with "…"; the row scrolls and the next chip is seen coming in.
+await both("B11-memories-chips", "/memories", undefined, false);
 await shot("09-add-expense", `${g}/add`, undefined, false);
 await shot("10-add-expense-typo-foreign", `${g}/add`, async (p) => {
   await p.locator("#expense-name").fill("Dinnr at the night market");
@@ -577,7 +609,7 @@ if (!hosted) {
       await recordMove(two.id, m, { memberId: m, kind: "return", amount: "1500" });
       await recordMove(two.id, v, { memberId: r, kind: "return", amount: "0" });
     }
-    await shot("92-pot-games", `/groups/${pot.id}`, undefined, false);
+    await both("92-pot-games", `/groups/${pot.id}`, undefined, false); // the games note once
     await shot("G9-pot-group", `/groups/${pot.id}`);
     if (two.ok) await shot("93-pot-live", `/groups/${pot.id}/pot/${two.id}`);
     if (one.ok) await shot("94-pot-done", `/groups/${pot.id}/pot/${one.id}`);
@@ -662,8 +694,8 @@ if (!hosted) {
     const [lv, lr] = ["Varun", "Ravi"].map((x) => lona.members.find((m) => m.name === x)!.id);
     await db.expense.create({ data: { groupId: lona.id, description: "Villa", amount: 800000, splitType: "equal", forMode: "everyone", category: "accommodation", paidById: lv, originalAmount: 800000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 800000, createdById: lv, spentAt: new Date(), shares: { create: [{ memberId: lv, amount: 400000 }, { memberId: lr, amount: 400000 }] } } });
     await db.payment.create({ data: { groupId: lona.id, fromId: lr, toId: lv, amount: 400000, createdById: lr } });
-    await shot("105-all-square", `/groups/${lona.id}/square`);
-    await shot("105b-all-square-amounts-hidden", `/groups/${lona.id}/square?amounts=0`); // "Hide amounts" on: counts instead of money
+    await both("105-all-square", `/groups/${lona.id}/square`);
+    await both("105b-all-square-amounts-hidden", `/groups/${lona.id}/square?amounts=0`); // "Hide amounts" on: the same three tiles, only the money blanked
     // Stories as a row of circles under the header: gold ring for new, faint for seen.
     await shot("106-home-stories", "/", undefined, false);
     await shot("107-story-open", "/", async (p) => {
@@ -671,7 +703,7 @@ if (!hosted) {
       await p.waitForTimeout(700);
     }, false);
     await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH" }, { c: "IT" }, { c: "AT" }, { c: "HR" }]) } });
-    await shot("108-passport", "/passport", undefined, false);
+    await both("108-passport", "/passport", undefined, false); // the stats row, the quiet line, Your stamps, the continents line last
     // 108 shows the one-time question; from here Varun has said Show.
     await db.account.update({ where: { id: acc.id }, data: { passportChoiceAt: new Date() } });
     await shot("109-passport-open", "/passport?book=1", async (p) => {
@@ -714,7 +746,7 @@ if (!hosted) {
     await db.wishShare.create({ data: { ownerId: acc.id, friendId: meera.id, country: "JP" } });
     await shot("108b-want-to-go", "/passport?tab=want", undefined, false);
     await db.wishShare.create({ data: { ownerId: meera.id, friendId: acc.id, country: "*" } });
-    await shot("108c-want-to-go-match", "/passport?tab=want", undefined, false);
+    await both("108c-want-to-go-match", "/passport?tab=want", undefined, false); // Japan is in the match card only, not again in Your list
     const got = await db.postcard.create({
       data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi forgot the rules of every card game, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
     });
@@ -1530,6 +1562,34 @@ if (!hosted && !desktop && !ios) {
     ]);
   } catch (e) {
     console.log("✗ GD- shots (set-up failed)", String(e).split("\n")[0]);
+  }
+}
+// Signed out, with no groups: the tour (Next is the main button; the last step has "Create your first group" and the sign-in line) and the You page
+// with Passport, Postcards, Notifications and Privacy shown locked. A phone with no cookies, so nothing here comes from the demo person.
+if (!hosted) {
+  const widths = desktop ? ([[screen.width, screen.height, ""]] as const) : ([[390, 844, ""], [320, 640, "n320-"]] as const);
+  for (const [w, h, pre] of widths) {
+    const anon = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: desktop ? 1 : 2, colorScheme: "dark", locale: "en-IN", timezoneId: "Asia/Kolkata", reducedMotion: "reduce" });
+    const p = await anon.newPage();
+    const snap = async (name: string, fullPage = true) => {
+      await p.waitForTimeout(700);
+      await p.screenshot({ path: `${out}/${pre}${name}.png`, fullPage });
+      console.log("✓", `${pre}${name}`);
+    };
+    try {
+      await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+      await snap("B11-tour-1", false);
+      for (let k = 1; k < 7; k++) {
+        await p.locator("[data-tour-next]").click();
+        await p.waitForTimeout(450);
+      }
+      await snap("B11-tour-last", false);
+      await p.goto(base + "/account", { waitUntil: "networkidle", timeout: 30_000 });
+      await snap("B11-you-signed-out");
+    } catch (e) {
+      console.log("✗ signed-out screens", String(e).split("\n")[0]);
+    }
+    await anon.close();
   }
 }
 await browser.close();

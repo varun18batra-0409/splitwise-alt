@@ -23,7 +23,7 @@ import { reactAction } from "@/app/reaction-actions";
 import type { GroupEvent, GroupView } from "./view";
 import { DateField } from "@/components/DateField";
 import { SelectField } from "@/components/SelectField";
-import { ChevronDown } from "@/components/icons";
+import { FilterSheet } from "@/components/FilterSheet";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
 const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Selected people", one: "One person" };
@@ -97,26 +97,12 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
       {/* One "Filter" button instead of a row of boxes; opens search, category and person. */}
       {(all.length >= 6 || filtering) && (
         <div>
-          <details className="group/filter">
-            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 [&::-webkit-details-marker]:hidden">
-              <span className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-fg group-open/filter:bg-mist">
-                {filtering ? `Filtered · ${items.length} ${items.length === 1 ? "match" : "matches"}` : "Filter"}
-                <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" />
-              </span>
-              {filtering && (
-                <Link href={`/groups/${group.id}?tab=activity`} className="text-sm font-medium text-gray-500 underline underline-offset-4">
-                  Clear
-                </Link>
-              )}
-              {/* One small chip for each filter in use; tap it to drop just that one. */}
-              {chips.map((c) => (
-                <Link key={c.key} href={c.href} aria-label={`Remove filter: ${c.label}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line px-3 py-1 text-sm text-fg active:bg-mist" data-filter-chip={c.key}>
-                  {c.label} <span aria-hidden className="text-fg/60">✕</span>
-                </Link>
-              ))}
-            </summary>
-            <form method="get" action={`/groups/${group.id}`} role="search" className="mt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The button opens a bottom sheet with the form (below); "Show results" is fixed at the sheet's bottom. */}
+            <FilterSheet label={filtering ? `Filtered · ${items.length} ${items.length === 1 ? "match" : "matches"}` : "Filter"} clearHref={`/groups/${group.id}?tab=activity`}>
+              <form method="get" action={`/groups/${group.id}`} role="search" className="flex min-h-0 flex-1 flex-col">
               <input type="hidden" name="tab" value="activity" />
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-3">
               <input
                 type="search"
                 name="q"
@@ -191,11 +177,26 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 <span>–</span>
                 <input name="max" inputMode="decimal" defaultValue={filter.max ?? ""} placeholder="to" aria-label="Amount to" className={`${field} flex-1`} />
               </div>
-              <button type="submit" className="min-h-11 w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-fg active:bg-mist">
-                Show results
-              </button>
-            </form>
-          </details>
+              </div>
+              <div className="shrink-0 border-t border-line bg-canvas px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+                <button type="submit" className="pop block w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas" data-filter-submit>
+                  Show results
+                </button>
+              </div>
+              </form>
+            </FilterSheet>
+            {filtering && (
+              <Link href={`/groups/${group.id}?tab=activity`} className="text-sm font-medium text-gray-500 underline underline-offset-4">
+                Clear
+              </Link>
+            )}
+            {/* One small chip for each filter in use; tap it to drop just that one. */}
+            {chips.map((c) => (
+              <Link key={c.key} href={c.href} aria-label={`Remove filter: ${c.label}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line px-3 py-1 text-sm text-fg active:bg-mist" data-filter-chip={c.key}>
+                {c.label} <span aria-hidden className="text-fg/60">✕</span>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

@@ -144,3 +144,12 @@ export async function shownGroupName(page: Page, groupPath: string): Promise<str
   await settled(page);
   return (await page.getByRole("heading", { level: 1 }).first().innerText()).trim();
 }
+
+// Add people keeps the group's link, Copy and WhatsApp up top; everything else is behind "More ways to add people", one row each.
+// Opens that control and the row (qr, search, contacts, email) if they are not open yet.
+export async function openWay(page: Page, way: "qr" | "search" | "contacts" | "email") {
+  const more = page.locator("[data-more-ways]");
+  if (!(await more.evaluate((d) => (d as HTMLDetailsElement).open))) await more.locator("> summary").click();
+  const row = more.locator(`[data-way="${way}"]`);
+  if (!(await row.evaluate((d) => (d as HTMLDetailsElement).open))) await row.locator("> summary").click();
+}

@@ -81,7 +81,9 @@ describe("You page", () => {
     const rows = src("src/components/YouRows.tsx");
     expect(rows).toContain("data-postcards-link");
     expect(rows).toContain("data-notify-link");
-    expect(you.match(/Notifications &amp; email|Notifications & email/g)?.length).toBe(1);
+    // One link per name for any one person: the signed-in row, and the locked one only a signed-out person is shown (VI1-34).
+    expect(you.match(/Notifications &amp; email|Notifications & email/g)?.length).toBe(2);
+    expect(you).toContain("{account && (\n        <YouList label=\"Preferences\"");
   });
   it("has no tinted vault card", () => expect(you).not.toContain("vault"));
 });

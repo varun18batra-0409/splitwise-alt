@@ -21,12 +21,14 @@ export function squareNumbers(g: {
   return { spent, expenses: g.expenses.length, payments: g.payments.length, people: g.people, days, each: g.people ? Math.round(spent / g.people) : 0 };
 }
 
-// The three tiles under "All square", as [big text, small label]. With "hide amounts" the money tile
-// becomes a count, so the picture can be shared without showing what the group spent.
+// The three tiles under "All square", as [big text, small label]: always "spent together", the expenses and the people (or days).
+// With "hide amounts" only the money is blanked ("₹ ••••"), so the tiles keep the same shape and nothing shows that a payment was made.
+export const HIDDEN_AMOUNT = "••••";
 export function squareTiles(n: ReturnType<typeof squareNumbers>, o: { hide: boolean; formatSpent: (minor: number) => string }): [string, string][] {
   const expenses: [string, string] = [String(n.expenses), n.expenses === 1 ? "expense" : "expenses"];
   const crew: [string, string] = n.days > 1 ? [`${n.days} days`, `${n.people} of you`] : [`${n.people}`, "people"];
   if (!o.hide) return [[o.formatSpent(n.spent), "spent together"], expenses, crew];
-  const payments: [string, string] = [String(n.payments), n.payments === 1 ? "payment made" : "payments made"];
-  return n.payments > 0 ? [expenses, payments, crew] : [expenses, crew];
+  // Only the currency's sign is kept (what the formatter writes for zero, without its digits), never an amount.
+  const sign = o.formatSpent(0).replace(/[\d.,\s\u00a0\u202f]/g, "");
+  return [[sign ? `${sign}\u00a0${HIDDEN_AMOUNT}` : HIDDEN_AMOUNT, "spent together"], expenses, crew];
 }

@@ -99,7 +99,12 @@ async function main() {
   await cold(browser, cookies, "a trip group (Balances)", `${g}?tab=balances`, main);
   await cold(browser, cookies, "a flat (This month)", f, (p) => p.getByText(/your share/i).first().waitFor());
   await cold(browser, cookies, "Add expense", `${g}/add`, (p) => p.locator("#expense-name").waitFor());
-  await cold(browser, cookies, "Add people", `${g}/invite`, (p) => p.getByLabel("Search people on Loopin").waitFor());
+  await cold(browser, cookies, "Add people", `${g}/invite`, async (p) => {
+    // The search sits behind "More ways to add people", one row down.
+    await p.locator("[data-more-ways] > summary").click();
+    await p.locator('[data-way="search"] > summary').click();
+    await p.getByLabel("Search people on Loopin").waitFor();
+  });
   await cold(browser, cookies, "Settle up", "/settle", main);
   await cold(browser, cookies, "Search", "/search", main);
   await cold(browser, cookies, "Sign in", "/signin", (p) => p.locator('input[name="email"], main h1').first().waitFor());
@@ -132,6 +137,8 @@ async function main() {
     await page.getByText("Perf check coffee").first().waitFor();
   });
   await page.goto(base + `${g}/invite`);
+  await page.locator("[data-more-ways] > summary").click();
+  await page.locator('[data-way="search"] > summary').click();
   await page.getByLabel("Search people on Loopin").waitFor();
   await timed("People search: type “as” → answer back", async () => {
     const answer = page.waitForResponse((r) => r.url().includes("/api/people") && r.url().includes("q=as"));

@@ -45,6 +45,12 @@ export function mutualMatches(mine: string[], mineSharedWithThem: string[], thei
 }
 
 // "Nupur", "Nupur and Riya", "Nupur, Riya and Dev".
+// "Your list" leaves out a place that is already in a match card above it ("You and Meera both want to go"), so it is shown once.
+export function unmatchedPlaces<T extends { code: string }>(places: T[], matchedCodes: Iterable<string>): T[] {
+  const matched = new Set(matchedCodes);
+  return places.filter((p) => !matched.has(p.code));
+}
+
 export function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;

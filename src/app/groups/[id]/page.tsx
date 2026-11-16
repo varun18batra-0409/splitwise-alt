@@ -21,7 +21,8 @@ import { PeopleTab } from "./_components/PeopleTab";
 import { RecapTab } from "./_components/RecapTab";
 import { OverviewTab, GroupFooter } from "./_components/OverviewTab";
 import { MemoriesTab } from "./_components/MemoriesTab";
-import { groupTabs, litTab, resolveTab, type TabId } from "./_components/tabs";
+import { groupTabs, litTab, resolveTab, subPageTitle, type TabId } from "./_components/tabs";
+import { SubPageHeader } from "./_components/SubPageHeader";
 import { ThisMonthTab } from "./_components/ThisMonthTab";
 import { BillsTab } from "./_components/BillsTab";
 import { ListTab } from "./_components/ListTab";
@@ -202,9 +203,12 @@ export default async function GroupPage({
   // What has built up since the group's last payment: the pass's Since and Items fields (worked out from the rows already loaded).
   const facts = tab === "overview" || pot ? sinceLastPayment(group.expenses, group.payments, (d) => dayKey(d, v.tz)) : { since: null, items: 0 };
 
+  // Bills, Shopping list and Charts: their own title bar, no group picture, no tab bar, no "‹ Overview" link.
+  const subTitle = subPageTitle(tab);
+
   return (
     <>
-      <GroupHeader v={v} switchTo={switchTo} />
+      {subTitle ? <SubPageHeader title={subTitle} groupId={group.id} groupName={group.name} /> : <GroupHeader v={v} switchTo={switchTo} />}
       <LeftBanner v={v} ownMoveOut={ownMove} />
       <GroupNotices sp={sp} />
       {sp.undone === "1" && !showUndo && (
@@ -214,25 +218,27 @@ export default async function GroupPage({
       )}
       <ClosedBanner v={v} />
       {/* Card nights keep their ticket above their tabs; trips and other groups show it on the Overview only; flats show it on This month. */}
-      {pot && <MoneyTicket v={v} facts={facts} />}
+      {pot && !subTitle && <MoneyTicket v={v} facts={facts} />}
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
 
-      <nav className="-mx-5 mb-5 grid border-b border-line px-5" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Group sections">
-        {tabs.map((t) => {
-          const lit = t.id === litTab(tab, tabs);
-          return (
-            <Link
-              key={t.id}
-              href={`/groups/${group.id}?tab=${t.id}`}
-              aria-current={lit ? "page" : undefined}
-              className={`relative flex min-h-11 items-center justify-center whitespace-nowrap pb-1 text-[14px] font-semibold transition-colors min-[360px]:text-[15px] ${lit ? "text-fg" : "text-fg/60"}`}
-            >
-              {t.label}
-              {lit && <span aria-hidden className="absolute inset-x-1 -bottom-px h-[2px] rounded-full bg-fg" />}
-            </Link>
-          );
-        })}
-      </nav>
+      {!subTitle && (
+        <nav className="-mx-5 mb-5 grid border-b border-line px-5" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Group sections">
+          {tabs.map((t) => {
+            const lit = t.id === litTab(tab, tabs);
+            return (
+              <Link
+                key={t.id}
+                href={`/groups/${group.id}?tab=${t.id}`}
+                aria-current={lit ? "page" : undefined}
+                className={`relative flex min-h-11 items-center justify-center whitespace-nowrap pb-1 text-[14px] font-semibold transition-colors min-[360px]:text-[15px] ${lit ? "text-fg" : "text-fg/60"}`}
+              >
+                {t.label}
+                {lit && <span aria-hidden className="absolute inset-x-1 -bottom-px h-[2px] rounded-full bg-fg" />}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
 
       {tab === "activity" && <LeftSections v={v} />}
       {tab === "activity" && (
@@ -258,11 +264,6 @@ export default async function GroupPage({
           gameResultIds={gameResultIds}
         />
       )}
-      {home && (tab === "bills" || tab === "list") && (
-        <Link href={`/groups/${group.id}`} className="-mt-2 mb-5 inline-flex min-h-11 items-center text-sm text-gray-500" data-overview-back>
-          ‹ Overview
-        </Link>
-      )}
       {tab === "overview" && <OverviewTab v={v} facts={facts} strip={strip} />}
       {tab === "month" && (
         <>
@@ -286,7 +287,7 @@ export default async function GroupPage({
       <LeftFootnote v={v} />
 
       {/* A brand-new flat, couple or card night: what's special about it, once on this phone. */}
-      {!leaver && active.length === 0 && (group.type === "home" || group.type === "couple" || group.type === "pot") && <GroupTypeSheet groupId={group.id} type={group.type} />}
+      {!leaver && active.length === 0 && (group.type === "home" || group.type === "couple" || group.type === "pot") && <GroupTypeSheet groupId={group.id} type={group.type} showNote={!(pot && tab === "games")} />}
 
       {showUndo && (
         <UndoBar

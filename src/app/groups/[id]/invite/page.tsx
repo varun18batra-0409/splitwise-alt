@@ -51,10 +51,9 @@ function inviteMessage(type: string, name: string, link: string, from: string): 
 }
 
 // Add people. Nobody can be added by just typing a name:
-//  1. people already on Loopin (search by name or email, one tap to add);
-//  2. invite from your contacts (WhatsApp / SMS / email);
-//  3. add by email;
-//  plus the group's link and QR code. Someone added by email is in the group at
+//  The card up top: the group's link, Copy, and one big "Invite on WhatsApp". Behind "More ways to add people" (closed to start with):
+//  the phone's share sheet, the QR code, people already on Loopin (search by name or email, one tap to add),
+//  invite from your contacts (WhatsApp / SMS / email), add by email, and a new link. Someone added by email is in the group at
 //  once as a name (so they can be split with) and is invited; they see the group
 //  themselves only after they sign up with their email and tap Join.
 export default async function AddPeoplePage({
@@ -103,17 +102,21 @@ export default async function AddPeoplePage({
   const active = group.members.filter((m) => !m.leftAt);
   const justDid = sp.did ? group.events.find((e) => e.id === sp.did) : undefined;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
-  const box = "rounded-[20px] border border-line bg-mist/40 px-4 py-4";
-  const step = (icon: React.ReactNode, title: string, hint: string) => (
-    <div className="mb-3 flex items-start gap-3">
-      <span aria-hidden className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75">
-        {icon}
-      </span>
-      <span>
-        <span className="block font-medium">{title}</span>
-        <span className="block text-xs text-gray-400">{hint}</span>
-      </span>
-    </div>
+  // One of the "More ways to add people": a row that opens to its own small form.
+  const way = (key: string, icon: React.ReactNode, title: string, hint: string, body: React.ReactNode) => (
+    <details className="group/way" data-way={key}>
+      <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3.5 px-4 py-3 active:bg-fg/10 [&::-webkit-details-marker]:hidden">
+        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">{title}</span>
+          <span className="block text-xs text-gray-400">{hint}</span>
+        </span>
+        <span aria-hidden className="text-fg/55 transition-transform group-open/way:rotate-90">›</span>
+      </summary>
+      <div className="px-4 pb-4">{body}</div>
+    </details>
   );
   const ico = (d: string) => (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -167,23 +170,42 @@ export default async function AddPeoplePage({
             </svg>
             Invite on WhatsApp
           </a>
-          {/* WhatsApp and Copy link are the main ways. One control, "More ways to share", holds the rest: the phone's share sheet, the QR code and a new link. */}
+          {/* The link, Copy and WhatsApp are the main way in. Everything else sits behind this one control, closed to start with: the phone's share sheet, the QR code, name or email search, contacts, email, and a new link. */}
           <details className="group/more mt-2" data-more-ways>
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 text-sm font-semibold text-fg/75 [&::-webkit-details-marker]:hidden">
-              More ways to share <span aria-hidden className="transition-transform group-open/more:rotate-90">›</span>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 text-center text-sm font-semibold text-fg/75 [&::-webkit-details-marker]:hidden">
+              More ways to add people <span aria-hidden className="transition-transform group-open/more:rotate-90">›</span>
             </summary>
-            <div className="mt-1">
+            <div className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-canvas/40">
               <ShareInvite code={group.inviteCode} groupName={group.name} />
+              {way("qr", ico("M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 20h2"), "Show a QR code", "Friends scan it to join",
+                <>
+                  <div
+                    className="mx-auto w-full max-w-[200px] overflow-hidden rounded-2xl bg-[#f4f2ec] p-3 [&_svg]:h-auto [&_svg]:w-full"
+                    role="img"
+                    aria-label={`QR code to join ${group.name}`}
+                    dangerouslySetInnerHTML={{ __html: qr }}
+                  />
+                  <p className="mt-2 text-balance text-center text-xs text-gray-400">Anyone with the link or code can ask to join after signing up</p>
+                </>,
+              )}
+              {way("search", ico("M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20.5 20.5 16 16"), "Search by name or email", "People already on Loopin", <PeopleSearch groupId={group.id} />)}
+              {way("contacts", ico("M16 19.5v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18v1.5M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 8v6M22 11h-6"), "From your contacts", "Pick people and send the invite", <ContactInvite groupId={group.id} groupName={group.name} link={link} />)}
+              {way("email", ico("M4 6h16v12H4ZM4 7l8 6 8-6"), "By email", "We email them an invitation",
+                <>
+                  <form action={invitePeople} className="flex gap-2">
+                    <input type="hidden" name="groupId" value={group.id} />
+                    <input name="emails" type="text" inputMode="email" autoComplete="off" required placeholder="friend@example.com" aria-label="Email addresses to invite" className={inputClass} />
+                    {/* Outline: "Invite on WhatsApp" is the one cream button on this screen. */}
+                    <button type="submit" className="shrink-0 rounded-full border border-fg/30 px-4 text-sm font-semibold text-fg active:bg-fg/10">
+                      Invite
+                    </button>
+                  </form>
+                  <p className="mt-1.5 text-xs text-gray-400">They’re in the group now. Several? Separate them with commas. Everyone you add by email gets the same message, whether or not they’re on Loopin yet.</p>
+                </>,
+              )}
             </div>
-            <div
-              className="mx-auto mt-4 w-full max-w-[200px] overflow-hidden rounded-2xl bg-[#f4f2ec] p-3 [&_svg]:h-auto [&_svg]:w-full"
-              role="img"
-              aria-label={`QR code to join ${group.name}`}
-              dangerouslySetInnerHTML={{ __html: qr }}
-            />
-            <p className="mt-2 text-balance text-center text-xs text-gray-400">Anyone with the link or code can ask to join after signing up</p>
             {pickAdmin(group.members)?.id === myId && (
-              <form action={makeNewInviteLink} className="mt-1 text-center" data-new-invite-link>
+              <form action={makeNewInviteLink} className="mt-3 text-center" data-new-invite-link>
                 <input type="hidden" name="groupId" value={group.id} />
                 <ConfirmButton
                   message={`Make a new invite link? The old link stops working.${invites.length > 0 ? " Email invites not yet accepted will stop working." : ""}`}
@@ -196,30 +218,6 @@ export default async function AddPeoplePage({
             )}
           </details>
         </div>
-      </section>
-
-      <p className="mb-3 text-[13px] font-semibold text-fg/55">Or add them yourself</p>
-      <section className={box}>
-        {step(ico("M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20.5 20.5 16 16"), "People on Loopin", "Search friends by name, or anyone by their email")}
-        <PeopleSearch groupId={group.id} />
-      </section>
-
-      <section className={`mt-3 ${box}`}>
-        {step(ico("M16 19.5v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18v1.5M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 8v6M22 11h-6"), "From your contacts", "Pick people and send them the invite")}
-        <ContactInvite groupId={group.id} groupName={group.name} link={link} />
-      </section>
-
-      <section className={`mt-3 ${box}`}>
-        {step(ico("M4 6h16v12H4ZM4 7l8 6 8-6"), "By email", "They’re in the group now, and we email them an invitation")}
-        <form action={invitePeople} className="flex gap-2">
-          <input type="hidden" name="groupId" value={group.id} />
-          <input name="emails" type="text" inputMode="email" autoComplete="off" required placeholder="friend@example.com" aria-label="Email addresses to invite" className={inputClass} />
-          {/* Outline: "Invite on WhatsApp" is the one cream button on this screen. */}
-          <button type="submit" className="shrink-0 rounded-full border border-fg/30 px-4 text-sm font-semibold text-fg active:bg-fg/10">
-            Invite
-          </button>
-        </form>
-        <p className="mt-1.5 text-xs text-gray-400">Several? Separate them with commas. Everyone you add by email gets the same message, whether or not they’re on Loopin yet.</p>
       </section>
 
       {looseInvites.length > 0 && (
