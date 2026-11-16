@@ -895,11 +895,24 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(Object.fromEntries(shares.map((x) => [x.memberId, x.amount]))).toEqual({ [Alice]: 8000, [Bob]: 2000 });
   });
 
-  it("SEQ-UI-01: the equal / only-some / group chips show as not selected in item mode", () => {
+  // Since 16 Nov the split choices are ONE row (Everyone equally, Only some, Amounts, %, Shares, Items) and every chip but Items reads
+  // from `choice`, which is "items" first whenever item mode is on. So in item mode only Items can show as selected.
+  it("SEQ-UI-01: in item mode only the Items chip shows as selected (every other split chip is off)", () => {
     const src = readFileSync(path.resolve(__dirname, "..", "src/components/AddExpenseForm.tsx"), "utf8");
-    expect(src).toMatch(/on=\{!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"\}/);
-    expect(src).toMatch(/on=\{!byItem && !showPeople && !showOnly && groupSplitOn\}/);
-    expect(src).toMatch(/on=\{!byItem && \(showOnly/);
+    // `choice` puts item mode first, before the split type or who it is for.
+    expect(src).toMatch(/const choice:[^=]*=\s*byItem\s*\?\s*"items"\s*:/);
+    // Each chip's on-state comes from `choice` (so it is off in item mode), and only the Items chip says "items".
+    expect(src).toMatch(/on=\{choice === "everyone"\}/);
+    expect(src).toMatch(/on=\{choice === "only"\}/);
+    expect(src).toMatch(/on=\{choice === "exact"\}/);
+    expect(src).toMatch(/on=\{choice === "percent"\}/);
+    expect(src).toMatch(/on=\{choice === "shares" && /);
+    expect(src).toMatch(/on=\{choice === "items"\}/);
+    // The group's own split chip is off in item mode by its own condition.
+    expect(src).toMatch(/on=\{!byItem && !showPeople && groupSplitOn\}/);
+    // And no chip is on from the old, item-blind conditions.
+    expect(src).not.toMatch(/on=\{!showPeople && !showOnly/);
+    expect(src).not.toContain("showOnly");
   });
 
   it("N4 (A5): 'Not received' on B's ₹300 move-out payment to C once B has left works: B is brought back at -30000, C +30000", async () => {
