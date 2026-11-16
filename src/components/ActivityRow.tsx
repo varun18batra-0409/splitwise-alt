@@ -2,13 +2,13 @@ import { neutralGameText } from "@/lib/game-words";
 import { getCategory } from "@/lib/categories";
 import { ExpenseGlyph } from "./ExpenseGlyph";
 import { formatMoney } from "@/lib/money";
-import type { ActivityItem } from "@/lib/activity";
+import { cardFeeLabel, type ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
 import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-words";
 
 // Right-hand side: what it meant for you. The amount first (bold), what it is
 // underneath; rows that weren't yours stay quiet.
-function Effect({ label, amount, exact, sub, cls }: { label: string; amount?: string; exact?: string; sub?: string; cls: string }) {
+function Effect({ label, amount, exact, sub, cls, note }: { label: string; amount?: string; exact?: string; sub?: string; cls: string; note?: string }) {
   if (!amount) return <span className="shrink-0 whitespace-nowrap text-right text-[12px] leading-tight text-fg/60">{label}</span>;
   return (
     <span className="shrink-0 whitespace-nowrap text-right leading-tight">
@@ -17,6 +17,11 @@ function Effect({ label, amount, exact, sub, cls }: { label: string; amount?: st
         {label}
         {sub && <span className="whitespace-nowrap tabular-nums"> · {sub}</span>}
       </span>
+      {note && (
+        <span className="mt-0.5 block text-[11px] text-fg/60" data-card-fee>
+          {note}
+        </span>
+      )}
     </span>
   );
 }
@@ -176,9 +181,9 @@ export function ActivityRow({
       {deleted ? (
         <Effect label="deleted" cls="" />
       ) : item.effect > 0 ? (
-        <Effect label="you lent" amount={short(item.effect)} exact={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" />
+        <Effect label="you lent" amount={short(item.effect)} exact={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" note={cardFeeLabel(item.cardFeeBp)} />
       ) : item.effect < 0 ? (
-        <Effect label="you owe" amount={short(-item.effect)} exact={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" />
+        <Effect label="you owe" amount={short(-item.effect)} exact={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" note={cardFeeLabel(item.cardFeeBp)} />
       ) : (
         // Zero for you: either it wasn't yours at all, or you paid exactly your own part.
         <Effect

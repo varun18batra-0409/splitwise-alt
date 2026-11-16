@@ -137,6 +137,7 @@ export default async function SearchPage({
     grain,
     currency: chartCurrency,
     converted: ins.converted,
+    skipped: ins.skipped,
     me: ins.me,
     bars: ins.bars.map(({ key: k, value }) => ({
       key: k,

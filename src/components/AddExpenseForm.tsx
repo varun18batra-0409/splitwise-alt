@@ -795,7 +795,7 @@ export function AddExpenseForm({
                     setShowPeople(true);
                     setShowOnly(false);
                   }}
-                  className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-owed"
+                  className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-fg/80"
                   data-split-by-item
                 >
                   {scannedItems} items on the bill · split by item ›

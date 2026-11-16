@@ -25,7 +25,7 @@ export async function PrivacySafety({ accountId, flags }: { accountId: string | 
               : "Not asked yet. Loopin asks the first time it could use it. Nothing is sent before you say yes."}
         </p>
         {(flags.ai === "on" || flags.ai === "off") && (
-          <p role="status" className="mt-2 text-sm text-emerald-400">
+          <p role="status" className="mt-2 text-sm text-fg/80">
             {flags.ai === "on" ? "AI reading is on." : "AI reading is off."}
           </p>
         )}
@@ -43,12 +43,12 @@ export async function PrivacySafety({ accountId, flags }: { accountId: string | 
         <div className="mt-4" id="blocked" data-blocked-list>
           <h3 className="mb-1 text-sm font-semibold">Blocked people</h3>
           {flags.blocked && (
-            <p role="status" className="mb-2 text-sm text-emerald-400">
+            <p role="status" className="mb-2 text-sm text-fg/80">
               Blocked. You’ll still see shared group expenses and balances.
             </p>
           )}
           {flags.unblocked && (
-            <p role="status" className="mb-2 text-sm text-emerald-400">
+            <p role="status" className="mb-2 text-sm text-fg/80">
               Unblocked.
             </p>
           )}

@@ -181,3 +181,19 @@ export function crossPreview(item: CrossItem, common: string): { lines: string[]
   const n = item.parts.length;
   return { lines, total, text: `${[...lines, total].join(" · ")}.`, button: `Record in ${n} ${n === 1 ? "group" : "groups"}` };
 }
+
+// "Even across groups": someone you are even with overall, though you owe them in one group and they owe you in another. Nothing is
+// paid for them: "Clear both" records the same linked parts as "Record payment" always did, and they cancel each other.
+export const isEvenItem = (item: Pick<CrossItem, "net">): boolean => item.net === 0;
+
+// The one plain line on that row: what you are owed first, then what you owe, each in its own group ("Owed ₹4,200 in Flat 402, owe ₹4,200 in Thailand trip. Nothing to pay.").
+export function evenCaption(item: CrossItem): string {
+  const parts = [...item.parts].sort((a, b) => Number(a.iPay) - Number(b.iPay) || a.groupName.localeCompare(b.groupName));
+  const bits = parts.map((p) => `${p.iPay ? "owe" : "owed"} ${formatMoney(p.amount, p.currency)} in ${p.groupName}`);
+  const line = bits.join(", ");
+  return `${line.charAt(0).toUpperCase()}${line.slice(1)}. Nothing to pay.`;
+}
+
+// The Clear both sheet's words: nothing is paid, the two sides cancel.
+export const CLEAR_BOTH_SUBTITLE = "Nothing is paid. The two sides cancel each other out.";
+export const CLEAR_BOTH_NOTE = "This only cancels what you owe each other across groups. No money moves.";

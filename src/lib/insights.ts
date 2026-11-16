@@ -102,3 +102,8 @@ export function computeInsights(
     me,
   };
 }
+
+// The Recap's one plain line about expenses it could not count (no saved rate for their currency). "" when nothing was left out.
+export function skippedLine(n: number): string {
+  return n > 0 ? `${n} ${n === 1 ? "expense in another currency isn’t" : "expenses in other currencies aren’t"} counted yet` : "";
+}

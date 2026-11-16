@@ -30,7 +30,8 @@ export type SheetSpec = {
   other: string; // the other person's name (for the avatar)
   groupLine: string;
   amount: string; // exact, formatted
-  tone: "owe" | "owed";
+  tone: "owe" | "owed" | "even";
+  even?: boolean; // "Clear both": no payment is made, so no "from → to" line and no amount row
   partHref?: string; // where "Full balance" leads to enter a part amount (only when part payments are supported for this row)
   payWith?: { href: string; label: string; kind: string }; // the person's UPI / pay link, opening the same link as before
   confirmLabel: string;
@@ -76,7 +77,7 @@ export function SettleCard({
   name: string;
   groupLine: string;
   amount: string;
-  tone: "owe" | "owed";
+  tone: "owe" | "owed" | "even";
   main: { kind: "sheet"; label: string } | { kind: "node"; node: React.ReactNode };
   menu: MenuItem[];
   breakdown: React.ReactNode;
@@ -251,8 +252,8 @@ export function SettleCard({
             <div className="mt-5 flex items-center gap-3">
               <Initial name={sheet.other} />
               <div className="min-w-0">
-                <p className="truncate font-display text-[20px] font-semibold leading-tight" aria-label={`${sheet.from} to ${sheet.to}`} data-record-route>
-                  {sheet.from} → {sheet.to}
+                <p className="truncate font-display text-[20px] font-semibold leading-tight" aria-label={sheet.even ? `You and ${sheet.other}` : `${sheet.from} to ${sheet.to}`} data-record-route>
+                  {sheet.even ? `You and ${sheet.other}` : `${sheet.from} → ${sheet.to}`}
                 </p>
                 <p className="mt-0.5 truncate text-[14px] text-fg/60">{sheet.groupLine}</p>
               </div>
@@ -263,6 +264,7 @@ export function SettleCard({
             </p>
 
             <dl className="mt-4 border-t border-line text-[15px]">
+              {!sheet.even && (
               <div className="flex min-h-12 items-center justify-between gap-3 border-b border-line">
                 <dt className="text-fg">Amount</dt>
                 <dd className="text-fg">
@@ -278,6 +280,7 @@ export function SettleCard({
                   )}
                 </dd>
               </div>
+              )}
               <div className="flex min-h-12 items-center justify-between gap-3 border-b border-line">
                 <dt className="text-fg">Date</dt>
                 <dd className="flex items-center gap-2 text-fg">

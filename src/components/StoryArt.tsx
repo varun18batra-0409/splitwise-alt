@@ -123,9 +123,6 @@ export function StoryArt({ kind, uid, className = "" }: { kind: StoryKind; uid: 
           <g key={k} transform={`translate(${x} ${y}) rotate(${r})`}>
             <circle r="17" fill={GOLD} />
             <circle r="11" fill="none" stroke="#8a6f35" strokeWidth="1.5" />
-            <text y="5.5" textAnchor="middle" fontSize="15" fontWeight="700" fill="#5e4a1f">
-              ₹
-            </text>
           </g>
         ))}
       </>,

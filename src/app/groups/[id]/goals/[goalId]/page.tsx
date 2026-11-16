@@ -11,6 +11,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { FreshKey } from "@/components/FreshKey";
+import { leaverGoalTotal, wellDoneWords } from "@/lib/leaver-rows";
 import { leaverOf } from "@/lib/left-view-db";
 import { DateField } from "@/components/DateField";
 import { ChevronDown } from "@/components/icons";
@@ -79,6 +80,7 @@ export default async function GoalPage({
     createdAt: dayKey(goal.createdAt, tz),
     weights: Object.fromEntries(active.map((m) => [m.id, m.splitWeight])),
   });
+  const leftSaved = leaverGoalTotal(goal.entries, group.members);
   const pct = Math.min(100, Math.round((saved * 100) / goal.target));
   const name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const r = 84;
@@ -103,7 +105,7 @@ export default async function GoalPage({
         </div>
         <p className="mt-3 text-center text-sm leading-relaxed">
           {goal.reachedAt ? (
-            <>Reached 🎉 Well done, both of you.</>
+            <>Reached 🎉 {wellDoneWords(active.length)}</>
           ) : plan.months ? (
             <>
               {plan.onTrack ? "On track." : "A bit behind."} {money(plan.perMonth)} a month gets you there.
@@ -124,6 +126,12 @@ export default async function GoalPage({
             <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(goal.entries.filter((e) => e.memberId === m.id).reduce((s, e) => s + e.amount, 0))}</p>
           </div>
         ))}
+        {leftSaved > 0 && (
+          <div className="rounded-2xl border border-line bg-white p-3.5" data-left-goal>
+            <p className="text-xs text-gray-500">Set aside by people who left</p>
+            <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(leftSaved)}</p>
+          </div>
+        )}
       </div>
 
       {goal.reachedAt ? (

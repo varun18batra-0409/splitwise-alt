@@ -100,7 +100,7 @@ export default async function PeoplePage({
       <li className="border-b border-line">
         <details className="group/p">
           <summary className="flex cursor-pointer list-none items-center gap-3 py-3">
-            <Avatar name={m.name} />
+            <Avatar name={m.name} you={me} />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium">
                 {m.name}
@@ -110,7 +110,15 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(-bal)}` : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? (
+                  <>
+                    gets <span className="text-owed">{money(bal)}</span>
+                  </>
+                ) : bal < 0 ? (
+                  <>
+                    owes <span className="text-owe">{money(-bal)}</span>
+                  </>
+                ) : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>

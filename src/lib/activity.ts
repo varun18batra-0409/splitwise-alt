@@ -29,6 +29,7 @@ type ExpenseRow = {
   originalAmount?: number;
   originalCurrency?: string;
   baseCurrency?: string;
+  markupBp?: number; // card fee on a foreign-currency expense, hundredths of a % (300 = 3%)
   notes?: string;
   notesHidden?: boolean; // the viewer left before this was last changed: its notes are not shown
 };
@@ -70,6 +71,7 @@ export type ActivityItem =
       deletedById: string | null; // set when deleted
       // For foreign-currency expenses: the same, in that currency, without card markup.
       original: { currency: string; amount: number; effect: number } | null;
+      cardFeeBp: number; // card fee included in the amount (hundredths of a %), 0 when none
     }
   | {
       kind: "payment";
@@ -128,6 +130,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         edited: Boolean(e.editedAt),
         deletedById: deleted ? (e.deletedById ?? "") : null,
         original: originalOf(e, myId, deleted),
+        cardFeeBp: originalOf(e, myId, deleted) && e.markupBp && e.markupBp > 0 ? e.markupBp : 0,
       };
     }),
     ...payments.map(
@@ -291,4 +294,11 @@ export function filterChips(
   if (f.from || f.to) out.push({ key: "dates", label: f.from && f.to ? `${DAY(f.from)} – ${DAY(f.to)}` : f.from ? `From ${DAY(f.from)}` : `Until ${DAY(f.to!)}`, href: without("from", "to") });
   if (f.min?.trim() || f.max?.trim()) out.push({ key: "amount", label: f.min?.trim() && f.max?.trim() ? `${f.min.trim()} – ${f.max.trim()}` : f.min?.trim() ? `From ${f.min.trim()}` : `Up to ${f.max!.trim()}`, href: without("min", "max") });
   return out;
+}
+
+// The small grey line under a card-paid foreign expense: "incl. 3% card fee" (the real percentage; 350 is "3.5%"). "" when no fee was added.
+export function cardFeeLabel(bp: number): string {
+  if (!(bp > 0)) return "";
+  const pct = bp / 100;
+  return `incl. ${Number.isInteger(pct) ? pct : pct.toFixed(2).replace(/0$/, "")}% card fee`;
 }

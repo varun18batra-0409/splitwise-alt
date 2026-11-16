@@ -8,8 +8,7 @@ import { placePhoto } from "@/lib/places";
 // The trip countdown, as a boarding pass (as on 12 Nov, commit 3fd1a0a2): the trip's polaroid on the left, a torn perforation with two
 // half-circle bites, and "12 days to go" on the right (handwritten). Share sits under the polaroid; a quiet line gives the start day and
 // the head count ("12 December · 6 people") with a small dashed curve ending in a map pin (no names line).
-// It warms up as the day gets close: calm a month out, green within a month,
-// glowing orange in the last week, and "Today" on the day.
+// The number stays off-white (green and orange are for money only); "Today" shows on the day.
 
 type Group = { id: string; name: string; type: string; cover: string; coverAt: Date | null; tripStart?: string | null; members: { id: string; name: string; leftAt: Date | null }[] };
 
@@ -19,9 +18,9 @@ export function TripCountdown({ group, phase, slot = 0, today }: { group: Group;
   const c = countdownCard(group.name, phase, slot);
   const people = group.members.filter((m) => !m.leftAt);
   const days = phase.kind === "before" ? phase.days : 0;
-  const tone = phase.kind !== "before" ? "now" : days <= 7 ? "close" : days <= 30 ? "soon" : "far";
-  const bigColor = tone === "now" || tone === "close" ? "text-owe" : tone === "soon" ? "text-owed" : "text-fg";
-  const glow = tone === "close" || tone === "now" ? "shadow-[0_0_44px_-14px_rgba(255,171,107,0.7)]" : "";
+  // Green and orange are for money only: the count is off-white all the way, and carries no glow.
+  const bigColor = "text-fg";
+  const glow = "";
   const place = placeOf(group.name);
   // The destination's photo (Thailand → Maya Bay), so Home doesn't show the group's photo three times.
   const dest = placePhoto(group.name);

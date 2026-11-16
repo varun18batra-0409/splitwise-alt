@@ -68,7 +68,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>
                   <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
-                    <Avatar name={m.name} />
+                    <Avatar name={m.name} you={m.id === myId} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{m.id === myId ? `${m.name} (you)` : m.name}</span>
                       {(() => {
