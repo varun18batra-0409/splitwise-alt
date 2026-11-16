@@ -28,6 +28,6 @@ describe("moment photos never go through next/image", () => {
     ]) expect(readFileSync(f, "utf8"), f).not.toMatch(/from "next\/image"/);
     const stories = readFileSync("src/components/Stories.tsx", "utf8");
     expect(stories).toContain('src.startsWith("/api/")');
-    expect((stories.match(/unoptimized=\{isOwnApi\(/g) ?? []).length).toBe(2);
+    expect((stories.match(/unoptimized=\{isOwnApi\(/g) ?? []).length).toBe(3);
   });
 });
