@@ -38,7 +38,7 @@ export default async function WrappedPage({ params }: { params: Promise<{ id: st
       <PageHeader title="Wrapped" back={`/groups/${group.id}`} />
       <WrappedDeck
         slides={slides}
-        photo={group.type === "trip" ? placePhoto(group.name)?.src : undefined}
+        photo={group.type === "trip" ? placePhoto(group.name, group.id)?.src : undefined}
         cover={coverFor(group)}
         groupId={group.id}
         groupName={group.name}

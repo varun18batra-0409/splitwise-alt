@@ -25,7 +25,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   const people = group.members.filter((m) => !m.leftAt).length;
   const n = squareNumbers({ expenses, payments, people, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const money = (x: number) => formatMoney(x, group.currency);
-  const photo = group.type === "trip" ? placePhoto(group.name)?.src : undefined;
+  const photo = group.type === "trip" ? placePhoto(group.name, group.id)?.src : undefined;
   const square = transfers.length === 0 && expenses.length > 0;
   const tiles = squareTiles(n, { hide, formatSpent: money });
 

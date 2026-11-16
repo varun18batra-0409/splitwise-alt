@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const FG = "#f7f4ec";
   // Trips get a real photo of the place behind the invitation.
   const origin = new URL(req.url).origin;
-  const photo = group && !group.deletedAt && group.type === "trip" ? placePhoto(`${group.name} ${group.tripPlace ?? ""}`)?.src : undefined;
+  const photo = group && !group.deletedAt && group.type === "trip" ? placePhoto(`${group.name} ${group.tripPlace ?? ""}`, group.id)?.src : undefined;
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", padding: 56, background: "radial-gradient(70% 90% at 100% 0%, rgba(216,189,122,0.28), rgba(13,13,15,0) 70%), radial-gradient(60% 80% at 0% 100%, rgba(111,227,168,0.16), rgba(13,13,15,0) 70%), linear-gradient(160deg, #1d1d22 0%, #0d0d0f 80%)", color: FG, fontFamily: "Sans, SansExt" }}>

@@ -46,7 +46,7 @@ export function GroupRow({ g, closed, tz }: { g: Entry; closed?: boolean; tz: st
 export function GroupLine({ g, tz }: { g: Entry; tz: string }) {
   void tz;
   const b = g.myBalance;
-  const photo = g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined;
+  const photo = g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name, g.group.id)?.src : undefined;
   const exact = b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined;
   return (
     <li data-name={g.group.name.toLowerCase()}>

@@ -42,7 +42,7 @@ function measured(g: G): string | undefined {
   const kind = coverOf(g);
   if (kind === "own") return undefined;
   if (g.type === "trip" && !g.cover) {
-    const p = placePhoto(g.name);
+    const p = placePhoto(g.name, g.id);
     const t = p ? have[p.slot]?.tone : undefined;
     if (t) return t;
   }

@@ -8,7 +8,7 @@ import { placePhoto } from "./places";
 export async function photoData(group: { id: string; name: string; cover: string; type: string; coverAt: Date | null }, origin: string): Promise<string | null> {
   try {
     // The destination first (same picture as the countdown on Home), then the group's own.
-    const dest = placePhoto(group.name);
+    const dest = placePhoto(group.name, group.id);
     if (dest) {
       const res = await fetch(new URL(dest.src, origin));
       const type = res.headers.get("content-type") ?? "";

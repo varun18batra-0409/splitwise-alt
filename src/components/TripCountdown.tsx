@@ -24,7 +24,7 @@ export function TripCountdown({ group, phase, slot = 0, today }: { group: Group;
   const glow = tone === "close" || tone === "now" ? "shadow-[0_0_44px_-14px_rgba(255,171,107,0.7)]" : "";
   const place = placeOf(group.name);
   // The destination's photo (Thailand → Maya Bay), so Home doesn't show the group's photo three times.
-  const dest = placePhoto(group.name);
+  const dest = placePhoto(group.name, group.id);
   // "12 December · 6 people" (the start day, then the head count); an undated trip says just the people.
   const meta = tripMetaLine(group.tripStart, people.length, today ?? new Date().toISOString().slice(0, 10));
 

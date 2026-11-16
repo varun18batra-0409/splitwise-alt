@@ -18,7 +18,9 @@ const PLACES: [RegExp, string][] = [
   [/\b(maldives)\b/i, "place-maldives"],
   [/\b(vietnam|hanoi|ha ?long|da ?nang|saigon|ho chi minh|hoi ?an)\b/i, "place-vietnam"],
   [/\b(sri ?lanka|colombo|kandy|galle|ceylon)\b/i, "place-srilanka"],
-  [/\b(japan|tokyo|kyoto|osaka|hokkaido)\b/i, "place-japan"],
+  // Kyoto first: its temples are place-kyoto; Tokyo, Osaka, Hokkaido and Japan itself show Tokyo (place-japan).
+  [/\b(kyoto)\b/i, "place-kyoto"],
+  [/\b(japan|tokyo|osaka|hokkaido)\b/i, "place-japan"],
   [/\b(london|england|uk|scotland|edinburgh)\b/i, "place-london"],
   [/\b(jaipur|rajasthan|jodhpur|pushkar)\b/i, "place-jaipur"],
   [/\b(nepal|kathmandu|pokhara|everest|annapurna)\b/i, "place-nepal"],
@@ -78,11 +80,28 @@ const MOOD: Record<string, string[]> = {
 
 const have = photos as Record<string, { src: string } | undefined>;
 
+// A small stable number from text (the same text always gives the same number), to choose among a place's photos.
+function stableHash(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+// One of `list`, chosen by the seed (a group's id): always the same one for the same seed, and different groups usually differ.
+export function pickBySeed<T>(list: T[], seed: string): T | undefined {
+  return list.length ? list[stableHash(seed) % list.length] : undefined;
+}
+
 // Which picture (the downloaded file's address), or null when none is there.
-export function placePhoto(tripName: string): { slot: string; src: string } | null {
+// `seed` (a group's id): the place has several photos, so the group gets one of them by a stable hash of its id, the same one every
+// time. Without a seed the place's first photo is used (as before).
+export function placePhoto(tripName: string, seed?: string, from: Record<string, { src: string } | undefined> = have): { slot: string; src: string } | null {
   const tries = [...PLACES.filter(([re]) => re.test(tripName)).map(([, slot]) => slot), ...(MOOD[tripEmoji(tripName)] ?? []), "cover-friends"];
   for (const slot of tries) {
-    const src = have[slot]?.src;
+    const set = photoSet(slot, from);
+    const src = seed ? pickBySeed(set, `${slot}:${seed}`) : set[0];
     if (src) return { slot, src };
   }
   return null;
@@ -94,13 +113,13 @@ export function placePhoto(tripName: string): { slot: string; src: string } | nu
 //  - no picture chosen: the place photo (a mood or friends photo when the place isn't known, as before);
 //  - a drawn picture stored on the group (e.g. the sunset beach): replaced by the photo only when the place is known.
 // Flats, couples and game nights are never given one.
-export function tripPhotoSrc(g: { name: string; type?: string | null; cover?: string | null; coverAt?: Date | null; tripPlace?: string | null }): string | undefined {
+export function tripPhotoSrc(g: { name: string; type?: string | null; cover?: string | null; coverAt?: Date | null; tripPlace?: string | null; id?: string }, from?: Record<string, { src: string } | undefined>): string | undefined {
   if (g.type !== "trip") return undefined;
   const text = `${g.name} ${g.tripPlace ?? ""}`;
   const c = g.cover ?? "";
   if (c === "plain" || c.startsWith("photo-") || (c === "own" && g.coverAt)) return undefined;
-  if (c === "" || c === "own") return placePhoto(text)?.src;
-  return placeSlot(text) ? placePhoto(text)?.src : undefined;
+  if (c === "" || c === "own") return placePhoto(text, g.id, from)?.src;
+  return placeSlot(text) ? placePhoto(text, g.id, from)?.src : undefined;
 }
 
 // Which slot a name points at, before checking the download (for tests).

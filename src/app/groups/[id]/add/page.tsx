@@ -88,7 +88,7 @@ export default async function AddExpensePage({
       title={pair ? `Add expense with ${pair.otherName}` : `Add to ${group.name}`}
       back={pair ? `/people/${group.id}` : `/groups/${group.id}`}
       cover={pair ? { kind: "plain" } : coverFor(group)}
-      photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
+      photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name, group.id)?.src : undefined}
       uid={group.id}
       letter={group.name}
       person={pair?.otherName}
