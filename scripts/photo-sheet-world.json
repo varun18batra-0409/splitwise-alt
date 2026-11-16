@@ -1,0 +1,1013 @@
+{
+ "groups": [
+  {
+   "file": "world-1.png",
+   "title": "World 1: Southern Europe + Turkey",
+   "rows": [
+    {
+     "slot": "Rome",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1663143050642-69240b347b2b",
+       "desc": "Colosseum under clear sky, golden hour"
+      },
+      {
+       "id": "photo-1552832230-c0197dd311b5",
+       "desc": "Colosseum arena photography"
+      },
+      {
+       "id": "photo-1555992828-ca4dbe41d294",
+       "desc": "Aerial view of the Colosseum"
+      },
+      {
+       "id": "photo-1515542622106-78bda8ba0e5b",
+       "desc": "Coliseum, Italy"
+      }
+     ]
+    },
+    {
+     "slot": "Venice",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1523906834658-6e24ef2386f9",
+       "desc": "Rialto Bridge, Venice"
+      },
+      {
+       "id": "photo-1520175480921-4edfa2983e0f",
+       "desc": "Venice Grand Canal"
+      },
+      {
+       "id": "photo-1511135570219-bbad9a02f103",
+       "desc": "Grand Canal, Venice"
+      },
+      {
+       "id": "photo-1514890547357-a9ee288728e0",
+       "desc": "Venice, Italy during daytime"
+      }
+     ]
+    },
+    {
+     "slot": "Florence",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1541370976299-4d24ebbc9077",
+       "desc": "Duomo (Santa Maria del Fiore) and Giotto's Campanile"
+      },
+      {
+       "id": "photo-1528114039593-4366cc08227d",
+       "desc": "Florence cathedral skyline with trees"
+      },
+      {
+       "id": "photo-1476362174823-3a23f4aa6d76",
+       "desc": "Dome building, daytime"
+      },
+      {
+       "id": "photo-1687817997684-c9335cce7c5c",
+       "desc": "City with cathedral and mountains behind"
+      }
+     ]
+    },
+    {
+     "slot": "Amalfi Coast",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1583844056361-4418a8f2a985",
+       "desc": "Positano on the Amalfi coast at night, long exposure"
+      },
+      {
+       "id": "photo-1576083728573-b71bc89404a4",
+       "desc": "White and yellow coastal buildings, daytime"
+      },
+      {
+       "id": "photo-1641928371095-db7499f3b7d0",
+       "desc": "Town on the shore of a body of water"
+      },
+      {
+       "id": "photo-1620834767869-47eebfd961e8",
+       "desc": "Buildings near mountain and water"
+      }
+     ]
+    },
+    {
+     "slot": "Barcelona",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1770323169830-703c8c80a758",
+       "desc": "Sagrada Familia against a clear blue sky"
+      },
+      {
+       "id": "photo-1780305807025-e3f5019482c0",
+       "desc": "Sagrada Familia towering over Barcelona buildings"
+      },
+      {
+       "id": "photo-1719574235175-5c08886d24fc",
+       "desc": "Aerial view of a city with lots of buildings"
+      },
+      {
+       "id": "photo-1728249960363-13079cc2c6f6",
+       "desc": "Tall building with statues on its sides"
+      }
+     ]
+    },
+    {
+     "slot": "Madrid",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1539037116277-4db20889f2d4",
+       "desc": "Metropolis building and Gran Via at low sun"
+      },
+      {
+       "id": "photo-1543783207-ec64e4d95325",
+       "desc": "Edificio Metropolis at Gran Via"
+      },
+      {
+       "id": "photo-1658922184767-d5335cb2a9d2",
+       "desc": "Plaza Mayor, Madrid in background"
+      },
+      {
+       "id": "photo-1570698473651-b2de99bae12f",
+       "desc": "Aerial of Metropolis building and Gran Via"
+      }
+     ]
+    },
+    {
+     "slot": "Lisbon",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1585208798174-6cedd86e019a",
+       "desc": "Yellow tram through historic street, Lisbon"
+      },
+      {
+       "id": "photo-1558102400-72da9fdbecae",
+       "desc": "25 de Abril Bridge and Cristo Rei, Lisbon"
+      },
+      {
+       "id": "photo-1536663815808-535e2280d2c2",
+       "desc": "Orange-roof houses near water"
+      },
+      {
+       "id": "photo-1599069158346-684fee0e414a",
+       "desc": "Yellow and white tram on street"
+      }
+     ]
+    },
+    {
+     "slot": "Porto",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1555881400-74d7acaacd8b",
+       "desc": "Traditional wooden boat on the Douro, Porto, colourful buildings"
+      },
+      {
+       "id": "photo-1555881400-69a2384edcd4",
+       "desc": "White buildings near water"
+      },
+      {
+       "id": "photo-1513735492246-483525079686",
+       "desc": "Grey bridge near buildings at sunset"
+      },
+      {
+       "id": "photo-1555881400-89d5a9c86668",
+       "desc": "Boats sailing near a bridge"
+      }
+     ]
+    },
+    {
+     "slot": "Athens",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1603565816030-6b389eeb23cb",
+       "desc": "Acropolis of Athens at golden hour"
+      },
+      {
+       "id": "photo-1763734546282-a59ac5a08c9b",
+       "desc": "Parthenon under a clear blue sky"
+      },
+      {
+       "id": "photo-1591865986097-77712322981b",
+       "desc": "Temple of Athena Nike, marble columns"
+      },
+      {
+       "id": "photo-1555993539-1732b0258235",
+       "desc": "Brown ruin during daytime"
+      }
+     ]
+    },
+    {
+     "slot": "Dubrovnik",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1603551664565-1b3c3dd61075",
+       "desc": "Stone bell tower and city walls over the Adriatic, Dubrovnik"
+      },
+      {
+       "id": "photo-1414862625453-d87604a607e4",
+       "desc": "White and red houses beside the sea"
+      },
+      {
+       "id": "photo-1555990793-da11153b2473",
+       "desc": "Aerial of buildings near the ocean"
+      },
+      {
+       "id": "photo-1626699748984-47d6942751ca",
+       "desc": "Aerial of city buildings near water"
+      }
+     ]
+    },
+    {
+     "slot": "Istanbul",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1756987826203-666ae9a3aa3f",
+       "desc": "Aerial view of a large ornate mosque with minarets"
+      },
+      {
+       "id": "photo-1527838832700-5059252407fa",
+       "desc": "Brown and blue dome building"
+      },
+      {
+       "id": "photo-1586871818843-dbce27eaf410",
+       "desc": "Brown and white building"
+      },
+      {
+       "id": "photo-1602137968838-8e64b4b45a72",
+       "desc": "Brown building under cloudy sky"
+      }
+     ]
+    },
+    {
+     "slot": "Cappadocia",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1604156789095-3348604c0f43",
+       "desc": "Hot air balloons in the sky"
+      },
+      {
+       "id": "photo-1627933577672-d191b77baa9c",
+       "desc": "Hot air balloons over the mountains"
+      },
+      {
+       "id": "photo-1776253903932-e1a5c8bb6d3e",
+       "desc": "Ancient cave dwellings in rocky mountainside"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "world-2.png",
+   "title": "World 2: Central and Northern Europe",
+   "rows": [
+    {
+     "slot": "Amsterdam",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1584003564911-a7a321c84e1c",
+       "desc": "Bicycles on a bridge over an Amsterdam canal, historic buildings"
+      },
+      {
+       "id": "photo-1534351590666-13e3e96b5017",
+       "desc": "Boats moored on a tree-lined canal, Amsterdam"
+      },
+      {
+       "id": "photo-1512470876302-972faa2aa9a4",
+       "desc": "Canal with historic buildings at dusk, Amsterdam"
+      },
+      {
+       "id": "photo-1459679749680-18eb1eb37418",
+       "desc": "Assorted-colour buildings beside water"
+      }
+     ]
+    },
+    {
+     "slot": "Prague",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1600623471616-8c1966c91ff6",
+       "desc": "Charles Bridge and Prague Castle at golden hour"
+      },
+      {
+       "id": "photo-1677937148591-19bd3fa21e5f",
+       "desc": "Bridge over water with a castle behind"
+      },
+      {
+       "id": "photo-1763274939541-04068c68c803",
+       "desc": "Historic buildings by the river with a castle above"
+      },
+      {
+       "id": "photo-1571778200037-250828fe3eee",
+       "desc": "Red geraniums over Prague's spires and rooftops"
+      }
+     ]
+    },
+    {
+     "slot": "Vienna",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1516550893923-42d28e5677af",
+       "desc": "St. Stephen's Cathedral over Vienna rooftops, golden hour"
+      },
+      {
+       "id": "photo-1662119431157-40e08341aff5",
+       "desc": "Schoenbrunn Palace behind courtyard"
+      },
+      {
+       "id": "photo-1573599852326-2d4da0bbe613",
+       "desc": "White palace during daytime"
+      },
+      {
+       "id": "photo-1681481202115-805d96cc192a",
+       "desc": "Fountain in front of a large building"
+      }
+     ]
+    },
+    {
+     "slot": "Budapest",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1616432902940-b7a1acbc60b3",
+       "desc": "Hungarian Parliament on the Danube, Budapest"
+      },
+      {
+       "id": "photo-1541343672885-9be56236302a",
+       "desc": "Parliament and Chain Bridge over the Danube"
+      },
+      {
+       "id": "photo-1761157845286-7663794fd91d",
+       "desc": "Parliament building on the Danube at sunset"
+      },
+      {
+       "id": "photo-1549877452-9c387954fbc2",
+       "desc": "Fisherman's Bastion, Budapest"
+      }
+     ]
+    },
+    {
+     "slot": "Berlin",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1587330979470-3595ac045ab0",
+       "desc": "Brandenburg Gate lit at night, clear blue sky"
+      },
+      {
+       "id": "photo-1554072675-66db59dba46f",
+       "desc": "Brandenburg Gate and TV Tower under cloudy sky"
+      },
+      {
+       "id": "photo-1538685634737-24b83e3fa2f8",
+       "desc": "Berlin Cathedral, low angle"
+      },
+      {
+       "id": "photo-1566404791232-af9fe0ae8f8b",
+       "desc": "Needle tower among small buildings (TV Tower?)"
+      }
+     ]
+    },
+    {
+     "slot": "Munich",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1595867818082-083862f3d630",
+       "desc": "Aerial view of city buildings at sunset (Munich search)"
+      },
+      {
+       "id": "photo-1577462282244-b58c2816d686",
+       "desc": "Aerial cityscape, daytime (Munich search)"
+      },
+      {
+       "id": "photo-1649609765902-254a227dc960",
+       "desc": "City from a high point (Munich search)"
+      },
+      {
+       "id": "photo-1642867783877-014b35ca6c0a",
+       "desc": "Aerial of a city with a clock tower (Munich search)"
+      }
+     ]
+    },
+    {
+     "slot": "Edinburgh",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1619187731847-28392c0c7917",
+       "desc": "Edinburgh Castle over stone buildings and a staircase"
+      },
+      {
+       "id": "photo-1783739989956-6f45e04eb2a4",
+       "desc": "Edinburgh castle dominating the skyline, sunny day"
+      },
+      {
+       "id": "photo-1571504211935-1c936b327411",
+       "desc": "Castle on cliff"
+      },
+      {
+       "id": "photo-1535448033526-c0e85c9e6968",
+       "desc": "Grey concrete castle"
+      }
+     ]
+    },
+    {
+     "slot": "Dublin",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1605969353711-234dea348ce1",
+       "desc": "Temple Bar pub with hanging flower baskets, cobbled street"
+      },
+      {
+       "id": "photo-1772620461831-7c14a2a1f50e",
+       "desc": "Modern bridge over a wide river in the city (Dublin search)"
+      },
+      {
+       "id": "photo-1788108621597-1b88834d2adb",
+       "desc": "Person rowing small boat under footbridge, Dublin"
+      },
+      {
+       "id": "photo-1518005068251-37900150dfca",
+       "desc": "Brown and white houses (Dublin search)"
+      }
+     ]
+    },
+    {
+     "slot": "Iceland",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1544638627-725124bda50d",
+       "desc": "Cone mountain with water (Kirkjufell search)"
+      },
+      {
+       "id": "photo-1605025169915-987049301f31",
+       "desc": "Waterfalls near brown mountain, blue sky"
+      },
+      {
+       "id": "photo-1501908734255-16579c18c25f",
+       "desc": "Waterfall into pool in Iceland at golden hour"
+      },
+      {
+       "id": "photo-1506261423908-ea2559c1f24c",
+       "desc": "Waterfalls (Seljalandsfoss search)"
+      }
+     ]
+    },
+    {
+     "slot": "Copenhagen",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1775768715308-6d413d4196ed",
+       "desc": "Colourful buildings line a canal with docked boats (Nyhavn search)"
+      },
+      {
+       "id": "photo-1761408631616-28be60406669",
+       "desc": "Colourful buildings line a harbour with boats"
+      },
+      {
+       "id": "photo-1693085777086-1da3abf20d75",
+       "desc": "Red boat in front of colourful buildings"
+      },
+      {
+       "id": "photo-1534955811692-7ff56da8be7c",
+       "desc": "White boat, canal houses, daytime"
+      }
+     ]
+    },
+    {
+     "slot": "Stockholm",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1509356843151-3e7d96241e11",
+       "desc": "Riddarholmen Church spire over the Stockholm waterfront"
+      },
+      {
+       "id": "photo-1773611412441-0e0b361a72a7",
+       "desc": "Cityscape with tall church spire and waterfront"
+      },
+      {
+       "id": "photo-1775740292697-3ac95680c087",
+       "desc": "Skyline with historic buildings and a white ship"
+      },
+      {
+       "id": "photo-1775503297743-79cbf6aca396",
+       "desc": "Colourful buildings along a waterfront (Gamla Stan search)"
+      }
+     ]
+    },
+    {
+     "slot": "Norway fjords",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1783254162801-9eda9b676f9e",
+       "desc": "Fjord with snow-capped mountains and autumn trees"
+      },
+      {
+       "id": "photo-1767453385270-6375b198e61a",
+       "desc": "Fjord landscape with mountains and calm bay"
+      },
+      {
+       "id": "photo-1730392584485-91c8d395ac53",
+       "desc": "Small town and large body of water"
+      },
+      {
+       "id": "photo-1723900742463-0c9a6929c050",
+       "desc": "Waterfall cascading into a mountain side"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "world-3.png",
+   "title": "World 3: Middle East, Africa, Asia, Oceania",
+   "rows": [
+    {
+     "slot": "Abu Dhabi",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1590075865003-e48277faa558",
+       "desc": "Sheikh Zayed Grand Mosque, white domes and minaret"
+      },
+      {
+       "id": "photo-1528862973381-9bc5ad6d4227",
+       "desc": "Zayed Sheikh Mosque, daytime"
+      },
+      {
+       "id": "photo-1624317937315-0ced8736c9e9",
+       "desc": "City skyline at night (Abu Dhabi search)"
+      },
+      {
+       "id": "photo-1685909201292-d86e15a63a1b",
+       "desc": "Sun setting over a city and water (Abu Dhabi search)"
+      }
+     ]
+    },
+    {
+     "slot": "Doha",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1669300884869-e6e11c67c031",
+       "desc": "Dhow boats near the Museum of Islamic Art, Doha"
+      },
+      {
+       "id": "photo-1700901742651-6b353164caf3",
+       "desc": "Katara Towers over the waterfront, Lusail"
+      },
+      {
+       "id": "photo-1647252262017-582a7dbb73d0",
+       "desc": "Tall buildings beside water (Qatar search)"
+      },
+      {
+       "id": "photo-1658863714457-d7d16558aa80",
+       "desc": "Tall buildings (Qatar search)"
+      }
+     ]
+    },
+    {
+     "slot": "Cairo / Giza",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1503177119275-0aa32b3a9368",
+       "desc": "Pyramid of Khafre"
+      },
+      {
+       "id": "photo-1606036685180-d6187349ab23",
+       "desc": "Pyramid of Giza, daytime"
+      },
+      {
+       "id": "photo-1643667996984-fcc69743449d",
+       "desc": "The pyramids of Giza in the desert"
+      },
+      {
+       "id": "photo-1718403800110-bd008d361517",
+       "desc": "The pyramids of Giza in the desert"
+      }
+     ]
+    },
+    {
+     "slot": "Marrakech",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1597212618440-806262de4f6b",
+       "desc": "Koutoubia minaret over Marrakech, snowy Atlas behind"
+      },
+      {
+       "id": "photo-1653323792487-6ecc6217040b",
+       "desc": "Horse carriage past Koutoubia Mosque"
+      },
+      {
+       "id": "photo-1569370088252-c26ef022594c",
+       "desc": "Tall clock tower over a city (Marrakech search)"
+      },
+      {
+       "id": "photo-1640263408299-8972236d0590",
+       "desc": "Tall tower with clock (Marrakech search)"
+      }
+     ]
+    },
+    {
+     "slot": "Cape Town",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1591205024850-d3420e30469e",
+       "desc": "Cable car over a sea of clouds toward Lion's Head"
+      },
+      {
+       "id": "photo-1576485375217-d6a95e34d043",
+       "desc": "Clifton beach below the Twelve Apostles"
+      },
+      {
+       "id": "photo-1580060839134-75a5edca2e99",
+       "desc": "Aerial view of city near mountain"
+      },
+      {
+       "id": "photo-1585061528750-3baca2cb6a10",
+       "desc": "Aerial view of city near mountain"
+      }
+     ]
+    },
+    {
+     "slot": "Osaka",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1584505489290-96eb4e406d08",
+       "desc": "Boat on river between high-rise buildings at night (Dotonbori search)"
+      },
+      {
+       "id": "photo-1542210940661-5f91cb7afe02",
+       "desc": "City at night (Dotonbori search)"
+      },
+      {
+       "id": "photo-1590253230532-a67f6bc61c9e",
+       "desc": "People on street near buildings, daytime"
+      },
+      {
+       "id": "photo-1710026546567-a6e356693b3d",
+       "desc": "City street with tall buildings"
+      }
+     ]
+    },
+    {
+     "slot": "Seoul",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1768007130605-e07bbcb26d02",
+       "desc": "Traditional Korean palace with modern skyscrapers behind"
+      },
+      {
+       "id": "photo-1758384077399-2757a1de8b75",
+       "desc": "Gyeongbokgung palace gate with mountains behind"
+      },
+      {
+       "id": "photo-1570191913384-7b4ff11716e7",
+       "desc": "Namsan Tower above forested hill, Seoul"
+      },
+      {
+       "id": "photo-1546874177-9e664107314e",
+       "desc": "Lit city skyline at night"
+      }
+     ]
+    },
+    {
+     "slot": "Hong Kong",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1620015092538-e33c665fc181",
+       "desc": "High-angle HK skyline across Victoria Harbour, golden hour"
+      },
+      {
+       "id": "photo-1678110721308-a08ed05a7938",
+       "desc": "Illuminated HK skyline from Victoria Peak at night"
+      },
+      {
+       "id": "photo-1577871598838-a543ee47cd79",
+       "desc": "Junk boat with red sails on Victoria Harbour at night"
+      },
+      {
+       "id": "photo-1513622790541-eaa84d356909",
+       "desc": "Aerial of illuminated skyline and harbour at night"
+      }
+     ]
+    },
+    {
+     "slot": "Kuala Lumpur",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1597148543182-830ef7bbb904",
+       "desc": "Petronas Twin Towers illuminated at night"
+      },
+      {
+       "id": "photo-1741158510208-d3fe871899b2",
+       "desc": "Petronas towers in the evening sky"
+      },
+      {
+       "id": "photo-1558015382-91941d28e892",
+       "desc": "Petronas Twin Towers, daytime"
+      },
+      {
+       "id": "photo-1546273300-70f00c0fc1a0",
+       "desc": "Petronas Twin Towers, Malaysia"
+      }
+     ]
+    },
+    {
+     "slot": "Sydney",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1523428096881-5bd79d043006",
+       "desc": "Sydney Opera House"
+      },
+      {
+       "id": "photo-1532984601283-d68a3ee3e51f",
+       "desc": "Sydney Opera House near the bridge"
+      },
+      {
+       "id": "photo-1513315911826-0d184239bc7f",
+       "desc": "Sydney Opera House"
+      },
+      {
+       "id": "photo-1599108594665-ecb12795d355",
+       "desc": "Sydney Opera House, Australia"
+      }
+     ]
+    },
+    {
+     "slot": "Melbourne",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1595434971780-79d5c20c5090",
+       "desc": "City skyline during the day (Melbourne search)"
+      },
+      {
+       "id": "photo-1775308960126-a694dd3676a3",
+       "desc": "Skyline with river and bridge, clear day"
+      },
+      {
+       "id": "photo-1545044846-351ba102b6d5",
+       "desc": "White bridge through city buildings"
+      },
+      {
+       "id": "photo-1766766829410-36cf2f0bdce7",
+       "desc": "Skyline at sunset with river and trees"
+      }
+     ]
+    },
+    {
+     "slot": "Queenstown / NZ",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1740658649996-690a4907858a",
+       "desc": "City with mountains behind (NZ search)"
+      },
+      {
+       "id": "photo-1740658642224-3c37bab6e56d",
+       "desc": "Town and body of water (NZ search)"
+      },
+      {
+       "id": "photo-1735908171106-a81c360f5513",
+       "desc": "Lake and mountains (NZ search)"
+      },
+      {
+       "id": "photo-1735908171089-921b9b139c75",
+       "desc": "Lake surrounded by mountains (NZ search)"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "file": "world-4.png",
+   "title": "World 4: Americas",
+   "rows": [
+    {
+     "slot": "Toronto",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1517935706615-2717063c2225",
+       "desc": "CN Tower and downtown Toronto skyline at golden hour"
+      },
+      {
+       "id": "photo-1507992781348-310259076fe0",
+       "desc": "Toronto skyline with CN Tower across Lake Ontario at golden hour"
+      },
+      {
+       "id": "photo-1543962226-818f4301073f",
+       "desc": "CN Tower and illuminated skyscrapers at night"
+      },
+      {
+       "id": "photo-1586576782138-19304c43d0e1",
+       "desc": "City skyline, gray cloudy sky"
+      }
+     ]
+    },
+    {
+     "slot": "Vancouver",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1647655806923-e8202f4f2b8c",
+       "desc": "False Creek waterfront and Vancouver skyline at golden hour"
+      },
+      {
+       "id": "photo-1647655806907-caaf166360dd",
+       "desc": "City and lake at sunset (Vancouver search)"
+      },
+      {
+       "id": "photo-1660143158587-bddffa026e06",
+       "desc": "City with snow covered mountains"
+      },
+      {
+       "id": "photo-1730661906876-18bfc6e95f2f",
+       "desc": "City with mountains in the background"
+      }
+     ]
+    },
+    {
+     "slot": "Banff",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1539667547529-84c607280d20",
+       "desc": "Moraine Lake reflecting snow-capped peaks at golden hour"
+      },
+      {
+       "id": "photo-1448518340475-e3c680e9b4be",
+       "desc": "Calm mountain lake reflecting snow-capped peaks"
+      },
+      {
+       "id": "photo-1771956363464-c5cf9d00fc1d",
+       "desc": "Canoes on a turquoise lake among mountains"
+      },
+      {
+       "id": "photo-1782844630248-6623536058f7",
+       "desc": "Turquoise lake with canoes, mountains, glacier"
+      }
+     ]
+    },
+    {
+     "slot": "Mexico City",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1580934738416-ad531f2920f7",
+       "desc": "Paper umbrellas and lanterns over a narrow street, Mexico City"
+      },
+      {
+       "id": "photo-1547686669-9a8cb1a22d91",
+       "desc": "Aerial of a dome building under blue sky (Mexico City search)"
+      },
+      {
+       "id": "photo-1574493264149-87880133a2ba",
+       "desc": "Tall tower with a statue on top"
+      },
+      {
+       "id": "photo-1632855022158-848e5949f7f7",
+       "desc": "Statue of an angel atop a tower"
+      }
+     ]
+    },
+    {
+     "slot": "Cancun / Tulum",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1665618980645-ca9cd5e68508",
+       "desc": "Rocky beach with castle ruin, Tulum behind"
+      },
+      {
+       "id": "photo-1750084264426-54c88735df41",
+       "desc": "Ancient Mayan ruins atop a coastal cliff"
+      },
+      {
+       "id": "photo-1665618030297-4c3f13d34ca1",
+       "desc": "Stone structure on rocky cliff over the ocean, Tulum"
+      },
+      {
+       "id": "photo-1643126157241-99a67bc10f9e",
+       "desc": "Aerial view of a beach with palm trees"
+      }
+     ]
+    },
+    {
+     "slot": "Rio de Janeiro",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1683331404237-64c763c70f5b",
+       "desc": "Christ the Redeemer with arms outstretched, bright blue sky"
+      },
+      {
+       "id": "photo-1564659907532-6b5f98c8e70f",
+       "desc": "Christ the Redeemer in silhouette above glowing clouds"
+      },
+      {
+       "id": "photo-1548963670-aaaa8f73a5e3",
+       "desc": "Rio de Janeiro under blue skies"
+      },
+      {
+       "id": "photo-1700677866588-95226be09b39",
+       "desc": "Statue of Jesus on a mountaintop"
+      }
+     ]
+    },
+    {
+     "slot": "Machu Picchu",
+     "note": "",
+     "now": [],
+     "cands": [
+      {
+       "id": "photo-1526392060635-9d6019884377",
+       "desc": "Machu Picchu ruins among misty mountains"
+      },
+      {
+       "id": "photo-1666240073343-9801b7b5b949",
+       "desc": "Ancient city with Machu Picchu in the background"
+      },
+      {
+       "id": "photo-1664515891137-19f371eb9f05",
+       "desc": "Old city with mountains and Machu Picchu"
+      },
+      {
+       "id": "photo-1664387518989-bb1d8574f078",
+       "desc": "Two llamas overlooking the stone ruins of Machu Picchu"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
