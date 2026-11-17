@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { phoneStatusLabel } from "@/lib/phone-status";
 
 // Alerts, Account and group Settings show what THIS phone allows, apart from what Loopin sends.
-describe("This phone", () => {
-  it("says Allowed / Blocked in phone settings / Not asked / add to Home Screen first", () => {
+describe("This device", () => {
+  it("says Allowed / Blocked in device settings / Not asked / add to Home Screen first", () => {
     expect(phoneStatusLabel("on", "granted")).toBe("Allowed");
-    expect(phoneStatusLabel("denied", "denied")).toBe("Blocked in phone settings");
+    expect(phoneStatusLabel("denied", "denied")).toBe("Blocked in device settings");
     expect(phoneStatusLabel("off", "default")).toBe("Not asked yet");
     expect(phoneStatusLabel("ios-install", "none")).toBe("Needs Loopin on your Home Screen");
   });

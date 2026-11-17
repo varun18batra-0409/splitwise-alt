@@ -283,7 +283,7 @@ export default async function HowItWorks() {
         <p>
           Open <strong>Trip recap → Trip report, to share</strong>: the total, per person and per day, where it went, the biggest expense, who paid most and
           what’s left to settle. <strong>Share to WhatsApp</strong> sends it as a picture with a short message. There’s no link to the group,
-          so only what’s in the picture leaves your phone.
+          so only what’s in the picture leaves your device.
         </p>
         <Screen src="/guide/trip-report.webp" alt="A trip report: total, per person, per day, top categories and each person's part" caption="The trip report, ready to share" />
         <p>Then settle up and close the group. It stays in your history, and so does the report.</p>
@@ -447,7 +447,7 @@ export default async function HowItWorks() {
       <div id="safe" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Mistakes happen. Fix them.</h2>
-        <p>Most changes can be undone, and the history shows who changed what. Undo works on the latest change to something: once a newer change has touched it, undo that first. It won’t change the balance of someone who has left the group. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
+        <p>Most changes can be undone, and the history shows who changed what. Undo works on the latest change to something: once a newer change has touched it, undo that first. It won’t change the balance of someone who has left the group. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your device and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
         <p>
           Left a group? You still see it as it was the day you left, and your share can’t change after that. Something unwelcome? <strong>Report</strong> or <strong>Block</strong> someone;
           you’ll both still see shared group money, because it has to add up. Questions or problems: <strong>You → Help & support</strong>.

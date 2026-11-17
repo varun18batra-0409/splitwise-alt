@@ -42,7 +42,7 @@ export default function Terms() {
 
       <h2 className={h}>Your account</h2>
       <ul className={ul}>
-        <li>You sign in with your email (a code we send you), Google, or your phone’s fingerprint or face. Keep access to your email and phone safe.</li>
+        <li>You sign in with your email (a code we send you), Google, or your device’s fingerprint or face. Keep access to your email and device safe.</li>
         <li>One account per person, in your own name. Don’t sign in as someone else.</li>
         <li>You must be at least {minAge} years old to use Loopin.</li>
       </ul>

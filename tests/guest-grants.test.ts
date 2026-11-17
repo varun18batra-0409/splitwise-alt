@@ -83,18 +83,18 @@ describe("linking, sign-out-others and deleting the account, in order (member X)
     expect(await getLinkedAwayGroups()).toEqual([G]);
     expect(await as(await cookie({ [G]: `${id.X}~0` }))).toEqual({});
   });
-  it("sign out on all other phones: a replayed copy, with or without X in it, gets nothing", async () => {
+  it("sign out on all other devices: a replayed copy, with or without X in it, gets nothing", async () => {
     state.cookie = signedIn;
     await signOutOtherPhones();
     const fresh = state.cookie;
     expect((await decodeSession(fresh))?.v).toBe(1);
     expect(await as(signedIn)).toEqual({}); // v=0 replay
     expect(await as(await cookie({ [G]: id.X }, { a: acc.A, v: 0 }))).toEqual({}); // v=0 replay that also names X
-    expect(await as(await cookie({ [G]: id.X }, { a: acc.A, v: 1 }))).toEqual({ [G]: id.X }); // this phone, still current
+    expect(await as(await cookie({ [G]: id.X }, { a: acc.A, v: 1 }))).toEqual({ [G]: id.X }); // this device, still current
     expect(await as(fresh)).toEqual({ [G]: id.X });
     signedIn = fresh;
   });
-  it("deleting the account: this phone keeps X, another phone's copy stays dead (needs the bump in deleteAccount)", async () => {
+  it("deleting the account: this device keeps X, another device's copy stays dead (needs the bump in deleteAccount)", async () => {
     state.cookie = signedIn;
     const groups = await getMemberships();
     expect(groups).toEqual({ [G]: id.X });
@@ -136,7 +136,7 @@ describe("the other order, and a name linked to a different account", () => {
     expect(await as(guestY)).toEqual({});
   });
   it("a cookie signed in as one account can't use a name linked to another", async () => {
-    // Y belongs to C; this phone is signed in as B, whose own name in the group is X.
+    // Y belongs to C; this device is signed in as B, whose own name in the group is X.
     const got = await as(await cookie({ [G]: id.Y }, { a: acc.B, v: 0 }));
     expect(got).toEqual({ [G]: id.X });
     expect(await getLinkedAwayGroups()).toEqual([]); // B does have a name here, so nothing is "lost"

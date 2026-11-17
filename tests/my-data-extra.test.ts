@@ -60,7 +60,7 @@ describe("download my data: the extra parts", () => {
     expect(extra.settings.find((s) => s.setting === "Collection notifications")?.status).toBe("Off");
     expect(extra.settings.find((s) => s.setting === "Someone records a payment with you")?.status).toBe("Off");
     expect(extra.settings.find((s) => s.setting === "Someone adds an expense")?.status).toBe("On");
-    expect(extra.settings.find((s) => s.setting.startsWith("Phone notifications in MD trip"))?.status).toBe("Off");
+    expect(extra.settings.find((s) => s.setting.startsWith("Device notifications in MD trip"))?.status).toBe("Off");
 
     const csv = myDataCsv({ email: me.email, name: "Mia", createdAt: now }, [], now, "UTC", [], extra);
     expect(csv).toContain("Your postcards");

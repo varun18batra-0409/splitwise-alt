@@ -105,7 +105,7 @@ export default async function Home({
     getAccount().then((a) => loadInvitations(a)),
     // Postcards that arrived and are unread (none from people you blocked, none still sealed).
     getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
-    // Signed in, but some groups are still only a guest name on this phone (the sign-in check was skipped, or they came later).
+    // Signed in, but some groups are still only a guest name on this device (the sign-in check was skipped, or they came later).
     getAccount().then((a) => (a ? guestGroupsOnPhone() : [])),
   ]);
   const { all, direct, open, closed, common, toCommon } = overview;
@@ -154,7 +154,7 @@ export default async function Home({
 
   const notice =
     deleted === "account"
-      ? "Your email and sign-in were deleted. Your groups on this phone are still here."
+      ? "Your email and sign-in were deleted. Your groups on this device are still here."
       : collection === "deleted"
           ? "Collection deleted."
           : moved === "1"
@@ -526,7 +526,7 @@ export default async function Home({
         <BellButton className="glass border border-fg/10" />
       </header>
 
-      {/* Signed in, with groups that are only on this phone: a quiet offer to move them (opens the same check as sign-in). */}
+      {/* Signed in, with groups that are only on this device: a quiet offer to move them (opens the same check as sign-in). */}
       <GuestMoveNotice groups={guestGroups} />
 
       {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
@@ -760,7 +760,7 @@ export default async function Home({
         </>
       )}
 
-      {/* Not signed in: these groups live only on this phone. The one sign-in banner, dismissible, just above the footer. */}
+      {/* Not signed in: these groups live only on this device. The one sign-in banner, dismissible, just above the footer. */}
       {all.length > 0 && !account && <SignInBanner className="mt-6" />}
 
       <FooterLinks links={HOME_FOOTER_LINKS} className="mt-6 pb-6" />

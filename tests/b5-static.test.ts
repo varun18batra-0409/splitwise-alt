@@ -39,7 +39,7 @@ describe("D1-6 / VA2-17: the Send tab is held to the same rules as Next", () => 
 
 describe("A13: a phone that can't get notifications says so", () => {
   const p = src("src/components/PushControls.tsx");
-  const text = "Until then, this phone won’t get notifications, even with the switches below turned on.";
+  const text = "Until then, this device won’t get notifications, even with the switches below turned on.";
   it("uses the agreed words (with a curly apostrophe)", () => expect(p).toContain(text));
   it("shows it for iPhone-not-installed and blocked; an unsupported browser says the switches won't work here", () => {
     const uses = p.match(/\{PHONE_NOT_READY\}/g) ?? [];

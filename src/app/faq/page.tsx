@@ -14,7 +14,7 @@ const sections = (): { title: string; items: QA[] }[] => [
     items: [
       { q: "What is Loopin?", a: "A free way to split costs with friends on a trip, flatmates at home, or the two of you as a couple. Everyone adds what they paid, Loopin keeps the balances, and works out a short list of payments to settle up." },
       { q: "Is it really free? Any limits or ads?", a: "Yes, Loopin is free to use right now, with no ads. Add as many expenses as you like; there is only a safety limit, to stop robots, which normal use never reaches." },
-      { q: "Do my friends need to sign up?", a: "Only to join a group: sign in once with an email (or Google), about 30 seconds and no password. It means everyone in a group has a checked email, so updates reach the right phone. People you add by name can wait and join later. To pay a Collect or use an “I’ve paid” link, no sign-up is needed." },
+      { q: "Do my friends need to sign up?", a: "Only to join a group: sign in once with an email (or Google), about 30 seconds and no password. It means everyone in a group has a checked email, so updates reach the right device. People you add by name can wait and join later. To pay a Collect or use an “I’ve paid” link, no sign-up is needed." },
       {
         q: "What’s in the bar at the bottom?",
         a: "Home, Groups, Add, Settle and You. Add opens a new expense, Settle shows who pays whom, and You has your passport, postcards and settings (when you’re not signed in, those rows show with a lock and “Sign in to use”). Your updates are behind the bell at the top right, with a small dot when something needs you.",
@@ -65,7 +65,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       },
       {
         q: "What happens when someone records a payment with me?",
-        a: "It counts straight away and you’re told, in Activity and on your phone. If it’s wrong, open it and delete it; only the two of you can, and the balances go back to what they were.",
+        a: "It counts straight away and you’re told, in Activity and on your device. If it’s wrong, open it and delete it; only the two of you can, and the balances go back to what they were.",
       },
       {
         q: "Can someone tell me they paid without having Loopin?",
@@ -88,7 +88,7 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "How do I invite friends?",
         a: "Open Add people: copy the group’s link or tap Invite on WhatsApp. For more, open More ways to add people: the share sheet, a QR code, search by name or email, your contacts, or email. Got a link from a friend? Tap Join with a link and paste it. To invite someone to Loopin without making a group, tap Invite friends to Loopin on Home or the You page.",
       },
-      { q: "Can I give a group a picture, or use my own photo?", a: "Yes. In the group’s settings, pick a drawn picture or a photo, or tap Your photo to choose one from your gallery. Your own photo is made small on your phone first, and only people in the group can see it." },
+      { q: "Can I give a group a picture, or use my own photo?", a: "Yes. In the group’s settings, pick a drawn picture or a photo, or tap Your photo to choose one from your gallery. Your own photo is made small on your device first, and only people in the group can see it." },
       {
         q: "Someone shows “not on Loopin yet”. What does that mean?",
         a: "They were added by name and haven’t signed up yet. Tap their name on People and invite them by email: when they sign up, they take over that name with all its expenses.",
@@ -97,7 +97,7 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "What does someone who left a group still see?",
         a: "The group as it was the day they left. Their share can’t change after that. Notes on expenses edited after they left aren’t shown to them.",
       },
-      { q: "Can I use it on more than one phone, or install it as an app?", a: "Sign in on any device and your groups are there. To put Loopin on your home screen, open You and tap the app button there, then follow the steps for your phone." },
+      { q: "Can I use it on more than one device, or install it as an app?", a: "Sign in on any device and your groups are there. To put Loopin on your home screen, open You and tap the app button there, then follow the steps for your phone." },
     ],
   },
   {
@@ -107,7 +107,7 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "How do rent and bills work for flatmates?",
         a: "Make a Home group and set each bill to repeat once. Fixed ones are added on the day, ones that change ask whoever pays for the amount, and daily ones add up by the month. Anyone can skip or undo a month, and nothing is read from your bank or messages.",
       },
-      { q: "Can a couple split by income instead of 50/50?", a: "Yes. A Couple group can use 50/50, a ratio you choose, or one worked out from your incomes. The incomes are only used on your phone to work out the ratio; they aren’t sent or saved." },
+      { q: "Can a couple split by income instead of 50/50?", a: "Yes. A Couple group can use 50/50, a ratio you choose, or one worked out from your incomes. The incomes are only used on your device to work out the ratio; they aren’t sent or saved." },
       {
         q: "What is Game night?",
         a: "For cards, board games or any game you play together. Make a group and pick Game night, put chips in for everyone, count what everyone has at the end, and tap Calculate & settle: Loopin works out who came out ahead, who came out behind and the fewest payments to square up. Loopin keeps the score of games you play together. No betting happens in the app.",
@@ -188,7 +188,7 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "How do I sign in without a password?",
         a: "Continue with Google, or use your email and we send a 6-digit code. Once you’ve turned it on in You, your fingerprint or face works with one touch.",
       },
-      { q: "What does fingerprint or face sign-in share with Loopin?", a: "Nothing about your fingerprint or face. Your phone checks it’s you and gives Loopin a key that proves it. You can remove it any time from the You page." },
+      { q: "What does fingerprint or face sign-in share with Loopin?", a: "Nothing about your fingerprint or face. Your device checks it’s you and gives Loopin a key that proves it. You can remove it any time from the You page." },
       {
         q: "Can I choose which notifications and emails I get?",
         a: "Yes. Open You, then Notifications & email, and switch each kind on or off; every change saves at once. A group can also be muted in its own settings. Sign-in codes and security emails are always sent.",

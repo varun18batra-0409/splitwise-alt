@@ -64,10 +64,10 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
 
   // Notification settings: your account's choices, then your phone notifications in each group.
   const settings: { setting: string; where: string; status: string }[] = [
-    { setting: "Collection notifications", where: "Phone", status: account.collectPush ? "On" : "Off" },
+    { setting: "Collection notifications", where: "Device", status: account.collectPush ? "On" : "Off" },
   ];
   for (const cat of CATEGORIES) {
-    for (const it of cat.push) settings.push({ setting: it.label, where: "Phone", status: allows(account.notifyPrefs, "push", it.id) ? "On" : "Off" });
+    for (const it of cat.push) settings.push({ setting: it.label, where: "Device", status: allows(account.notifyPrefs, "push", it.id) ? "On" : "Off" });
     for (const it of cat.email) settings.push({ setting: it.label, where: "Email", status: allows(account.notifyPrefs, "email", it.id) ? "On" : "Off" });
   }
   const ids = Object.values(memberships);
@@ -75,7 +75,7 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
   for (const m of rows.sort((a, b) => (groupNames[a.groupId] ?? "").localeCompare(groupNames[b.groupId] ?? ""))) {
     const n = parseNotify(m.notify);
     const off = NOTIFY_KINDS.filter((k) => !n[k.id]).map((k) => k.label.toLowerCase());
-    settings.push({ setting: `Phone notifications in ${groupNames[m.groupId] ?? "a group"}`, where: "Phone", status: n.off ? "Off" : off.length ? `On, except ${off.join(", ")}` : "On" });
+    settings.push({ setting: `Device notifications in ${groupNames[m.groupId] ?? "a group"}`, where: "Device", status: n.off ? "Off" : off.length ? `On, except ${off.join(", ")}` : "On" });
   }
   // Moments you added: your own words only, with a link to where you can open each in the app (photos are not in the file, like postcards).
   const moments = (await loadMyMoments(account.id)).map((m) => ({ createdAt: m.createdAt, group: m.group, caption: m.caption, day: m.day, link: `/groups/${m.groupId}/moments/${m.id}` }));

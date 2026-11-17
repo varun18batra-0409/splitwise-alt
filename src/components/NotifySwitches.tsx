@@ -79,8 +79,8 @@ export function NotifySwitches({ initial }: { initial: Off }) {
           {error}
         </p>
       )}
-      <section aria-label="On this phone" className="mb-8">
-        <h2 className="mb-2.5 px-1 font-display text-lg font-semibold tracking-tight">On this phone</h2>
+      <section aria-label="On this device" className="mb-8">
+        <h2 className="mb-2.5 px-1 font-display text-lg font-semibold tracking-tight">On this device</h2>
         <div className="space-y-3">
           {CATEGORIES.map((c) => {
             const catOn = !off.push[c.id];

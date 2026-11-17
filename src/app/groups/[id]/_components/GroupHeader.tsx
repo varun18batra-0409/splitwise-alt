@@ -96,7 +96,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
             </ul>
           </>
         )}
-        {/* Who this phone is in this group — and a way to fix a wrong pick. */}
+        {/* Who this device is in this group — and a way to fix a wrong pick. */}
         <div className="mt-1 flex items-center justify-between gap-3 border-t border-line px-3 pb-1 pt-2.5 text-xs text-gray-400">
           <span className="truncate">You’re {me?.name ?? "—"} in this group</span>
           {!v.leaver && (

@@ -93,7 +93,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <p className="font-display text-xl font-semibold">Not signed in</p>
           <p className="mt-2 text-sm text-fg/60">
             {groupCount
-              ? "These groups are only on this phone. Save them to your email before you switch phones, so a new phone or the installed app can get them back."
+              ? "These groups are only on this device. Save them to your email before you switch devices, so a new device or the installed app can get them back."
               : "Sign in to see your groups on any device, or to start one."}
           </p>
           <Link href="/signin?back=/account" className={`mt-5 ${primaryButtonClass}`}>
@@ -143,7 +143,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </YouList>
       )}
       <YouList label="Account" className="mt-8">
-        {account && <YouRow href="/account/sign-in" icon={<DevicesLineIcon />} title="Sign-in & devices" line="Fingerprint sign-in, sign out of phones" />}
+        {account && <YouRow href="/account/sign-in" icon={<DevicesLineIcon />} title="Sign-in & devices" line="Fingerprint sign-in, sign out of devices" />}
         <YouRow href="/account/data" icon={<DownloadLineIcon />} title="Export your data" line="A copy of everything in your groups" />
         <YouRow href="/how-it-works" icon={<PlayLineIcon />} title="How Loopin works" line="A one-minute tour" />
         <YouRow href="/support" icon={<HelpLineIcon />} title="Help & support" line="Guides and a way to reach us" />

@@ -27,7 +27,7 @@ export function usePasskeySupport() {
   return ok;
 }
 
-// This phone has used fingerprint / face sign-in before (then the button is
+// This device has used fingerprint / face sign-in before (then the button is
 // shown big; otherwise it's a small line, so new people aren't sent down a
 // path that can't work for them yet).
 const USED_KEY = "lp_pk";
@@ -83,7 +83,7 @@ export function PasskeySignIn({ back, className, groups = [] }: { back: string; 
         disabled={busy}
         className={used ? className : "mx-auto block py-2 text-center text-sm text-gray-500 underline underline-offset-4"}
       >
-        {used && <FingerprintIcon />} {busy ? "Waiting for your phone…" : "Sign in with fingerprint or face"}
+        {used && <FingerprintIcon />} {busy ? "Waiting for your device…" : "Sign in with fingerprint or face"}
       </button>
       {error && <p className="mt-2 text-sm text-red-600" role="alert">{error}</p>}
       {sheet}
@@ -111,7 +111,7 @@ export function PasskeyAdd({ className, label = "Turn on fingerprint / face sign
       else window.location.reload();
     } catch (e) {
       const err = e as Error;
-      setError(err.name === "InvalidStateError" ? "This phone is already set up." : err.name === "NotAllowedError" ? "Cancelled." : err.message || "That didn’t work. Try again.");
+      setError(err.name === "InvalidStateError" ? "This device is already set up." : err.name === "NotAllowedError" ? "Cancelled." : err.message || "That didn’t work. Try again.");
       setState("idle");
     }
   }
@@ -119,7 +119,7 @@ export function PasskeyAdd({ className, label = "Turn on fingerprint / face sign
   return (
     <div>
       <button type="button" onClick={go} disabled={state === "busy"} className={className}>
-        <FingerprintIcon /> {state === "busy" ? "Waiting for your phone…" : label}
+        <FingerprintIcon /> {state === "busy" ? "Waiting for your device…" : label}
       </button>
       {error && <p className="mt-2 text-sm text-red-600" role="alert">{error}</p>}
     </div>
@@ -128,7 +128,7 @@ export function PasskeyAdd({ className, label = "Turn on fingerprint / face sign
 
 function FingerprintIcon() {
   return (
-    // A scan frame with a fingerprint inside: reads as "your phone's fingerprint or face".
+    // A scan frame with a fingerprint inside: reads as "your device's fingerprint or face".
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="mr-2 inline-block align-[-4px]">
       <path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16" />
       <path d="M7.5 13a4.5 4.5 0 0 1 9 0M9.5 16.5V13a2.5 2.5 0 0 1 5 0v3.5M12 13v4.5M7.5 13v2M16.5 13v1" />
@@ -159,7 +159,7 @@ export function PasskeyOffer() {
   return (
     <section className="relative mb-4 rounded-2xl border border-line px-4 py-4 pr-10">
       <p className="font-semibold">Sign in faster next time?</p>
-      <p className="mt-1 text-sm text-gray-500">Use your fingerprint or face instead of a code. It stays on your phone.</p>
+      <p className="mt-1 text-sm text-gray-500">Use your fingerprint or face instead of a code. It stays on your device.</p>
       <div className="mt-3">
         <PasskeyAdd className="flex items-center border border-line px-4 py-2.5 text-sm font-semibold text-fg active:bg-mist rounded-full" label="Turn it on" onDone={() => setTimeout(hide, 2500)} />
       </div>

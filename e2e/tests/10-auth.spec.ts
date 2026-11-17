@@ -6,7 +6,7 @@ import { allowTestCopy, contextFor, createGroup, settled } from "../helpers/app"
 // Stage 1 · Signing in and your account.
 test.describe.configure({ mode: "serial" });
 
-test("sign out of this phone, sign back in: your groups come back", async ({ browser }) => {
+test("sign out of this device, sign back in: your groups come back", async ({ browser }) => {
   const email = testEmail("returner");
   const user = await signUp("Rita", email);
   const ctx = await contextFor(browser, user);
@@ -28,7 +28,7 @@ test("sign out of this phone, sign back in: your groups come back", async ({ bro
   await ctx.close();
 });
 
-test("sign out other phones: the other phone loses your groups, this one keeps them", async ({ browser }) => {
+test("sign out other devices: the other device loses your groups, this one keeps them", async ({ browser }) => {
   const email = testEmail("two-phones");
   const user = await signUp("Tara", email);
   const lost = await contextFor(browser, user);
@@ -43,7 +43,7 @@ test("sign out other phones: the other phone loses your groups, this one keeps t
 
   await b.goto("/account/sign-in");
   await settled(b);
-  await b.getByRole("button", { name: "Sign out other phones" }).click();
+  await b.getByRole("button", { name: "Sign out other devices" }).click();
   await b.waitForURL(/others=out/);
   await expect(b.locator("[data-signed-out-others]")).toBeVisible();
 

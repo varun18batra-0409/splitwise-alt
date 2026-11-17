@@ -74,7 +74,7 @@ afterAll(async () => {
 
 describe("M4: a phone that loses a name stops getting its notifications", () => {
   // What production does: nobody passes the phone's own address. Every row for the linked name goes, a short-lived note
-  // is left for the app, and the phone that just signed in puts its own back; the other phone is not in the session.
+  // is left for the app, and the phone that just signed in puts its own back; the other device is not in the session.
   it("phone 2 holds a guest copy of X and is subscribed; phone 1 signs in and links X: X's rows go, the resync note is set, phone 1 re-registers, phone 2 stays cut off", async () => {
     const t = await group("si");
     const ep1 = goodEndpoint(`p1-${stamp}-si`);
@@ -92,7 +92,7 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
 
     expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).accountId).toBe(me.id);
     expect(await rowsFor(t.x.id)).toEqual([]); // both phones' rows are gone
-    expect(state.set[PUSH_RESYNC_COOKIE]).toBe("1"); // the note for this phone's app
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBe("1"); // the note for this device's app
     await sendEventPush((await change(t.g.id, t.y.id)).id);
     expect(push.send).not.toHaveBeenCalled();
 
@@ -116,7 +116,7 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     await sub(t.x.id, epX);
     await sub(t.z.id, epZ);
     const me = await account("Xena");
-    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) }); // this phone holds X only
+    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) }); // this device holds X only
     await signInAs(me.id, { confirmed: parseConfirmed([t.x.id]) });
     expect(await rowsFor(t.x.id)).toEqual([]);
     expect(await rowsFor(t.z.id)).toEqual([epZ]);
@@ -243,13 +243,13 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).grantEpoch).toBe(2);
   });
 
-  it("'sign out this phone' removes this phone's address for every name it holds or belonged to; other phones keep theirs", async () => {
+  it("'sign out this device' removes this device's address for every name it holds or belonged to; other devices keep theirs", async () => {
     const t = await group("so");
     const mine = goodEndpoint(`mine-${stamp}-so`);
     const theirs = goodEndpoint(`theirs-${stamp}-so`);
     const me = await account("Leaver");
     await db.member.update({ where: { id: t.z.id }, data: { accountId: me.id } }); // a name linked to the signed-in account
-    await sub(t.x.id, mine); // a name this phone holds as a guest
+    await sub(t.x.id, mine); // a name this device holds as a guest
     await sub(t.z.id, mine);
     await sub(t.z.id, theirs);
     state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) }, me.id);
@@ -260,7 +260,7 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     expect(await rowsFor(t.z.id)).toEqual([theirs]);
   });
 
-  it("'sign out this phone' with no session, or an address that is none of the session's, deletes nothing", async () => {
+  it("'sign out this device' with no session, or an address that is none of the session's, deletes nothing", async () => {
     const t = await group("sx");
     const other = await group("sy");
     const ep = goodEndpoint(`o-${stamp}-sx`);
@@ -309,7 +309,7 @@ describe("L2: the move pass understands cookie grants", () => {
 });
 
 describe("L6: one place sends a stranger to /private", () => {
-  it("privatePath adds linked=1 only for a group whose old guest name on this phone is now linked to an email", async () => {
+  it("privatePath adds linked=1 only for a group whose old guest name on this device is now linked to an email", async () => {
     const t = await group("pp");
     const other = await group("pq");
     const owner = await account("Owner");

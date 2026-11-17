@@ -114,7 +114,7 @@ const CHANGED = "This payment changed just now. Check the list again.";
 export async function undoPaid(code: string, entryId: string, payerKey: string, opts: Hooks = {}): Promise<Ok<object> | Fail> {
   const c = await loadCollection(code);
   const e = c?.entries.find((x) => x.id === entryId);
-  if (!c || !e || !payerKey || e.payerKey !== payerKey) return { ok: false, error: "Only the phone that ticked it can undo it." };
+  if (!c || !e || !payerKey || e.payerKey !== payerKey) return { ok: false, error: "Only the device that ticked it can undo it." };
   if (e.status === "confirmed") return { ok: false, error: `${mailSafe(c.organiser)} has already checked this payment. Ask them to change it.` };
   await opts.afterRead?.();
   // Only the tick that was seen (its time is its version): if the organiser checked it, or it was ticked again, in the

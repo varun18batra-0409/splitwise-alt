@@ -340,7 +340,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      {/* Pay, then tick (folded away once this phone has ticked, for paying for someone else too) */}
+      {/* Pay, then tick (folded away once this device has ticked, for paying for someone else too) */}
       {!isOrganiser && !closed && (mine.length === 0 ? (
         payBlock("mt-6 space-y-5")
       ) : (

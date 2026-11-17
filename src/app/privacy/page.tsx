@@ -42,20 +42,20 @@ export default function Privacy() {
       <ul className={ul}>
         <li>Group names, people’s names (as typed in the group), expenses, notes, payments and the change history.</li>
         <li>
-          Contacts: when you pick a person from your phone’s contacts, their name and phone number (just the one you picked) are saved to the group. Loopin never uploads your address book.
+          Contacts: when you pick a person from your device’s contacts, their name and phone number (just the one you picked) are saved to the group. Loopin never uploads your address book.
         </li>
-        <li>A group’s own photo, if someone in the group adds one. It’s made small on the phone first, and only people in that group can see it.</li>
+        <li>A group’s own photo, if someone in the group adds one. It’s made small on the device first, and only people in that group can see it.</li>
         <li>Moments: a photo and a few words you add to a trip group. Camera details and location are removed, and only people in that group can see them.</li>
         <li>A photo of a bill, if someone adds one to an expense. Camera details and location are removed, and only people in that group can see it.</li>
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
-        <li>If you turn on fingerprint / face sign-in, a key your phone made for Loopin. Your fingerprint or face never leaves your phone.</li>
-        <li>A small cookie on your phone that remembers which person you are in each group.</li>
+        <li>If you turn on fingerprint / face sign-in, a key your device made for Loopin. Your fingerprint or face never leaves your device.</li>
+        <li>A small cookie on your device that remembers which person you are in each group.</li>
         <li>If you switch on notifications, a browser address to send them to.</li>
-        <li>Your time zone, sent by your phone, so reminders arrive in the daytime where you are.</li>
+        <li>Your time zone, sent by your device, so reminders arrive in the daytime where you are.</li>
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
         <li>Your Want to go list: countries you add, private to you unless you show one (or the whole list) to a friend you are in a group with, who can then see only what you showed. Removing a place or blocking someone ends their view. If you are no longer in a group together, sharing pauses, and it picks up again if you are ever in a group together again (this is checked every time).</li>
         <li>Postcards you send or get: the card, your message and, if you add one, your own photo. A photo from one of your own moments is copied onto the card; deleting the moment later doesn’t remove it from cards already sent.</li>
-        <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
+        <li>Your answer to “Let AI read bills and lines”, on your account (or on your device, if you have no account).</li>
         <li>Messages you send to support: the message, the date and any reply email you leave. If you’re signed in it’s saved with your account. If you’re not, it isn’t linked to an account, and your network address is kept for about two days, only to limit abuse.</li>
         <li>Blocks you make, and reports you send about something another person sent you (what, why and your note).</li>
         <li>When a trip’s destination isn’t in our photo library, we note the place name only (never your group, name or account), so we can add a photo for it. Names are counted, kept privately, and removed after a year.</li>
@@ -106,7 +106,7 @@ export default function Privacy() {
       <ul className={ul}>
         <li>We email you sign-in codes you ask for, and invites or “you were added” notes when someone adds your email to a group.</li>
         <li>Every invite email has a link to stop these emails. Sign-in codes still arrive, because you ask for them.</li>
-        <li>Phone notifications are off until you switch them on. You can switch them off in the app or in your phone’s settings.</li>
+        <li>Device notifications are off until you switch them on. You can switch them off in the app or in your device’s settings.</li>
       </ul>
 
       <h2 className={h}>Other services that help us</h2>
@@ -130,13 +130,13 @@ export default function Privacy() {
       <h2 className={h}>Deleting things</h2>
       <ul className={ul}>
         <li>Expenses and payments can be deleted and restored; the history notes it.</li>
-        <li>The person who added a moment can delete it, and so can whoever looks after the group. The photo is erased too, and it can’t be brought back. A moment’s photo that was already open on someone’s phone can stay on that phone for up to 30 days.</li>
+        <li>The person who added a moment can delete it, and so can whoever looks after the group. The photo is erased too, and it can’t be brought back. A moment’s photo that was already open on someone’s device can stay on that device for up to 30 days.</li>
         <li>A whole group can be deleted from its settings. Whoever deleted it, or looks after it, can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
         <li>
           “You → Export your data → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the Collect links you made, the saved copy of support messages you sent while signed in, and the blocks you made. If someone blocked you, their block stays as a scrambled fingerprint of your email (never the email itself), so signing up again doesn’t undo it; it’s erased when they unblock or delete their own account.
         </li>
         <li>If someone removed from a group deletes their sign-in, we keep a scrambled fingerprint of their email (never the email itself), so the group’s link can’t bring them back. It’s erased with the group.</li>
-        <li>Deleting your email also stops notifications on your other phones.</li>
+        <li>Deleting your email also stops notifications on your other devices.</li>
         <li>
           What stays in shared groups: your name in their history, an invitation that holds your email, and a phone number someone else saved for you. They are other people’s shared records, so deleting your account doesn’t rewrite them.
         </li>

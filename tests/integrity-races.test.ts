@@ -348,7 +348,7 @@ describe("SEC-07: erasing a group or an account catches photo keys set in the ga
   });
 });
 
-describe("SEC-K01: deleting an account stops notifications on the other phones", () => {
+describe("SEC-K01: deleting an account stops notifications on the other devices", () => {
   async function phones() {
     const acc = await account("Phoned");
     const g1 = await make(["One"]);
@@ -361,7 +361,7 @@ describe("SEC-K01: deleting an account stops notifications on the other phones",
     return { acc, members };
   }
 
-  it("with this phone's address (E1): only the E1 rows remain, on both people", async () => {
+  it("with this device's address (E1): only the E1 rows remain, on both people", async () => {
     const w = await phones();
     await deleteAccount(w.acc.id, { keepEndpoint: "https://push.example/E1" });
     const rows = await db.pushSubscription.findMany({ where: { memberId: { in: w.members } } });
@@ -378,6 +378,6 @@ describe("SEC-K01: deleting an account stops notifications on the other phones",
 
   it("the privacy page says so", () => {
     const text = readFileSync(path.resolve(__dirname, "..", "src/app/privacy/page.tsx"), "utf8");
-    expect(text).toContain("Deleting your email also stops notifications on your other phones.");
+    expect(text).toContain("Deleting your email also stops notifications on your other devices.");
   });
 });

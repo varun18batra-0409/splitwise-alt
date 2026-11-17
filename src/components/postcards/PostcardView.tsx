@@ -69,7 +69,7 @@ export function PostcardShare({ front, back, name, one }: { front: FrontProps; b
         setNote(one ? "Saved the card as a picture." : "Saved both sides as pictures.");
       }
     } catch {
-      setNote("Couldn’t make the pictures on this phone.");
+      setNote("Couldn’t make the pictures on this device.");
     } finally {
       setBusy(false);
     }

@@ -97,7 +97,7 @@ export default async function GroupPage({
     // Someone added you here and you haven't answered yet: the invitation, not the group.
     const invitation = await invitationFor(await getAccount(), id);
     if (invitation) return <PendingGroup inv={invitation} />;
-    // This phone's old guest name was linked to an email since: say so, rather than "you're not in this group".
+    // This device's old guest name was linked to an email since: say so, rather than "you're not in this group".
     redirect(await privatePath(id));
   }
   // Only Expenses shows the history (up to 500 rows); every other tab skips it. An Undo bar loads just what it needs below.
@@ -290,7 +290,7 @@ export default async function GroupPage({
 
       <LeftFootnote v={v} />
 
-      {/* A brand-new flat, couple or card night: what's special about it, once on this phone. */}
+      {/* A brand-new flat, couple or card night: what's special about it, once on this device. */}
       {!leaver && active.length === 0 && (group.type === "home" || group.type === "couple" || group.type === "pot") && <GroupTypeSheet groupId={group.id} type={group.type} showNote={!(pot && tab === "games")} />}
 
       {showUndo && (

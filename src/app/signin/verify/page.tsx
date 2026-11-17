@@ -20,7 +20,7 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
   // this switches you.
   const now = await getAccount();
   const other = now && now.email && now.email.toLowerCase() !== rawEmail.trim().toLowerCase() ? now.email : "";
-  // Groups this phone is in without an account move to the account that signs
+  // Groups this device is in without an account move to the account that signs
   // in, so name them: nobody should hand their groups over without seeing it.
   // Only the groups named here are moved (the form sends their ids).
   const moving = await guestGroupsOnPhone();
@@ -34,11 +34,11 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
           <p className="mb-3 text-gray-600">
             {other ? (
               <>
-                You’re signed in as <span className="text-fg">{other}</span>. {email ? <>Switch to <span className="text-fg">{email}</span> on this phone?</> : "Switch accounts on this phone?"}
+                You’re signed in as <span className="text-fg">{other}</span>. {email ? <>Switch to <span className="text-fg">{email}</span> on this device?</> : "Switch accounts on this device?"}
               </>
             ) : (
               <>
-                {email ? <>Sign in as <span className="text-fg">{email}</span> on this phone?</> : "Sign in on this phone?"}
+                {email ? <>Sign in as <span className="text-fg">{email}</span> on this device?</> : "Sign in on this device?"}
               </>
             )}
           </p>
@@ -51,7 +51,7 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
                 {email}
               </p>
               <div className="mb-5 rounded-xl border border-line px-4 py-3 text-sm text-fg/80" data-guest-names>
-                <p>This phone holds {names.length === 1 ? "this group" : "these groups"} as a guest. Move {names.length === 1 ? "it" : "them"} into {email}?</p>
+                <p>This device holds {names.length === 1 ? "this group" : "these groups"} as a guest. Move {names.length === 1 ? "it" : "them"} into {email}?</p>
                 <ul className="mt-2 list-inside list-disc break-words">
                   {names.map((n, i) => (
                     <li key={i}>{n}</li>

@@ -1569,7 +1569,7 @@ async function main() {
     await V.waitForURL(/\/groups\/new/);
     await go(V, "/");
   });
-  await step(V, "Home", "Home order: Latest comes straight after Your groups (only the trip countdown may sit between); closed groups and Recently deleted are not on Home; the “saved on this phone” note is below everything but the footer", async () => {
+  await step(V, "Home", "Home order: Latest comes straight after Your groups (only the trip countdown may sit between); closed groups and Recently deleted are not on Home; the “saved on this device” note is below everything but the footer", async () => {
     await go(V, "/");
     const y = async (loc: ReturnType<Page["locator"]>) => ((await loc.count()) ? (await loc.first().boundingBox())!.y : -1);
     const groups = await y(V.getByRole("heading", { name: "Your groups" }));
@@ -1597,7 +1597,7 @@ async function main() {
       const allowed = /^(Coming up|Your trips)$/; // "Your trips" when one of them is already on
       assert(between.every((b) => allowed.test(b)), `between Your groups and Latest: ${between.join(", ")}`);
     }
-    const phone = V.getByText(/saved on this phone/);
+    const phone = V.getByText(/saved on this device/);
     if (await phone.count()) {
       const footer = await y(V.getByRole("link", { name: "FAQ" }));
       assert((await phone.first().boundingBox())!.y < footer, "the phone-only note is below the footer");
@@ -1932,7 +1932,7 @@ async function main() {
   });
   await step(V, "Alerts", "Alerts screen offers phone notifications on/off", async () => {
     await go(V, "/notifications?tab=all");
-    await V.getByText("This phone", { exact: true }).first().waitFor();
+    await V.getByText("This device", { exact: true }).first().waitFor();
     await V.getByText("What Loopin sends").first().waitFor();
     await V.getByRole("link", { name: /Notifications & email/ }).waitFor();
   });
@@ -1941,7 +1941,7 @@ async function main() {
     await R.getByRole("link", { name: /Notifications & email/ }).click();
     await R.waitForURL(/\/account\/notifications$/);
     await R.getByRole("heading", { name: "Notifications & email" }).waitFor();
-    await R.getByText("This phone", { exact: true }).first().waitFor();
+    await R.getByText("This device", { exact: true }).first().waitFor();
     await R.getByText("Sign-in codes and security emails are always sent.").waitFor();
     // Every switch is a tap target of at least 44px.
     for (const sw of await R.locator("[data-switch]").all()) assert(((await sw.boundingBox())?.height ?? 0) >= 43.5, "a notification switch is shorter than 44px");
@@ -2034,7 +2034,7 @@ async function main() {
     assert(back === "/", `back became ${back}`);
     await x.ctx.close();
   });
-  await step(A, "Account", "Sign out of this phone, sign back in: all groups come back", async () => {
+  await step(A, "Account", "Sign out of this device, sign back in: all groups come back", async () => {
     await go(A, "/account");
     await A.getByRole("link", { name: /Sign-in & devices/ }).click();
     await A.waitForURL(/\/account\/sign-in/);

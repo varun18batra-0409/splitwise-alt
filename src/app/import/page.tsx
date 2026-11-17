@@ -56,7 +56,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
           <SplitwiseImport yourName={account.name ?? ""} />
         ) : (
           <>
-            <p className="mb-4 text-sm text-gray-500">First, a quick sign-in, so the group is yours on every phone. No password.</p>
+            <p className="mb-4 text-sm text-gray-500">First, a quick sign-in, so the group is yours on every device. No password.</p>
             <Link href={`/signin?${new URLSearchParams({ back: "/import" })}`} className={primaryButtonClass}>
               Sign in or sign up
             </Link>

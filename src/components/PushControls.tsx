@@ -8,7 +8,7 @@ import { phoneStatusLabel, type PhoneState } from "@/lib/phone-status";
 import { pushPublicKey, removePushSubscription, savePushSubscription } from "@/app/actions";
 
 // Turning phone notifications on and off, and keeping them working when
-// this phone joins more groups.
+// this device joins more groups.
 
 function supported() {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -32,11 +32,11 @@ async function currentSubscription() {
 
 type State = PhoneState;
 
-// Shown while this phone can't get notifications at all (iPhone not on the Home Screen, blocked, or not supported),
+// Shown while this device can't get notifications at all (iPhone not on the Home Screen, blocked, or not supported),
 // so the switches further down don't look as if they work. Words only.
-const PHONE_NOT_READY = "Until then, this phone won’t get notifications, even with the switches below turned on.";
+const PHONE_NOT_READY = "Until then, this device won’t get notifications, even with the switches below turned on.";
 
-// "This phone": whether THIS phone lets Loopin send notifications at all, and the switch for it.
+// "This device": whether THIS phone lets Loopin send notifications at all, and the switch for it.
 // (What Loopin chooses to send is separate: see the "What Loopin sends" row and each group’s settings.)
 export function PhoneStatus({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<State>("checking");
@@ -111,7 +111,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
   async function turnOff() {
     setError("");
     setState("working");
-    // Switch off on the phone first: only once that worked do we tell Loopin to forget it. If the phone
+    // Switch off on the device first: only once that worked do we tell Loopin to forget it. If the phone
     // refuses, the switch stays on (it really is still on) and we say so.
     try {
       const { sub } = await currentSubscription();
@@ -125,7 +125,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
         }
       }
     } catch {
-      setError("Couldn't turn off on this phone. Try again.");
+      setError("Couldn't turn off on this device. Try again.");
       setState("on");
       return;
     }
@@ -141,7 +141,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
           <BellIcon size={20} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-medium">This phone</p>
+          <p className="font-medium">This device</p>
           <p className="text-sm text-gray-500" data-phone-state={state}>
             {label}
           </p>
@@ -151,7 +151,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
             type="button"
             role="switch"
             aria-checked={on}
-            aria-label="Notifications on this phone"
+            aria-label="Notifications on this device"
             disabled={state === "working"}
             onClick={on ? turnOff : turnOn}
             className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-60 ${on ? "bg-fg" : "bg-fg/15"}`}
@@ -168,7 +168,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
       )}
       {state === "denied" && (
         <p className="mt-3 rounded-xl bg-mist px-3 py-2.5 text-sm text-gray-600">
-          Notifications are blocked for Loopin. Allow them in your phone’s settings for this app or site, then come back. {PHONE_NOT_READY}
+          Notifications are blocked for Loopin. Allow them in your device’s settings for this app or site, then come back. {PHONE_NOT_READY}
         </p>
       )}
       {state === "unsupported" && (

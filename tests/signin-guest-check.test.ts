@@ -57,7 +57,7 @@ beforeAll(async () => {
   await mk("Q", "Trip", ["a", "b", "c"]); // 4 people
   await mk("R", "Us", ["a"]); // 2 people
   await mk("S", "Elsewhere", ["a"]); // not on the phone
-  await mk("T", "Notice one", ["a"]); // the "only on this phone" notice
+  await mk("T", "Notice one", ["a"]); // the "only on this device" notice
   await mk("U", "Notice two", ["a"]);
   await mk("V", "Notice three", ["a"]);
   await mk("W", "Not held", ["a"]);
@@ -69,7 +69,7 @@ afterAll(async () => {
 });
 
 describe("what the sheet lists", () => {
-  it("lists exactly the guest groups on this phone, with their people counts", async () => {
+  it("lists exactly the guest groups on this device, with their people counts", async () => {
     state.cookie = await cookie(["P", "Q", "R"]);
     const list = await guestGroupsOnPhone();
     expect(list.map((g) => g.memberId).sort()).toEqual([m.P.id, m.Q.id, m.R.id].sort());
@@ -129,7 +129,7 @@ describe("the confirmation that travels with each route", () => {
     expect([...parseConfirmed("x".repeat(65))]).toEqual([]);
     expect(parseConfirmed(Array.from({ length: 80 }, (_, i) => `id${i}`)).length).toBe(80);
   });
-  it("confirmedGuestIds keeps only guest groups this phone really holds", async () => {
+  it("confirmedGuestIds keeps only guest groups this device really holds", async () => {
     state.cookie = await cookie(["T", "U"]);
     expect([...(await confirmedGuestIds([m.T.id, m.W.id, "nope"]))]).toEqual([m.T.id]);
     expect([...(await confirmedGuestIds(undefined))]).toEqual([]);
@@ -204,10 +204,10 @@ describe("no cap: every guest group is listed and can be confirmed", () => {
   });
 });
 
-// Signed in already, guest groups still only on this phone (the check was skipped): the notice's action.
+// Signed in already, guest groups still only on this device (the check was skipped): the notice's action.
 //   Phone holds T, U, V as guests, signed in as account N. Confirm [T, W]: W is not on the phone, so only T moves (epoch 0 -> 1).
 //   U and V stay guests (epoch 0) and stay in the cookie; T leaves the cookie (the account now holds it).
-describe("the 'only on this phone' notice moves exactly what was confirmed", () => {
+describe("the 'only on this device' notice moves exactly what was confirmed", () => {
   it("links T only; U and V stay; an old guest copy of T is refused afterwards", async () => {
     const acc = await account("notice");
     const guestCopy = await cookie(["T", "U", "V"]);
@@ -222,7 +222,7 @@ describe("the 'only on this phone' notice moves exactly what was confirmed", () 
     expect(Object.keys(s?.m ?? {}).sort()).toEqual([m.U.groupId, m.V.groupId].sort());
     expect(s?.a).toBe(acc);
     expect(Object.values(await getMemberships()).sort()).toEqual([m.T.id, m.U.id, m.V.id].sort());
-    state.cookie = guestCopy; // another phone's old guest copy of T
+    state.cookie = guestCopy; // another device's old guest copy of T
     expect(Object.values(await getMemberships())).not.toContain(m.T.id);
   });
   it("an empty confirmation moves nothing; a phone that is not signed in moves nothing", async () => {

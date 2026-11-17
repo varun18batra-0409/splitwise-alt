@@ -251,8 +251,8 @@ export default async function AddPeoplePage({
             : m.accountId
               ? { text: "On Loopin ✓", cls: "bg-owed/15 text-owed" }
               : me
-                ? // F3: you are never "not on Loopin yet": signed out, it's this phone only.
-                  { text: "Only on this phone", cls: "bg-mist text-gray-500" }
+                ? // F3: you are never "not on Loopin yet": signed out, it's this device only.
+                  { text: "Only on this device", cls: "bg-mist text-gray-500" }
                 : invitedRows.has(m.id)
                   ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
                   : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };

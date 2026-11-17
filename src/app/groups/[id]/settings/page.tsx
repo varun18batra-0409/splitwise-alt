@@ -287,9 +287,9 @@ export default async function GroupSettings({
           </section>
         )}
 
-        {/* Phone notifications for this group, just for me */}
+        {/* Device notifications for this group, just for me */}
         <section id="notify" className="space-y-3">
-          <h2 className={`!mb-3 ${sectionTitle}`}>Phone notifications for this group</h2>
+          <h2 className={`!mb-3 ${sectionTitle}`}>Device notifications for this group</h2>
           <PhoneStatus compact />
           <input type="hidden" name="notifyForm" value="1" />
           <ul className="divide-y divide-line rounded-2xl border border-line">
@@ -308,7 +308,7 @@ export default async function GroupSettings({
               </li>
             ))}
           </ul>
-          <p className="text-xs text-gray-400">Only for you. This phone’s permission is above.</p>
+          <p className="text-xs text-gray-400">Only for you. This device’s permission is above.</p>
         </section>
 
         {/* The one Save for everything above */}

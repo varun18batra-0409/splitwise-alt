@@ -185,13 +185,13 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
       )}
 
       {tab === "all" && <>
-      {/* Notifications: what this phone allows, then what Loopin sends. */}
+      {/* Notifications: what this device allows, then what Loopin sends. */}
       <PhoneStatus />
       {account && (
         <Link href="/account/notifications" className="mb-4 flex min-h-11 items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-notify-link>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium">Notifications &amp; email</span>
-            <span className="block text-xs text-gray-400">Choose what Loopin sends you, on this phone and by email.</span>
+            <span className="block text-xs text-gray-400">Choose what Loopin sends you, on this device and by email.</span>
           </span>
           <span aria-hidden className="text-gray-400">›</span>
         </Link>
@@ -208,7 +208,7 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
             type="submit"
             role="switch"
             aria-checked={account.collectPush}
-            aria-label="Collection notifications on this phone"
+            aria-label="Collection notifications on this device"
             className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${account.collectPush ? "bg-fg" : "bg-fg/15"}`}
           >
             <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${account.collectPush ? "left-6" : "left-1"}`} />

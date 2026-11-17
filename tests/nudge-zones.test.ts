@@ -96,7 +96,7 @@ describe("a zone sent by a phone is checked before it is kept", () => {
     }
   });
 
-  it("saveTimeZone refuses a bad zone and saves nothing; a good one goes to the account and this phone's people only", async () => {
+  it("saveTimeZone refuses a bad zone and saves nothing; a good one goes to the account and this device's people only", async () => {
     const acc = await account("");
     const g = await db.group.create({
       data: { name: "Zone save", type: "home", currency: "INR", inviteCode: `tz-save-${stamp}`, members: { create: [{ name: "Mine", accountId: acc.id }, { name: "Other" }, { name: "Elsewhere" }] } },
@@ -113,7 +113,7 @@ describe("a zone sent by a phone is checked before it is kept", () => {
     expect(await saveTimeZone("Europe/London", acc.id, [mine.id])).toBe(true); // sending it again is harmless
     expect((await db.account.findUnique({ where: { id: acc.id } }))?.timeZone).toBe("Europe/London");
     expect((await db.member.findUnique({ where: { id: mine.id } }))?.timeZone).toBe("Europe/London");
-    expect((await db.member.findUnique({ where: { id: other.id } }))?.timeZone).toBe(""); // not on this phone
+    expect((await db.member.findUnique({ where: { id: other.id } }))?.timeZone).toBe(""); // not on this device
 
     // Not signed in: only the phone's people.
     expect(await saveTimeZone("Asia/Tokyo", null, [other.id])).toBe(true);

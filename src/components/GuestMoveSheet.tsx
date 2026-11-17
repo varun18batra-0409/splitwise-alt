@@ -32,7 +32,7 @@ function Sheet({ groups, onMove, onCancel, busy, error, signedIn }: { groups: Gu
           <h2 id="guest-sheet-title" ref={heading} tabIndex={-1} className="mt-4 font-display text-[26px] font-semibold leading-tight tracking-tight outline-none">
             {signedIn ? "Move these groups to your account?" : "These groups will move to this account"}
           </h2>
-          <p className="mt-2 text-[15px] leading-snug text-fg/65">{signedIn ? "This phone holds these groups only as a guest. If you carry on, they join your account." : "This phone already holds these groups as a guest. If you carry on, they join the account you sign in with."}</p>
+          <p className="mt-2 text-[15px] leading-snug text-fg/65">{signedIn ? "This device holds these groups only as a guest. If you carry on, they join your account." : "This device already holds these groups as a guest. If you carry on, they join the account you sign in with."}</p>
           <ul className="mt-4 divide-y divide-line rounded-2xl border border-line" data-guest-list>
             {groups.map((g) => (
               <li key={g.memberId} className="flex items-center gap-3 px-3.5 py-3">
@@ -46,7 +46,7 @@ function Sheet({ groups, onMove, onCancel, busy, error, signedIn }: { groups: Gu
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-sm leading-snug text-fg/65">Not your groups? Tap Cancel and hand the phone back.</p>
+          <p className="mt-3 text-sm leading-snug text-fg/65">Not your groups? Tap Cancel and hand the device back.</p>
           {error && (
             <p className="mt-3 text-sm text-red-600" role="alert" data-guest-error>
               {error}
@@ -73,7 +73,7 @@ function Sheet({ groups, onMove, onCancel, busy, error, signedIn }: { groups: Gu
 
 // Ask first when the phone holds guest groups. `then` runs only after "Move them and continue" (with the listed ids), or at once when
 // there is nothing to ask about (then it gets an empty list: nothing to move). If `then` fails (throws or rejects), the sheet STAYS
-// open with "Something went wrong. Try again." and nothing carries on. `signedIn`: the "only on this phone" notice (already signed in).
+// open with "Something went wrong. Try again." and nothing carries on. `signedIn`: the "only on this device" notice (already signed in).
 export function useGuestCheck(groups: GuestGroupRow[], opts: { signedIn?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -167,7 +167,7 @@ export function GuardedCodeForm({ action, groups, className, children }: { actio
   );
 }
 
-// Already signed in, but guest groups are still only on this phone (the check was skipped, or they came later): opens the same
+// Already signed in, but guest groups are still only on this device (the check was skipped, or they came later): opens the same
 // sheet; "Move them" links exactly the listed groups to the account.
 export function GuestMoveButton({ groups, className, children }: { groups: GuestGroupRow[]; className: string; children: ReactNode }) {
   const router = useRouter();
@@ -193,14 +193,14 @@ export function GuestMoveButton({ groups, className, children }: { groups: Guest
   );
 }
 
-// The quiet line on Home: "{N} groups are only on this phone. Move them to your account?"
+// The quiet line on Home: "{N} groups are only on this device. Move them to your account?"
 export function GuestMoveNotice({ groups }: { groups: GuestGroupRow[] }) {
   if (!groups.length) return null;
   const n = groups.length;
   return (
-    <section aria-label="Groups only on this phone" className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl border border-line px-4 py-2" data-guest-notice>
+    <section aria-label="Groups only on this device" className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl border border-line px-4 py-2" data-guest-notice>
       <p className="min-w-0 flex-1 basis-48 text-sm leading-snug text-fg/75">
-        {n === 1 ? "1 group is" : `${n} groups are`} only on this phone. Move {n === 1 ? "it" : "them"} to your account?
+        {n === 1 ? "1 group is" : `${n} groups are`} only on this device. Move {n === 1 ? "it" : "them"} to your account?
       </p>
       <GuestMoveButton groups={groups} className="inline-flex min-h-11 items-center px-1 text-sm font-semibold text-fg underline underline-offset-4">
         Review

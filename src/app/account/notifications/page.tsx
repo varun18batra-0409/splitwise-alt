@@ -11,7 +11,7 @@ function offMap(p: { push: Record<string, boolean>; email: Record<string, boolea
   return { push: flip(p.push), email: flip(p.email) };
 }
 
-// Notifications & email: what this phone allows, then what Loopin sends, switch by switch.
+// Notifications & email: what this device allows, then what Loopin sends, switch by switch.
 export default async function NotificationsAndEmail() {
   const account = await getAccount();
   const p = account ? parseAccountPrefs(account.notifyPrefs) : null;
@@ -26,7 +26,7 @@ export default async function NotificationsAndEmail() {
       ) : (
         <section className="mt-6 rounded-2xl border border-line px-5 py-5">
           <p className="font-display text-lg font-semibold">Sign in to choose</p>
-          <p className="mt-1 text-sm text-fg/60">Your choices are saved to your account, so they follow you to every phone.</p>
+          <p className="mt-1 text-sm text-fg/60">Your choices are saved to your account, so they follow you to every device.</p>
           <Link href="/signin?back=/account/notifications" className={`mt-4 ${primaryButtonClass}`}>
             Sign in or sign up
           </Link>

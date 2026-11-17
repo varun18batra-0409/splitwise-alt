@@ -9,7 +9,7 @@ import { useDragToClose } from "@/lib/use-drag-close";
 // "Share": a small panel with three ways to share the countdown.
 // - WhatsApp: the story-sized picture (for a chat or Status) through the
 //   phone's share step; where pictures can't be shared, WhatsApp opens with the words.
-// - Everyone in the trip, in Loopin: in their Alerts and a buzz on their phones.
+// - Everyone in the trip, in Loopin: in their Alerts and a buzz on their devices.
 // - More apps: Instagram and the rest, through the phone's share step.
 export function ShareCountdown({ groupId, line, className }: { groupId: string; line: string; className?: string }) {
   const [open, setOpen] = useState(false);
@@ -130,7 +130,7 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{busy === "app" ? "Sending…" : "Everyone in the trip"}</span>
-                  <span className="block text-xs text-fg/50">In Loopin: their Alerts and a buzz on their phones</span>
+                  <span className="block text-xs text-fg/50">In Loopin: their Alerts and a buzz on their devices</span>
                 </span>
               </button>
             </div>
