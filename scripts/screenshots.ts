@@ -396,7 +396,7 @@ if (!desktop && !hosted) {
     // Money both ways, in two groups: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat). The card now NETS them: 2291600 - 420000 = 1871600 paise = ₹18,716 owed to him.
     ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "net", has: /^net \| Net · you’re owed ₹18,716$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| All square Nobody owes anybody$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| All square You’re all square$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
