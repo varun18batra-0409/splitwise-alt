@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { GOOGLE_COOKIE, checkGoogleClaims, exchangeGoogleCode, googleConfigured, unpackAttempt } from "@/lib/google";
-import { accountForEmail } from "@/lib/auth";
+import { AccountSetupError, accountForEmail } from "@/lib/auth";
 import { signInAs } from "@/lib/identity";
 import { safePath } from "@/lib/paths";
 
@@ -28,7 +28,13 @@ export async function GET(req: NextRequest) {
   const who = checkGoogleClaims(claims, process.env.GOOGLE_CLIENT_ID!, Math.floor(Date.now() / 1000));
   if (!who) return fail("Couldn’t sign in with Google. Try again, or use your email.");
 
-  const account = await accountForEmail(who.email, who.name);
+  let account;
+  try {
+    account = await accountForEmail(who.email, who.name);
+  } catch (err) {
+    if (err instanceof AccountSetupError) return fail("Couldn’t finish setting up your account. Wait a minute and try again.");
+    throw err;
+  }
   if (!account.name && who.name) await db.account.update({ where: { id: account.id }, data: { name: who.name } });
   await signInAs(account.id);
   const res = NextResponse.redirect(new URL(`${back}${back.includes("?") ? "&" : "?"}signedin=1`, req.url), 303);

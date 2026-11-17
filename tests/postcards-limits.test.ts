@@ -130,6 +130,25 @@ describe("SA-9: the limit counts people, not sends (limit 80 a day)", () => {
     expect(await count(k)).toBe(80);
   });
 
+  it("L-3: a card refused for another reason uses none of the day's allowance", async () => {
+    const asha = await account("LAsha");
+    const ben = await account("LBen");
+    await group("LFlat", [{ a: asha }, { a: ben }]);
+    const k = `postcard:${asha.id}`;
+    rateKeys.push(k);
+    await signedInAs(asha);
+    // A sealed card with a day in the past is refused after the person is picked and the words are written, but before anything is saved.
+    const url = await redirected(() => sendPostcardAction(form({ to: ben.id, front: "print:beach", message: "hello", opensOn: "2020-01-01" })));
+    expect(new URL(url, "https://x").searchParams.get("error")).toBe("Pick a day from tomorrow, up to two years ahead.");
+    expect(await count(k)).toBeUndefined();
+    // And a missing message is refused before it too.
+    await redirected(() => sendPostcardAction(form({ to: ben.id, front: "print:beach", message: "" })));
+    expect(await count(k)).toBeUndefined();
+    // A card that goes counts one.
+    await redirected(() => sendPostcardAction(form({ to: ben.id, front: "print:beach", message: "hello" })));
+    expect(await count(k)).toBe(1);
+  });
+
   it("the passport action: with 79 used, sending to 2 people is refused (error=limit) and nobody is told", async () => {
     const asha = await account("PAsha");
     const ben = await account("PBen");

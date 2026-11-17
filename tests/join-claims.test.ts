@@ -19,6 +19,8 @@ const { joinExisting, joinNew } = await import("@/lib/join");
 const { acceptInvitation } = await import("@/lib/invitations");
 const { deleteAccount, accountForEmail, requestLoginCode } = await import("@/lib/auth");
 const { eraseGroups } = await import("@/lib/purge");
+const { inviteByEmail } = await import("@/lib/invites");
+const { loadInvitations } = await import("@/lib/invitations");
 const { sendMail } = await import("@/lib/mail");
 const { emailFingerprint } = await import("@/lib/fingerprint");
 
@@ -55,7 +57,7 @@ afterAll(async () => {
 });
 
 async function account(tag: string) {
-  const a = await db.account.create({ data: { email: `${tag}-${++n}-${stamp}@example.com`, name: tag } });
+  const a = await db.account.create({ data: { email: `${tag.toLowerCase()}-${++n}-${stamp}@example.com`, name: tag } });
   accountIds.push(a.id);
   return a;
 }
@@ -210,6 +212,58 @@ describe("AS-8: removed, deleted the account, signed up again", () => {
     expect((await markKeys(t.g.id)).length).toBe(1);
     expect(await eraseGroups([t.g.id])).toBe(1);
     expect((await markKeys(t.g.id)).length).toBe(0);
+  });
+});
+
+describe("L-4: a removed person who signed up again", () => {
+  async function setup(tag: string) {
+    const rex = await account("Rex");
+    const g = await db.group.create({
+      data: {
+        name: `Reinvite ${tag} ${stamp}`, inviteCode: `jc-re-${tag}-${stamp}`,
+        members: { create: [{ name: "Meera", claimedAt: new Date("2026-11-01T00:00:00Z"), createdAt: new Date("2026-11-01T00:00:00Z") }, { name: "Pat", claimedAt: new Date("2026-11-01T00:00:01Z"), createdAt: new Date("2026-11-01T00:00:01Z") }] },
+      },
+      include: { members: { orderBy: { createdAt: "asc" } } },
+    });
+    groupIds.push(g.id);
+    const [meera, pat] = g.members;
+    const removedAt = new Date("2026-11-15T00:00:00Z");
+    await db.member.create({ data: { name: "Rex", groupId: g.id, accountId: rex.id, claimedAt: removedAt, createdAt: new Date("2026-11-01T00:00:02Z"), leftAt: removedAt, removedAt, removedById: meera.id } });
+    await deleteAccount(rex.id);
+    const again = await accountForEmail(rex.email);
+    accountIds.push(again.id);
+    return { g, meera, pat, again };
+  }
+
+  it("(a) a non-admin's invitation is not shown to him, the admin's is", async () => {
+    const t = await setup("a");
+    await inviteByEmail(t.g.id, t.pat.id, t.again.email, "https://loopin.test");
+    expect(await db.invite.count({ where: { groupId: t.g.id, email: t.again.email } })).toBe(1);
+    expect(await loadInvitations(asJoin(t.again))).toEqual([]);
+    // The admin invites him: the card shows, and accepting works.
+    await inviteByEmail(t.g.id, t.meera.id, t.again.email, "https://loopin.test");
+    const cards = await loadInvitations(asJoin(t.again));
+    expect(cards.map((c) => c.groupId)).toEqual([t.g.id]);
+  });
+
+  it("(b) the admin's invitation replaces a waiting non-admin invitation's sender, so it can be accepted", async () => {
+    const t = await setup("b");
+    await inviteByEmail(t.g.id, t.pat.id, t.again.email, "https://loopin.test");
+    const before = await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: t.again.email } });
+    expect(before.invitedById).toBe(t.pat.id);
+    await inviteByEmail(t.g.id, t.meera.id, t.again.email, "https://loopin.test");
+    const after = await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: t.again.email } });
+    expect(after.invitedById).toBe(t.meera.id);
+    expect(after.id).toBe(before.id); // the same invitation, now the admin's
+    expect((await acceptInvitation(asJoin(t.again), after.token)).ok).toBe(true);
+    expect(await db.appSetting.count({ where: { key: { startsWith: `removed:${t.g.id}:` } } })).toBe(0);
+  });
+
+  it("an ordinary member's second invite does not take over the admin's invitation", async () => {
+    const t = await setup("c");
+    await inviteByEmail(t.g.id, t.meera.id, t.again.email, "https://loopin.test");
+    await inviteByEmail(t.g.id, t.pat.id, t.again.email, "https://loopin.test");
+    expect((await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: t.again.email } })).invitedById).toBe(t.meera.id);
   });
 });
 

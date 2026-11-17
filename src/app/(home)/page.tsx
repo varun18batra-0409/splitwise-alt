@@ -58,6 +58,7 @@ import { comingUp } from "@/lib/home/coming-up";
 import { photoSet, placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
 import { blockedEitherWay, unreadPostcards } from "@/lib/blocks";
+import { gameHasBlockedPlayer } from "@/lib/home/game-blocks";
 import { tripEmoji } from "@/lib/countdown";
 import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
@@ -198,13 +199,18 @@ export default async function Home({
   const gameRows = potIds.length
     ? await db.potGame.findMany({ where: { groupId: { in: potIds }, status: "done", deletedAt: null, finishedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, include: { moves: { where: { deletedAt: null } } }, take: 10 })
     : [];
-  // Games played after someone left the group aren't theirs to see.
-  const games = gameRows.filter((gm) => gameVisible(open.find((x) => x.group.id === gm.groupId)?.leaver ?? null, gm));
-  // What each story shows: the place's photos, the crew, today's numbers, a game's table.
-  const first = (n: string) => n.trim().split(/\s+/)[0] || n;
   // Blocking works both ways: nobody with a block between them and you is named on a story (the group's own screens are unchanged).
   const blocked = account ? await blockedEitherWay(account.id) : new Set<string>();
   const isBlockedMember = (g: (typeof open)[number], id: string) => id !== g.myId && Boolean(blocked.size) && g.group.members.some((m) => m.id === id && m.accountId !== null && blocked.has(m.accountId));
+  // Games played after someone left the group aren't theirs to see. A game with anyone in it who has a block either way with you has no story
+  // at all (never a story with a name left out: that would read as a different result).
+  const games = gameRows.filter((gm) => {
+    const grp = open.find((x) => x.group.id === gm.groupId);
+    if (!grp || !gameVisible(grp.leaver ?? null, gm)) return false;
+    return !gameHasBlockedPlayer(potSummary(parsePlayers(gm.players), gm.moves).lines.map((l) => l.memberId), (id) => isBlockedMember(grp, id));
+  });
+  // What each story shows: the place's photos, the crew, today's numbers, a game's table.
+  const first = (n: string) => n.trim().split(/\s+/)[0] || n;
   const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt && (m.id === g.myId || !(m.accountId && blocked.has(m.accountId)))).map((m) => (m.id === g.myId ? "You" : first(m.name)));
   const moodOf = (name: string) => {
     const e = tripEmoji(name);
@@ -269,7 +275,7 @@ export default async function Home({
         id: gm.id,
         groupId: gm.groupId,
         name: neutralGameText(gm.name),
-        winner: top && top.net > 0 && !isBlockedMember(grp, top.memberId) ? name(top.memberId) : "",
+        winner: top && top.net > 0 ? name(top.memberId) : "",
         won: top && top.net > 0 ? formatMoney(top.net, grp.group.currency) : "",
         youWon: top && top.net > 0 && top.memberId === grp.myId ? formatMoney(top.net, grp.group.currency) : undefined,
         finishedAt: gm.finishedAt ?? gm.createdAt,

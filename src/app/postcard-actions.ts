@@ -71,9 +71,6 @@ export async function sendPostcardAction(f: FormData) {
     front = "print:beach";
   }
 
-  // The limit counts each person a card goes to (a card to 60 people is 60), so one send can't get around the 80 a day.
-  if (!(await allow(`postcard:${me.id}`, 80, 86_400, undefined, to.size))) fail("That’s a lot of postcards today. Try again tomorrow.");
-
   let stamp = isStampId(field(f, "stamp", 20)) ? field(f, "stamp", 20) : "t:airmail";
   // A rare stamp only while it's on issue (a card being sent again keeps it if the original had it).
   const home = (me!.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
@@ -93,6 +90,8 @@ export async function sendPostcardAction(f: FormData) {
     if (Number.isNaN(at.getTime()) || at.getTime() <= now || at.getTime() > now + 2 * 366 * 86_400_000) fail("Pick a day from tomorrow, up to two years ahead.");
     opensAt = at;
   }
+  // The last check, so a card that is refused for any other reason never uses up places in the day's allowance. The limit counts each person a card goes to (a card to 60 people is 60), so one send can't get around the 80 a day.
+  if (!(await allow(`postcard:${me.id}`, 80, 86_400, undefined, to.size))) fail("That’s a lot of postcards today. Try again tomorrow.");
   // Every check has passed: only now is a new photo stored.
   let storedKey = "";
   if (newPhoto) {

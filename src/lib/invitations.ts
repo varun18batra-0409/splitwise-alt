@@ -68,6 +68,12 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     if (own && !ownBack) continue;
     // A removed person's only counts if the admin sent it AFTER the removal (an older one was closed by the removal, and never counts).
     if (own?.removedAt && (i.createdAt.getTime() < own.removedAt.getTime() || !(await isGroupAdmin(g.id, i.invitedById)))) continue;
+    // Removed by the admin, then deleted their account and signed up again: only an invitation the admin sent after the removal can be
+    // accepted (acceptInvitation refuses the rest), so the others are not shown.
+    if (!own) {
+      const mark = await removedByEmail(g.id, account.email);
+      if (mark && (i.createdAt.getTime() < mark.at.getTime() || !(await isGroupAdmin(g.id, i.invitedById)))) continue;
+    }
     const memberId = g.members.find((m) => m.id === inviteMemberId(i) && (own ? m.id === own.id : !m.removedAt && !m.accountId && !m.leftAt))?.id ?? "";
     // Their name was taken out of the group again (or taken by someone else): nothing to answer any more.
     if (!memberId) continue;

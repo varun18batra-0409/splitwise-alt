@@ -3,8 +3,8 @@ import type { Db } from "./events";
 import { emailFingerprint } from "./fingerprint";
 
 // A block survives the blocked person deleting their account and signing up again with the same email. The settings table holds
-// "blockfp:<fingerprint of the blocked email>:<blocker's account id>" (a keyed fingerprint, never the email). When an account is
-// created with an email that matches, the blocks are put back. The note goes when the blocker unblocks, or deletes their own account.
+// "blockfp:<fingerprint of the blocked email>:<blocker's account id>" (a keyed fingerprint, never the email), holding the day it was made. When an account is
+// created with an email that matches, the blocks are put back. The note goes when the blocker unblocks, deletes their own account, or after 2 years (mark-cleanup.ts).
 
 const PREFIX = "blockfp:";
 const fp = (email: string) => emailFingerprint("block", email);
@@ -12,7 +12,7 @@ const keyOf = (email: string, blockerId: string) => `${PREFIX}${fp(email)}:${blo
 
 export async function markBlock(blockerId: string, blockedEmail: string): Promise<void> {
   const key = keyOf(blockedEmail, blockerId);
-  await db.appSetting.upsert({ where: { key }, create: { key, value: "1" }, update: {} });
+  await db.appSetting.upsert({ where: { key }, create: { key, value: new Date().toISOString() }, update: {} });
 }
 
 export async function unmarkBlock(blockerId: string, blockedEmail: string): Promise<void> {
@@ -25,7 +25,7 @@ export async function markBlocksOfDeleted(tx: Db, accountId: string, email: stri
   const rows = await tx.block.findMany({ where: { blockedId: accountId }, select: { blockerId: true } });
   for (const r of rows) {
     const key = keyOf(email, r.blockerId);
-    await tx.appSetting.upsert({ where: { key }, create: { key, value: "1" }, update: {} });
+    await tx.appSetting.upsert({ where: { key }, create: { key, value: new Date().toISOString() }, update: {} });
   }
 }
 

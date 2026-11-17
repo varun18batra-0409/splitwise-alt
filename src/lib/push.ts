@@ -8,6 +8,7 @@ import { isBigExpense } from "./big-expense";
 import { JOINED } from "./membership";
 import { blockedEitherWay } from "./blocks";
 import { moveOutPaymentIds } from "./payment-change";
+import { allow } from "./rate-limit";
 
 // Phone notifications (Web Push). When someone changes something in a group,
 // everyone else in it who turned notifications on gets a short message.
@@ -196,10 +197,24 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
     if (memberIds.length === 0) return 0;
     // People who left, or were removed (their leftAt/removedAt is set), hear nothing unless it is about their own money.
     const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds }, member: { ...JOINED, ...(opts.includeLeft ? {} : { leftAt: null, removedAt: null }) } }, include: { member: { select: { notify: true, accountId: true } } } });
-    const fromAccountId = fromMemberId && !opts.allowBlocked ? (await db.member.findUnique({ where: { id: fromMemberId }, select: { accountId: true } }))?.accountId : null;
+    const fromAccountId = fromMemberId ? (await db.member.findUnique({ where: { id: fromMemberId }, select: { accountId: true } }))?.accountId : null;
     const blockers = fromAccountId ? await blockedEitherWay(fromAccountId) : new Set<string>();
     const prefs = await accountPrefs(subs.map((s) => s.member.accountId));
-    const wanted = subs.filter((s) => !(s.member.accountId && blockers.has(s.member.accountId)) && bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, !parseNotify(s.member.notify).off));
+    // Where the payment-alert exemption really gets past a block, it is limited per pair: at most 6 an hour from one person to one
+    // other. Beyond that the alert is dropped quietly (the payment itself is always recorded and shown in the group).
+    const charged = new Map<string, boolean>();
+    const wanted: typeof subs = [];
+    for (const s of subs) {
+      const to = s.member.accountId;
+      const blockedPair = Boolean(to && blockers.has(to));
+      if (blockedPair && !opts.allowBlocked) continue;
+      if (!bothAllow(to ? prefs.get(to) : "", "push", item, !parseNotify(s.member.notify).off)) continue;
+      if (blockedPair && fromAccountId && to) {
+        if (!charged.has(to)) charged.set(to, await allow(`payalert:${fromAccountId}:${to}`, 6, 3600));
+        if (!charged.get(to)) continue;
+      }
+      wanted.push(s);
+    }
     if (wanted.length === 0) return 0;
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });

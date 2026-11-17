@@ -2,7 +2,7 @@ import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { db } from "./db";
 import { allow } from "./rate-limit";
 import { sendMail, mailConfigured } from "./mail";
-import { emailFingerprint, pepper } from "./fingerprint";
+import { emailFingerprint } from "./fingerprint";
 import { markBlocksOfDeleted, reapplyBlocks, dropBlockMarksOf } from "./block-marks";
 import { markRemovals } from "./removal-marks";
 
@@ -17,8 +17,14 @@ export function cleanEmail(raw: string): string | null {
   return /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,24}$/.test(e) ? e : null;
 }
 
+function devPepper(): string {
+  if (process.env.VERCEL_ENV === "production") throw new Error("Sign-in is not set up: AUTH_SECRET is missing on the live app.");
+  return "loopin-dev";
+}
+
 export function hashLoginCode(email: string, code: string): string {
-  return createHash("sha256").update(`${pepper()}:${email}:${code}`).digest("hex");
+  const pepper = process.env.AUTH_SECRET ?? process.env.TURSO_AUTH_TOKEN ?? devPepper();
+  return createHash("sha256").update(`${pepper}:${email}:${code}`).digest("hex");
 }
 
 // A keyed fingerprint of an email (never the email itself): see fingerprint.ts.
@@ -88,12 +94,24 @@ export async function verifyLoginCode(rawEmail: string, rawCode: string, now = n
   }
   const used = await db.loginCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
   if (used.count !== 1) return { ok: false, error: "That code was already used. Ask for a new one." };
-  const account = await accountForEmail(email);
+  let account;
+  try {
+    account = await accountForEmail(email);
+  } catch (err) {
+    if (err instanceof AccountSetupError) return { ok: false, error: ACCOUNT_SETUP_FAILED };
+    throw err;
+  }
   return { ok: true, accountId: account.id };
 }
 
 // The account for this verified email, made if it is new. A new account gets back the blocks people had against that address
 // (block-marks.ts), so deleting an account and signing up again does not undo a block.
+export const ACCOUNT_SETUP_FAILED = "Couldn’t finish setting up your account. Wait a minute, then ask for a new code and try again.";
+export class AccountSetupError extends Error {
+  constructor() {
+    super(ACCOUNT_SETUP_FAILED);
+  }
+}
 export async function accountForEmail(email: string, name?: string) {
   const found = await db.account.findUnique({ where: { email } });
   if (found) return found;
@@ -106,7 +124,16 @@ export async function accountForEmail(email: string, name?: string) {
     made = await db.account.findUniqueOrThrow({ where: { email } });
     created = false;
   }
-  if (created) await reapplyBlocks(made.id, email).catch(() => 0);
+  if (created) {
+    try {
+      await reapplyBlocks(made.id, email);
+    } catch {
+      // Never an account that quietly has none of the blocks people had against it: take it back and ask them to try again.
+      await db.block.deleteMany({ where: { blockedId: made.id } }).catch(() => undefined);
+      await db.account.deleteMany({ where: { id: made.id } }).catch(() => undefined);
+      throw new AccountSetupError();
+    }
+  }
   return made;
 }
 

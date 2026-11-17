@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
+import { PAY_CHANGE_LIMIT_TEXT, payChangeOk } from "@/lib/pay-limit";
 import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
 import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
@@ -314,6 +315,7 @@ export async function removePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
+  if (memberships[groupId] && !(await payChangeOk(memberships[groupId]))) redirect(`/groups/${groupId}?tab=activity&error=${encodeURIComponent(PAY_CHANGE_LIMIT_TEXT)}`);
   const r = await deletePayment(paymentId, memberships[groupId], { memberships });
   redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
 }
@@ -323,6 +325,7 @@ export async function restorePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
+  if (memberships[groupId] && !(await payChangeOk(memberships[groupId]))) redirect(`/groups/${groupId}?tab=activity&error=${encodeURIComponent(PAY_CHANGE_LIMIT_TEXT)}`);
   const r = await setPaymentDeleted(paymentId, memberships[groupId], false, { memberships });
   redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
 }
@@ -530,6 +533,8 @@ export async function settleAcrossGroups(formData: FormData) {
     redirect("/settle?settle=error");
   }
   const { settleAcrossCore } = await import("@/lib/cross-settle-db");
+  const limitKey = (await getAccount())?.id ?? Object.values(await getMemberships()).sort()[0];
+  if (limitKey && !(await payChangeOk(limitKey))) redirect("/settle?settle=busy");
   const r = await settleAcrossCore(parts, await getMemberships(), cleanKey(formData.get("rid")));
   // The person's own page asks to come back to it ("people:<pairId>"); only a pair id from the parts themselves is accepted.
   const back = String(formData.get("back") ?? "");
@@ -575,6 +580,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (ks.state === "stale") back(STALE_KEY_ERROR);
   if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
 
+  if (!(await payChangeOk(myId))) back(PAY_CHANGE_LIMIT_TEXT);
   // More than they (or the person paid) can owe each other (often a typo with an extra zero): asked once, checked inside the write.
   const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && formData.get("over") !== "1" });
   if (r.kind === "refused") back(r.error);
@@ -648,6 +654,7 @@ export async function settleEverything(formData: FormData) {
   if (group.type === "direct") redirect(`/people/${group.id}`); // a pair is never closed (the lib refuses too)
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!(await payChangeOk(myId))) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(PAY_CHANGE_LIMIT_TEXT)}`);
   const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
   if (!r.ok) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`);
   redirect(`/?closed=1&did=${r.eventId}&g=${group.id}`);
