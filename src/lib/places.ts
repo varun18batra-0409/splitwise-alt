@@ -14,7 +14,7 @@ const PLACES: [RegExp, string][] = [
   [/\b(dubai|abu ?dhabi|uae|emirates)\b/i, "place-dubai"],
   [/\b(manali|kasol|himachal|shimla|kullu|dharamshala|mcleodganj)\b/i, "place-manali"],
   [/\b(ladakh|leh|zanskar|pangong|spiti|nubra)\b/i, "place-ladakh"],
-  [/\b(kerala|alleppey|alappuzha|munnar|kochi|cochin|varkala|wayanad|kumarakom)\b/i, "place-kerala"],
+  [/\b(kerala|alleppey|alappuzha|munnar|kochi|cochin|varkala|wayanad|kumarakom|thiruvananthapuram|trivandrum|kovalam|kozhikode|calicut|thrissur)\b/i, "place-kerala"],
   [/\b(singapore)\b/i, "place-singapore"],
   [/\b(maldives)\b/i, "place-maldives"],
   [/\b(vietnam|hanoi|ha ?long|da ?nang|saigon|ho chi minh|hoi ?an)\b/i, "place-vietnam"],

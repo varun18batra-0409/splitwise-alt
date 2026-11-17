@@ -10,6 +10,9 @@ describe("Trip countdown: the destination's photo", () => {
     expect(placeSlot("Leh Ladakh bike trip")).toBe("place-ladakh");
     expect(placeSlot("Spiti road trip")).toBe("place-ladakh");
     expect(placeSlot("Munnar & Alleppey")).toBe("place-kerala");
+    // Kerala's capital is Kerala, not the Taj Mahal (the passport's Been card for "Thiruvananthapuram, Kanyakumari" showed the Taj).
+    expect(placeSlot("South tip Thiruvananthapuram, Kanyakumari")).toBe("place-kerala");
+    expect(placeSlot("Trivandrum weekend")).toBe("place-kerala");
     expect(placeSlot("Sri Lanka with the gang")).toBe("place-srilanka");
     expect(placeSlot("NYC")).toBe("place-newyork");
     expect(placeSlot("Paris honeymoon")).toBe("cover-paris");
