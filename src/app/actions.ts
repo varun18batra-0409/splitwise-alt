@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
-import { PAY_CHANGE_LIMIT_TEXT, payChangeOk } from "@/lib/pay-limit";
+import { PAY_CHANGE_LIMIT_TEXT, isPaymentChangeEvent, payChangeOk } from "@/lib/pay-limit";
 import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
 import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
@@ -336,7 +336,10 @@ export async function undoChange(formData: FormData) {
   const eventId = String(formData.get("eventId") ?? "");
   const back = String(formData.get("back") ?? "group");
   const memberships = await getMemberships();
-  const r = await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships });
+  // Undoing or redoing a payment change is a payment change too: the same limit, checked before anything is written.
+  const ev = /^[A-Za-z0-9_-]{6,40}$/.test(eventId) ? await db.groupEvent.findUnique({ where: { id: eventId }, select: { groupId: true, kind: true, paymentId: true, undo: true } }) : null;
+  const limited = Boolean(ev && ev.groupId === groupId && isPaymentChangeEvent(ev) && memberships[groupId] && !(await payChangeOk(memberships[groupId])));
+  const r: Awaited<ReturnType<typeof undoEvent>> = limited ? { ok: false, error: PAY_CHANGE_LIMIT_TEXT } : await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships });
   const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
   if (back === "home") redirect(`/?${q}&g=${groupId}`);
   if (back === "people") redirect(`/groups/${groupId}/people?${q}`);

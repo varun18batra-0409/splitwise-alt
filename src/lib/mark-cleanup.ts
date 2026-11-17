@@ -1,29 +1,25 @@
 import { db } from "./db";
 
 // Daily tidy-up of the small scrambled notes kept in the settings table (no emails are in them):
-//  - "blockfp:" notes (block-marks.ts) are kept 2 years, counted from the day they were made. An older note, or one with no readable day
-//    (made before the day was recorded), starts its two years today.
 //  - "removed:<groupId>:" notes (removal-marks.ts) go when their group is gone (erasing a group does this too; this catches the rest).
-export const BLOCK_NOTE_YEARS = 2;
+// Block notes ("blockfp:", block-marks.ts) are NOT touched here: a block has no expiry (founder decision D-2).
+// Rows are read in pages in key order, so every row is looked at over time, never just the first few.
+const PAGE = 500;
 
-export async function cleanMarks(now = new Date(), limit = 2000): Promise<{ blocks: number; removed: number }> {
-  const cutoff = new Date(now);
-  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - BLOCK_NOTE_YEARS);
-  let blocks = 0;
-  const blockRows = await db.appSetting.findMany({ where: { key: { startsWith: "blockfp:" } }, take: limit });
-  const old: string[] = [];
-  for (const r of blockRows) {
-    const at = /^\d{4}-\d{2}-\d{2}T/.test(r.value) ? new Date(r.value) : new Date(NaN);
-    if (Number.isNaN(at.getTime())) await db.appSetting.updateMany({ where: { key: r.key }, data: { value: now.toISOString() } });
-    else if (at < cutoff) old.push(r.key);
+export async function cleanMarks(limit = 5000): Promise<{ removed: number }> {
+  let removed = 0;
+  let after = "";
+  for (let seen = 0; seen < limit; ) {
+    const rows = await db.appSetting.findMany({ where: { key: { startsWith: "removed:", gt: after } }, select: { key: true }, orderBy: { key: "asc" }, take: PAGE });
+    if (!rows.length) break;
+    after = rows[rows.length - 1].key;
+    seen += rows.length;
+    const groupOf = (key: string) => key.split(":")[1] ?? "";
+    const ids = [...new Set(rows.map((r) => groupOf(r.key)).filter(Boolean))];
+    const alive = new Set((await db.group.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((g) => g.id));
+    const gone = rows.filter((r) => !alive.has(groupOf(r.key))).map((r) => r.key);
+    if (gone.length) removed += (await db.appSetting.deleteMany({ where: { key: { in: gone } } })).count;
+    if (rows.length < PAGE) break;
   }
-  if (old.length) blocks = (await db.appSetting.deleteMany({ where: { key: { in: old } } })).count;
-
-  const removedRows = await db.appSetting.findMany({ where: { key: { startsWith: "removed:" } }, select: { key: true }, take: limit });
-  const groupOf = (key: string) => key.split(":")[1] ?? "";
-  const ids = [...new Set(removedRows.map((r) => groupOf(r.key)).filter(Boolean))];
-  const alive = new Set((await db.group.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((g) => g.id));
-  const gone = removedRows.filter((r) => !alive.has(groupOf(r.key))).map((r) => r.key);
-  const removed = gone.length ? (await db.appSetting.deleteMany({ where: { key: { in: gone } } })).count : 0;
-  return { blocks, removed };
+  return { removed };
 }

@@ -36,7 +36,9 @@ export async function confirmPaymentAction(f: FormData) {
 export async function rejectPaymentAction(f: FormData) {
   const paymentId = field(f, "paymentId");
   const groupId = await paymentGroup(paymentId);
-  const r = await rejectPayment(paymentId, await getMyMemberId(groupId));
+  const myId = await getMyMemberId(groupId);
+  if (myId && !(await payChangeOk(myId))) redirect(`/groups/${groupId}/settle?${new URLSearchParams({ error: PAY_CHANGE_LIMIT_TEXT })}`);
+  const r = await rejectPayment(paymentId, myId);
   redirect(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { notgot: "1", ...(r.eventId ? { did: r.eventId } : {}), ...(r.back.length ? { back: r.back.map((b) => b.id).join(",") } : {}) } : { error: r.error })}`);
 }
 

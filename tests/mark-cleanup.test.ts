@@ -1,12 +1,11 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-// L-1: the scrambled block notes are kept 2 years; removal notes go when their group is gone. No emails are in either.
+// The scrambled removal notes go when their group is gone. Block notes NEVER expire (founder decision D-2): the clean-up leaves them alone.
 const { db } = await import("@/lib/db");
 const { cleanMarks } = await import("@/lib/mark-cleanup");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-const NOW = new Date("2026-11-17T03:00:00Z");
 const keys: string[] = [];
 const groupIds: string[] = [];
 const key = (k: string) => (keys.push(k), k);
@@ -16,27 +15,15 @@ afterAll(async () => {
   await db.group.deleteMany({ where: { id: { in: groupIds } } });
 });
 
-describe("daily clean-up of block and removal notes", () => {
-  it("block notes older than 2 years go; newer ones stay; one with no readable day starts its 2 years now", async () => {
+describe("daily clean-up of the settings-table notes", () => {
+  it("block notes are never removed, however old or odd their value", async () => {
     const old = key(`blockfp:${"a".repeat(60)}old1:blocker-${stamp}`);
-    const justUnder = key(`blockfp:${"b".repeat(60)}new1:blocker-${stamp}`);
-    const fresh = key(`blockfp:${"c".repeat(60)}new2:blocker-${stamp}`);
     const legacy = key(`blockfp:${"d".repeat(60)}leg1:blocker-${stamp}`);
-    await db.appSetting.createMany({
-      data: [
-        { key: old, value: "2024-11-16T00:00:00.000Z" }, // 2 years and a day before NOW
-        { key: justUnder, value: "2024-11-18T00:00:00.000Z" }, // 1 year and 364 days
-        { key: fresh, value: "2026-11-01T00:00:00.000Z" },
-        { key: legacy, value: "1" },
-      ],
-    });
-    const r = await cleanMarks(NOW);
-    expect(r.blocks).toBeGreaterThanOrEqual(1);
-    expect(await has(old)).toBe(false);
-    expect(await has(justUnder)).toBe(true);
-    expect(await has(fresh)).toBe(true);
+    await db.appSetting.createMany({ data: [{ key: old, value: "2019-01-01T00:00:00.000Z" }, { key: legacy, value: "1" }] });
+    await cleanMarks();
+    expect(await has(old)).toBe(true);
     expect(await has(legacy)).toBe(true);
-    expect((await db.appSetting.findUniqueOrThrow({ where: { key: legacy } })).value).toBe(NOW.toISOString());
+    expect((await db.appSetting.findUniqueOrThrow({ where: { key: legacy } })).value).toBe("1");
   });
 
   it("removal notes stay while their group exists and go when it is gone", async () => {
@@ -45,13 +32,23 @@ describe("daily clean-up of block and removal notes", () => {
     const live = key(`removed:${g.id}:${"e".repeat(64)}`);
     const dead = key(`removed:no-such-group-${stamp}:${"f".repeat(64)}`);
     await db.appSetting.createMany({ data: [{ key: live, value: "{}" }, { key: dead, value: "{}" }] });
-    const r = await cleanMarks(NOW);
+    const r = await cleanMarks();
     expect(r.removed).toBeGreaterThanOrEqual(1);
     expect(await has(live)).toBe(true);
     expect(await has(dead)).toBe(false);
   });
 
-  it("the daily job runs it", () => {
+  it("it reads every page in key order: more than one page of dead notes are all removed", async () => {
+    const dead = Array.from({ length: 620 }, (_, i) => key(`removed:gone-${stamp}-${String(i).padStart(4, "0")}:${"9".repeat(64)}`));
+    await db.appSetting.createMany({ data: dead.map((k) => ({ key: k, value: "{}" })) });
+    await cleanMarks();
+    expect(await db.appSetting.count({ where: { key: { in: dead } } })).toBe(0);
+  });
+
+  it("the daily job runs it, and the privacy page promises no expiry", () => {
     expect(readFileSync("src/app/api/cron/daily/route.ts", "utf8")).toContain('part("cleanup-marks"');
+    const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
+    expect(privacy).toContain("it’s erased when they unblock or delete their own account.");
+    expect(privacy).not.toContain("after 2 years");
   });
 });

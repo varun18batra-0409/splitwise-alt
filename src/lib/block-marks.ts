@@ -3,8 +3,9 @@ import type { Db } from "./events";
 import { emailFingerprint } from "./fingerprint";
 
 // A block survives the blocked person deleting their account and signing up again with the same email. The settings table holds
-// "blockfp:<fingerprint of the blocked email>:<blocker's account id>" (a keyed fingerprint, never the email), holding the day it was made. When an account is
-// created with an email that matches, the blocks are put back. The note goes when the blocker unblocks, deletes their own account, or after 2 years (mark-cleanup.ts).
+// "blockfp:<fingerprint of the blocked email>:<blocker's account id>" (a keyed fingerprint, never the email), holding the day it was made or last refreshed. When an account is
+// created with an email that matches, the blocks are put back. The note has no expiry (founder decision D-2): it goes only when the blocker
+// unblocks or deletes their own account.
 
 const PREFIX = "blockfp:";
 const fp = (email: string) => emailFingerprint("block", email);
@@ -25,7 +26,8 @@ export async function markBlocksOfDeleted(tx: Db, accountId: string, email: stri
   const rows = await tx.block.findMany({ where: { blockedId: accountId }, select: { blockerId: true } });
   for (const r of rows) {
     const key = keyOf(email, r.blockerId);
-    await tx.appSetting.upsert({ where: { key }, create: { key, value: new Date().toISOString() }, update: {} });
+    const now = new Date().toISOString();
+    await tx.appSetting.upsert({ where: { key }, create: { key, value: now }, update: { value: now } });
   }
 }
 
@@ -34,18 +36,19 @@ export async function dropBlockMarksOf(tx: Db, blockerId: string): Promise<void>
   await tx.appSetting.deleteMany({ where: { key: { startsWith: PREFIX, endsWith: `:${blockerId}` } } });
 }
 
-// A new account was created with this email: put back the blocks people had against that address (only from blockers who still exist).
-export async function reapplyBlocks(accountId: string, email: string): Promise<number> {
+// A new account is being created with this email: put back the blocks people had against that address (only from blockers who still
+// exist). Runs inside the same transaction that creates the account (auth.ts accountForEmail), so either both happen or neither does.
+export async function reapplyBlocks(tx: Db, accountId: string, email: string): Promise<number> {
   const prefix = `${PREFIX}${fp(email)}:`;
-  const rows = await db.appSetting.findMany({ where: { key: { startsWith: prefix } }, select: { key: true }, take: 500 });
+  const rows = await tx.appSetting.findMany({ where: { key: { startsWith: prefix } }, select: { key: true }, orderBy: { key: "asc" }, take: 500 });
   const blockerIds = rows.map((r) => r.key.slice(prefix.length)).filter((id) => id && id !== accountId);
   if (!blockerIds.length) return 0;
-  const real = await db.account.findMany({ where: { id: { in: blockerIds } }, select: { id: true } });
+  const real = await tx.account.findMany({ where: { id: { in: blockerIds } }, select: { id: true } });
   for (const b of real) {
-    await db.block.upsert({ where: { blockerId_blockedId: { blockerId: b.id, blockedId: accountId } }, create: { blockerId: b.id, blockedId: accountId }, update: {} });
+    await tx.block.upsert({ where: { blockerId_blockedId: { blockerId: b.id, blockedId: accountId } }, create: { blockerId: b.id, blockedId: accountId }, update: {} });
   }
   // Notes whose blocker no longer exists are tidied away.
   const gone = blockerIds.filter((id) => !real.some((r) => r.id === id));
-  if (gone.length) await db.appSetting.deleteMany({ where: { key: { in: gone.map((id) => `${prefix}${id}`) } } });
+  if (gone.length) await tx.appSetting.deleteMany({ where: { key: { in: gone.map((id) => `${prefix}${id}`) } } });
   return real.length;
 }

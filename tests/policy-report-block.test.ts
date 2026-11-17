@@ -1098,8 +1098,8 @@ describe("L-7: search never shows a blocked person to the session's account, eve
   });
 });
 
-describe("L-1, L-2: notes, secret and wording", () => {
+describe("wording", () => {
   it("the privacy page says when the notes are erased", () => {
-    expect(readFileSync("src/app/privacy/page.tsx", "utf8")).toContain("it’s erased when they unblock, delete their account, or after 2 years.");
+    expect(readFileSync("src/app/privacy/page.tsx", "utf8")).toContain("it’s erased when they unblock or delete their own account.");
   });
 });

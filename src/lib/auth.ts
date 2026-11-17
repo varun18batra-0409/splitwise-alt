@@ -115,26 +115,21 @@ export class AccountSetupError extends Error {
 export async function accountForEmail(email: string, name?: string) {
   const found = await db.account.findUnique({ where: { email } });
   if (found) return found;
-  let made;
-  let created = true;
   try {
-    made = await db.account.create({ data: { email, ...(name ? { name } : {}) } });
+    // The account and the blocks people had against this address are made in ONE step: if putting the blocks back fails, no account is
+    // made (nothing to undo), never an account that quietly has none of them.
+    return await db.$transaction(async (tx) => {
+      const made = await tx.account.create({ data: { email, ...(name ? { name } : {}) } });
+      await reapplyBlocks(tx, made.id, email);
+      return made;
+    });
   } catch {
-    // Someone else made it at the same moment: use theirs.
-    made = await db.account.findUniqueOrThrow({ where: { email } });
-    created = false;
+    // Two sign-ups for the same email at the same moment: the second one's insert fails (the email is unique) and it is rolled back
+    // whole, so it uses the first one's account, which put the blocks back exactly once in its own step.
+    const winner = await db.account.findUnique({ where: { email } });
+    if (winner) return winner;
+    throw new AccountSetupError();
   }
-  if (created) {
-    try {
-      await reapplyBlocks(made.id, email);
-    } catch {
-      // Never an account that quietly has none of the blocks people had against it: take it back and ask them to try again.
-      await db.block.deleteMany({ where: { blockedId: made.id } }).catch(() => undefined);
-      await db.account.deleteMany({ where: { id: made.id } }).catch(() => undefined);
-      throw new AccountSetupError();
-    }
-  }
-  return made;
 }
 
 // "Delete my account": the email and sign-in codes are removed; group
