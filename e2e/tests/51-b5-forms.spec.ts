@@ -56,8 +56,18 @@ test("CA-5: while the bill photo is going up both Save buttons wait, and the sav
   await settled(A);
   await A.locator("#expense-name").fill("Lunch with bill");
   await A.getByLabel("Amount", { exact: true }).fill("500");
+  const sent: string[] = [];
+  A.on("request", (r) => r.url().includes("/api/receipt") && sent.push(`${r.method()} ${new URL(r.url()).pathname}`));
+  A.on("requestfailed", (r) => r.url().includes("/api/receipt") && sent.push(`failed: ${r.failure()?.errorText}`));
   await A.getByLabel("Bill photo").setInputFiles({ name: "bill.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG });
-  await expect(A.getByRole("button", { name: "Save expense" })).toBeDisabled();
+  // (If this fails, say what the bill area and any open sheet showed, and what reached the server.)
+  const scanSaid = async () =>
+    `bill area: ${JSON.stringify(await A.locator("[data-bill-scan]").innerText().catch(() => "?"))}; open sheets: ${JSON.stringify(await A.getByRole("dialog").allInnerTexts().catch(() => []))}; requests: ${JSON.stringify(sent)}`;
+  await expect(A.getByRole("button", { name: "Save expense" }))
+    .toBeDisabled()
+    .catch(async (e: Error) => {
+      throw new Error(`${e.message.split("\n")[0]} (${await scanSaid()})`);
+    });
   await expect(A.getByRole("button", { name: "Save & add another" })).toBeDisabled();
   await expect(A.getByRole("button", { name: "Save expense" })).toBeEnabled({ timeout: 15_000 });
   await A.getByRole("button", { name: "Save expense" }).click();
@@ -96,12 +106,25 @@ for (const size of [{ width: 360, height: 800 }, { width: 390, height: 844 }]) {
     await A.locator("summary[aria-label='React']").first().click();
     const first = A.getByRole("button", { name: /^React / }).first();
     await expect(first).toBeVisible();
-    const b = (await first.boundingBox())!;
-    const hit = await A.evaluate(([x, y]) => {
-      const el = document.elementFromPoint(x, y);
-      return Boolean(el?.closest("[aria-label^='React ']"));
-    }, [b.x + b.width / 2, b.y + b.height / 2]);
-    expect(hit, "the first emoji is not covered or clipped").toBe(true);
+    // The picker may still be settling into place: ask again until it stops moving (up to 5 s). What sits on top is reported.
+    let onTop = "";
+    await expect
+      .poll(
+        async () => {
+          const b = (await first.boundingBox())!;
+          const r = await A.evaluate(([x, y]) => {
+            const el = document.elementFromPoint(x, y);
+            return { ok: Boolean(el?.closest("[aria-label^='React ']")), what: el ? `${el.tagName.toLowerCase()} ${el.getAttribute("aria-label") ?? ""} ${(el.className || "").toString().slice(0, 80)}` : "nothing" };
+          }, [b.x + b.width / 2, b.y + b.height / 2]);
+          onTop = r.what;
+          return r.ok;
+        },
+        { timeout: 5_000, message: "the first emoji is not covered or clipped" },
+      )
+      .toBe(true)
+      .catch((e: Error) => {
+        throw new Error(`${e.message} (on top of it: ${onTop})`);
+      });
     await first.click();
     await expect(A.locator("[data-reactions]").first()).toContainText("1");
   });
@@ -143,6 +166,10 @@ test("CA-10: a busy search says so, and the same search works once the server an
   const A = await (await contextFor(browser, asha)).newPage();
   const g = await createGroup(A, groupName("B5 busy"), "Trip");
   let busy = true;
+  const seen: string[] = [];
+  A.on("response", (r) => r.url().includes("/api/people") && seen.push(`${r.status()}`));
+  A.on("requestfailed", (r) => r.url().includes("/api/people") && seen.push(`failed: ${r.failure()?.errorText}`));
+  A.on("console", (m) => m.type() === "error" && seen.push(`console: ${m.text().slice(0, 120)}`));
   await A.route("**/api/people?**", (route) => (busy ? route.fulfill({ status: 429, contentType: "application/json", body: "[]" }) : route.continue()));
   await A.goto(`${g.path}/invite`);
   await settled(A);
@@ -155,7 +182,7 @@ test("CA-10: a busy search says so, and the same search works once the server an
   await expect(A.getByText("Search is busy. Try again in a minute."), await (async () => {
     await A.waitForTimeout(3000);
     const list = await A.locator("[data-way='search'] ul").allInnerTexts().catch(() => ["(no list)"]);
-    return `the list said: ${JSON.stringify(list)}; the box held: ${JSON.stringify(await search.inputValue().catch(() => "?"))}`;
+    return `the list said: ${JSON.stringify(list)}; the box held: ${JSON.stringify(await search.inputValue().catch(() => "?"))}; answers: ${JSON.stringify(seen)}`;
   })()).toBeVisible();
   busy = false;
   await search.fill("Meer");
