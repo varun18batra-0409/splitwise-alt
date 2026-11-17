@@ -466,7 +466,14 @@ describe("downloads and pictures", () => {
     return (await res.text()).includes(w.name);
   }));
 
-  it("the group picture", () => table("photo", READERS, async (_p, w) => {
+  // Safety part C (SA-4, D-5): the picture as it was the day they left. One put up before (5 days ago; they left yesterday) is theirs to see.
+  it("the group picture from before they left", () => table("photo", READERS, async (_p, w) => {
+    await db.groupPhoto.create({ data: { groupId: w.id, data: Buffer.from([1, 2, 3]), type: "image/webp", updatedAt: new Date(Date.now() - 5 * 86_400_000) } });
+    const res = await photoRoute.GET(new Request("http://loopin.test/photo"), { params: Promise.resolve({ id: w.id }) });
+    return res.status === 200;
+  }));
+
+  it("a group picture put up after they left or were removed is only for people still in the group", () => table("photo-new", ["admin", "member"], async (_p, w) => {
     await db.groupPhoto.create({ data: { groupId: w.id, data: Buffer.from([1, 2, 3]), type: "image/webp" } });
     const res = await photoRoute.GET(new Request("http://loopin.test/photo"), { params: Promise.resolve({ id: w.id }) });
     return res.status === 200;

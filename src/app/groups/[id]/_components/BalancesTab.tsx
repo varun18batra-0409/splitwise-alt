@@ -10,6 +10,7 @@ import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 import { WhyPanel } from "./WhyPanel";
 import { funTitles } from "@/lib/wrapped";
+import { peopleShown } from "@/lib/left-view";
 import { explainAll } from "@/lib/explain";
 
 // Balances answers one question: who owes what, and why.
@@ -19,7 +20,8 @@ import { explainAll } from "@/lib/explain";
 export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; why?: string }) {
   const { group, myId, net, transfers, nameOf, money, expenses, payments, ledgers, hasMarkup, signed, eq, spent } = v;
   const mine = net[myId] ?? 0;
-  const people = group.members.filter((m) => !m.leftAt);
+  // Head count as the viewer knows the group: a leaver counts themselves and the people there on the day they left, not later joiners.
+  const people = peopleShown(group.members, myId, v.leaver?.leftAt);
   // Fun titles (habits, never money rankings): one per person at most.
   const leaver = v.leaver;
   // The "By person" lines: if any has paise, every line keeps its two decimals so they line up.

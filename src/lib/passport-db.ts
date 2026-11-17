@@ -2,8 +2,9 @@ import { db } from "./db";
 import { NOT_DIRECT } from "./direct"; // a pair of two people is not "sharing a group"
 import { JOINED, isPending } from "./membership";
 import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
-import { buildPassport, parseHandPlaces, passportShared, passportZone, undatedTripDay, wentOnTrip, type PassportTrip } from "./passport";
-import { leaverCut, leaverWhere } from "./left-view";
+import { buildPassport, parseHandPlaces, passportShared, passportZone, tripOver, undatedTripDay, wentOnTrip, type PassportTrip } from "./passport";
+import { leaverCut, leaverWhere, membershipSpan, overlapped, sharedGroupRow } from "./left-view";
+import { memberHistory } from "./left-view-db";
 import type { Prisma } from "@prisma/client";
 import type { TripExtras } from "./passport-cards";
 
@@ -72,8 +73,8 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
     select: {
       id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true,
       _count: { select: { members: true } },
-      // Your own row (did you leave before the trip?).
-      members: { where: { accountId: account.id }, select: { id: true, leftAt: true, removedAt: true } },
+      // Your own row (did you leave before the trip? when were you in it?).
+      members: { where: { accountId: account.id }, select: { id: true, leftAt: true, removedAt: true, createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true } },
     },
     orderBy: [{ tripStart: "desc" }, { createdAt: "desc" }],
     take: 300,
@@ -82,20 +83,37 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   // A trip without dates counts once something was spent that you may see, from its latest spending (not the group's creation: a
   // flight booked early isn't a stamp yet). Game results and deleted rows don't count; someone who left sees only what was added
   // up to the day they left, or what has them in it.
+  // (A dated trip with no end day is also read for a friend: it is over 3 days after its latest spending, not the day after it starts.)
   const facts = await undatedTripFacts(
-    groups.filter((g) => !g.tripStart).map((g) => ({ groupId: g.id, me: g.members.find((m) => !m.leftAt && !m.removedAt) ?? g.members[0] })).filter((x) => x.me),
+    groups.filter((g) => !g.tripStart || (opts.forFriend && !g.tripEnd)).map((g) => ({ groupId: g.id, me: g.members.find((m) => !m.leftAt && !m.removedAt) ?? g.members[0] })).filter((x) => x.me),
     tz,
   );
   // Seen by a friend: only trips that are over (a trip happening now would say where you are today).
-  // (A trip without dates counts as over once nothing has been spent for 3 days:
-  // spending today would otherwise tell a friend where you are now.)
-  const over = (g: (typeof groups)[number]) => {
-    if (g.tripEnd || g.tripStart) return (g.tripEnd || g.tripStart) < today;
-    const day = facts.get(g.id)?.day;
-    return !day || new Date(Date.parse(`${day}T12:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10) < today;
-  };
+  // (A trip without an end day counts as over once nothing has been spent for 3 days: spending today would otherwise tell a friend
+  // where you are now. See tripOver.)
+  const over = (g: (typeof groups)[number]) => tripOver({ tripStart: g.tripStart, tripEnd: g.tripEnd }, facts.get(g.id)?.day, today);
   // Someone who left before the trip began (in their own time zone) didn't go. (Only a real start day counts: an undated trip has none to miss.)
   const went = (g: (typeof groups)[number]) => g.members.some((m) => wentOnTrip(g.tripStart, m.leftAt, tz));
+  // Who was there with you: only people whose time in the group overlapped yours (not someone who joined after you left, and not
+  // people added but never opened it, or removed). Your own view only: a friend is never shown the count. (SB-5)
+  const owner = new Map(groups.map((g) => [g.id, g.members.find((m) => !m.leftAt && !m.removedAt) ?? g.members[0]]));
+  const together = new Map<string, { name: string; accountId: string | null }[]>();
+  if (!opts.forFriend && groups.length) {
+    const [rows, history] = await Promise.all([
+      db.member.findMany({
+        where: { groupId: { in: groups.map((g) => g.id) }, ...COUNTS },
+        select: { id: true, groupId: true, name: true, accountId: true, createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true },
+        orderBy: { createdAt: "asc" },
+        take: 6000,
+      }),
+      memberHistory(groups.map((g) => g.id)), // leaving and coming back leaves a gap that isn't time together
+    ]);
+    for (const r of rows) {
+      const me = owner.get(r.groupId);
+      if (!me || (r.accountId && r.accountId === account.id) || !overlapped(membershipSpan(me, history.get(me.id)), membershipSpan(r, history.get(r.id)))) continue;
+      (together.get(r.groupId) ?? together.set(r.groupId, []).get(r.groupId)!).push({ name: r.name, accountId: r.accountId });
+    }
+  }
   const trips: PassportTrip[] = groups.filter((g) => (g.tripStart || facts.get(g.id)) && went(g) && (!opts.forFriend || over(g))).map((g) => ({
     groupId: g.id,
     name: g.name,
@@ -103,7 +121,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
     end: g.tripEnd,
     place: g.tripPlace,
     country: g.tripCountry,
-    people: g._count.members,
+    people: opts.forFriend ? g._count.members : (together.get(g.id)?.length ?? 0) + 1, // the others who overlapped, plus you
     undated: !g.tripStart,
   }));
   const home = account.homeCountry || fallbackHome;
@@ -126,18 +144,14 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   const faceGroups = trips.map((t) => t.groupId).filter((id) => stillIn.has(id));
   if (!opts.forFriend && faceGroups.length) {
     const blocked = await blockedEitherWay(account.id);
-    const others = await db.member.findMany({
-      where: { groupId: { in: faceGroups }, ...COUNTS },
-      select: { groupId: true, name: true, accountId: true },
-      orderBy: { createdAt: "asc" },
-      take: 3000,
-    });
-    for (const o of others) {
-      if (o.accountId === account.id || (o.accountId && blocked.has(o.accountId))) continue;
-      const first = o.name.trim().split(/\s+/)[0];
-      if (!first) continue;
-      const x = (extras[o.groupId] ??= { names: [] });
-      if (x.names.length < 3) x.names.push(first);
+    for (const id of faceGroups) {
+      for (const o of together.get(id) ?? []) {
+        if (o.accountId && blocked.has(o.accountId)) continue;
+        const first = o.name.trim().split(/\s+/)[0];
+        if (!first) continue;
+        const x = (extras[id] ??= { names: [] });
+        if (x.names.length < 3) x.names.push(first);
+      }
     }
   }
   // Your own view only: how many moments you can see in each recent trip (decides "View memories" on its card). The same
@@ -164,18 +178,24 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
 // who's on Loopin: the people whose passports you can open. Deleted groups don't count.
 export async function passportFriends(accountId: string) {
   // (Your own row must be joined too: a group someone added you to but you never opened shows you nobody.)
-  const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } }, select: { groupId: true }, take: 500 });
+  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true } as const;
+  const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } }, select: { id: true, groupId: true, ...SPAN }, take: 500 });
   if (!mine.length) return [];
-  const others = await db.member.findMany({
-    // Someone added straight in by another person counts once they've opened that group.
-    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, ...COUNTS },
-    select: { accountId: true, name: true, groupId: true, group: { select: { name: true } } },
-    take: 3000,
-  });
+  const [others, history] = await Promise.all([
+    db.member.findMany({
+      // Someone added straight in by another person counts once they've opened that group.
+      where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, ...COUNTS },
+      select: { id: true, accountId: true, name: true, groupId: true, group: { select: { name: true } }, ...SPAN },
+      take: 3000,
+    }),
+    memberHistory(mine.map((m) => m.groupId)),
+  ]);
   const by = new Map<string, { accountId: string; name: string; groups: string[] }>();
   const blocked = await blockedEitherWay(accountId);
   for (const o of others) {
     if (blocked.has(o.accountId!)) continue;
+    // Only people who were in that group at the same time as you (not someone who joined after you left, or left before you joined).
+    if (!mine.some((m) => m.groupId === o.groupId && overlapped(membershipSpan(m, history.get(m.id)), membershipSpan(o, history.get(o.id))))) continue;
     const f = by.get(o.accountId!) ?? { accountId: o.accountId!, name: o.name, groups: [] };
     if (!f.groups.includes(o.group.name)) f.groups.push(o.group.name);
     by.set(o.accountId!, f);
@@ -190,10 +210,17 @@ export async function canSeePassport(viewerAccountId: string, ownerAccountId: st
   if (viewerAccountId === ownerAccountId) return { ok: true as const, owner: await db.account.findUnique({ where: { id: ownerAccountId } }), name: undefined as string | undefined };
   // A block between the two (either way round) closes the door; it looks the same as not sharing a group.
   if (await isBlockedEitherWay(viewerAccountId, ownerAccountId)) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
-  const shared = await db.member.findFirst({
+  // Both must have been in a shared group AT THE SAME TIME (someone who left before the other joined was never there with them).
+  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true } as const;
+  const ownerRows = await db.member.findMany({
     where: { accountId: ownerAccountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: viewerAccountId, ...COUNTS } } } },
-    select: { name: true },
+    select: { id: true, name: true, groupId: true, ...SPAN },
+    take: 500,
   });
+  const viewerRows = ownerRows.length ? await db.member.findMany({ where: { accountId: viewerAccountId, ...COUNTS, groupId: { in: ownerRows.map((r) => r.groupId) } }, select: { id: true, groupId: true, ...SPAN }, take: 500 }) : [];
+  // (Someone who left and was brought back was away in between: that gap is not time together.)
+  const history = ownerRows.length ? await memberHistory([...new Set(ownerRows.map((r) => r.groupId))]) : new Map();
+  const shared = sharedGroupRow(ownerRows, viewerRows, (r) => membershipSpan(r, history.get((r as { id?: string }).id ?? "")));
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
   const owner = await db.account.findUnique({ where: { id: ownerAccountId } });
   if (!owner) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };

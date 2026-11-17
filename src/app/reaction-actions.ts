@@ -24,7 +24,7 @@ export async function reactAction(f: FormData) {
   const had = await db.reaction.findUnique({ where: { expenseId_memberId: { expenseId: e.id, memberId: myId } } });
   if (had?.emoji === emoji) await db.reaction.delete({ where: { id: had.id } });
   else {
-    await db.reaction.upsert({ where: { expenseId_memberId: { expenseId: e.id, memberId: myId } }, create: { expenseId: e.id, memberId: myId, emoji }, update: { emoji } });
+    await db.reaction.upsert({ where: { expenseId_memberId: { expenseId: e.id, memberId: myId } }, create: { expenseId: e.id, memberId: myId, emoji }, update: { emoji, createdAt: new Date() } }); // changing it counts as reacting now (a person who left never sees a reaction made after they went)
     // The reaction is always saved; the buzz goes at most once per person per expense per 10 minutes (changing it back and forth is not a way to ring someone).
     if (e.createdById && e.createdById !== myId && (await allow(`react-push:${e.id}:${myId}`, 1, 600))) {
       const me = await db.member.findUnique({ where: { id: myId }, select: { name: true } });

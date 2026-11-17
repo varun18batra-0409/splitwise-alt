@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { memberMark } from "../left-view";
 import { logEvent, markUndone, expenseState, touchedByExpense, type MoveOutUndo, type UndoMark } from "../events";
 import { openGameFor } from "../pot-db";
 import { netBalances } from "../balances";
@@ -948,6 +949,7 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
           ...(info.deposit ? ["Their deposit is back with them"] : []),
           ...((info.prepaid ?? []).length ? ["Their share of the daily bills was taken off again"] : []),
           ...lines,
+          memberMark(memberId), // not shown: names who came back, for the history of who was in the group when (see membershipPeriods)
         ],
         touches: [...touched, memberId],
         // No redo from here: moving out again hands over bills and the deposit,

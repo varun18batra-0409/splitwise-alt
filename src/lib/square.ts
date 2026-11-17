@@ -30,3 +30,20 @@ export function squareTiles(n: ReturnType<typeof squareNumbers>, o: { hide: bool
   const payments: [string, string] = [String(n.payments), n.payments === 1 ? "payment made" : "payments made"];
   return n.payments > 0 ? [expenses, payments, crew] : [expenses, crew];
 }
+
+// The words and switches of the square page. Someone who left only sees their own part of the ledger, so "All square" / "Not square yet"
+// (words about the whole group) are not theirs to say: they always get one calm line, whatever they can see, with no share and no
+// "Hide amounts" switch (there is no share for the switch to change). Everyone else is unchanged.
+export const SQUARE_NEUTRAL = "You're settled up here.";
+export function squareWords(o: { leaver: boolean; transfers: number; expenses: number }) {
+  const square = o.leaver || (o.transfers === 0 && o.expenses > 0);
+  return {
+    square,
+    title: o.leaver ? SQUARE_NEUTRAL : square ? "All square" : "Not square yet",
+    heading: o.leaver ? SQUARE_NEUTRAL : "All square",
+    confetti: square && !o.leaver,
+    share: square && !o.leaver,
+    hideSwitch: square && !o.leaver,
+    tiles: square && (!o.leaver || o.expenses > 0),
+  };
+}

@@ -1,12 +1,12 @@
 import { db } from "./db";
 import { blockedEitherWay } from "./blocks";
-import { coverFor } from "./covers";
+import { coverFor, coverSeenBy } from "./covers";
 import { netBalances } from "./balances";
 import { pairwiseDebtCount, smartSettle } from "./settle";
 import { payerIds, spentAmount } from "./payers";
 import { canRestoreGroup } from "./group-admin";
-import { hideLaterNotes, isAboutMeLeaving, leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
-import { leaverEvents, readableWhere, touchedAfter } from "./left-view-db";
+import { asOfCut, hideLaterNotes, isAboutMeLeaving, leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
+import { asOfFixes, laterRowEvents, leaverEvents, readableWhere, touchedAfter } from "./left-view-db";
 import { netBalancesDb, settleDataDb } from "./balances-db";
 import type { Prisma } from "@prisma/client";
 import { isDirect, NOT_DIRECT } from "./direct";
@@ -40,17 +40,22 @@ export async function loadGroup(id: string, opts: { events?: boolean; viewer?: s
   if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null, people: group.members };
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
-  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
-  scoped.expenses = hideLaterNotes(scoped.expenses, cut.leftAt);
+  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt, await touchedAfter(id, me.id, cut.leftAt));
+  // Rows added before they left show as they were that day (MA-3); only what is shown changes, never the balances above.
+  const rowEvents = await laterRowEvents(id, cut.leftAt); // the one list every screen uses, so they all agree
+  const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete });
+  scoped.expenses = hideLaterNotes(asOf.expenses, cut.leftAt);
+  scoped.payments = asOf.payments;
   const mine = scopeBalances(net, transfers, me.id);
   return {
-    group: {
+    // (A group photo put up after they left is not shown to them: the default cover instead.)
+    group: coverSeenBy({
       ...group,
       expenses: scoped.expenses,
       payments: scoped.payments,
       // Changes made after they left show only what happened to their own share.
       events: opts.events === false ? [] : scoped.events.slice(0, 500).map((ev) => (ev.createdAt.getTime() > cut.leftAt.getTime() && !isAboutMeLeaving(ev, me.id) ? { ...ev, details: ownShareDetails(ev.details, me.name) } : ev)),
-    },
+    }, cut.leftAt),
     expenses: active(scoped.expenses),
     payments: active(scoped.payments),
     net: mine.net,
@@ -88,16 +93,21 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
   if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null, people: group.members };
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
-  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
-  scoped.expenses = hideLaterNotes(scoped.expenses, cut.leftAt);
+  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt, await touchedAfter(id, me.id, cut.leftAt));
+  // Rows added before they left show as they were that day (MA-3); only what is shown changes, never the balances above.
+  const rowEvents = await laterRowEvents(id, cut.leftAt); // the one list every screen uses, so they all agree
+  const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete });
+  scoped.expenses = hideLaterNotes(asOf.expenses, cut.leftAt);
+  scoped.payments = asOf.payments;
   const mine = scopeBalances(net, transfers, me.id);
   return {
-    group: {
+    // (A group photo put up after they left is not shown to them: the default cover instead.)
+    group: coverSeenBy({
       ...group,
       expenses: scoped.expenses,
       payments: scoped.payments,
       events: opts.events === false ? [] : scoped.events.slice(0, 500).map((ev) => (ev.createdAt.getTime() > cut.leftAt.getTime() && !isAboutMeLeaving(ev, me.id) ? { ...ev, details: ownShareDetails(ev.details, me.name) } : ev)),
-    },
+    }, cut.leftAt),
     expenses: active(scoped.expenses),
     payments: active(scoped.payments),
     net: mine.net,
@@ -144,10 +154,14 @@ export async function loadMyGroups(memberships: Record<string, string>, opts: { 
         const touched = await touchedAfter(g.id, myId, cut.leftAt);
         const upTo = cut.leftAt.getTime();
         const myExpense = (e: (typeof g.expenses)[number]) => e.paidById === myId || e.shares.some((s) => s.memberId === myId) || payerIds(e).includes(myId);
-        rows = {
-          expenses: hideLaterNotes(g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)), cut.leftAt),
+        const visible = {
+          expenses: g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)),
           payments: g.payments.filter((p) => p.createdAt.getTime() <= upTo || p.fromId === myId || p.toId === myId || touched.paymentIds.includes(p.id)),
         };
+        // As they were on the day they left (MA-3): one query for the group's later changes to rows.
+        const rowEvents = await laterRowEvents(g.id, cut.leftAt);
+        const asOf = asOfCut(visible, rowEvents.events, myId, cut.leftAt, { complete: rowEvents.complete });
+        rows = { expenses: hideLaterNotes(asOf.expenses, cut.leftAt), payments: asOf.payments };
       }
       const expenses = cut ? active(rows.expenses) : full;
       const payments = cut ? active(rows.payments) : fullPayments;
@@ -158,7 +172,7 @@ export async function loadMyGroups(memberships: Record<string, string>, opts: { 
       const shown = cut ? scopeBalances(net, transfers, myId) : { net, transfers };
       // How many people to say are in it: for a leaver, as it was on the day they left.
       const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
-      return { group: g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
+      return { group: cut ? coverSeenBy(g, cut.leftAt) : g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
     }),
   );
 }
@@ -191,10 +205,14 @@ export async function loadMyGroupsLean(memberships: Record<string, string>) {
         const touched = await touchedAfter(g.id, myId, cut.leftAt);
         const upTo = cut.leftAt.getTime();
         const myExpense = (e: (typeof g.expenses)[number]) => e.paidById === myId || e.shares.some((s) => s.memberId === myId) || payerIds(e).includes(myId);
-        rows = {
-          expenses: hideLaterNotes(g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)), cut.leftAt),
+        const visible = {
+          expenses: g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)),
           payments: g.payments.filter((p) => p.createdAt.getTime() <= upTo || p.fromId === myId || p.toId === myId || touched.paymentIds.includes(p.id)),
         };
+        // As they were on the day they left (MA-3): one query for the group's later changes to rows.
+        const rowEvents = await laterRowEvents(g.id, cut.leftAt);
+        const asOf = asOfCut(visible, rowEvents.events, myId, cut.leftAt, { complete: rowEvents.complete });
+        rows = { expenses: hideLaterNotes(asOf.expenses, cut.leftAt), payments: asOf.payments };
       }
       const expenses = cut ? active(rows.expenses) : full;
       const payments = cut ? active(rows.payments) : fullPayments;
@@ -204,7 +222,7 @@ export async function loadMyGroupsLean(memberships: Record<string, string>) {
       const spent = expenses.reduce((s, e) => s + spentAmount(e), 0);
       const shown = cut ? scopeBalances(net, transfers, myId) : { net, transfers };
       const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
-      return { group: g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
+      return { group: cut ? coverSeenBy(g, cut.leftAt) : g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
     }),
   );
 }
@@ -259,8 +277,14 @@ export async function loadMyGroupsLight(memberships: Record<string, string>, opt
     Promise.all(
       leavers.map(async (g) => {
         const scope = (await readableWhere(g.id, g.members.find((m) => m.id === memberships[g.id])!))!;
-        const stats = await visibleStats({ groupId: g.id, AND: [scope.expenses] }, { groupId: g.id, AND: [scope.payments] });
-        return { id: g.id, scope, stats: stats.get(g.id) };
+        // Rows that were changed or deleted after they left count as they stood that day (MA-3). (Read alongside the totals; the
+        // as-of work is shared with Home's Latest list within the request.)
+        const [stats, fix] = await Promise.all([
+          visibleStats({ groupId: g.id, AND: [scope.expenses] }, { groupId: g.id, AND: [scope.payments] }),
+          asOfFixes(g.id, g.members.find((m) => m.id === memberships[g.id])!),
+        ]);
+        const base = stats.get(g.id) ?? NO_STATS;
+        return { id: g.id, scope, stats: { ...base, spent: base.spent + fix.spentDelta, expenseCount: base.expenseCount + fix.countDelta } };
       }),
     ),
   ]);
@@ -274,7 +298,7 @@ export async function loadMyGroupsLight(memberships: Record<string, string>, opt
     const shown = cut ? scopeBalances(b.net, b.transfers, myId) : { net: b.net, transfers: b.transfers };
     const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
     return {
-      group: g,
+      group: cut ? coverSeenBy(g, cut.leftAt) : g,
       myId,
       net: shown.net,
       transfers: shown.transfers,
@@ -372,7 +396,7 @@ export async function loadNotifications(memberships: Record<string, string>, lim
       actorName: actors.find((a) => a.id === e.actorId)?.name ?? "Someone",
       groupName: isDirect(me.group) ? "Direct" : me.group.name,
       myName: me.name,
-      groupCover: coverFor(isDirect(me.group) ? { ...me.group, cover: "plain", coverAt: null } : me.group),
+      groupCover: coverFor(isDirect(me.group) ? { ...me.group, cover: "plain", coverAt: null } : me.group, false, cut?.leftAt),
       direct: isDirect(me.group),
       unread: e.createdAt > seen,
     };
@@ -431,14 +455,14 @@ export async function loadSwitchList(memberships: Record<string, string>, curren
   if (ids.length === 0) return [];
   const groups = await db.group.findMany({
     where: { id: { in: ids }, closed: false, deletedAt: null, ...NOT_DIRECT, members: { some: { id: { in: Object.values(memberships) } } } },
-    select: { id: true, name: true, createdAt: true, type: true, cover: true, coverAt: true },
+    select: { id: true, name: true, createdAt: true, type: true, cover: true, coverAt: true, members: { where: { id: { in: Object.values(memberships) } }, select: { leftAt: true, removedAt: true } } },
   });
   const latest = await db.groupEvent.groupBy({ by: ["groupId"], where: { groupId: { in: groups.map((g) => g.id) } }, _max: { createdAt: true } });
   const last = new Map(latest.map((l) => [l.groupId, l._max.createdAt?.getTime() ?? 0]));
   return groups
     .sort((a, b) => (last.get(b.id) ?? b.createdAt.getTime()) - (last.get(a.id) ?? a.createdAt.getTime()))
     .slice(0, 5)
-    .map((g) => ({ id: g.id, name: g.name, pic: coverFor(g) }));
+    .map((g) => ({ id: g.id, name: g.name, pic: coverFor(g, false, g.members[0] ? leaverCut(g.members[0])?.leftAt : null) }));
 }
 
 // The number on the Alerts bell: group changes plus personal notes (Collect).

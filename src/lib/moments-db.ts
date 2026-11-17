@@ -61,7 +61,7 @@ async function cards(v: MomentViewer, rows: MomentRow[], g: GroupDays): Promise<
   if (!seen.length) return [];
   const [members, reacts] = await Promise.all([
     db.member.findMany({ where: { groupId: v.groupId }, select: { id: true, name: true, accountId: true } }),
-    db.momentReaction.findMany({ where: { momentId: { in: seen.map((r) => r.id) } }, select: { momentId: true, memberId: true, emoji: true } }),
+    db.momentReaction.findMany({ where: { momentId: { in: seen.map((r) => r.id) }, ...(v.leftAt ? { createdAt: { lte: v.leftAt } } : {}) }, select: { momentId: true, memberId: true, emoji: true } }),
   ]);
   const byId = new Map(members.map((m) => [m.id, m]));
   // Reactions from people who are blocked either way are left out of the counts.

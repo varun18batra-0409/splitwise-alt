@@ -109,7 +109,9 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
 }
 
 // Join as yourself (your verified account), or come back after leaving on your own.
-export async function joinNew(code: string, account: JoinAccount, typedName: string, opts: { skipRemovalMark?: boolean } = {}): Promise<JoinOk | JoinFail> {
+// (`opts.afterRead` is for tests only, like the other money and membership writes: it runs between the read and the write. No caller
+// passes it from a request.)
+export async function joinNew(code: string, account: JoinAccount, typedName: string, opts: { skipRemovalMark?: boolean; afterRead?: () => Promise<void> } = {}): Promise<JoinOk | JoinFail> {
   const group = await loadByCode(code);
   if (!group) return { ok: false, reason: "gone" };
   const gone = removedRow(group, account.id);
@@ -125,7 +127,23 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
       return { ok: false, reason: "moved_out", groupId: group.id, memberId: mine.id };
     }
     // Only if they are still not removed (a removal landing a moment ago must not be undone by this write).
-    if (mine.leftAt && (await db.member.updateMany({ where: { id: mine.id, removedAt: null }, data: { leftAt: null } })).count !== 1) return { ok: false, reason: "retry" };
+    // Coming back through the link is a line in the history like every other way back (people.ts, invitations.ts): it says when the
+    // stay began again, and its undo puts them back as they were. Clearing leftAt and writing that line are ONE write: if the line
+    // fails, leftAt is not cleared (a stay with no line would otherwise be counted as starting later than it did).
+    if (mine.leftAt) {
+      const leftAt = mine.leftAt;
+      await opts.afterRead?.();
+      // The write only matches the row as it was read (still left on that same day): a second tap, or another phone, finds it already back
+      // and writes no second line. Back already (and not removed) is the answer they wanted; anything else is "try again".
+      const back = await db.$transaction(async (tx) => {
+        if ((await tx.member.updateMany({ where: { id: mine.id, removedAt: null, leftAt }, data: { leftAt: null } })).count !== 1) {
+          return (await tx.member.count({ where: { id: mine.id, removedAt: null, leftAt: null } })) === 1;
+        }
+        await logEvent(tx, { groupId: group.id, actorId: mine.id, kind: "member_rejoined", text: "rejoined the group", undo: { type: "member_set", memberId: mine.id, data: { leftAt: leftAt.toISOString() } } });
+        return true;
+      });
+      if (!back) return { ok: false, reason: "retry" };
+    }
     await markSeen(mine.id);
     return { ok: true, memberId: mine.id };
   }

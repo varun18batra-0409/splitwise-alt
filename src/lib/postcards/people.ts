@@ -2,20 +2,30 @@ import { db } from "@/lib/db";
 import { NOT_DIRECT } from "@/lib/direct"; // a pair of two people is not "sharing a group"
 import { JOINED } from "@/lib/membership";
 import { blockedEitherWay } from "@/lib/blocks";
+import { membershipSpan, overlapped } from "@/lib/left-view";
+import { memberHistory } from "@/lib/left-view-db";
 
 // The same rule as passports: someone the admin removed stops counting (both ways); someone who left on their own still counts.
 const COUNTS = { ...JOINED, removedAt: null };
 
 // Who you can send a postcard to: everyone who has a Loopin account and has been in a group with you
-// (open or closed, card nights included; even if one of you left on your own, but not if the admin removed either of you). Never a name that was only typed
+// (open or closed, card nights included; even if one of you left on your own, but not if the admin removed either of you; and only
+// if you were in the group at the same time: someone who joined after you left, or left before you joined, never shared it with you). Never a name that was only typed
 // into a group, and never a deleted group. Both of you must have really joined: someone added
 // straight in who hasn't opened the group yet isn't offered (and can't be sent to) until they do. Grouped by group, most recent first; each person once overall.
 export type PostcardGroup = { id: string; name: string; type: string; people: { id: string; name: string }[] };
 
 export async function postcardPeople(accountId: string): Promise<PostcardGroup[]> {
-  const mine = await db.member.findMany({
+  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true } as const;
+  const mineRows = await db.member.findMany({
     where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } },
-    select: { group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...COUNTS }, select: { accountId: true, name: true } } } } },
+    select: { id: true, ...SPAN, group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...COUNTS }, select: { id: true, accountId: true, name: true, ...SPAN } } } } },
+  });
+  // Only people who were in the group at the same time as you (someone who left before you joined, or joined after you left, isn't offered).
+  const history = await memberHistory(mineRows.map((m) => m.group.id)); // a gap between leaving and coming back is not time together
+  const mine = mineRows.map((m) => {
+    const span = membershipSpan(m, history.get(m.id));
+    return { group: { ...m.group, members: m.group.members.filter((o) => overlapped(span, membershipSpan(o, history.get(o.id)))) } };
   });
   const groups = mine.map((m) => m.group).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   // Someone blocked (either way round) is never offered, and can't be sent to.

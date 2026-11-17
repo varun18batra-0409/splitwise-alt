@@ -1,4 +1,5 @@
 import { neutralGameText } from "@/lib/game-words";
+import { peopleShown } from "@/lib/left-view";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getAccount, getMemberships, privatePath } from "@/lib/identity";
@@ -145,8 +146,8 @@ export default async function GroupPage({
     monthTab ? db.listItem.findMany({ where: { groupId: group.id, expenseId: "", boughtAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, text: true } }) : Promise.resolve([] as { id: string; text: string }[]),
   ]);
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
-  // Reactions on expenses, for the Activity list.
-  const reactions = tab === "activity" && group.expenses.length ? await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) } }, select: { expenseId: true, memberId: true, emoji: true } }) : [];
+  // Reactions on expenses, for the Activity list (someone who left sees only those made by their last day).
+  const reactions = tab === "activity" && group.expenses.length ? await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) }, ...(leaver ? { createdAt: { lte: leaver.leftAt } } : {}) }, select: { expenseId: true, memberId: true, emoji: true } }) : [];
   // Results of finished games: they change through the game (other card-game rows, e.g. imported ones, are ordinary).
   // Loaded whatever the group type now is: a card-night group can later become a trip and keep its games.
   const gameResultIds = tab === "activity" ? (await db.potGame.findMany({ where: { groupId: group.id, resultId: { not: "" } }, select: { resultId: true } })).map((g) => g.resultId) : [];
@@ -197,7 +198,7 @@ export default async function GroupPage({
       ? await (async () => {
           const homeCountry = (account?.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
           const [cards, postcards] = await Promise.all([momentViewer ? listMoments(momentViewer) : Promise.resolve([]), account ? loadGroupPostcards(account.id, group.id) : Promise.resolve([])]);
-          const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: group.members.length }, homeCountry, today, leaver?.leftAt ?? null, passportZone(account)) : null;
+          const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: leaver ? peopleShown(group.members, myId, leaver.leftAt).length : group.members.length }, homeCountry, today, leaver?.leftAt ?? null, passportZone(account)) : null;
           return { cards, postcards, stamp };
         })()
       : null;

@@ -271,14 +271,23 @@ describe("group picture", () => {
     expect((await getGroupPhoto(w.id)).status).toBe(404);
   });
 
-  it("people who left or were removed still see the group picture, even one uploaded after they left (the rule as built)", async () => {
+  // Safety part C (SA-4, decision D-5): someone who left or was removed sees the group picture as it was the day they went, not one put up later.
+  it("people who left or were removed don't see a group picture uploaded after they left, but still see one from before", async () => {
     const w = await world("group-leaver");
     await as(P.ann);
     await putGroupPhoto(w.id, jpeg(5)); // uploaded now, after Lou and Rex left 3 days ago
     for (const who of [P.lou, P.rex]) {
       await as(who);
+      expect((await getGroupPhoto(w.id)).status, `${who.name} after`).toBe(404);
+    }
+    await as(P.bea); // someone still in the group sees it
+    expect((await getGroupPhoto(w.id)).status).toBe(200);
+    // The same picture, put up 5 days ago (before they left 3 days ago): theirs to see.
+    await db.groupPhoto.update({ where: { groupId: w.id }, data: { updatedAt: ago(5) } });
+    for (const who of [P.lou, P.rex]) {
+      await as(who);
       const res = await getGroupPhoto(w.id);
-      expect(res.status, who.name).toBe(200);
+      expect(res.status, `${who.name} before`).toBe(200);
       expect(same(await body(res), jpeg(5))).toBe(true);
     }
   });

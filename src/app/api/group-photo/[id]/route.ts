@@ -2,8 +2,9 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
-import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
+import { MAX_PHOTO_BYTES, photoAfterCut, photoType } from "@/lib/covers";
 import { cleanPhoto } from "@/lib/strip-meta";
+import { tagMatches } from "@/lib/http-cache";
 import { flushPhotoDeletes, readPhoto, removePhotos, replaceGroupPhoto, storePhoto } from "@/lib/photo-store";
 
 // A group's own photo: shown only to people in the group; anyone in it can
@@ -16,20 +17,32 @@ async function memberOf(groupId: string) {
   return db.member.findFirst({ where: { id: myId, groupId, leftAt: null, group: { deletedAt: null } }, select: { id: true } });
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // Who's asking comes first: nothing is read from storage for anyone else.
-  // Someone who left still sees the group's picture on its (read-only) pages.
+  // Someone who left still sees the group's picture on its (read-only) pages, as it was on the day they left (below).
   const myId = await getMyMemberId(id);
-  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: id, group: { deletedAt: null } }, select: { id: true } }) : null;
+  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: id, group: { deletedAt: null } }, select: { id: true, leftAt: true, removedAt: true } }) : null;
   const notFound = () => new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   if (!me) return notFound();
-  const photo = await db.groupPhoto.findUnique({ where: { groupId: id } });
+  // Only the photo's version first (no picture bytes).
+  const head = await db.groupPhoto.findUnique({ where: { groupId: id }, select: { updatedAt: true, type: true } });
+  if (!head) return notFound();
+  // A photo put up after they left (or were removed) is not theirs to see (the pages show the default cover instead, see coverSeenBy).
+  if (photoAfterCut(head.updatedAt, me)) return notFound();
+  const etag = `"g-${id}-${head.updatedAt.getTime()}"`;
+  // Access is settled above; only now may "not changed" be said (and still nothing is read from storage).
+  if (tagMatches(req.headers.get("if-none-match"), etag)) {
+    return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": "private, no-cache", Vary: "Cookie", "X-Content-Type-Options": "nosniff" } });
+  }
+  // The bytes are read for exactly the version just checked (one row: same time, same picture). If the photo was replaced in the
+  // meantime this finds nothing, and the answer is a calm 404 (the page asks again); a newer photo is never served under an older check.
+  const photo = await db.groupPhoto.findFirst({ where: { groupId: id, updatedAt: head.updatedAt } });
   const bytes = photo ? await readPhoto(photo) : null;
   if (!photo || !bytes) return notFound();
-  // The address carries the photo's version (?v=…), so the phone can keep it for good.
+  // Kept on the phone only as "ask first": the check above runs every time, so someone who is removed stops getting it.
   return new Response(new Uint8Array(bytes), {
-    headers: { "Content-Type": photo.type, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },
+    headers: { "Content-Type": photo.type, "Cache-Control": "private, no-cache", ETag: `"g-${id}-${photo.updatedAt.getTime()}"`, Vary: "Cookie", "X-Content-Type-Options": "nosniff" },
   });
 }
 

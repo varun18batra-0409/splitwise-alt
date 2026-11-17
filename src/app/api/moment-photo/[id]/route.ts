@@ -5,6 +5,7 @@ import { photoType } from "@/lib/covers";
 import { readPhoto } from "@/lib/photo-store";
 import { canSeeMoment, loadMomentViewer, notFoundResponse } from "@/lib/moments-access";
 import { loadMomentRow } from "@/lib/moments-db";
+import { tagMatches } from "@/lib/http-cache";
 
 // A moment's photo (?s=t the small copy, ?s=f the full one). Shown only to people who may see that moment (canSeeMoment), and to the
 // operator for a moment with an open report. Every refusal is the same 404, and nothing is read from storage before access is settled.
@@ -12,15 +13,6 @@ import { loadMomentRow } from "@/lib/moments-db";
 // Kept on the phone only as "ask first" (no-cache) with an ETag: every time, the access check runs first, and only then can the answer
 // be "304 not changed" (so someone removed from the group stops getting the photo, instead of it sitting in their cache for a month).
 export const dynamic = "force-dynamic";
-
-// Does an If-None-Match header name this tag? (Several tags, "*", and the weak "W/" prefix are all allowed by the web's rules.)
-function tagMatches(header: string | null, tag: string): boolean {
-  if (!header) return false;
-  return header.split(",").some((t) => {
-    const v = t.trim().replace(/^W\//, "");
-    return v === "*" || v === tag;
-  });
-}
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

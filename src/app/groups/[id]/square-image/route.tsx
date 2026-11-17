@@ -19,10 +19,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const data = myId ? await loadGroup(id, { events: false, viewer: myId }) : null;
   if (!data || !data.group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const { group, expenses, payments, transfers } = data;
+  // Someone who left sees only their own part of the money, so they can't say "nobody owes anybody" for the group.
+  if (data.leaver) return new Response("Only people still in the group can share this.", { status: 409, headers: { "Cache-Control": "private, no-store" } });
   // The picture says "Nobody owes anybody": only made when that is true (settled, with at least one expense).
   if (!isSquare({ transfers, expenses })) return new Response("This group isn’t all square yet.", { status: 409, headers: { "Cache-Control": "private, no-store" } });
   const words = squareWords({ leaver: Boolean(data.leaver) });
-  const people = data.people.filter((m) => !m.leftAt); // the scoped list (as Wrapped does), so a leaver is not shown people from after they left
+  const people = data.people.filter((m) => m.id === myId || !m.leftAt); // (a leaver counts themselves) the scoped list (as Wrapped does), so a leaver is not shown people from after they left
   const n = squareNumbers({ expenses, payments, people: people.length, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const origin = new URL(req.url).origin;
   const [photo, fonts] = await Promise.all([photoData(group, origin), loadOgFonts(origin)]);

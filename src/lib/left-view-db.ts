@@ -1,10 +1,19 @@
+import { cache } from "react";
 import { db } from "./db";
-import { leaverCut, leaverWhere } from "./left-view";
+import { asOfCut, leaverCut, leaverWhere, memberOfChange, type MemberChange } from "./left-view";
+import { spentAmount } from "./payers";
+import type { Prisma } from "@prisma/client";
+
+type ExpenseNow = Prisma.ExpenseGetPayload<{ include: { shares: true } }>;
+type PaymentNow = Prisma.PaymentGetPayload<object>;
 
 // Database side of left-view.ts: what a person who left may still read.
 
 // Expenses and payments that changes after `cut` touched this person in.
-export async function touchedAfter(groupId: string, me: string, cut: Date): Promise<{ expenseIds: string[]; paymentIds: string[] }> {
+// (Read once per group per request: Home asks for it for the totals and again for Latest. Callers only read the lists.)
+export const touchedAfter = (groupId: string, me: string, cut: Date) => touchedAfterOnce(groupId, me, cut.getTime());
+const touchedAfterOnce = cache(async (groupId: string, me: string, cutMs: number): Promise<{ expenseIds: string[]; paymentIds: string[] }> => {
+  const cut = new Date(cutMs);
   const evs = await db.groupEvent.findMany({
     where: { groupId, createdAt: { gt: cut }, touches: { contains: me } },
     select: { expenseId: true, paymentId: true, touches: true },
@@ -14,7 +23,7 @@ export async function touchedAfter(groupId: string, me: string, cut: Date): Prom
     expenseIds: [...new Set(mine.map((e) => e.expenseId).filter((x): x is string => Boolean(x)))],
     paymentIds: [...new Set(mine.map((e) => e.paymentId).filter((x): x is string => Boolean(x)))],
   };
-}
+});
 
 // Prisma filters for a group's expenses and payments as this member may read them
 // (null = no limit: they're still in the group).
@@ -50,4 +59,170 @@ export async function expenseAccess(groupId: string, memberId: string, expenseId
   const scope = m ? await readableWhere(groupId, m) : null;
   if (!scope) return "member";
   return (await db.expense.count({ where: { id: expenseId, groupId, AND: [scope.expenses] } })) > 0 ? "visible" : "hidden";
+}
+
+// THE list of changes after the cut-off that decides how a row looked on the day someone left (MA-3). Every screen that shows a leaver's
+// rows (the group page, Home, Search, the lighter Home loader, the export, "my data") reads it through here, so they all agree.
+// It holds every change about an expense or a payment after that day, plus "Settle everything" lines, payments taken off or put back
+// and currency changes, oldest first. Only the columns the decision needs, and the saved undo text only for the lines that use it
+// (edits, payment lines, "Settle everything"): the others are read without it. The creation lines of expenses and payments
+// ("added X", "recorded a payment") are left out: they are about rows newer than the cut-off, which the view never rolls back.
+// It is read once per request per group (React's cache), however many loaders on one page ask. `complete` is false only past
+// ROW_EVENT_CAP lines (the same number everywhere); asOfCut then shows only the rows that have the leaver in them.
+export const ROW_EVENT_CAP = 20_000;
+const WITH_UNDO = ["expense_edited", "payment_deleted", "payment_restored", "group_reopened", "group_settled_closed"];
+const fetchRowEvents = cache(async (groupId: string, cutMs: number) => {
+  const cut = new Date(cutMs);
+  const [withUndo, plain, currency] = await Promise.all([
+    db.groupEvent.findMany({
+      where: { groupId, createdAt: { gt: cut }, kind: { in: WITH_UNDO } },
+      select: { id: true, createdAt: true, kind: true, touches: true, expenseId: true, paymentId: true, undo: true, text: true, details: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: ROW_EVENT_CAP + 1,
+    }),
+    db.groupEvent.findMany({
+      where: { groupId, createdAt: { gt: cut }, kind: { notIn: [...WITH_UNDO, "currency_changed", "expense_added", "payment_recorded"] }, OR: [{ expenseId: { not: null } }, { paymentId: { not: null } }] },
+      select: { id: true, createdAt: true, kind: true, touches: true, expenseId: true, paymentId: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: ROW_EVENT_CAP + 1,
+    }),
+    // (Its undo text holds every amount in the group, and isn't needed: the rate is in its history lines.)
+    db.groupEvent.findMany({
+      where: { groupId, createdAt: { gt: cut }, kind: "currency_changed" },
+      select: { id: true, createdAt: true, kind: true, touches: true, expenseId: true, paymentId: true, details: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
+  ]);
+  const complete = withUndo.length <= ROW_EVENT_CAP && plain.length <= ROW_EVENT_CAP;
+  const events = [
+    ...withUndo.slice(0, ROW_EVENT_CAP),
+    ...plain.slice(0, ROW_EVENT_CAP).map((e) => ({ ...e, undo: null as string | null, text: null as string | null, details: null as string | null })),
+    ...currency.map((c) => ({ ...c, undo: null as string | null, text: null as string | null })),
+  ];
+  return { events, complete };
+});
+export function laterRowEvents(groupId: string, cut: Date) {
+  return fetchRowEvents(groupId, cut.getTime());
+}
+
+// When people in these groups went out or came back (the group's "left" / "came back" lines), by person: what membershipSpan needs to
+// tell a person who left and was brought back from one who was there all along. Lines that were undone are skipped (the undo is its own
+// line, and a leave that was taken back never happened).
+export async function memberHistory(groupIds: string[]): Promise<Map<string, MemberChange[]>> {
+  const out = new Map<string, MemberChange[]>();
+  if (!groupIds.length) return out;
+  const rows = await db.groupEvent.findMany({
+    where: { groupId: { in: groupIds }, kind: { in: ["member_left", "member_rejoined"] }, undoneAt: null },
+    select: { kind: true, createdAt: true, undo: true, details: true },
+    orderBy: { createdAt: "asc" },
+    take: 50_000,
+  });
+  for (const r of rows) {
+    const id = memberOfChange(r.undo, r.details);
+    if (id) (out.get(id) ?? out.set(id, []).get(id)!).push({ kind: r.kind, createdAt: r.createdAt });
+  }
+  // Someone in the group now whose last line says they left, with no line saying they came back (a way back from before those lines
+  // were written): the first line they wrote themselves after leaving shows when they were really back (membershipPeriods uses it).
+  const stuck = [...out].filter(([, lines]) => lines[lines.length - 1]?.kind === "member_left");
+  if (stuck.length) {
+    const rows = await db.member.findMany({ where: { id: { in: stuck.map(([id]) => id) }, groupId: { in: groupIds }, leftAt: null, removedAt: null }, select: { id: true, groupId: true } });
+    await Promise.all(
+      rows.map(async (m) => {
+        const left = out.get(m.id)![out.get(m.id)!.length - 1].createdAt;
+        // Only the first such line is read (take 1, oldest first): never every line since they left. Served by the (groupId, createdAt) index.
+        const [first] = await db.groupEvent.findMany({
+          where: ownLineWhere(m.groupId, m.id, left),
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: { createdAt: true },
+        });
+        if (first) out.get(m.id)!.push({ kind: "own_line", createdAt: first.createdAt });
+      }),
+    );
+  }
+  return out;
+}
+
+// The lines that prove a person was back in the group: only kinds that a signed-in, active member writes, acting in the group.
+// Checked path by path (each refuses someone who has left, by guardGroup's actor check, hasLeft, or a "still in" member lookup):
+//  expense_added / expense_edited   save-expense.ts, undo.ts, moving-db.ts (the actor is an active member)
+//  payment_recorded                 pay-record.ts, settle-all.ts, cross-settle-db.ts, moving-db.ts (guardGroup with the actor)
+//  pot_*                            pot-db.ts (groupFor wants an active member)
+//  countdown_shared                 countdown-actions.ts (members with leftAt: null)
+//  bill_added                       home/bill-setup.ts (the actor must be active)
+//  split_changed, trip_dates_set    group-setup.ts (hasLeft refused)
+// Left out on purpose: "Got it" (payment_confirmed: a leaver may answer a payment to them), member_* and members_* lines, rename and
+// currency lines, payment_note_closed (written by a script, or by the move-out), bill_changed (many writers), deletes and restores.
+export const OWN_LINE_KINDS = ["expense_added", "expense_edited", "payment_recorded", "pot_started", "pot_finished", "pot_reopened", "pot_deleted", "countdown_shared", "bill_added", "split_changed", "trip_dates_set"];
+// Lines of those kinds that are still filed under a person without them acting: the reminder link (no sign-in, the payer need not be
+// active; pay-link.ts) and the old-note script (convert-claims.ts) write payment_recorded for the payer, and a change of month-end
+// payer (bills-db.ts) writes expense_edited for the payer. Their texts are fixed there; a line that merely looks like them is left
+// out too, which is the safe side (a later line starts the stay, or "now").
+export const NOT_OWN_TEXT = ["(from the reminder link)", "(from an earlier", " now paid "];
+export const ownLineWhere = (groupId: string, actorId: string, after: Date) => ({
+  groupId,
+  actorId,
+  createdAt: { gt: after },
+  kind: { in: OWN_LINE_KINDS },
+  AND: NOT_OWN_TEXT.map((t) => ({ NOT: { text: { contains: t } } })),
+});
+
+// The payment ids a "Mark all paid" / "Settle everything" line (and its Undo or Redo) is about, from its saved undo text.
+function paymentIdsInUndo(undo: string | null): string[] {
+  try {
+    const p = JSON.parse(undo ?? "");
+    return p && (p.type === "payments_set" || p.type === "settle_all") && Array.isArray(p.paymentIds) ? p.paymentIds.filter((x: unknown): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+// The rows a leaver may read that CHANGED after the day they left (edited, deleted or brought back), each as it was on that day
+// (null = not shown: its earlier state isn't known). Rows that never changed are not listed. Payments the same (deleted / brought back).
+// (Worked out once per group per request: Home's totals and its Latest list both need it. Callers only read the result.)
+export const asOfChanged = (groupId: string, member: { id: string; leftAt: Date | null; removedAt?: Date | null }) =>
+  asOfChangedOnce(groupId, member.id, member.leftAt?.getTime() ?? 0, member.removedAt?.getTime() ?? 0);
+const asOfChangedOnce = cache(async (groupId: string, memberId: string, leftMs: number, removedMs: number) => {
+  const member = { id: memberId, leftAt: leftMs ? new Date(leftMs) : null, removedAt: removedMs ? new Date(removedMs) : null };
+  const cut = leaverCut(member);
+  const scope = await readableWhere(groupId, member);
+  if (!cut || !scope) return { expenses: [] as { id: string; now: ExpenseNow; shown: ExpenseNow | null }[], payments: [] as { id: string; now: PaymentNow; shown: PaymentNow | null }[] };
+  const { events: later, complete } = await laterRowEvents(groupId, cut.leftAt);
+  const eids = [...new Set(later.map((e) => e.expenseId).filter((x): x is string => Boolean(x)))];
+  const pids = [...new Set(later.flatMap((e) => (e.paymentId ? [e.paymentId] : [])).concat(later.flatMap((e) => paymentIdsInUndo(e.undo))))];
+  const [rows, pays] = await Promise.all([
+    db.expense.findMany({
+      // (Past the cap nothing is known about any of them, and asOfCut shows none that doesn't have the leaver in it: so all are read.)
+      where: { groupId, AND: [scope.expenses, { createdAt: { lte: cut.leftAt } }, ...(complete ? [{ OR: [{ id: { in: eids } }, { editedAt: { gt: cut.leftAt } }, { deletedAt: { gt: cut.leftAt } }] }] : [])] },
+      include: { shares: true },
+    }),
+    db.payment.findMany({ where: { groupId, AND: [scope.payments, { createdAt: { lte: cut.leftAt } }, ...(complete ? [{ OR: [{ id: { in: pids } }, { deletedAt: { gt: cut.leftAt } }] }] : [])] } }),
+  ]);
+  const shown = asOfCut({ expenses: rows, payments: pays }, later, member.id, cut.leftAt, { complete });
+  const eShown = new Map(shown.expenses.map((e) => [e.id, e]));
+  const pShown = new Map(shown.payments.map((p) => [p.id, p]));
+  return {
+    expenses: rows.map((e) => ({ id: e.id, now: e, shown: eShown.get(e.id) ?? null })),
+    payments: pays.map((p) => ({ id: p.id, now: p, shown: pShown.get(p.id) ?? null })),
+  };
+});
+
+// For the lightweight Home loader, which never loads the rows: how far "spent" and the expense count move when the rows a leaver
+// may read are shown as they were on the day they left. The deltas are added to the database totals (which count today's state);
+// balances are never touched.
+export async function asOfFixes(groupId: string, member: { id: string; leftAt: Date | null; removedAt?: Date | null }): Promise<{ spentDelta: number; countDelta: number }> {
+  const { expenses } = await asOfChanged(groupId, member);
+  let spentDelta = 0;
+  let countDelta = 0;
+  for (const { now, shown } of expenses) {
+    if (!now.deletedAt) {
+      spentDelta -= spentAmount(now);
+      countDelta -= 1;
+    }
+    if (shown && !shown.deletedAt) {
+      spentDelta += spentAmount(shown);
+      countDelta += 1;
+    }
+  }
+  return { spentDelta, countDelta };
 }

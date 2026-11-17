@@ -44,13 +44,14 @@ export async function reactMomentAction(f: FormData) {
   try {
     const had = await db.momentReaction.findUnique({ where: key });
     if (had?.emoji === emoji) await db.momentReaction.deleteMany({ where: { momentId: m.id, memberId: viewer.memberId } });
-    else await db.momentReaction.upsert({ where: key, create: { momentId: m.id, memberId: viewer.memberId, emoji }, update: { emoji } });
+    // A changed emoji is a new reaction as of now: it keeps no old time, so someone who left before the change never sees it.
+    else await db.momentReaction.upsert({ where: key, create: { momentId: m.id, memberId: viewer.memberId, emoji }, update: { emoji, createdAt: new Date() } });
   } catch (err) {
     // A double tap: the other tap saved this person's reaction a moment ago (one per person per moment), so no error page.
     // Retry once as a change to the emoji chosen here, so when the two taps were different emojis the last choice wins.
     // Anything else is a real problem.
     if ((err as { code?: string })?.code !== "P2002") throw err;
-    await db.momentReaction.updateMany({ where: { momentId: m.id, memberId: viewer.memberId }, data: { emoji } });
+    await db.momentReaction.updateMany({ where: { momentId: m.id, memberId: viewer.memberId }, data: { emoji, createdAt: new Date() } });
   }
   redirect(back); // outside the try: a redirect is thrown and must not be swallowed
 }

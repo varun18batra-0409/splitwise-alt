@@ -48,7 +48,7 @@ export async function markAllPaidAction(f: FormData) {
   const groupId = field(f, "groupId");
   const myId = await getMyMemberId(groupId);
   if (!myId) redirect("/private");
-  if (!(await payChangeOk(myId))) redirect(`/groups/${groupId}/settle?${new URLSearchParams({ error: PAY_CHANGE_LIMIT_TEXT })}`);
+  if (!(await payChangeOk(myId))) redirect(await flashTo(["groups", groupId, "settle"], { error: PAY_CHANGE_LIMIT_TEXT }));
   const { loadGroup } = await import("@/lib/group-data");
   const { applySettleMin } = await import("@/lib/settle");
   const { markAllPaid, planKey } = await import("@/lib/settle-all");
