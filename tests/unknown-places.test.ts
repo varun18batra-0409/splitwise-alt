@@ -35,16 +35,16 @@ describe("placesToRecord (a place Loopin has no photo for)", () => {
     expect(placesToRecord("goa", "")).toEqual([]);
     expect(placesToRecord("Tokyo", "JP")).toEqual([]);
     expect(placesToRecord("Bangkok, Phuket", "")).toEqual([]);
-    expect(placesToRecord("Lisbon", "FR")).toEqual([]); // the country has a photo
+    expect(placesToRecord("Ljubljana", "FR")).toEqual([]); // the country has a photo (Lisbon and Porto now have photos too, from the top-destinations work)
   });
   it("records an unknown place, and its country", () => {
-    expect(placesToRecord("lisbon", "")).toEqual(["lisbon"]);
-    expect(placesToRecord("Lisbon", "PT")).toEqual(["lisbon", "portugal"]);
-    expect(placesToRecord("", "PT")).toEqual(["portugal"]);
+    expect(placesToRecord("ljubljana", "")).toEqual(["ljubljana"]);
+    expect(placesToRecord("Ljubljana", "SI")).toEqual(["ljubljana", "slovenia"]);
+    expect(placesToRecord("", "SI")).toEqual(["slovenia"]);
   });
   it("splits a list of places and skips the pieces that are not places", () => {
-    expect(placesToRecord("Lisbon, Porto & Faro", "")).toEqual(["lisbon", "porto", "faro"]);
-    expect(placesToRecord("Lisbon, Rohan's farmhouse", "")).toEqual(["lisbon"]);
+    expect(placesToRecord("Ljubljana, Tallinn & Riga", "")).toEqual(["ljubljana", "tallinn", "riga"]);
+    expect(placesToRecord("Ljubljana, Rohan's farmhouse", "")).toEqual(["ljubljana"]);
   });
   it("records nothing for empty input", () => {
     expect(placesToRecord("", "")).toEqual([]);
@@ -87,8 +87,8 @@ describe("noteTripPlace", () => {
   });
   it("hands only the place and a hash to the store; a known place is not stored", async () => {
     const a = fake();
-    await noteTripPlace("group-xyz789", "Lisbon", "", { store: a.store, secret: "s" });
-    expect(a.calls).toEqual([["lisbon", placeTag("s", "group-xyz789", "lisbon")]]);
+    await noteTripPlace("group-xyz789", "Ljubljana", "", { store: a.store, secret: "s" });
+    expect(a.calls).toEqual([["ljubljana", placeTag("s", "group-xyz789", "ljubljana")]]);
     expect(JSON.stringify(a.calls)).not.toContain("xyz789");
     const b = fake();
     await noteTripPlace("g", "goa", "", { store: b.store, secret: "s" });
