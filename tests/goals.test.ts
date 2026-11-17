@@ -26,6 +26,15 @@ describe("goal plan", () => {
     expect(p.perPerson).toEqual([{ memberId: "you", amount: 2346700 }, { memberId: "riya", amount: 1920000 }]);
     expect(p.perPerson.reduce((t, x) => t + x.amount, 0)).toBe(p.perMonth);
   });
+  it("B4: rounding the plan up to ₹42,667 never makes a group that saves exactly what is needed 'behind'", () => {
+    // target 34133335, saved 21333335 -> left 12800000 over 3 months = 4266666.67, ceil 4266667 paise needed a month (the plan shows ₹42,667 = 4266700).
+    // Saved over 5 months (Jul to Nov): 21333335 / 5 = 4266667 exactly, which is what is needed, so on track.
+    const p = goalPlan({ currency: "INR", target: 34133335, saved: 21333335, today: "2026-11-16", byDate: "2027-03-15", createdAt: "2026-07-01", weights: { you: 55, riya: 45 } });
+    expect(p.perMonth).toBe(4266700);
+    expect(p.onTrack).toBe(true);
+    const behind = goalPlan({ currency: "INR", target: 34133335, saved: 21333330, today: "2026-11-16", byDate: "2027-03-15", createdAt: "2026-07-01", weights: { you: 55, riya: 45 } });
+    expect(behind.onTrack).toBe(false); // 21333330 / 5 = 4266666, one paise short
+  });
   it("no date: no monthly plan; reached: nothing left", () => {
     expect(goalPlan({ target: 1000, saved: 200, today: "2026-10-16", byDate: "", createdAt: "2026-10-01", weights: { a: 100 } }).months).toBe(0);
     const done = goalPlan({ target: 1000, saved: 1500, today: "2026-10-16", byDate: "2027-01-01", createdAt: "2026-10-01", weights: { a: 100 } });

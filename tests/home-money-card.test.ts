@@ -46,7 +46,7 @@ describe("Home money card: the words", () => {
     expect(moneySub({ mode: "owed", groups: 3, allGroups: 3, people: four })).toBe("across 3 groups, from 4 people");
     expect(moneySub({ mode: "owe", groups: 2, allGroups: 3, people: [{ name: "Asha" }, { name: "Ravi" }] })).toBe("across 2 groups, to 2 people");
     expect(moneySub({ mode: "owe", groups: 1, allGroups: 1, people: [{ name: "Asha" }] })).toBe("in one group, to Asha");
-    expect(moneySub({ mode: "square", groups: 0, allGroups: 3, people: [] })).toBe("Nobody owes anybody in your 3 groups");
+    expect(moneySub({ mode: "square", groups: 0, allGroups: 3, people: [] })).toBe("You’re square in your 3 groups") // B4: says nothing about other people;
   });
 });
 

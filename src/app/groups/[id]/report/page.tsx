@@ -5,7 +5,8 @@ import { notFound, redirect } from "next/navigation";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { getTimeZone } from "@/lib/tz";
-import { decimalsOf, formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
+import { overviewMoney, roundPartsToTotal } from "@/lib/money-display";
 import { Amt } from "@/components/Amt";
 import { dateRange, tripReport } from "@/lib/trip-report";
 import { PageHeader } from "@/components/ui";
@@ -28,9 +29,15 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const r = { ...tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers, tz: await getTimeZone() }), viewerLeft };
   const m = (x: number) => <Amt minor={x} currency={group.currency} />; // whole units from 1,000 up; exact in the tooltip / data-exact
   const exact = (x: number) => formatMoney(x, group.currency); // the settle-up lines stay exact
-  // What each category row shows (whole units), so "Everything else" adds up from the rows it stands for.
-  const unit = 10 ** decimalsOf(group.currency);
-  const shownAmount = (x: number) => (decimalsOf(group.currency) === 0 ? x : Math.round(x / unit) * unit);
+  // The rows add up to the total shown: the category rows (and "Everything else") and each person's part are rounded together to the rounded
+  // total, the largest leftover fractions going up (display only; the exact amount is in the tooltip).
+  const catShown = roundPartsToTotal(r.categories.map((c) => c.amount), group.currency);
+  const shareShown = roundPartsToTotal(r.shares.map((s) => s.amount), group.currency);
+  const rm = (shown: number, exactMinor: number) => (
+    <span title={formatMoney(exactMinor, group.currency)} data-exact={formatMoney(exactMinor, group.currency)}>
+      {overviewMoney(shown, group.currency)}
+    </span>
+  );
   const title = group.type === "trip" ? "Trip report" : "Group report";
 
   return (
@@ -67,7 +74,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                       {c.label}
                     </span>
                     <span className="tabular-nums text-fg/70">
-                      {m(c.amount)} · {c.pct}%
+                      {rm(catShown[r.categories.indexOf(c)], c.amount)} · {c.pct}%
                     </span>
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-line">
@@ -81,7 +88,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <li className="flex justify-between text-sm text-fg/55">
                   <span>Everything else ({r.categories.length - 4})</span>
                   <span className="tabular-nums">
-                    {m(r.categories.slice(4).reduce((t, c) => t + shownAmount(c.amount), 0))} · {r.categories.slice(4).reduce((t, c) => t + c.pct, 0)}%
+                    {rm(catShown.slice(4).reduce((t, x) => t + x, 0), r.categories.slice(4).reduce((t, c) => t + c.amount, 0))} · {r.categories.slice(4).reduce((t, c) => t + c.pct, 0)}%
                   </span>
                 </li>
               )}
@@ -104,10 +111,10 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               <>
                 <h2 className="mt-6 text-sm font-semibold">Each person’s part</h2>
                 <ul className="mt-2 space-y-1 text-sm text-fg/70">
-                  {r.shares.map((s) => (
+                  {r.shares.map((s, si) => (
                     <li key={s.id} className="flex justify-between">
                       <span>{s.id === myId ? "You" : s.name}</span>
-                      <span className="tabular-nums">{m(s.amount)}</span>
+                      <span className="tabular-nums">{rm(shareShown[si], s.amount)}</span>
                     </li>
                   ))}
                 </ul>

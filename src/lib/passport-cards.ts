@@ -1,6 +1,13 @@
 import { countryOf } from "./geo";
 import { passportCounts, tripDays, type PassportTrip, type Stamp } from "./passport";
 import { cardPhoto } from "./country-photos";
+import { addDays } from "./local-time";
+
+// A trip is over from the day after its last day. A trip without dates (its "start" is its latest spending day) is over 3 days after that,
+// the same buffer the friend rule uses (passport-db.ts), so spending today never reads as "relived".
+export function tripIsOver(t: { start: string; end: string; undated?: boolean }, today: string): boolean {
+  return t.undated ? addDays(t.start, 3) < today : (t.end || t.start) < today;
+}
 
 // The "Been" tab of the passport: one card per trip (newest first), then one small card for each
 // country added by hand. Pure: the page draws it, this decides what it says.
@@ -104,7 +111,7 @@ export function beenCards(
       // A trip still going on isn't "relived" yet: it is "Trip so far" (the same report). It is over from the day after its last day.
       cta: x?.moments
         ? { label: "View memories", href: `/groups/${t.groupId}/moments` }
-        : { label: (t.end || t.start) < today ? "Relive trip" : "Trip so far", href: `/groups/${t.groupId}/report` },
+        : { label: tripIsOver(t, today) ? "Relive trip" : "Trip so far", href: `/groups/${t.groupId}/report` },
     };
     card.photo = cardPhoto(card, have);
     cards.push(card);

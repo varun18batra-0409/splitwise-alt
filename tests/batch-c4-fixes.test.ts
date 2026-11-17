@@ -51,9 +51,9 @@ describe("Home money card: counting people on the right side", () => {
 
 describe("Home money card: no open groups", () => {
   it("doesn't say “your 0 groups”", () => {
-    expect(moneySub({ mode: "square", groups: 0, allGroups: 0, people: [] })).toBe("Nobody owes anybody");
-    expect(moneySub({ mode: "square", groups: 0, allGroups: 1, people: [] })).toBe("Nobody owes anybody in your group");
-    expect(moneySub({ mode: "square", groups: 0, allGroups: 4, people: [] })).toBe("Nobody owes anybody in your 4 groups");
+    expect(moneySub({ mode: "square", groups: 0, allGroups: 0, people: [] })).toBe("You’re all square");
+    expect(moneySub({ mode: "square", groups: 0, allGroups: 1, people: [] })).toBe("You’re square in your group");
+    expect(moneySub({ mode: "square", groups: 0, allGroups: 4, people: [] })).toBe("You’re square in your 4 groups");
   });
 });
 

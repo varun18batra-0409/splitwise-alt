@@ -79,7 +79,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
               </span>
             </a>
             <div className="mt-4 w-full">
-              <ShareSheet image={`/groups/${group.id}/square-image${hide ? "?amounts=0" : ""}`} fileName="all-square.png" title="Share: all square" words={words.share(group.name)} label="Share the moment" />
+              <ShareSheet image={`/groups/${group.id}/square-image${hide ? "?amounts=0" : ""}`} fileName={data.leaver ? "youre-square.png" : "all-square.png"} title={data.leaver ? "Share: you’re square" : "Share: all square"} words={words.share(group.name)} label="Share the moment" />
             </div>
           </>
         ) : (

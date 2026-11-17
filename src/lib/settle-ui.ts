@@ -36,3 +36,16 @@ export function squareWords(o: { leaver: boolean }) {
     share: (groupName: string) => (leaver ? `${groupName}: I’m square 🎉 I don’t owe anyone, and no one owes me.` : `${groupName}: all square 🎉 Nobody owes anybody.`),
   };
 }
+
+// What someone who has LEFT is told about money still open: only their own side, never a claim about the group
+// ("N payments clear everything", "N instead of M"). `names` are first names; `fmt` writes the exact amount.
+export function leaverMoneyLine(transfers: { from: string; to: string; amount: number }[], myId: string, nameOf: (id: string) => string, fmt: (minor: number) => string): string {
+  const list = (ns: string[]) => (ns.length <= 1 ? ns.join("") : `${ns.slice(0, -1).join(", ")} and ${ns[ns.length - 1]}`);
+  const sum = (xs: { amount: number }[]) => xs.reduce((t, x) => t + x.amount, 0);
+  const pay = transfers.filter((t) => t.from === myId);
+  const get = transfers.filter((t) => t.to === myId);
+  const parts: string[] = [];
+  if (pay.length) parts.push(`You pay ${list(pay.map((t) => nameOf(t.to)))} ${fmt(sum(pay))} to be square.`);
+  if (get.length) parts.push(`${list(get.map((t) => nameOf(t.from)))} ${get.length === 1 ? "owes" : "owe"} you ${fmt(sum(get))}.`);
+  return parts.length ? parts.join(" ") : squareWords({ leaver: true }).line;
+}

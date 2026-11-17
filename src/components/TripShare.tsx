@@ -120,7 +120,7 @@ export function drawReport(canvas: HTMLCanvasElement, r: TripReport, fmt: (minor
   ctx.fillText("loopin", x, H - 110);
   ctx.font = `400 28px ${sans}`;
   ctx.textAlign = "right";
-  ctx.fillText("Everyone’s in. Everything adds up.", right, H - 110);
+  ctx.fillText(r.viewerLeft ? "Everything adds up." : "Everyone’s in. Everything adds up.", right, H - 110);
   ctx.textAlign = "left";
 }
 

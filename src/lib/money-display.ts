@@ -1,10 +1,10 @@
 // Display-only. Amounts on overview screens drop the paise once they reach 1,000 whole units (₹17,618.19 → ₹17,618).
 // Never used for a stored number, a calculation, an export, an email or anything sent to the server. Where an
 // amount is shown this way, the exact figure goes in `title` and `data-exact` (screen readers hear the same rounded figure everyone sees; the group card and the expense itself carry the exact one).
-import { homeMoney } from "./home/display";
+import { homeMoney, recapShownDiff, roundedMinor } from "./home/display";
 import { decimalsOf, formatMoney } from "./money";
 
-export { homeMoney };
+export { homeMoney, recapShownDiff, roundedMinor };
 export const overviewMoney = homeMoney;
 
 // Group screens (balances, people, activity, group lists) show the EXACT amount, paise included, in the group's own

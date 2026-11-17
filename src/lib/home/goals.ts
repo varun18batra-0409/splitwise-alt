@@ -17,6 +17,8 @@ export function goalPlan(g: { currency?: string; target: number; saved: number; 
     ? allocateByWeights(perMonth / unit, Object.entries(g.weights).map(([memberId, weight]) => ({ memberId, weight }))).map((a) => ({ ...a, amount: a.amount * unit }))
     : [];
   const soFar = Math.max(1, monthsBetween(g.createdAt.slice(0, 7), g.today.slice(0, 7)) + 1);
-  const onTrack = left === 0 || !months || g.saved / soFar >= perMonth;
+  // "On track" compares with the plan before rounding up to a whole rupee, so the rounding for display never flips the verdict.
+  const needed = left && months ? Math.ceil(left / months) : 0;
+  const onTrack = left === 0 || !months || g.saved / soFar >= needed;
   return { left, months, perMonth, perPerson, onTrack };
 }

@@ -2,7 +2,7 @@ import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
 import { compactMoney, signedMoney } from "@/lib/chart-labels";
-import { overviewMoney, percentsTo100, roundPartsToTotal, signedOverview } from "@/lib/money-display";
+import { overviewMoney, percentsTo100, recapShownDiff, roundPartsToTotal, signedOverview } from "@/lib/money-display";
 import { recapDiffLabel } from "@/lib/insights";
 import { getCategory } from "@/lib/categories";
 import { bucketLabel, bucketTitle, type Grain } from "@/lib/search";
@@ -130,7 +130,7 @@ export function Insights({ d }: { d: InsightsData }) {
               <span className="block text-[11px] text-fg/50">{recapDiffLabel(d.me.net)}</span>
               <span className={`block text-sm font-semibold tabular-nums ${d.me.net < 0 ? "text-owe" : d.me.net > 0 ? "text-owed" : ""}`} title={formatMoney(Math.abs(d.me.net), d.currency)} data-exact={formatMoney(Math.abs(d.me.net), d.currency)}>
                 {approx}
-                {overviewMoney(Math.abs(d.me.net), d.currency)}
+                {overviewMoney(Math.abs(recapShownDiff(d.me.paid, d.me.share, d.currency)), d.currency)}
               </span>
             </p>
           </div>
@@ -199,7 +199,7 @@ export function Insights({ d }: { d: InsightsData }) {
                       <span className="line-clamp-2 min-w-0 break-words font-medium leading-tight" data-category-name>{cat.label}</span>
                       <span className="shrink-0 tabular-nums text-fg/80" title={formatMoney(c.amount, d.currency)} data-exact={formatMoney(c.amount, d.currency)}>
                         {approx}
-                        {overviewMoney(catShown[n] ?? c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
+                        {overviewMoney(catShown[n] ? catShown[n] : c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
                       </span>
                     </span>
                     <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">
