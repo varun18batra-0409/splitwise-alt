@@ -82,7 +82,7 @@ describe("C8: undo of \"added\" never leaves money or games pointing at nobody",
   const exists = (id: string) => db.member.count({ where: { id } });
 
   it("the words are the approved ones", () => {
-    expect(memberInUseText("Kiran")).toBe("Kiran is already part of expenses, payments, the deposit, a goal or a game, so they can't be removed.");
+    expect(memberInUseText("Kiran")).toBe("Kiran is already part of expenses, payments, the deposit, a goal or a game, so they can’t be removed.");
   });
 
   it("a deposit share (1000000) stops it; the row and the share stay", async () => {
