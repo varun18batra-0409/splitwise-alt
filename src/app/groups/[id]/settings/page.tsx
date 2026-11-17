@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { convertGroupCurrency, deleteGroup, saveGroupSettings, setGroupClosed } from "@/app/actions";
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
-import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
+import { GROUP_TYPES, sharingInputs, showCardMarkupSetting } from "@/lib/group-types";
 import { StaysGoes } from "@/components/StaysGoes";
 import { deleteText } from "@/lib/leave-text";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -183,7 +183,8 @@ export default async function GroupSettings({
         </div>
         </section>
 
-        <section className="space-y-8">
+        {showCardMarkupSetting(group.type, group.cardMarkupBp) && (
+        <section className="space-y-8" data-card-fees>
         <h2 className={`!mb-3 ${sectionTitle}`}>Card fees abroad</h2>
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Card markup</legend>
@@ -218,6 +219,7 @@ export default async function GroupSettings({
           </label>
         </fieldset>
         </section>
+        )}
 
 
         {/* How you share costs: the group type and each person's part */}

@@ -2,7 +2,7 @@ import { roundToWhole } from "@/lib/round-whole";
 import Link from "@/components/Link";
 import type { BillStatus } from "@/lib/home/bills-db";
 import { Notice } from "@/components/Notice";
-import { billBadge, billHold, ordinalDay, type BillBadge } from "@/lib/home/bills";
+import { BILL_EMOJI, billBadge, billHold, ordinalDay, type BillBadge } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { CalendarIcon, CheckIcon, ChevronRight, PlusIcon } from "@/components/icons";
@@ -38,12 +38,14 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
     const badge = billBadge({ nature: b.bill.nature, status: b.status, due: b.due, payerId: b.payerId, reason: b.reason, recordedThisMonth: b.recordedThisMonth, tz: b.bill.tz, now: new Date() });
     const cadence = b.bill.nature === "daily" ? "Daily" : b.bill.every > 1 ? `Every ${b.bill.every} months` : "Monthly";
     // The status line: the bill's own state if it has one, else "Review days" (daily) or when it is next due.
-    const status = badge ? badge.label : b.bill.nature === "daily" ? "Review days" : b.due ? `Due ${shortDate(b.due)}` : "";
+    // "Needs amount" says what the "Enter amount" button already says, so it is not shown twice.
+    const pillHidden = badge?.id === "needs-amount";
+    const status = pillHidden ? "" : badge ? badge.label : b.bill.nature === "daily" ? "Review days" : b.due ? `Due ${shortDate(b.due)}` : "";
     const tone = badge ? CHIP[badge.tone] : "border-fg/15 text-fg/55";
     return (
-      <li key={b.bill.id} className="flex items-center gap-3 rounded-[20px] border border-line bg-white p-3.5">
+      <li key={b.bill.id} className="flex items-center gap-3 rounded-[20px] border border-line bg-white p-3.5" data-bill-state={pillHidden ? badge?.id : undefined}>
         <Link href={`/groups/${group.id}/bills/${b.bill.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-          <ExpenseGlyph title={b.bill.name} category="bills" size={44} />
+          <ExpenseGlyph title={b.bill.name} category="bills" emoji={BILL_EMOJI[b.bill.icon]} size={44} />
           <span className="min-w-0 flex-1">
             <span className="block break-words font-display text-[17px] font-semibold leading-tight tracking-tight">{b.bill.name}</span>
             <span className="block text-[13px] text-fg/60">

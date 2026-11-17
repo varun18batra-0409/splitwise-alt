@@ -11,7 +11,7 @@ import { moveOutPaymentIds } from "@/lib/payment-change";
 import { displayRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
 import { after } from "next/server";
-import { nextDueDay } from "@/lib/home/bills";
+import { BILL_EMOJI, nextDueDay } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
@@ -119,7 +119,6 @@ export default async function SearchPage({
     orderBy: { createdAt: "asc" },
     take: 12,
   });
-  const BILL_EMOJI: Record<string, string> = { rent: "🏠", society: "🏢", electricity: "⚡", wifi: "📶", help: "🧹", cook: "🍳", milk: "🥛", water: "💧", groceries: "🛒", gas: "🔥", streaming: "📺", mobile: "📱" };
   const insights: InsightsData = {
     view,
     grain,

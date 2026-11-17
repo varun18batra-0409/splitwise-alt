@@ -190,7 +190,7 @@ export default async function HowItWorks() {
           items={[
             <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in about 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
-            <>Or share the group’s link or QR code. Got a link from a friend? Tap <strong>Join with a link</strong> and paste it. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
+            <>The quickest way: copy the group’s link, or tap <strong>Invite on WhatsApp</strong>. The share sheet, the QR code, search, contacts and email are all under <strong>More ways to add people</strong>. Got a link from a friend? Tap <strong>Join with a link</strong> and paste it. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
         />
         <p>
@@ -367,7 +367,7 @@ export default async function HowItWorks() {
       <Section slot="place-santorini" title="Your trip passport">
         <p>
           Every trip stamps your <strong>passport</strong>: a city stamp at home, a country stamp abroad. Add the countries you went to before Loopin
-          with a few ticks. Open it from the <strong>You</strong> page, flip the pages, and share it to WhatsApp as a picture of your passport. It’s yours to show or keep private.
+          with a few ticks. Open it from the <strong>You</strong> page (the three numbers on top: trips and days come from your trips in Loopin, countries also include places you add by hand), flip the pages, and share it to WhatsApp as a picture of your passport. It’s yours to show or keep private.
         </p>
         <Steps
           items={[

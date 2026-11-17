@@ -23,6 +23,9 @@ export const BILL_TEMPLATES: { id: string; name: string; category: string; natur
   { id: "other", name: "Other", category: "bills", nature: "fixed", day: 1 },
 ];
 
+// The picture each bill tile shows (an emoji the line-icon drawing is picked from): the same on Bills, This month, Search and Add a bill.
+export const BILL_EMOJI: Record<string, string> = { rent: "🏠", society: "🏢", electricity: "⚡", wifi: "📶", help: "🧹", cook: "🍳", milk: "🥛", water: "💧", groceries: "🛒", gas: "🔥", streaming: "📺", mobile: "📱" };
+
 type DueRule = { day: number; every: number; startMonth: string; endMonth: string; paused: boolean; tz: string; nature: string };
 
 // Months between two "2026-10" keys (b − a).

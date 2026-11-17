@@ -4,7 +4,7 @@ import { unreadPostcards } from "@/lib/blocks";
 import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { BellIcon, ChartIcon } from "@/components/icons";
 import { GetAppButton } from "@/components/GetApp";
-import { DevicesLineIcon, DownloadLineIcon, HelpLineIcon, LockLineIcon, PostcardLineIcon, WalletLineIcon, YouList, YouRow } from "@/components/YouRows";
+import { DevicesLineIcon, DownloadLineIcon, HelpLineIcon, LockedYouRow, LockLineIcon, PlayLineIcon, PostcardLineIcon, WalletLineIcon, YouList, YouRow } from "@/components/YouRows";
 import { InviteFriends } from "@/components/InviteFriends";
 import { saveMyName } from "@/app/actions";
 import { db } from "@/lib/db";
@@ -119,8 +119,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <YouRow href="/search" icon={<ChartIcon size={22} />} title="Your recap" line="Your spending, month by month" />
         </YouList>
       )}
+      {/* Signed out: the rows that need an account are here, locked, so nobody wonders where they are. They open sign-in. */}
       {!account && (
         <YouList className="mt-6">
+          <LockedYouRow icon={<CompassIcon size={22} />} title="Your trip passport" />
+          <LockedYouRow icon={<PostcardLineIcon />} title="Your postcards" />
           <YouRow href="/search" icon={<ChartIcon size={22} />} title="Your recap" line="Your spending, month by month" />
         </YouList>
       )}
@@ -133,10 +136,16 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <YouRow href="/account/privacy" icon={<LockLineIcon />} title="Privacy & sharing" line="Blocked people and what others can see" />
         </YouList>
       )}
+      {!account && (
+        <YouList label="Preferences" className="mt-8">
+          <LockedYouRow icon={<BellIcon size={22} />} title="Notifications & email" />
+          <LockedYouRow icon={<LockLineIcon />} title="Privacy & sharing" />
+        </YouList>
+      )}
       <YouList label="Account" className="mt-8">
         {account && <YouRow href="/account/sign-in" icon={<DevicesLineIcon />} title="Sign-in & devices" line="Fingerprint sign-in, sign out of phones" />}
         <YouRow href="/account/data" icon={<DownloadLineIcon />} title="Export your data" line="A copy of everything in your groups" />
-        <YouRow href="/how-it-works" icon={<HelpLineIcon />} title="How Loopin works" line="Three steps, one minute" />
+        <YouRow href="/how-it-works" icon={<PlayLineIcon />} title="How Loopin works" line="Three steps, one minute" />
         <YouRow href="/support" icon={<HelpLineIcon />} title="Help & support" line="Guides and a way to reach us" />
       </YouList>
 

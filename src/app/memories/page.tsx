@@ -1,3 +1,4 @@
+import { ChipRow } from "@/components/ChipRow";
 import Image from "next/image";
 import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
@@ -33,16 +34,17 @@ export default async function MemoriesPage({ searchParams }: { searchParams: Pro
         </div>
       ) : (
         <>
-          <nav aria-label="Filter by group" className="-mx-1 mb-5 flex gap-2 overflow-x-auto px-1 pb-1" data-memories-filters>
+          {/* Chip names are shown in full (no "…"); the row scrolls, runs to the screen's edges and fades while there is more to the right. */}
+          <ChipRow label="Filter by group" dataKey="data-memories-filters">
             <Link href="/memories" className={chip(!selected)} aria-current={!selected ? "true" : undefined} data-memories-filter="all">
               All groups
             </Link>
             {chips.map((c) => (
               <Link key={c.groupId} href={`/memories?g=${c.groupId}`} className={chip(selected === c.groupId)} aria-current={selected === c.groupId ? "true" : undefined} data-memories-filter={c.groupId}>
-                <span className="max-w-[180px] truncate">{c.name}</span>
+                <span className="whitespace-nowrap">{c.name}</span>
               </Link>
             ))}
-          </nav>
+          </ChipRow>
           <ul aria-label="Memories" className="grid grid-cols-2 gap-x-4 gap-y-6 px-1" data-memories-grid-page>
             {memories.map((m, i) => (
               <li key={m.id} className="min-w-0">

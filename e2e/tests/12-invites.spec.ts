@@ -2,7 +2,7 @@ import { test, expect } from "../fixtures";
 import type { BrowserContext, Page } from "@playwright/test";
 import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
-import { allowTestCopy, contextFor, createGroup, emailedLink, joinGroup, settled } from "../helpers/app";
+import { allowTestCopy, contextFor, createGroup, emailedLink, joinGroup, openWay, settled } from "../helpers/app";
 
 // Stage 1 · Bringing people in: link, email, people already on Loopin, and
 // someone added by name taking over their name.
@@ -50,6 +50,7 @@ test("add by email: in the group at once as a name; the invitee gets a Join card
 
   await host.goto(`${g.path}/invite`);
   await settled(host);
+  await openWay(host, "email");
   await host.getByLabel("Email addresses to invite").fill(email);
   await host.getByRole("button", { name: "Invite", exact: true }).click();
   await host.waitForURL(/invited=/);
@@ -92,6 +93,7 @@ test("add by email, then Not now: the card goes away and the group never appears
 
   await host.goto(`${g.path}/invite`);
   await settled(host);
+  await openWay(host, "email");
   await host.getByLabel("Email addresses to invite").fill(email);
   await host.getByRole("button", { name: "Invite", exact: true }).click();
   await host.waitForURL(/invited=/);
@@ -124,6 +126,7 @@ test("someone you share a group with is found by name and added (in the group at
   const g2 = await createGroup(host, groupName("Second"));
   await host.goto(`${g2.path}/invite`);
   await settled(host);
+  await openWay(host, "search");
   const search = host.getByLabel("Search people on Loopin");
   await search.fill("Stranger Sam");
   await expect(host.getByText(/Not someone you share a group with/)).toBeVisible();

@@ -12,6 +12,12 @@ export const GROUP_TYPES: { id: GroupType; label: string; hint: string; namePlac
   { id: "other", label: "Anything Goes", hint: "Dinners, gifts, a party", namePlaceholder: "Friday dinners" },
 ];
 
+// Does the group's settings page show "Card fees abroad" (the group's default card markup)? A flat has no foreign cards, so it is
+// hidden there; but a flat that already has a markup saved keeps showing it, so the person can change it back.
+export function showCardMarkupSetting(type: string, cardMarkupBp: number): boolean {
+  return type !== "home" || cardMarkupBp !== 0;
+}
+
 // Game night wording: the same everywhere, in every country.
 export const GAME_NIGHT_GAMES = "Cards, board games or any game";
 

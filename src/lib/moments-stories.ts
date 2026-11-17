@@ -2,7 +2,7 @@ import type { Frame, Story } from "./home/stories";
 import type { MomentCard } from "./moments-db";
 
 // The circles at the top of "Our moments": the trip (everything from the last 7 days), then one circle per person who added
-// something in that time. Tapping opens the same full-screen viewer as Home's stories. Pure.
+// something in that time. (With only one person, just their circle: the trip's would show the same moments.) Tapping opens the same full-screen viewer as Home's stories. Pure.
 const WEEK = 7 * 86_400_000;
 const place = (name: string) => name.replace(/\s+trip$/i, "").trim() || name;
 
@@ -28,14 +28,16 @@ export function momentPageStories(cards: MomentCard[], groupId: string, groupNam
     frames: list.slice(0, 6).map(frame),
     at: list[0].createdAt.getTime(),
   });
-  const out: Story[] = [make("trip", place(groupName), recent, groupPic ?? {})];
+  const out: Story[] = [];
   const seen = new Set<string>();
   // One circle per person, told apart by who they are (account, else member), not by name: two people both called Sam get two circles.
   const who = (c: MomentCard) => c.authorAccountId || c.authorId;
   for (const c of recent) {
     if (seen.has(who(c))) continue;
     seen.add(who(c));
-    out.push(make(`by-${out.length}`, c.authorName, recent.filter((x) => who(x) === who(c))));
+    out.push(make(`by-${out.length + 1}`, c.authorName, recent.filter((x) => who(x) === who(c))));
   }
-  return out;
+  // The group circle only when it shows something the person circles don't: the moments of two or more people together.
+  // With one person, it would be the same moments twice ("Krabi weekend" and "Nupur" with the same photo).
+  return out.length > 1 ? [make("trip", place(groupName), recent, groupPic ?? {}), ...out] : out;
 }

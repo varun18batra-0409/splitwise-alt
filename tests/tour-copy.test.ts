@@ -21,8 +21,10 @@ describe("the 1-minute tour", () => {
     expect(src).toContain('title: "Keep the little moments."');
     expect(src).toContain("Only the people in it see them.");
   });
-  it("keeps the App button, Skip, Back / Next and the sign-up line", () => {
-    for (const hook of ["GetAppButton", "Skip", "data-tour-back", "data-tour-next", "signInHref", "Create your first group"]) expect(src).toContain(hook);
+  it("keeps Skip, Back / Next and the sign-up line; the App and Home buttons are gone from the top bar", () => {
+    for (const hook of ["Skip", "data-tour-back", "data-tour-next", "signInHref", "Create your first group"]) expect(src).toContain(hook);
+    expect(src).not.toContain("GetAppButton");
+    expect(src).not.toContain("HomeIcon");
   });
   it("How Loopin works still links to it", () => {
     expect(how).toContain('href="/welcome"');

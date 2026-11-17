@@ -7,7 +7,7 @@ import { visitorRegion } from "@/lib/region";
 import { celebrateMarks, loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
 import { passportLine } from "@/lib/passport-line";
-import { parseHandPlaces, passportCounts, passportNeedsAnswer, passportShared, stampPages } from "@/lib/passport";
+import { parseHandPlaces, passportCounts, passportLockLabel, passportNeedsAnswer, passportShared, stampPages } from "@/lib/passport";
 import { withCountryPhotos } from "@/lib/country-photos";
 import { beenCards, shownCards } from "@/lib/passport-cards";
 import { answerPassportQuestionAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
@@ -124,7 +124,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
               </h2>
               <Link href="/passport?open=who#who" className="inline-flex min-h-11 shrink-0 items-center gap-1.5 text-[14px] text-fg/75" data-who-link>
                 <LockIcon size={16} />
-                {passportShared(account) ? "Your groups" : "Only you"}
+                {passportLockLabel(account)}
               </Link>
             </div>
             {sp.added && (

@@ -17,7 +17,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "Do my friends need to sign up?", a: "Yes, with an email (or Google), once. It takes about 30 seconds and there’s no password. It means everyone in a group has a checked email, so notifications reach the right phone." },
       {
         q: "What’s in the bar at the bottom?",
-        a: "Home, Groups, Add, Settle and You. Add opens a new expense, Settle shows who pays whom, and You has your passport, postcards and settings. Your updates are behind the bell at the top right, with a small dot when something needs you.",
+        a: "Home, Groups, Add, Settle and You. Add opens a new expense, Settle shows who pays whom, and You has your passport, postcards and settings (when you’re not signed in, those rows show with a lock and “Sign in to use”). Your updates are behind the bell at the top right, with a small dot when something needs you.",
       },
       {
         q: "What’s at the top of Home?",
@@ -51,7 +51,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "Two people paid, or we got money back?", a: "Pick more than one payer and type what each paid. For a refund or returned item, switch to Money back; it’s shared the same way and the balances move back." },
       {
         q: "We’re abroad. How do currencies and card fees work?",
-        a: "Add the expense in the currency you paid. Loopin converts it at the day’s rate and, for card payments, can add your bank’s foreign-card fee (set it once in the group’s settings). Cash has no fee, and you can type your own rate.",
+        a: "Add the expense in the currency you paid. Loopin converts it at the day’s rate and, for card payments, can add your bank’s foreign-card fee (set it once in a trip group’s settings; a flat has no foreign cards, so it isn’t asked there). Cash has no fee, and you can type your own rate.",
       },
       { q: "I made a mistake. Can I undo it?", a: "Yes. Edit or delete any expense or payment, and use Undo right after a change. Undo works on the latest change to something, and it won’t change the balance of someone who has left." },
     ],
@@ -86,7 +86,7 @@ const sections = (): { title: string; items: QA[] }[] => [
     items: [
       {
         q: "How do I invite friends?",
-        a: "Share the group’s link or QR code, add people from your contacts, or invite them by email. Got a link from a friend? Tap Join with a link and paste it. To invite someone to Loopin without making a group, tap Invite friends to Loopin on Home or the You page.",
+        a: "Open Add people: copy the group’s link or tap Invite on WhatsApp. For more, open More ways to add people: your phone’s share sheet, a QR code, search by name or email, your contacts, or email. Got a link from a friend? Tap Join with a link and paste it. To invite someone to Loopin without making a group, tap Invite friends to Loopin on Home or the You page.",
       },
       { q: "Can I give a group a picture, or use my own photo?", a: "Yes. In the group’s settings, pick a drawn picture or a photo, or tap Your photo to choose one from your gallery. Your own photo is made small on your phone first, and only people in the group can see it." },
       {
@@ -127,7 +127,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Charts, and share it as a picture. You can hide the amounts first." },
       {
         q: "What is the trip passport?",
-        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days travelled on top. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
+        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days travelled on top. Trips and days come from your trips in Loopin; countries also include places you add by hand. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
       },
       {
         q: "Who can see my passport?",

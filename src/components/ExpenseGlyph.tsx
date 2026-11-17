@@ -38,6 +38,7 @@ const PATHS = {
   landmark: "M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 2l8 5H4z",
   spa: "M9.9 15.5a2 2 0 0 0-1.4-1.4l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0zM20 3v4M22 5h-4",
   wave: "M2 12c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2M2 18c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2M12 2v4",
+  milk: "M9 2h6M10 2v3L8 8v13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8l-2-3V2M8 12h8",
   bolt: "M13 2 3 14h9l-1 8 10-12h-9z",
   drop: "M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5S12.5 5 12 2.5c-.5 2.5-2 4.9-4 6.5S5 13 5 15a7 7 0 0 0 7 7z",
   wifi: "M12 20h.01M2 8.8a15 15 0 0 1 20 0M5 12.9a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0",
@@ -55,7 +56,7 @@ const FROM_EMOJI: Record<string, Glyph> = {
   "🍽️": "food", "☕": "coffee", "🍻": "drink", "🍨": "dessert", "🥡": "delivery", "🍕": "food", "🍔": "food", "🍜": "food", "🍣": "food", "🍛": "food", "🥐": "coffee",
   "🏨": "bed", "🛏️": "bed", "🏠": "house", "🏖️": "palm",
   "🛍️": "bag", "👕": "shirt", "🎁": "gift", "📱": "phone",
-  "🛒": "cart", "🍎": "leaf", "🥛": "cart", "🥦": "leaf",
+  "🛒": "cart", "🍎": "leaf", "🥛": "milk", "🥦": "leaf",
   "🎟️": "ticket", "🎬": "film", "🎤": "mic", "🥾": "mountain", "🏛️": "landmark", "💆": "spa", "🤿": "wave", "🎢": "ticket",
   "💡": "bolt", "⚡": "bolt", "💧": "drop", "📶": "wifi", "📺": "tv", "🔥": "flame", "🧹": "broom",
   "📦": "receipt", "🏢": "landmark", "🍳": "food", "🃏": "cards",
@@ -90,7 +91,7 @@ const PARTS: Partial<Record<Glyph, Part[]>> = {
 // Icons that move as a whole (the rest move only in their parts above).
 const WHOLE = new Set<Glyph>([
   "plane", "train", "bus", "car", "scooter", "boat", "parking", "food", "drink", "dessert", "delivery", "palm", "bag", "shirt",
-  "phone", "cart", "leaf", "ticket", "mic", "landmark", "spa", "wave", "bolt", "drop", "tv", "flame", "broom", "receipt", "cards",
+  "phone", "cart", "milk", "leaf", "ticket", "mic", "landmark", "spa", "wave", "bolt", "drop", "tv", "flame", "broom", "receipt", "cards",
 ]);
 
 export function ExpenseGlyph({

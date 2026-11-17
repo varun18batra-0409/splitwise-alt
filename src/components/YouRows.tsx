@@ -35,6 +35,13 @@ export const HelpLineIcon = () => (
     <path d="M9.6 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8M12 16.6h.01" />
   </svg>
 );
+// "How Loopin works": a play button, so it reads differently from "Help & support" (the question mark).
+export const PlayLineIcon = () => (
+  <svg {...base}>
+    <circle cx="12" cy="12" r="8.75" />
+    <path d="M10.2 8.9v6.2a.5.5 0 0 0 .76.43l5-3.1a.5.5 0 0 0 0-.86l-5-3.1a.5.5 0 0 0-.76.43Z" />
+  </svg>
+);
 export const PostcardLineIcon = () => (
   <svg {...base}>
     <rect x="2.5" y="5" width="19" height="14" rx="1.5" />
@@ -70,6 +77,30 @@ export function YouRow({ href, icon, title, line, hook }: { href: string; icon: 
         </span>
         <span aria-hidden className="text-xl text-fg/55">
           ›
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+// A row that needs an account, shown to someone who isn't signed in: the same row, but with "Sign in to use" and a lock.
+// Tapping it goes to sign-in (and back to You afterwards), so the page no longer hides what is there after signing in.
+export function LockedYouRow({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <li>
+      <Link href="/signin?back=/account" className="flex min-h-14 items-center gap-3.5 px-4 py-3 active:bg-mist" aria-label={`${title}. Sign in to use.`} data-locked-row>
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#1f1f24] text-fg/75">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-medium leading-tight">{title}</span>
+          <span className="mt-0.5 block text-[13px] leading-snug text-fg/55">Sign in to use</span>
+        </span>
+        <span aria-hidden className="shrink-0 text-fg/55">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+            <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
+          </svg>
         </span>
       </Link>
     </li>

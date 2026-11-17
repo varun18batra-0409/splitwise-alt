@@ -44,6 +44,12 @@ function capMarks(s: string): string {
   return out;
 }
 
+// Keep a closing emoji with the word before it, so "The boat we almost missed 😂" never leaves the 😂 alone on a line
+// (the space before it becomes a non-breaking space). Only changes a caption that ends in an emoji (or several).
+export function glueLastWord(s: string): string {
+  return s.replace(/[ \t]+((?:\p{Extended_Pictographic}[\ufe0f\u200d\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}]*)+)\s*$/u, "\u00a0$1");
+}
+
 // Trim, turn line breaks and tabs into spaces, collapse repeated spaces, and drop the characters that flip the direction of
 // text (U+202A to U+202E and U+2066 to U+2069), zero-width characters and direction marks. Null when the raw input is over
 // 2,000 UTF-16 code units, or the result is over 80 characters. An empty caption is fine.

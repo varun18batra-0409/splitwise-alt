@@ -73,3 +73,9 @@ export function litTab(tab: TabId, tabs: GroupTab[]): TabId {
   if (tabs.some((t) => t.id === tab)) return tab;
   return tabs[0].id;
 }
+
+// Bills, Shopping list and Charts have their own title bar (back, title, the group's name) instead of the group's picture and tab bar.
+// The title shown, or null for the group's own tabs.
+export function subPageTitle(tab: TabId): string | null {
+  return tab === "bills" ? "Bills" : tab === "list" ? "Shopping list" : tab === "recap" ? "Charts" : null;
+}
