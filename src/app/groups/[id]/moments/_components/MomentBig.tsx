@@ -37,8 +37,10 @@ export function MomentBig({
     // eslint-disable-next-line @next/next/no-img-element
     <img src={card.full} alt={card.caption || "A moment from the trip"} width={card.width || 1200} height={card.height || 900} loading="lazy" decoding="async" style={{ aspectRatio: ratio }} className="max-h-[75svh] w-full bg-mist object-cover" />
   );
+  // The card doesn't clip what hangs outside it (no overflow-hidden): the photo never reaches its rounded corners (the header and the words
+  // sit above and below it), and a clipping card would force the emoji picker to open above the "+", over the moment's title.
   return (
-    <article id={`m-${card.id}`} className="overflow-hidden rounded-[20px] border border-line bg-white" data-moment={card.id}>
+    <article id={`m-${card.id}`} className="rounded-[20px] border border-line bg-white" data-moment={card.id}>
       <header className="flex items-center gap-3 px-4 py-3">
         <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1f1f24] text-lg font-semibold text-fg">
           {card.authorInitial}

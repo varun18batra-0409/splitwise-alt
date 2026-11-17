@@ -214,6 +214,9 @@ describe("s6: emoji in colour, and the picker under the +", () => {
     const p = src("src/app/groups/[id]/moments/_components/ReactionPicker.tsx");
     expect(p).toContain("data-picker-room");
     expect(p).toContain("dropRoom()");
+    // the moment card must not clip the picker (a clipping card made it open above the +, over the title: 17 Nov screenshot)
+    const card = src("src/app/groups/[id]/moments/_components/MomentBig.tsx");
+    expect(/<article[^>]*overflow-hidden/.test(card)).toBe(false);
   });
   it("the picker is anchored with a pointer and measures its full height", () => {
     const p = src("src/app/groups/[id]/moments/_components/ReactionPicker.tsx");
