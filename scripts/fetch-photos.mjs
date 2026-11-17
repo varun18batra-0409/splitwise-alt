@@ -25,7 +25,7 @@ const SLOTS = {
   "cover-road": ["photo-1469854523086-cc02fe5d8800", "photo-1500530855697-b586d89ba3ee"], // road trip
   "cover-lake": ["photo-1439066615861-d1af74d74000", "photo-1501785888041-af3ef285b470"], // a lake in the hills
   "cover-forest": ["photo-1441974231531-c6227db76b6e", "photo-1448375240586-882707db888b"], // sunlit forest
-  "cover-snow": ["photo-1464822759023-fed622ff2c3b", "photo-1483728642387-6c3bdd6c93e5"], // snowy peaks
+  "cover-snow": ["photo-1512273222628-4daea6e55abb", "photo-1464822759023-fed622ff2c3b"], // snowy peaks
   "cover-paris": ["photo-1502602898657-3e91760cbb34", "photo-1499856871958-5b9627545d1a"], // Paris
   "cover-taj": ["photo-1524492412937-b28074a5d7da", "photo-1564507592333-c60657eea523"], // the Taj Mahal
   "cover-cafe": ["photo-1495474472287-4d71bcdd2085", "photo-1509042239860-f550ce710b93"], // coffee
@@ -50,8 +50,9 @@ const SLOTS = {
   "place-maldives": ["photo-1691853735541-a8f1bdd2cd16"],
   "place-vietnam": ["photo-1431975071466-2c609dac5956", "photo-1487548919775-a7a460f3cbe6"],
   "place-srilanka": ["photo-1566296314736-6eaac1ca0cb9"],
-  "place-japan": ["photo-1578469645742-46cae010e5d4", "photo-1707474893587-a37a9cf1b555"],
-  "place-london": ["photo-1633357441498-7431babe0cc7"],
+  "place-japan": ["photo-1759495051024-cbea2d646b61"], // Tokyo Tower at dusk (Tokyo, Osaka, Hokkaido and Japan use this; the old Kyoto pair moved to place-kyoto)
+  "place-kyoto": ["photo-1578469645742-46cae010e5d4", "photo-1707474893587-a37a9cf1b555"], // Kiyomizu-dera (Kyoto only)
+  "place-london": ["photo-1520986606214-8b456906c813", "photo-1633357441498-7431babe0cc7"], // Big Ben
   "place-jaipur": ["photo-1524229648276-e66561fe45a9"],
   "place-nepal": ["photo-1640876522637-9432f175581f"],
   "place-andaman": ["photo-1721834058855-b9d0570722b4"],
@@ -69,15 +70,15 @@ const MORE = {
   "place-goa": ["photo-1560179406-1c6c60e0dc76", "photo-1587922546307-776227941871", "photo-1625505826533-5c80aca7d157", "photo-1512343879784-a960bf40e7f2", "photo-1642922835816-e2ac68db5c42"],
   "place-thailand": ["photo-1506665531195-3566af2b4dfa", "photo-1563492065599-3520f775eeed", "photo-1519451241324-20b4ea2c4220", "photo-1613672803979-a6edfc5a179b", "photo-1508009603885-50cf7c579365"],
   "place-bali": ["photo-1577717903315-1691ae25ab3f", "photo-1544644181-1484b3fdfc62", "photo-1573790387438-4da905039392", "photo-1554931670-4ebfabf6e7a9", "photo-1558005530-a7958896ec60"],
-  "place-dubai": ["photo-1512453979798-5ea266f8880c", "photo-1518684079-3c830dcef090", "photo-1784125160488-09f633671243", "photo-1546412414-e1885259563a"],
+  "place-dubai": ["photo-1512453979798-5ea266f8880c", "photo-1518684079-3c830dcef090", "photo-1784125160488-09f633671243", "photo-1580674684081-7617fbf3d745"],
   "place-manali": ["photo-1712388430474-ace0c16051e2", "photo-1609920658906-8223bd289001", "photo-1711359940524-ed5e0ad9b89b", "photo-1594102552386-793e5a27ad10", "photo-1648131877984-f39ebc1647f1"],
-  "place-ladakh": ["photo-1619837374214-f5b9eb80876d", "photo-1581793745862-99fde7fa73d2", "photo-1617824077360-7a77db40aae1", "photo-1581280445448-ab465a010046", "photo-1600356033695-a003690a6351"],
-  "place-kerala": ["photo-1602590745208-870366224847", "photo-1651298219452-d3f2c84561b3", "photo-1668522871883-d3ea92f64dbc"],
+  "place-ladakh": ["photo-1619837374214-f5b9eb80876d", "photo-1581793745862-99fde7fa73d2", "photo-1695876670020-e2c2ac5a21ce", "photo-1581280445448-ab465a010046", "photo-1600356033695-a003690a6351"],
+  "place-kerala": ["photo-1593693411515-c20261bcad6e", "photo-1651298219452-d3f2c84561b3", "photo-1668522871883-d3ea92f64dbc"],
   "place-singapore": ["photo-1508964942454-1a56651d54ac", "photo-1542114740389-9b46fb1e5be7", "photo-1525625293386-3f8f99389edd", "photo-1605425183435-25b7e99104a4", "photo-1565967511849-76a60a516170"],
   "place-srilanka": ["photo-1580794749460-76f97b7180d8", "photo-1609681980718-340e7f4b11d7", "photo-1533484482814-3fe2d922be89", "photo-1544750040-4ea9b8a27d38"],
   "place-japan": ["photo-1528164344705-47542687000d", "photo-1545569341-9eb8b30979d9", "photo-1492571350019-22de08371fd3", "photo-1573455494060-c5595004fb6c", "photo-1522547902298-51566e4fb383"],
   "place-london": ["photo-1486299267070-83823f5448dd", "photo-1543832923-44667a44c804", "photo-1534359265607-b9cdb5e0a81e", "photo-1549483249-f0b359d1e289"],
-  "place-jaipur": ["photo-1661924326425-c14a6426d989", "photo-1602643163983-ed0babc39797", "photo-1622225399403-548e2df0c908", "photo-1714562555125-3c8d050d5d2d"],
+  "place-jaipur": ["photo-1661924326425-c14a6426d989", "photo-1602643163983-ed0babc39797", "photo-1622225399403-548e2df0c908", "photo-1705861144929-91df892af5d6"],
   "place-nepal": ["photo-1529733905113-027ed85d7e33", "photo-1518002054494-3a6f94352e9d", "photo-1748760036656-964ac32eefb4", "photo-1623492701902-47dc207df5dc"],
   "place-rishikesh": ["photo-1607406374368-809f8ec7f118", "photo-1603867106100-0d2039fc8757", "photo-1720819029162-8500607ae232", "photo-1624807136278-e2973be118ff"],
   "place-newyork": ["photo-1496588152823-86ff7695e68f", "photo-1541336032412-2048a678540d", "photo-1500916434205-0c77489c6cf7", "photo-1568515387631-8b650bbcdb90", "photo-1496442226666-8d4d0e62e6e9"],
@@ -110,15 +111,15 @@ const INDIA = {
   "place-kutch": ["photo-1669015881702-951de590db31"],
   "place-lonavala": ["photo-1589286875480-743411b84f53", "photo-1582041545006-a561d82524d9"],
   "place-mumbai": ["photo-1595658658481-d53d3f999875", "photo-1785768569545-a0b75d68006f"],
-  "place-mussoorie": ["photo-1713026665246-843d870d1cdc"],
+  "place-mussoorie": [["photo-1700219799575-026e6f2f69aa", "photo-1713026665246-843d870d1cdc"]],
   "place-mysore": ["photo-1600112356915-089abb8fc71a", "photo-1659126574791-13313aa424bd"],
   "place-ooty": ["photo-1638886540342-240980f60d25", "photo-1707655315272-33a54a771068"],
   "place-pondicherry": ["photo-1772633634752-7b7611e839fc", "photo-1621831714462-bec8edc4d0ec"],
   "place-pune": [["photo-1707617645764-08862c06fd7f", "photo-1760034588108-987757454c18"]], // a palace with a fountain (colour) first; the Shaniwar Wada gate is black and white
   "place-sikkim": ["photo-1600402808924-9c591a6dace8", "photo-1634400001131-d04275db2076"],
-  "place-udaipur": ["photo-1589901164570-f9de6556e1c1", "photo-1615836245337-f5b9b2303f10"],
+  "place-udaipur": ["photo-1589901164570-f9de6556e1c1", "photo-1700985959163-ed9aa14a99bd"], // City Palace close-up (the old second photo repeated the first scene)
   "place-varanasi": ["photo-1561359313-0639aad49ca6", "photo-1561361058-c24cecae35ca"],
-  "place-corbett": ["photo-1653545607843-3411d02bc569"],
+  "place-corbett": [["photo-1506779946949-49847699b34b", "photo-1653545607843-3411d02bc569"]],
   "cover-road-in": ["photo-1651338794013-cdfa3745abe5"],
 };
 // An entry can also be a list of candidates for one slot (tried in order).

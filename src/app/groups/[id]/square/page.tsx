@@ -26,7 +26,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   const people = peopleShown(group.members, myId, data.leaver?.leftAt).length; // a leaver counts themselves and who was there when they left
   const n = squareNumbers({ expenses, payments, people, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const money = (x: number) => formatMoney(x, group.currency);
-  const photo = group.type === "trip" ? placePhoto(group.name)?.src : undefined;
+  const photo = group.type === "trip" ? placePhoto(group.name, group.id)?.src : undefined;
   // Someone who left only sees their own part of the ledger, so "nobody owes anybody" is not theirs to say (and not theirs to share):
   // they get one neutral state in every case (see squareWords).
   const leaver = Boolean(data.leaver);

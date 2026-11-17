@@ -38,7 +38,7 @@ export async function photoData(group: ShareGroup, origin: string): Promise<stri
       const got = await fetched(dest, origin);
       if (got) return got;
     }
-    const mood = placePhoto(`${group.name} ${group.tripPlace ?? ""}`);
+    const mood = placePhoto(`${group.name} ${group.tripPlace ?? ""}`, group.id);
     return mood ? await fetched(mood.src, origin) : null;
   } catch {
     return null;

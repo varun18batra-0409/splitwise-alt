@@ -84,7 +84,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
       title="Edit expense"
       back={back}
       cover={pair ? { kind: "plain" } : coverFor(group)}
-      photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
+      photo={!pair && group.type === "trip" && !group.cover ? placePhoto(group.name, group.id)?.src : undefined}
       uid={group.id}
       letter={group.name}
     >

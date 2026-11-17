@@ -232,7 +232,7 @@ function pick<T>(list: T[], seed: string, n: number): T[] {
 // The lines for one trip story: the place's own first, then the kind of trip, then the crew.
 export function storyLines(o: { month?: number | null; place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; n?: number }): Line[] {
   // The place's own hand-written lines, else lines for its city and country (any country in the world).
-  const handWritten = (o.place && PLACE[o.place.replace(/^place-/, "")]) || [];
+  const handWritten = (o.place && PLACE[o.place.replace(/^place-/, "").replace(/^kyoto$/, "japan")]) || [];
   const own = handWritten.length ? handWritten : worldLines(o.country, o.city, o.countryName, o.flag);
   const mood = MOOD[o.mood ?? "any"];
   const n = o.n ?? 4;

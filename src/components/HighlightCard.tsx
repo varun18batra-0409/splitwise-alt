@@ -188,6 +188,20 @@ function ArtPicture({ kind }: { kind: string }) {
         <span className="h-1 w-2/3 self-end rounded bg-[#2a2620]/60" />
       </div>
     );
+  if (kind === "harvest")
+    // Thanksgiving: a pumpkin with a green leaf and a few autumn leaves drifting down. Warm and plain: no lantern, nothing religious.
+    return (
+      <div aria-hidden data-harvest-art className="absolute right-8 top-6 h-[132px] w-[110px]">
+        <div className="absolute bottom-0 left-1/2 h-[74px] w-[92px] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(circle_at_50%_40%,#f0a24c,#d9772c_60%,#9c4a1c)] shadow-[0_0_40px_rgba(240,162,76,0.28)]" />
+        <div className="absolute bottom-0 left-[14px] h-[74px] w-[42px] rounded-[50%] border-r border-[#7d3a14]/45" />
+        <div className="absolute bottom-0 right-[14px] h-[74px] w-[42px] rounded-[50%] border-l border-[#7d3a14]/45" />
+        <div className="absolute bottom-[62px] left-1/2 h-4 w-3 -translate-x-1/2 rounded-sm bg-[#5a3d22]" />
+        <div className="absolute bottom-[68px] left-[calc(50%+2px)] h-3.5 w-6 rotate-[-18deg] rounded-[0_100%_0_100%] bg-[#7a8f3a]" />
+        <span className="absolute left-0 top-1 h-3.5 w-3.5 rotate-[20deg] rounded-[0_100%_0_100%] bg-[#c8552b]" />
+        <span className="absolute right-1 top-0 h-3 w-3 rotate-[-35deg] rounded-[0_100%_0_100%] bg-[#e0a23a]" />
+        <span className="absolute left-3 top-[34px] h-2.5 w-2.5 rotate-[60deg] rounded-[0_100%_0_100%] bg-[#e0a23a]/80" />
+      </div>
+    );
   if (kind === "festive")
     // A paper lantern on a string with a few gold sparks: festive without pointing at one festival.
     return (

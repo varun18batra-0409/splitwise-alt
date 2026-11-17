@@ -800,7 +800,7 @@ if (!hosted) {
       data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi forgot the rules of every card game, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
     });
     await db.postcard.create({
-      data: { fromId: acc.id, toId: meera.id, groupId: lona.id, front: "print:hills", words: "Lonavala", lettering: "italic", message: "Thank you for planning all of it.", hand: "homemade", stamp: "t:mountains", paper: "airmail", address: JSON.stringify(["Meera", "", ""]), place: "Lonavala", reaction: "miss", reactedAt: new Date() },
+      data: { fromId: acc.id, toId: meera.id, groupId: lona.id, front: "print:monsoon", words: "Lonavala", lettering: "italic", message: "Thank you for planning all of it.", hand: "homemade", stamp: "t:mountains", paper: "airmail", address: JSON.stringify(["Meera", "", ""]), place: "Lonavala", reaction: "miss", reactedAt: new Date() },
     });
     const sealedCard = await db.postcard.create({
       data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "print:beach", words: "Goa", message: "Open this on New Year's.", stamp: "r:newyear", opensAt: new Date(Date.now() + 60 * 86_400_000), address: "[]", place: "Goa" },

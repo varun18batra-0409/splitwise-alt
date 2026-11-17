@@ -24,7 +24,7 @@ export type Highlight =
       text: string;
       button: string;
       href: string;
-      art: "postcard" | "bill" | "festive" | "passport" | "sun" | "rain" | "cloud" | "snow";
+      art: "postcard" | "bill" | "festive" | "harvest" | "passport" | "sun" | "rain" | "cloud" | "snow";
       photo?: string; // a real photo fills the card behind a dark wash (the passport and postcard cards)
       scene?: boolean;
       // The object on top of that photo: a passport with your own stamps, a postcard with a photo taped on.
@@ -138,7 +138,7 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
 
   // 6. The festival or season for where you are, only inside its dates (the drawn lantern, never a trip photo).
   if (x.season)
-    out.push({ id: `season-${x.season.id}`, kind: "card", tone: "rose", eyebrow: x.season.eyebrow, title: x.season.title, text: x.season.text, button: x.season.button, href: x.season.href, art: "festive" });
+    out.push({ id: `season-${x.season.id}`, kind: "card", tone: "rose", eyebrow: x.season.eyebrow, title: x.season.title, text: x.season.text, button: x.season.button, href: x.season.href, art: x.season.id.startsWith("thanksgiving") ? "harvest" : "festive" });
 
   return out;
 }

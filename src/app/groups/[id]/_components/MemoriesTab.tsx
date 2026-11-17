@@ -101,7 +101,7 @@ export function MemoriesTab({
       {!v.leaver && (
         <SendPostcardCard
           href={`/postcards/new?group=${group.id}`}
-          front={trip && !group.cover && placePhoto(group.name) ? `photo:${placePhoto(group.name)!.src}` : group.type === "pot" ? "print:cards" : group.type === "home" || group.type === "couple" ? "print:home" : "print:beach"}
+          front={trip && !group.cover && placePhoto(group.name, group.id) ? `photo:${placePhoto(group.name, group.id)!.src}` : group.type === "pot" ? "print:cards" : group.type === "home" || group.type === "couple" ? "print:home" : "print:beach"}
           words={trip ? placeOf(group.name) : ""}
         />
       )}
