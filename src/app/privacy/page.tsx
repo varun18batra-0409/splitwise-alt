@@ -58,6 +58,7 @@ export default function Privacy() {
         <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
         <li>Messages you send to support: the message, the date and any reply email you leave. If you’re signed in it’s saved with your account. If you’re not, it isn’t linked to an account, and your network address is kept for about two days, only to limit abuse.</li>
         <li>Blocks you make, and reports you send about something another person sent you (what, why and your note).</li>
+        <li>When a trip’s destination isn’t in our photo library, we note the place name only (never your group, name or account), so we can add a photo for it. Names are counted, kept privately, and removed after a year.</li>
       </ul>
 
       <h2 className={h}>What we don’t do</h2>

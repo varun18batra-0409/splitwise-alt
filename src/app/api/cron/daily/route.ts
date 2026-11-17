@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { eraseExpiredGroups } from "@/lib/purge";
+import { pruneUnknownPlaces } from "@/lib/unknown-places";
 import { PART_NAMES, makeStop, finishDailyRun, markDailyStarted, runClaimedParts } from "@/lib/daily-job";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
@@ -78,6 +79,8 @@ export async function GET(req: Request) {
   await part("cleanup-collections", async () => (await db.collection.deleteMany({ where: { deletedAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   await part("cleanup-notes", async () => (await db.accountNote.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 90 * 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
+  // Places without a photo: forgotten after a year, or once a photo exists (the privacy page says so).
+  await part("cleanup-places", pruneUnknownPlaces);
   // Kept emails (only written in preview/test mode): gone after a day.
   await part("cleanup-outbox", async () => (await db.outbox.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
   await part("cleanup-deferred", async () => (await db.notifyLog.deleteMany({ where: { OR: [{ key: { startsWith: "daily-deferred:" } }, { key: { startsWith: "daily-started:" } }, { key: { startsWith: "daily-finished:" } }], createdAt: { lt: new Date(now.getTime() - 7 * 86_400_000) } } })).count);
