@@ -171,12 +171,12 @@ describe("2. FB-3: a charge the leaver paid goes to this month's payer", () => {
 
   it("Asha undoes her move-out before the month is added: the charge is hers again, her payment is gone, Ravi is untouched, all 0", async () => {
     const w = await world("fb3undo");
-    const { ch } = await raviOut(w);
+    const { ch, bill } = await raviOut(w);
     const r = await moveOut(w.gid, w.id("Asha"), { leaverId: w.id("Asha"), lastDay: "2026-11-20", requestKey: key("asha") }, new Date("2026-11-20T06:00:00Z"));
     if (!r.ok) throw new Error(r.error);
     expect((await db.expense.findUniqueOrThrow({ where: { id: ch.id } })).paidById).toBe(w.id("Meera"));
     const ev = await db.groupEvent.findUniqueOrThrow({ where: { id: r.eventId! } });
-    expect(JSON.parse(ev.undo).moveOut.chargePayers).toEqual([{ expenseId: ch.id, before: w.id("Asha"), after: w.id("Meera") }]);
+    expect(JSON.parse(ev.undo).moveOut.chargePayers).toEqual([{ expenseId: ch.id, before: w.id("Asha"), after: w.id("Meera"), billId: bill.id, period: "2026-11" }]); // the line also names the bill month it belongs to (1c8992f7)
     expect((await undoEvent(ev.id, w.id("Asha"))).ok).toBe(true);
     expect((await db.expense.findUniqueOrThrow({ where: { id: ch.id } })).paidById).toBe(w.id("Asha"));
     expect(await db.payment.count({ where: { groupId: w.gid, deletedAt: null } })).toBe(1); // only Ravi's

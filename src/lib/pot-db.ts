@@ -282,11 +282,13 @@ export async function adjustGap(gameId: string, actorId: string, input: { mode: 
 
 // Finish: only when everything adds up. The result goes into the group's
 // balances as one line, so settling up works as for any group.
-export async function finishGame(gameId: string, actorId: string, hooks: Hooks = {}): Promise<Result> {
+// `permitted`: the caller (countOut) already checked, before it wrote anything, that this person may run the game. Counting writes chip lines,
+// which count as the game being active, so checking again afterwards would shut out an admin who stood in for a quiet host at the last step.
+export async function finishGame(gameId: string, actorId: string, hooks: Hooks = {}, opts: { permitted?: boolean } = {}): Promise<Result> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
-  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can finish the game (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
+  if (!opts.permitted && !canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can finish the game (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
   if (game.status !== "open") return { ok: false, error: "This game is already finished." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen it in settings first." };
   const { lines, totals } = potSummary(parsePlayers(game.players), game.moves);
@@ -577,7 +579,7 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
   if (!settle || !canRunGame(game, g.members, actorId)) return answer({ ok: true, finished: false, gap: false });
   const missing = [...playing].filter((id) => !rows.some((x) => x.memberId === id));
   if (missing.length) return { ok: false, error: `Still to count: ${missing.map(name).join(", ")}. Put 0 for anyone who took nothing home.` };
-  const f = await finishGame(gameId, actorId);
+  const f = await finishGame(gameId, actorId, {}, { permitted: true }); // allowed above, before the count made the game look active
   if (f.ok) return answer({ ok: true, finished: true, gap: false });
   // Counted, but it doesn't add up (or something else stopped it: say what).
   return /missing from the count|more came back/.test(f.error) ? answer({ ok: true, finished: false, gap: true }) : { ok: false, error: f.error };
