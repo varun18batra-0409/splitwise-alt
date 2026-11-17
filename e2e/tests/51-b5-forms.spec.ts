@@ -31,7 +31,13 @@ test("CA-4: after Record opened the picker, the next tap is not swallowed and th
   // Choose Meera and tap Record straight away (within a second): it must go through.
   await A.locator("[data-to]").filter({ hasText: "Meera" }).click();
   await A.getByRole("button", { name: /^Record/ }).last().click();
-  await A.waitForURL(/paid=1/);
+  // The tap went through. Nobody owes anything in this new group, so Loopin first asks "more than what's owed, record it anyway?".
+  await A.waitForURL(/paid=1|owes=/);
+  if (!/paid=1/.test(A.url())) {
+    await expect(A.locator("[data-over-warning]")).toBeVisible();
+    await A.locator("[data-over-record]").click();
+    await A.waitForURL(/paid=1/);
+  }
   expect(await db.payment.count({ where: { groupId: gid, deletedAt: null } })).toBe(1);
   await ctxClose(A);
 });
@@ -124,9 +130,9 @@ test("VD2-24: a trip with the default cover has no Picture tile ticked, and savi
   await A.goto(`${g.path}/settings`);
   await settled(A);
   // With a downloaded Goa photo the trip shows that photo, so no drawn tile is ticked. A test copy built without photos shows the
-  // drawn trip picture instead, and then that one tile is the one ticked. Either way saving must not pin a picture.
+  // drawn trip picture (the beach) instead, and then that one tile is the one ticked. Either way saving must not pin a picture.
   const ticked = A.locator('input[name="cover"]:checked');
-  if (await ticked.count()) await expect(ticked).toHaveValue("trip");
+  if (await ticked.count()) await expect(ticked).toHaveValue("beach"); // a trip's drawn picture
   await A.getByRole("button", { name: "Save settings" }).click();
   await settled(A);
   expect((await db.group.findUniqueOrThrow({ where: { id: gid }, select: { cover: true } })).cover).toBe("");
@@ -145,7 +151,12 @@ test("CA-10: a busy search says so, and the same search works once the server an
   await A.locator('[data-more-ways] [data-way="search"] > summary').click();
   const search = A.getByLabel("Search people on Loopin");
   await search.fill("Meera");
-  await expect(A.getByText("Search is busy. Try again in a minute.")).toBeVisible();
+  // (If this fails, say what the list showed instead, and what the box held.)
+  await expect(A.getByText("Search is busy. Try again in a minute."), await (async () => {
+    await A.waitForTimeout(3000);
+    const list = await A.locator("[data-way='search'] ul").allInnerTexts().catch(() => ["(no list)"]);
+    return `the list said: ${JSON.stringify(list)}; the box held: ${JSON.stringify(await search.inputValue().catch(() => "?"))}`;
+  })()).toBeVisible();
   busy = false;
   await search.fill("Meer");
   await search.fill("Meera");
