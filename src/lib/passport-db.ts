@@ -368,8 +368,11 @@ export async function celebrateRecentTrips(today: string, yesterday: string) {
   for (const id of [...new Set(members.map((m) => m.accountId!))]) {
     const a = await db.account.findUnique({ where: { id } });
     if (!a) continue;
+    // With no home country saved, the daily job can't tell home from abroad (there's no visitor here to ask), so it
+    // celebrates only the milestones that don't depend on it. The passport page itself uses the visitor's region.
     const p = await loadPassport(a, a.homeCountry || "IN", today);
-    if (await celebrateMarks(a, p.marks)) sent++;
+    const marks = a.homeCountry ? p.marks : p.marks.filter((m) => m.ladder !== "abroad");
+    if (await celebrateMarks(a, marks)) sent++;
   }
   return sent;
 }
