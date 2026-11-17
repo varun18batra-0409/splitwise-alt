@@ -41,7 +41,8 @@ export async function loadGroup(id: string, opts: { events?: boolean; viewer?: s
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
   const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
   // Rows added before they left show as they were that day (MA-3); only what is shown changes, never the balances above.
-  const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, after, me.id, cut.leftAt);
+  const rowEvents = await laterRowEvents(id, cut.leftAt); // the one list every screen uses, so they all agree
+  const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete });
   scoped.expenses = hideLaterNotes(asOf.expenses, cut.leftAt);
   scoped.payments = asOf.payments;
   const mine = scopeBalances(net, transfers, me.id);
@@ -93,7 +94,8 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
   const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
   // Rows added before they left show as they were that day (MA-3); only what is shown changes, never the balances above.
-  const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, after, me.id, cut.leftAt);
+  const rowEvents = await laterRowEvents(id, cut.leftAt); // the one list every screen uses, so they all agree
+  const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete });
   scoped.expenses = hideLaterNotes(asOf.expenses, cut.leftAt);
   scoped.payments = asOf.payments;
   const mine = scopeBalances(net, transfers, me.id);
@@ -156,7 +158,8 @@ export async function loadMyGroups(memberships: Record<string, string>, opts: { 
           payments: g.payments.filter((p) => p.createdAt.getTime() <= upTo || p.fromId === myId || p.toId === myId || touched.paymentIds.includes(p.id)),
         };
         // As they were on the day they left (MA-3): one query for the group's later changes to rows.
-        const asOf = asOfCut(visible, await laterRowEvents(g.id, cut.leftAt), myId, cut.leftAt);
+        const rowEvents = await laterRowEvents(g.id, cut.leftAt);
+        const asOf = asOfCut(visible, rowEvents.events, myId, cut.leftAt, { complete: rowEvents.complete });
         rows = { expenses: hideLaterNotes(asOf.expenses, cut.leftAt), payments: asOf.payments };
       }
       const expenses = cut ? active(rows.expenses) : full;
@@ -206,7 +209,8 @@ export async function loadMyGroupsLean(memberships: Record<string, string>) {
           payments: g.payments.filter((p) => p.createdAt.getTime() <= upTo || p.fromId === myId || p.toId === myId || touched.paymentIds.includes(p.id)),
         };
         // As they were on the day they left (MA-3): one query for the group's later changes to rows.
-        const asOf = asOfCut(visible, await laterRowEvents(g.id, cut.leftAt), myId, cut.leftAt);
+        const rowEvents = await laterRowEvents(g.id, cut.leftAt);
+        const asOf = asOfCut(visible, rowEvents.events, myId, cut.leftAt, { complete: rowEvents.complete });
         rows = { expenses: hideLaterNotes(asOf.expenses, cut.leftAt), payments: asOf.payments };
       }
       const expenses = cut ? active(rows.expenses) : full;

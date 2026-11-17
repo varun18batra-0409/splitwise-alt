@@ -94,4 +94,32 @@ describe("Goa as of 1 Nov, through every loader", () => {
     expect(light.spent).toBe(25900 * RS); // Hotel 25,000 + Taxi 900 (Snacks is deleted)
     expect(light.expenseCount).toBe(2);
   });
+
+  it("M1: a photo-only change after he left does not hide Hotel: still 1,350,000 over 3, in every loader", async () => {
+    const s = await goa("photo");
+    // Put Hotel back as it was and make the only change after he left a bill-photo change (edited stamp, no saved 'before').
+    await db.groupEvent.deleteMany({ where: { groupId: s.g.id, kind: "expense_edited" } });
+    await db.expenseShare.deleteMany({ where: { expenseId: s.hotel.id } });
+    await db.expenseShare.createMany({ data: [{ expenseId: s.hotel.id, memberId: s.A, amount: 6000 * RS }, { expenseId: s.hotel.id, memberId: s.P, amount: 6000 * RS }] });
+    await db.expense.update({ where: { id: s.hotel.id }, data: { description: "Hotel", amount: 12000 * RS, originalAmount: 12000 * RS, convertedAmount: 12000 * RS, editedAt: at("11-05") } });
+    await db.groupEvent.create({ data: { groupId: s.g.id, actorId: s.A, kind: "expense_edited", text: "changed the bill photo on Hotel", createdAt: at("11-05"), expenseId: s.hotel.id } });
+    const v = await loadGroupView(s.g.id, { viewer: s.R });
+    expect(v!.expenses.length).toBe(3);
+    expect(v!.expenses.reduce((n, e) => n + spentAmount(e), 0)).toBe(13500 * RS);
+    const m = { [s.g.id]: s.R };
+    const [full] = await loadMyGroups(m);
+    const [lean] = await loadMyGroupsLean(m);
+    const [light] = await loadMyGroupsLight(m);
+    expect([full.spent, lean.spent, light.spent]).toEqual([13500 * RS, 13500 * RS, 13500 * RS]);
+    expect([full.expenses.length, lean.expenses.length, light.expenseCount]).toEqual([3, 3, 3]);
+  });
+
+  it("M3: the group page and Home's loaders give the same numbers for Ravi", async () => {
+    const s = await goa("same");
+    const v = await loadGroupView(s.g.id, { viewer: s.R });
+    const [light] = await loadMyGroupsLight({ [s.g.id]: s.R });
+    expect(light.spent).toBe(v!.expenses.reduce((n, e) => n + spentAmount(e), 0));
+    expect(light.expenseCount).toBe(v!.expenses.length);
+    expect(light.myBalance).toBe(0);
+  });
 });

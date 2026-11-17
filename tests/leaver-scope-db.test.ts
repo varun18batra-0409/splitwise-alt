@@ -77,3 +77,21 @@ describe("D-5: the cover a leaver is drawn", () => {
     expect(asMember.group.cover).toBe("own");
   });
 });
+
+describe("M2: leaving and being brought back leaves a gap", () => {
+  it("Asha 5-20 Jan, brought back on 5 May by the app, and Ravi 1-30 Mar: not strangers by accident, they never overlapped", async () => {
+    const s = await goa();
+    // Ravi left on 30 Mar. Asha's row was reused: leftAt cleared on 5 May, with the lines the app writes for each move.
+    await db.member.update({ where: { id: s.row("Ravi").id }, data: { leftAt: day("2026-03-30") } });
+    await db.member.update({ where: { id: s.row("Asha").id }, data: { leftAt: null } });
+    const line = (kind: string, memberId: string, at: Date) =>
+      db.groupEvent.create({ data: { groupId: s.g.id, actorId: memberId, kind, text: kind, createdAt: at, undo: JSON.stringify({ type: "member_set", memberId, data: { leftAt: null } }) } });
+    await line("member_left", s.row("Asha").id, day("2026-01-20"));
+    await line("member_rejoined", s.row("Asha").id, day("2026-05-05"));
+    expect(await canSeePassport(s.asha.id, s.ravi.id)).toMatchObject({ ok: false, reason: "stranger" });
+    expect(await canSeePassport(s.ravi.id, s.asha.id)).toMatchObject({ ok: false, reason: "stranger" });
+    expect((await passportFriends(s.asha.id)).map((f) => f.accountId)).toEqual([s.meera.id]);
+    const ids = (await postcardPeople(s.asha.id)).flatMap((g) => g.people.map((p) => p.id));
+    expect(ids).not.toContain(s.ravi.id);
+  });
+});

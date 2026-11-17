@@ -28,14 +28,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // Only the photo's version first (no picture bytes).
   const head = await db.groupPhoto.findUnique({ where: { groupId: id }, select: { updatedAt: true, type: true } });
   if (!head) return notFound();
-  // A photo put up after they left (or were removed) is not theirs to see (the pages show the default cover instead, see coverForViewer).
+  // A photo put up after they left (or were removed) is not theirs to see (the pages show the default cover instead, see coverSeenBy).
   if (photoAfterCut(head.updatedAt, me)) return notFound();
   const etag = `"g-${id}-${head.updatedAt.getTime()}"`;
   // Access is settled above; only now may "not changed" be said (and still nothing is read from storage).
   if (tagMatches(req.headers.get("if-none-match"), etag)) {
     return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": "private, no-cache", Vary: "Cookie", "X-Content-Type-Options": "nosniff" } });
   }
-  const photo = await db.groupPhoto.findUnique({ where: { groupId: id } });
+  // The bytes are read for exactly the version just checked (one row: same time, same picture). If the photo was replaced in the
+  // meantime this finds nothing, and the answer is a calm 404 (the page asks again); a newer photo is never served under an older check.
+  const photo = await db.groupPhoto.findFirst({ where: { groupId: id, updatedAt: head.updatedAt } });
   const bytes = photo ? await readPhoto(photo) : null;
   if (!photo || !bytes) return notFound();
   // Kept on the phone only as "ask first": the check above runs every time, so someone who is removed stops getting it.

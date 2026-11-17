@@ -51,7 +51,8 @@ export async function GET() {
           // Notes of expenses changed after I left stay blank.
           const cut = leaverCut(me);
           // Rows from before I left are written as they were that day (MA-3).
-          const asOf = cut ? asOfCut({ expenses: rawExpenses, payments: rawPayments }, await laterRowEvents(g.id, cut.leftAt), me.id, cut.leftAt) : { expenses: rawExpenses, payments: rawPayments };
+          const rowEvents = cut ? await laterRowEvents(g.id, cut.leftAt) : null;
+          const asOf = cut && rowEvents ? asOfCut({ expenses: rawExpenses, payments: rawPayments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete }) : { expenses: rawExpenses, payments: rawPayments };
           const payments = asOf.payments;
           const expenses = cut ? hideLaterNotes(asOf.expenses, cut.leftAt) : asOf.expenses;
           return { ...g, expenses, payments, claims, myId: memberships[g.id] };

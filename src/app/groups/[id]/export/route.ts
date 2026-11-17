@@ -31,7 +31,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // Notes of expenses changed after they left stay blank for them.
   const cut = leaverCut(me);
   // Rows added before they left are written as they were that day (MA-3).
-  const asOf = cut ? asOfCut({ expenses: rawExpenses, payments: rawPayments }, await laterRowEvents(group.id, cut.leftAt), me.id, cut.leftAt) : { expenses: rawExpenses, payments: rawPayments };
+  const rowEvents = cut ? await laterRowEvents(group.id, cut.leftAt) : null;
+  const asOf = cut && rowEvents ? asOfCut({ expenses: rawExpenses, payments: rawPayments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete }) : { expenses: rawExpenses, payments: rawPayments };
   const payments = asOf.payments;
   const expenses = cut ? hideLaterNotes(asOf.expenses, cut.leftAt) : asOf.expenses;
   const body = groupCsv(group, group.members, expenses, payments, await getTimeZone(), { onlyInvolved: Boolean(scope) });

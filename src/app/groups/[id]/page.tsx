@@ -144,8 +144,8 @@ export default async function GroupPage({
     monthTab ? db.listItem.findMany({ where: { groupId: group.id, expenseId: "", boughtAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, text: true } }) : Promise.resolve([] as { id: string; text: string }[]),
   ]);
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
-  // Reactions on expenses, for the Activity list.
-  const reactions = tab === "activity" && group.expenses.length ? await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) } }, select: { expenseId: true, memberId: true, emoji: true } }) : [];
+  // Reactions on expenses, for the Activity list (someone who left sees only those made by their last day).
+  const reactions = tab === "activity" && group.expenses.length ? await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) }, ...(leaver ? { createdAt: { lte: leaver.leftAt } } : {}) }, select: { expenseId: true, memberId: true, emoji: true } }) : [];
   // Results of finished games: they change through the game (other card-game rows, e.g. imported ones, are ordinary).
   // Loaded whatever the group type now is: a card-night group can later become a trip and keep its games.
   const gameResultIds = tab === "activity" ? (await db.potGame.findMany({ where: { groupId: group.id, resultId: { not: "" } }, select: { resultId: true } })).map((g) => g.resultId) : [];

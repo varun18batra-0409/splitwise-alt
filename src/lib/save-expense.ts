@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { BILL_PHOTO_EDIT_PREFIX } from "./left-view";
 import { hasLeft, LEFT_ERROR } from "./active";
 import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
@@ -395,9 +396,10 @@ async function saveExpenseOnce(
     }
     if (attach) await writeAttach(tx, group.id, existing.id, attach, false);
     // Only the item lines changed: still a logged, undoable change. Only the bill photo: logged, with no undo (the old file is deleted).
+    // The line's words (BILL_PHOTO_EDIT_PREFIX) tell the leaver's view that nothing else about the expense changed (see asOfCut).
     if (!changes.length && !attachDiff.lines) {
       if (!attachDiff.photo) return "";
-      return logEvent(tx, { groupId: group.id, actorId: actingMemberId, kind: "expense_edited", text: `changed the bill photo on ${name}`, expenseId: existing.id, touches: [] });
+      return logEvent(tx, { groupId: group.id, actorId: actingMemberId, kind: "expense_edited", text: `${BILL_PHOTO_EDIT_PREFIX}${name}`, expenseId: existing.id, touches: [] });
     }
     return logEvent(tx, {
       groupId: group.id,

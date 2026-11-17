@@ -3,6 +3,7 @@ import { NOT_DIRECT } from "@/lib/direct"; // a pair of two people is not "shari
 import { JOINED } from "@/lib/membership";
 import { blockedEitherWay } from "@/lib/blocks";
 import { membershipSpan, overlapped } from "@/lib/left-view";
+import { memberHistory } from "@/lib/left-view-db";
 
 // The same rule as passports: someone the admin removed stops counting (both ways); someone who left on their own still counts.
 const COUNTS = { ...JOINED, removedAt: null };
@@ -18,12 +19,13 @@ export async function postcardPeople(accountId: string): Promise<PostcardGroup[]
   const SPAN = { createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true } as const;
   const mineRows = await db.member.findMany({
     where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } },
-    select: { ...SPAN, group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...COUNTS }, select: { accountId: true, name: true, ...SPAN } } } } },
+    select: { id: true, ...SPAN, group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...COUNTS }, select: { id: true, accountId: true, name: true, ...SPAN } } } } },
   });
   // Only people who were in the group at the same time as you (someone who left before you joined, or joined after you left, isn't offered).
+  const history = await memberHistory(mineRows.map((m) => m.group.id)); // a gap between leaving and coming back is not time together
   const mine = mineRows.map((m) => {
-    const span = membershipSpan(m);
-    return { group: { ...m.group, members: m.group.members.filter((o) => overlapped(span, membershipSpan(o))) } };
+    const span = membershipSpan(m, history.get(m.id));
+    return { group: { ...m.group, members: m.group.members.filter((o) => overlapped(span, membershipSpan(o, history.get(o.id)))) } };
   });
   const groups = mine.map((m) => m.group).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   // Someone blocked (either way round) is never offered, and can't be sent to.

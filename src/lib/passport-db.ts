@@ -4,6 +4,7 @@ import { JOINED, isPending } from "./membership";
 import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
 import { buildPassport, parseHandPlaces, passportShared, passportZone, tripOver, undatedTripDay, wentOnTrip, type PassportTrip } from "./passport";
 import { leaverCut, leaverWhere, membershipSpan, overlapped, sharedGroupRow } from "./left-view";
+import { memberHistory } from "./left-view-db";
 import type { Prisma } from "@prisma/client";
 import type { TripExtras } from "./passport-cards";
 
@@ -92,15 +93,18 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   const owner = new Map(groups.map((g) => [g.id, g.members.find((m) => !m.leftAt && !m.removedAt) ?? g.members[0]]));
   const together = new Map<string, { name: string; accountId: string | null }[]>();
   if (!opts.forFriend && groups.length) {
-    const rows = await db.member.findMany({
-      where: { groupId: { in: groups.map((g) => g.id) }, ...COUNTS },
-      select: { groupId: true, name: true, accountId: true, createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true },
-      orderBy: { createdAt: "asc" },
-      take: 6000,
-    });
+    const [rows, history] = await Promise.all([
+      db.member.findMany({
+        where: { groupId: { in: groups.map((g) => g.id) }, ...COUNTS },
+        select: { id: true, groupId: true, name: true, accountId: true, createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true },
+        orderBy: { createdAt: "asc" },
+        take: 6000,
+      }),
+      memberHistory(groups.map((g) => g.id)), // leaving and coming back leaves a gap that isn't time together
+    ]);
     for (const r of rows) {
       const me = owner.get(r.groupId);
-      if (!me || (r.accountId && r.accountId === account.id) || !overlapped(membershipSpan(me), membershipSpan(r))) continue;
+      if (!me || (r.accountId && r.accountId === account.id) || !overlapped(membershipSpan(me, history.get(me.id)), membershipSpan(r, history.get(r.id)))) continue;
       (together.get(r.groupId) ?? together.set(r.groupId, []).get(r.groupId)!).push({ name: r.name, accountId: r.accountId });
     }
   }
@@ -169,20 +173,23 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
 export async function passportFriends(accountId: string) {
   // (Your own row must be joined too: a group someone added you to but you never opened shows you nobody.)
   const SPAN = { createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true } as const;
-  const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } }, select: { groupId: true, ...SPAN }, take: 500 });
+  const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } }, select: { id: true, groupId: true, ...SPAN }, take: 500 });
   if (!mine.length) return [];
-  const others = await db.member.findMany({
-    // Someone added straight in by another person counts once they've opened that group.
-    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, ...COUNTS },
-    select: { accountId: true, name: true, groupId: true, group: { select: { name: true } }, ...SPAN },
-    take: 3000,
-  });
+  const [others, history] = await Promise.all([
+    db.member.findMany({
+      // Someone added straight in by another person counts once they've opened that group.
+      where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, ...COUNTS },
+      select: { id: true, accountId: true, name: true, groupId: true, group: { select: { name: true } }, ...SPAN },
+      take: 3000,
+    }),
+    memberHistory(mine.map((m) => m.groupId)),
+  ]);
   const by = new Map<string, { accountId: string; name: string; groups: string[] }>();
   const blocked = await blockedEitherWay(accountId);
   for (const o of others) {
     if (blocked.has(o.accountId!)) continue;
     // Only people who were in that group at the same time as you (not someone who joined after you left, or left before you joined).
-    if (!mine.some((m) => m.groupId === o.groupId && overlapped(membershipSpan(m), membershipSpan(o)))) continue;
+    if (!mine.some((m) => m.groupId === o.groupId && overlapped(membershipSpan(m, history.get(m.id)), membershipSpan(o, history.get(o.id))))) continue;
     const f = by.get(o.accountId!) ?? { accountId: o.accountId!, name: o.name, groups: [] };
     if (!f.groups.includes(o.group.name)) f.groups.push(o.group.name);
     by.set(o.accountId!, f);
@@ -201,11 +208,13 @@ export async function canSeePassport(viewerAccountId: string, ownerAccountId: st
   const SPAN = { createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true } as const;
   const ownerRows = await db.member.findMany({
     where: { accountId: ownerAccountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: viewerAccountId, ...COUNTS } } } },
-    select: { name: true, groupId: true, ...SPAN },
+    select: { id: true, name: true, groupId: true, ...SPAN },
     take: 500,
   });
-  const viewerRows = ownerRows.length ? await db.member.findMany({ where: { accountId: viewerAccountId, ...COUNTS, groupId: { in: ownerRows.map((r) => r.groupId) } }, select: { groupId: true, ...SPAN }, take: 500 }) : [];
-  const shared = sharedGroupRow(ownerRows, viewerRows);
+  const viewerRows = ownerRows.length ? await db.member.findMany({ where: { accountId: viewerAccountId, ...COUNTS, groupId: { in: ownerRows.map((r) => r.groupId) } }, select: { id: true, groupId: true, ...SPAN }, take: 500 }) : [];
+  // (Someone who left and was brought back was away in between: that gap is not time together.)
+  const history = ownerRows.length ? await memberHistory([...new Set(ownerRows.map((r) => r.groupId))]) : new Map();
+  const shared = sharedGroupRow(ownerRows, viewerRows, (r) => membershipSpan(r, history.get((r as { id?: string }).id ?? "")));
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
   const owner = await db.account.findUnique({ where: { id: ownerAccountId } });
   if (!owner) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };

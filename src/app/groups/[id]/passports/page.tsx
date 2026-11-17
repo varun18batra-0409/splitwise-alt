@@ -9,7 +9,8 @@ import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportRoster } from "@/lib/passport-db";
 import { blockedEitherWay } from "@/lib/blocks";
-import { membershipSpan, overlapped } from "@/lib/left-view";
+import { leaverCut, membersAsOf, membershipSpan, overlapped } from "@/lib/left-view";
+import { memberHistory } from "@/lib/left-view-db";
 import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader } from "@/components/ui";
@@ -35,7 +36,11 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   if (!everyoneEver) redirect(await privatePath(id));
   // Only people who were in the group at the same time as the viewer (someone who joined after they left isn't listed).
   const myRow = group.members.find((m) => m.id === myId)!;
-  const everyone = everyoneEver.filter((m) => m.id === myId || overlapped(membershipSpan(myRow), membershipSpan(m)));
+  const history = await memberHistory([id]); // a gap between leaving and coming back is not time together
+  const sameTime = everyoneEver.filter((m) => m.id === myId || overlapped(membershipSpan(myRow, history.get(myRow.id)), membershipSpan(m, history.get(m.id))));
+  // Someone who left: the group as it was on their last day, so a "left" mark only shows for people who had left by then.
+  const myCut = leaverCut(myRow);
+  const everyone = myCut ? membersAsOf(sameTime, myId, myCut.leftAt) : sameTime;
   // Someone blocked (either way round) is left out of Our passports; the group itself is untouched.
   const myAccountId = group.members.find((m) => m.id === myId)?.accountId;
   const hidden = myAccountId ? await blockedEitherWay(myAccountId) : new Set<string>();
