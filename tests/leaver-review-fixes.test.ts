@@ -29,6 +29,7 @@ const { encodeSession, today } = await import("@/lib/session");
 const { joinNew } = await import("@/lib/join");
 const { memberHistory } = await import("@/lib/left-view-db");
 const { membershipSpan, overlapped } = await import("@/lib/left-view");
+const { squareWords, SQUARE_NEUTRAL } = await import("@/lib/square");
 const { reactAction } = await import("@/app/reaction-actions");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -92,6 +93,36 @@ describe("1: back in the group with no 'came back' line", () => {
     expect(overlapped(membershipSpan(asha, withOwn.get(asha.id), now), membershipSpan(w.row("Ravi"), withOwn.get(w.row("Ravi").id), now))).toBe(true);
   });
 
+  // Which lines prove she was back: only ones a signed-in, active member writes. A leaver's "Got it", a reminder-link payment, an old-note
+  // script line and a change of month-end payer are all filed under a person without them being back.
+  it("a 'Got it' line written while she was away does not start the stay; a line a member writes does", async () => {
+    const w = await world();
+    const asha = w.row("Asha");
+    const now = day("2026-05-05");
+    await line(w.g.id, asha.id, "member_left", day("2026-01-20"));
+    await line(w.g.id, asha.id, "payment_confirmed", day("2026-02-01")); // "Got it" by a leaver
+    await db.groupEvent.create({ data: { groupId: w.g.id, actorId: asha.id, kind: "payment_recorded", text: "paid Meera ₹10 (from the reminder link)", createdAt: day("2026-02-05") } });
+    await db.groupEvent.create({ data: { groupId: w.g.id, actorId: asha.id, kind: "payment_recorded", text: "paid Meera ₹10 (from an earlier “I’ve paid”)", createdAt: day("2026-02-06") } });
+    await db.groupEvent.create({ data: { groupId: w.g.id, actorId: asha.id, kind: "expense_edited", text: "Asha now paid Milk · 1–14 Feb", createdAt: day("2026-02-07") } });
+    await line(w.g.id, asha.id, "payment_note_closed", day("2026-02-08"));
+    const away = await memberHistory([w.g.id]);
+    expect(away.get(asha.id)!.map((c) => c.kind)).toEqual(["member_left"]);
+    expect(membershipSpan(asha, away.get(asha.id), now).periods![1]).toEqual({ from: now, to: null });
+
+    await line(w.g.id, asha.id, "expense_added", day("2026-03-10"));
+    const back = await memberHistory([w.g.id]);
+    expect(membershipSpan(asha, back.get(asha.id), now).periods![1]).toEqual({ from: day("2026-03-10"), to: null });
+  });
+
+  it("a line filed under someone else does not count for her", async () => {
+    const w = await world();
+    const asha = w.row("Asha");
+    await line(w.g.id, asha.id, "member_left", day("2026-01-20"));
+    await line(w.g.id, w.row("Meera").id, "expense_added", day("2026-03-10"));
+    const h = await memberHistory([w.g.id]);
+    expect(h.get(asha.id)!.map((c) => c.kind)).toEqual(["member_left"]);
+  });
+
   it("someone who is still out is not looked up (their row is left, so nothing is added)", async () => {
     const w = await world({ asha: { leftAt: day("2026-01-20") } });
     const asha = w.row("Asha");
@@ -108,16 +139,24 @@ describe("2: tapping rejoin twice writes one line", () => {
     const [a, b] = await Promise.all([joinNew(w.g.inviteCode, account, ""), joinNew(w.g.inviteCode, account, "")]);
     expect(await db.groupEvent.count({ where: { groupId: w.g.id, kind: "member_rejoined" } })).toBe(1);
     expect((await db.member.findUniqueOrThrow({ where: { id: w.row("Asha").id } })).leftAt).toBeNull();
-    expect([a.ok, b.ok].filter(Boolean).length).toBeGreaterThanOrEqual(1);
+    // Both taps end with her in (the loser finds her already back): neither is shown a failure.
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
     // A third tap, later: already back, no new line.
     expect((await joinNew(w.g.inviteCode, account, "")).ok).toBe(true);
     expect(await db.groupEvent.count({ where: { groupId: w.g.id, kind: "member_rejoined" } })).toBe(1);
   });
 
   it("someone who was removed in the meantime is not put back", async () => {
-    const w = await world({ asha: { leftAt: new Date(Date.now() - 5 * DAY), removedAt: new Date(), removedById: "admin" } });
-    const r = await joinNew(w.g.inviteCode, { id: w.asha.id, name: "Asha", email: w.asha.email }, "");
+    // She is read as left (not removed); the removal lands between that read and the write, so the write's own where-clause must refuse.
+    const w = await world({ asha: { leftAt: new Date(Date.now() - 5 * DAY) } });
+    const r = await joinNew(w.g.inviteCode, { id: w.asha.id, name: "Asha", email: w.asha.email }, "", {
+      afterRead: async () => {
+        await db.member.update({ where: { id: w.row("Asha").id }, data: { removedAt: new Date(), removedById: "admin" } });
+      },
+    });
     expect(r.ok).toBe(false);
+    expect((await db.member.findUniqueOrThrow({ where: { id: w.row("Asha").id } })).leftAt).not.toBeNull();
     expect(await db.groupEvent.count({ where: { groupId: w.g.id, kind: "member_rejoined" } })).toBe(0);
   });
 });
@@ -149,5 +188,23 @@ describe("3: changing a reaction's emoji counts as reacting now", () => {
     // Tapping the same emoji again takes it back (unchanged).
     await react("❤️");
     expect(await db.reaction.count({ where: { expenseId: e.id } })).toBe(0);
+  });
+});
+
+describe("4: the square page's words", () => {
+  it("a leaver gets the one neutral state in every case, with no share and no hide switch", () => {
+    for (const [transfers, expenses] of [[0, 0], [0, 5], [2, 5], [3, 0]]) {
+      const w = squareWords({ leaver: true, transfers, expenses });
+      expect(w.title).toBe(SQUARE_NEUTRAL);
+      expect(w.heading).toBe(SQUARE_NEUTRAL);
+      expect(w.square).toBe(true);
+      expect(w.confetti || w.share || w.hideSwitch).toBe(false);
+      expect(w.tiles).toBe(expenses > 0);
+    }
+  });
+  it("everyone else is unchanged", () => {
+    expect(squareWords({ leaver: false, transfers: 0, expenses: 3 })).toMatchObject({ title: "All square", heading: "All square", confetti: true, share: true, hideSwitch: true, tiles: true });
+    expect(squareWords({ leaver: false, transfers: 0, expenses: 0 })).toMatchObject({ title: "Not square yet", square: false, hideSwitch: false });
+    expect(squareWords({ leaver: false, transfers: 2, expenses: 3 }).title).toBe("Not square yet");
   });
 });

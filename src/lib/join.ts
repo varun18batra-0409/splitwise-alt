@@ -92,7 +92,9 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
 }
 
 // Join as yourself (your verified account), or come back after leaving on your own.
-export async function joinNew(code: string, account: JoinAccount, typedName: string): Promise<JoinOk | JoinFail> {
+// (`opts.afterRead` is for tests only, like the other money and membership writes: it runs between the read and the write. No caller
+// passes it from a request.)
+export async function joinNew(code: string, account: JoinAccount, typedName: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<JoinOk | JoinFail> {
   const group = await loadByCode(code);
   if (!group) return { ok: false, reason: "gone" };
   const gone = removedRow(group, account.id);
@@ -109,6 +111,7 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
     // fails, leftAt is not cleared (a stay with no line would otherwise be counted as starting later than it did).
     if (mine.leftAt) {
       const leftAt = mine.leftAt;
+      await opts.afterRead?.();
       // The write only matches the row as it was read (still left on that same day): a second tap, or another phone, finds it already back
       // and writes no second line. Back already (and not removed) is the answer they wanted; anything else is "try again".
       const back = await db.$transaction(async (tx) => {

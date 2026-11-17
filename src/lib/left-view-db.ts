@@ -129,9 +129,11 @@ export async function memberHistory(groupIds: string[]): Promise<Map<string, Mem
     await Promise.all(
       rows.map(async (m) => {
         const left = out.get(m.id)![out.get(m.id)!.length - 1].createdAt;
-        const first = await db.groupEvent.findFirst({
-          where: { groupId: m.groupId, actorId: m.id, createdAt: { gt: left }, kind: { notIn: ["member_left", "member_rejoined"] } },
+        // Only the first such line is read (take 1, oldest first): never every line since they left. Served by the (groupId, createdAt) index.
+        const [first] = await db.groupEvent.findMany({
+          where: ownLineWhere(m.groupId, m.id, left),
           orderBy: { createdAt: "asc" },
+          take: 1,
           select: { createdAt: true },
         });
         if (first) out.get(m.id)!.push({ kind: "own_line", createdAt: first.createdAt });
@@ -140,6 +142,30 @@ export async function memberHistory(groupIds: string[]): Promise<Map<string, Mem
   }
   return out;
 }
+
+// The lines that prove a person was back in the group: only kinds that a signed-in, active member writes, acting in the group.
+// Checked path by path (each refuses someone who has left, by guardGroup's actor check, hasLeft, or a "still in" member lookup):
+//  expense_added / expense_edited   save-expense.ts, undo.ts, moving-db.ts (the actor is an active member)
+//  payment_recorded                 pay-record.ts, settle-all.ts, cross-settle-db.ts, moving-db.ts (guardGroup with the actor)
+//  pot_*                            pot-db.ts (groupFor wants an active member)
+//  countdown_shared                 countdown-actions.ts (members with leftAt: null)
+//  bill_added                       home/bill-setup.ts (the actor must be active)
+//  split_changed, trip_dates_set    group-setup.ts (hasLeft refused)
+// Left out on purpose: "Got it" (payment_confirmed: a leaver may answer a payment to them), member_* and members_* lines, rename and
+// currency lines, payment_note_closed (written by a script, or by the move-out), bill_changed (many writers), deletes and restores.
+export const OWN_LINE_KINDS = ["expense_added", "expense_edited", "payment_recorded", "pot_started", "pot_finished", "pot_reopened", "pot_deleted", "countdown_shared", "bill_added", "split_changed", "trip_dates_set"];
+// Lines of those kinds that are still filed under a person without them acting: the reminder link (no sign-in, the payer need not be
+// active; pay-link.ts) and the old-note script (convert-claims.ts) write payment_recorded for the payer, and a change of month-end
+// payer (bills-db.ts) writes expense_edited for the payer. Their texts are fixed there; a line that merely looks like them is left
+// out too, which is the safe side (a later line starts the stay, or "now").
+export const NOT_OWN_TEXT = ["(from the reminder link)", "(from an earlier", " now paid "];
+export const ownLineWhere = (groupId: string, actorId: string, after: Date) => ({
+  groupId,
+  actorId,
+  createdAt: { gt: after },
+  kind: { in: OWN_LINE_KINDS },
+  AND: NOT_OWN_TEXT.map((t) => ({ NOT: { text: { contains: t } } })),
+});
 
 // The payment ids a "Mark all paid" / "Settle everything" line (and its Undo or Redo) is about, from its saved undo text.
 function paymentIdsInUndo(undo: string | null): string[] {

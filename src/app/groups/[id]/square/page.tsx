@@ -10,7 +10,7 @@ import { ShareSheet } from "@/components/ShareSheet";
 import { coverFor } from "@/lib/covers";
 import { peopleShown } from "@/lib/left-view";
 import { placePhoto } from "@/lib/places";
-import { squareNumbers, squareTiles } from "@/lib/square";
+import { squareNumbers, squareTiles, squareWords } from "@/lib/square";
 import { Confetti } from "@/components/Confetti";
 
 // "All square": nobody owes anybody. A moment worth sharing, not just a zero.
@@ -27,17 +27,17 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   const n = squareNumbers({ expenses, payments, people, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const money = (x: number) => formatMoney(x, group.currency);
   const photo = group.type === "trip" ? placePhoto(group.name)?.src : undefined;
-  const square = transfers.length === 0 && expenses.length > 0;
-  // Someone who left only sees their own part of the ledger, so "nobody owes anybody" is not theirs to say (and not theirs to share).
+  // Someone who left only sees their own part of the ledger, so "nobody owes anybody" is not theirs to say (and not theirs to share):
+  // they get one neutral state in every case (see squareWords).
   const leaver = Boolean(data.leaver);
-  const tiles = squareTiles(n, { hide, formatSpent: money });
-  // A leaver is told only what is true for them: no "All square" (that is a word about the whole group) and no confetti.
-  const neutral = "You're settled up here.";
+  const w = squareWords({ leaver, transfers: transfers.length, expenses: expenses.length });
+  const square = w.square;
+  const tiles = squareTiles(n, { hide: hide && !leaver, formatSpent: money });
 
   return (
     <>
-      <PageHeader title={square ? (leaver ? neutral : "All square") : "Not square yet"} hideTitle={square} back={`/groups/${group.id}`} />
-      <section aria-label={leaver ? neutral : "All square"} className="flex flex-col items-center pb-8">
+      <PageHeader title={w.title} hideTitle={square} back={`/groups/${group.id}`} />
+      <section aria-label={w.heading} className="flex flex-col items-center pb-8">
         {/* The group's polaroid, pinned. */}
         <div className="relative mt-2 w-[78%] max-w-[300px] -rotate-2 bg-[#f4f1e8] p-2.5 pb-0 shadow-[0_30px_50px_-20px_rgba(0,0,0,0.95)]">
           <span aria-hidden className="absolute -top-3 left-1/2 z-10 h-6 w-16 -translate-x-1/2 rotate-2 bg-[linear-gradient(180deg,rgba(236,226,196,0.85),rgba(214,201,164,0.8))] shadow-sm [mask-image:linear-gradient(90deg,transparent_0,#000_4%,#000_96%,transparent_100%)] after:absolute after:inset-0 after:bg-[repeating-linear-gradient(115deg,rgba(0,0,0,0.045)_0_2px,transparent_2px_5px)] after:content-['']" />
@@ -54,11 +54,12 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
 
         {square ? (
           <>
-            {!leaver && <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />}
+            {w.confetti && <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />}
             <p className="mt-9 text-center font-display text-[44px] font-semibold leading-none tracking-tight" data-square>
-              {leaver ? neutral : "All square"}
+              {w.heading}
             </p>
             {!leaver && <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">Nobody owes anybody. Nice one.</p>}
+            {w.tiles && (
             <dl className={`mt-8 grid w-full gap-2 text-center ${tiles.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
               {tiles.map(([v, l]) => (
                 <div key={l} className="rounded-2xl border border-line px-2 py-3">
@@ -68,7 +69,9 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
                 </div>
               ))}
             </dl>
+            )}
             {/* One switch, no extra screen: it changes the tiles above and the picture that gets shared. */}
+            {w.hideSwitch && (
             <a
               href={hide ? `/groups/${group.id}/square` : `/groups/${group.id}/square?amounts=0`}
               role="switch"
@@ -81,7 +84,8 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
                 <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${hide ? "left-6" : "left-1"}`} />
               </span>
             </a>
-            {!leaver && (
+            )}
+            {w.share && (
             <div className="mt-4 w-full">
               <ShareSheet image={`/groups/${group.id}/square-image${hide ? "?amounts=0" : ""}`} fileName="all-square.png" title="Share: all square" words={`${group.name}: all square 🎉 Nobody owes anybody.`} label="Share the moment" />
             </div>
@@ -91,7 +95,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
           <>
             <p className="mt-9 text-center font-display text-3xl font-semibold">Almost there</p>
             <p className="mt-2 text-center text-sm text-gray-500">
-              {transfers.length === 0 ? (leaver ? "Nothing to settle for you here." : "Add an expense first.") : `${transfers.length} ${transfers.length === 1 ? "payment" : "payments"} to go.`}
+              {transfers.length === 0 ? "Add an expense first." : `${transfers.length} ${transfers.length === 1 ? "payment" : "payments"} to go.`}
             </p>
             {transfers.length > 0 && (
               <Link href={`/groups/${group.id}/settle`} className={`mt-6 w-full ${secondaryButtonClass}`}>
