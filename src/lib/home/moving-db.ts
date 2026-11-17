@@ -448,7 +448,7 @@ export async function moveOut(
 export const LEAVER_DEPOSIT_ERROR = "That person has moved out, so their deposit can’t be changed here.";
 
 // The deposit: who put in what. Never part of balances.
-export async function saveDepositFor(groupId: string, actorId: string, input: { heldBy: string; amounts: Record<string, string> }): Promise<{ ok: true } | Fail> {
+export async function saveDepositFor(groupId: string, actorId: string, input: { heldBy: string; amounts: Record<string, string> }, opts: { afterRead?: () => Promise<void> } = {}): Promise<{ ok: true } | Fail> {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (flat.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
@@ -465,6 +465,7 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
     if (amount > 0) rows.push({ memberId, amount });
   }
   const heldBy = input.heldBy.trim().slice(0, 40) || "Landlord";
+  await opts.afterRead?.(); // tests only: runs after the reads, before the write begins
   try {
     await db.$transaction(async (tx) => {
       // Checked again inside the write: someone may have moved out since the form was read.
@@ -478,7 +479,9 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
       }
       // A cleared box removes that person's held share, but only for people who are in the flat now (the form only has boxes
       // for them). Someone who moved out and kept their deposit on record has no box: their share is never touched.
-      const inFlat = flat.members.filter((m) => !m.leftAt && !rows.some((r) => r.memberId === m.id)).map((m) => m.id);
+      // Who is still in the flat is read again here (not taken from the earlier read): someone who moved out in between keeps their share.
+      const stillIn = await tx.member.findMany({ where: { groupId, leftAt: null, id: { in: flat.members.map((m) => m.id) } }, select: { id: true } });
+      const inFlat = stillIn.map((m) => m.id).filter((id) => !rows.some((r) => r.memberId === id));
       if (inFlat.length) await tx.depositShare.deleteMany({ where: { depositId: dep.id, status: "held", memberId: { in: inFlat } } });
       for (const r of rows) {
         const cur = await tx.depositShare.findUnique({ where: { depositId_memberId: { depositId: dep.id, memberId: r.memberId } } });

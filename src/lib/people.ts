@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { memberInUse } from "./member-use";
 import { LEFT_ERROR } from "./active";
 import { netBalances } from "./balances";
 import { logEvent, markUndone, type UndoMark } from "./events";
@@ -212,14 +213,10 @@ export function groupPeople<T extends { leftAt: Date | null; removedAt: Date | n
   };
 }
 
-// True once someone is part of any expense or payment (so they can only leave, not be removed).
+// True once someone is named anywhere (expenses, payments, moments, the deposit, goals, games, bills, the list):
+// they can then only be removed and kept as history, never deleted. The same check Undo of "added" uses.
 export async function isMemberUsed(memberId: string): Promise<boolean> {
   const groupId = (await db.member.findUnique({ where: { id: memberId }, select: { groupId: true } }))?.groupId;
   if (!groupId) return false;
-  const used =
-    (await db.expenseShare.count({ where: { memberId } })) +
-    (await db.expense.count({ where: { groupId, OR: [{ paidById: memberId }, { createdById: memberId }, { payers: { contains: memberId } }] } })) +
-    (await db.payment.count({ where: { OR: [{ fromId: memberId }, { toId: memberId }] } })) +
-    (await db.paymentClaim.count({ where: { OR: [{ fromId: memberId }, { toId: memberId }] } }));
-  return used > 0;
+  return memberInUse(db, groupId, memberId);
 }

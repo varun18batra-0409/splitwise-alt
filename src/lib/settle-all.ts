@@ -20,8 +20,9 @@ import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceB
 type Made = { id: string; fromId: string; toId: string; amount: number };
 
 // Tell the payer and the person paid of every payment just recorded (after the transaction). Never throws.
-// Returns what it scheduled, one entry per payment: who was told about it (so a test can tell "nothing was scheduled" from
-// "it was scheduled but the test did not see it").
+// Returns who it ASKED to tell, one entry per payment. That is a record of what was scheduled, not proof that anything was
+// delivered (a push can fail, or the person may have switched it off), so a test can tell "nothing was scheduled" from
+// "it was scheduled but the test did not see it".
 export async function tellAll(groupId: string, actorId: string, made: Made[]): Promise<{ paymentId: string; told: string[] }[]> {
   const scheduled: { paymentId: string; told: string[] }[] = [];
   try {

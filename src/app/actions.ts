@@ -15,8 +15,9 @@ import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercen
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
-import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, removeMembers, undoEvent, undoViewerFor } from "@/lib/undo";
-import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
+import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, undoEvent, undoViewerFor } from "@/lib/undo";
+import { renameMember, setMemberLeft } from "@/lib/people";
+import { removeOrKeepPerson } from "@/lib/remove-person";
 import { settleAllAndClose } from "@/lib/settle-all";
 import { isPairGroup } from "@/lib/direct-guard";
 import { vapidKeys } from "@/lib/push";
@@ -609,11 +610,7 @@ export async function removePerson(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
   if (await isPairGroup(groupId)) redirect(`/people/${groupId}`); // a pair always keeps its two people (the lib refuses too)
   if (!(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
-  const row = await db.member.findFirst({ where: { id: memberId, groupId }, select: { accountId: true } });
-  // Someone with an account, or anyone already in expenses or payments, is removed but kept in the history
-  // (they can't rejoin on their own). A name that was never used is deleted completely.
-  if (row?.accountId || (await isMemberUsed(memberId))) backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, true));
-  backToPeople(groupId, await removeMembers(groupId, myId, [memberId], false));
+  backToPeople(groupId, await removeOrKeepPerson(groupId, myId, memberId));
 }
 
 export async function setPersonLeft(formData: FormData) {

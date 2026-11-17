@@ -7,17 +7,20 @@ import { splitFields } from "./bills-db";
 
 // The shopping list, database side.
 
+const GONE_LIST_ERROR = "This group no longer exists.";
+
 type Result = { ok: true; id: string } | { ok: false; error: string };
 
 async function memberOf(groupId: string, actorId: string) {
-  const m = await db.member.findFirst({ where: { id: actorId, groupId, leftAt: null }, select: { id: true, name: true, group: { select: { closed: true } } } });
-  return m ? { id: m.id, name: m.name, closed: m.group.closed } : null;
+  const m = await db.member.findFirst({ where: { id: actorId, groupId, leftAt: null }, select: { id: true, name: true, group: { select: { closed: true, deletedAt: true } } } });
+  return m ? { id: m.id, name: m.name, closed: m.group.closed, deleted: Boolean(m.group.deletedAt) } : null;
 }
 
 export async function addListItem(groupId: string, actorId: string, text: string): Promise<Result> {
   if ((await db.group.findUnique({ where: { id: groupId }, select: { type: true } }))?.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   const who = await memberOf(groupId, actorId);
   if (!who) return { ok: false, error: "Only people in this group can use its list." };
+  if (who.deleted) return { ok: false, error: GONE_LIST_ERROR };
   if (who.closed) return { ok: false, error: CLOSED_LIST_ERROR };
   const t = text.trim().replace(/\s+/g, " ").slice(0, 60);
   if (!t) return { ok: false, error: "Type what to buy." };
@@ -30,6 +33,7 @@ export async function addListItem(groupId: string, actorId: string, text: string
 export async function toggleListItem(groupId: string, actorId: string, itemId: string): Promise<Result> {
   const who = await memberOf(groupId, actorId);
   if (!who) return { ok: false, error: "Only people in this group can use its list." };
+  if (who.deleted) return { ok: false, error: GONE_LIST_ERROR };
   if (who.closed) return { ok: false, error: CLOSED_LIST_ERROR };
   const item = await db.listItem.findFirst({ where: { id: itemId, groupId, expenseId: "" } });
   if (!item) return { ok: false, error: "That item is gone." };
@@ -40,6 +44,7 @@ export async function toggleListItem(groupId: string, actorId: string, itemId: s
 export async function removeListItem(groupId: string, actorId: string, itemId: string): Promise<Result> {
   const who = await memberOf(groupId, actorId);
   if (!who) return { ok: false, error: "Only people in this group can use its list." };
+  if (who.deleted) return { ok: false, error: GONE_LIST_ERROR };
   if (who.closed) return { ok: false, error: CLOSED_LIST_ERROR };
   await db.listItem.deleteMany({ where: { id: itemId, groupId, expenseId: "" } });
   return { ok: true, id: itemId };
@@ -105,6 +110,7 @@ export async function buyListItems(groupId: string, actorId: string, amountText:
 export async function goingShopping(groupId: string, actorId: string): Promise<Result> {
   const me = await memberOf(groupId, actorId);
   if (!me) return { ok: false, error: "Only people in this group can use its list." };
+  if (me.deleted) return { ok: false, error: GONE_LIST_ERROR };
   if (me.closed) return { ok: false, error: CLOSED_LIST_ERROR };
   const hour = new Date().toISOString().slice(0, 13);
   if (!(await claimOnce(`shopping:${actorId}:${hour}`))) return { ok: true, id: "" };

@@ -9,6 +9,7 @@ import { isGameResult } from "./pot-result";
 import { NOT_RECEIVED_TEXT_START, onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
+import { memberInUse } from "./member-use";
 import { isPairGroup, PAIR_NO_PEOPLE } from "./direct-guard";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
@@ -729,7 +730,7 @@ export async function restoreCurrency(groupId: string, actorId: string, p: Extra
 class CurrencyMoved extends Error {}
 
 // Take back "added people" — only if they haven't been used anywhere yet.
-export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true, mark?: UndoMark): Promise<UndoResult> {
+export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true, mark?: UndoMark, opts: { afterRead?: () => Promise<void> } = {}): Promise<UndoResult> {
   if (memberIds.includes(actorId)) return { ok: false, error: "You can’t remove yourself. Use “Leave group” instead." };
   if (await isPairGroup(groupId)) return { ok: false, error: PAIR_NO_PEOPLE }; // a pair always has exactly its two people
   const members = await db.member.findMany({ where: { id: { in: memberIds }, groupId } });
@@ -740,6 +741,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     if (await memberInUse(db, groupId, m.id)) return { ok: false, error: memberInUseText(m.name) };
   }
   if (members.length === 0) return { ok: true };
+  await opts.afterRead?.(); // tests only: runs after the reads, before the write begins
   let eventId: string;
   try {
   eventId = await db.$transaction(async (tx) => {
@@ -793,30 +795,7 @@ class MemberInUse extends Error {}
 
 export const memberInUseText = (name: string) => `${name} is already part of expenses, payments, moments, the deposit, a goal or a game, so they can’t be removed.`;
 
-type UseClient = Pick<typeof db, "expenseShare" | "expense" | "payment" | "paymentClaim" | "moment" | "momentReaction" | "depositShare" | "goalEntry" | "potMove" | "potGame" | "bill">;
-
-// Is this person named anywhere that taking them out would leave behind? These columns hold the id as plain text
-// (no foreign key), so a delete would not complain: the money would just point at nobody.
-export async function memberInUse(client: UseClient, groupId: string, id: string): Promise<boolean> {
-  // One after another (this also runs inside a transaction).
-  for (const q of [
-    () => client.expenseShare.count({ where: { memberId: id } }),
-    () => client.expense.count({ where: { groupId, OR: [{ paidById: id }, { createdById: id }, { payers: { contains: id } }] } }),
-    () => client.payment.count({ where: { OR: [{ fromId: id }, { toId: id }] } }),
-    // An "I've paid" claim (waiting or answered) counts as being part of a payment too.
-    () => client.paymentClaim.count({ where: { OR: [{ fromId: id }, { toId: id }] } }),
-    // A moment they added, or a reaction they left: taking the person out would leave photos with no author (and their files behind).
-    () => client.moment.count({ where: { groupId, authorId: id } }),
-    () => client.momentReaction.count({ where: { memberId: id } }),
-    // The deposit (either side of a hand-over), goal money, card-game money and games, bills they pay or take turns on.
-    () => client.depositShare.count({ where: { deposit: { groupId }, OR: [{ memberId: id }, { toMemberId: id }] } }),
-    () => client.goalEntry.count({ where: { goal: { groupId }, memberId: id } }),
-    () => client.potMove.count({ where: { game: { groupId }, memberId: id } }),
-    () => client.potGame.count({ where: { groupId, OR: [{ hostId: id }, { players: { contains: id } }] } }),
-    () => client.bill.count({ where: { groupId, OR: [{ payer: id }, { rotation: { contains: id } }] } }),
-  ]) if ((await q()) > 0) return true;
-  return false;
-}
+export { memberInUse };
 
 async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"], mark?: UndoMark): Promise<UndoResult> {
   if (await isPairGroup(groupId)) return { ok: false, error: PAIR_NO_PEOPLE };
