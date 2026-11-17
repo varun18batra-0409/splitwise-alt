@@ -279,7 +279,8 @@ describe("someone who left", () => {
     expect(page.expenseCount).toBe(5);
     // P1 (B pays A 20000) and P2 (D pays C 5000) were recorded before D left; P3 is deleted: 2 payments in the group.
     // B4 (CB-9): a leaver's "paid so far" counts only payments they are in. D is in P2 only, so 5000 (P1 is B and A's).
-    expect(page.paymentCount).toBe(2);
+    // B10: their payment count matches: only P2 is theirs, so 1 (it was 2, every payment in the group).
+    expect(page.paymentCount).toBe(1);
     expect(page.paidSoFar).toBe(5000);
     // Debts without Smart Settle, over E1, E2, E3, E5, E6, P1, P2 (positive = first owes second):
     //   A-B: B owes A 33333 + 5150 = 38483, A owes B 7500 + 5000 = 12500, P1 takes off 20000 -> B owes A 5983.
