@@ -169,7 +169,7 @@ async function tapJoin(page: Page, groupName: string, groupPath: string) {
   await page.waitForURL(new RegExp(`${groupPath}$`));
 }
 // Emails are sent just after the screen changes: wait for one.
-async function mailTo(to: string, where: { subject?: { contains: string } } = {}) {
+async function mailTo(to: string, where: { subject?: { contains: string }; text?: { contains: string } } = {}) {
   for (let i = 0; i < 40; i++) {
     const row = await db.outbox.findFirst({ where: { to, ...where }, orderBy: { createdAt: "desc" } });
     if (row) return row;
@@ -642,7 +642,7 @@ async function main() {
     assert((await db.member.count({ where: { groupId: g.split("/").pop()!, accountId: null, name: nameFromEmail(email("zoe")) } })) === 1, "no name row for Zoe");
   });
   await step(Z, "Joining", "Zoe taps the link in her email, verifies, and joins as the name she was added with", async () => {
-    const mailRow = await mailTo(email("zoe"), { subject: { contains: "added you to" } });
+    const mailRow = await mailTo(email("zoe"), { subject: { contains: "added to a group" } });
     assert(mailRow, "no invite email for Zoe");
     const link = /https?:\/\/\S+\/join\/\S+/.exec(mailRow.text)?.[0];
     assert(link, "no link in the email");
@@ -1961,7 +1961,7 @@ async function main() {
     };
     await invite3();
     await new Promise((r) => setTimeout(r, 2500));
-    assert((await db.outbox.count({ where: { to: email("ravi"), subject: { contains: "UAT Dinner club" } } })) === 0, "an add-to-group email was sent with the switch off");
+    assert((await db.outbox.count({ where: { to: email("ravi"), subject: { contains: "added to a group" }, text: { contains: "UAT Dinner club" } } })) === 0, "an add-to-group email was sent with the switch off");
     await tidy();
     await go(R, "/account/notifications");
     await R.locator('[data-switch="email:groups.added"]').click();
@@ -1969,7 +1969,7 @@ async function main() {
     await R.reload();
     assert((await R.locator('[data-switch="email:groups.added"]').getAttribute("aria-checked")) === "true", "the email switch didn't come back on");
     await invite3();
-    assert(await mailTo(email("ravi"), { subject: { contains: "UAT Dinner club" } }), "no add-to-group email with the switch back on");
+    assert(await mailTo(email("ravi"), { subject: { contains: "added to a group" }, text: { contains: "UAT Dinner club" } }), "no add-to-group email with the switch back on");
     await tidy();
   });
   await step(V, "Add people", "Adding the email of someone already on Loopin gets the same reply as any email; they see an invitation on Home and in Alerts", async () => {
@@ -3231,7 +3231,7 @@ async function main() {
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
     // The organiser's summary: nothing checked or said paid yet, 3 x ₹500 = ₹1,500 not paid yet and the goal, and "3 still to pay".
-    assert(/₹0\s+checked/.test(p) && /₹1,500\s+not paid yet/.test(p) && /Goal: ₹1,500/.test(p) && (await due.getByRole("listitem").count()) === 3, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/₹0\s+checked/.test(p) && /₹0\s+says paid/.test(p) && /₹1,500\s+not paid yet/.test(p) && /Goal: ₹1,500/.test(p) && (await due.getByRole("listitem").count()) === 3, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   // Notifications are written just after the page answers: give them a moment.
@@ -3277,8 +3277,8 @@ async function main() {
     await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
     await V.getByRole("region", { name: "Paid" }).getByText(/Checked · cash/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    // Zoya ₹500 + Kabir ₹500 (cash) = ₹1,000 checked of a ₹1,500 goal: ₹500 not paid yet, 2 checked, 1 still to pay, nothing reported.
-    assert(/₹1,000\s+checked/.test(p) && /₹500\s+not paid yet/.test(p) && /Goal: ₹1,500/.test(p) && (await V.getByRole("region", { name: "Paid" }).getByText(/^Checked/).count()) === 2 && (await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").count()) === 1 && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // Zoya ₹500 + Kabir ₹500 (cash) = ₹1,000 checked of a ₹1,500 goal: ₹500 not paid yet, 2 checked, 1 still to pay, nothing said paid.
+    assert(/₹1,000\s+checked/.test(p) && /₹0\s+says paid/.test(p) && /₹500\s+not paid yet/.test(p) && /Goal: ₹1,500/.test(p) && (await V.getByRole("region", { name: "Paid" }).getByText(/^Checked/).count()) === 2 && (await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").count()) === 1 && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
@@ -3954,6 +3954,10 @@ async function main() {
   });
   await step(Z, "Permissions", "A postcard is for its sender and its receiver only: a third person gets “not found”, and signed out is sent to sign in", async () => {
     assert(cardPath, "no postcard was sent");
+    // Zoe must really be signed in first: a signed-out visitor is sent to sign in (a 200 page), which would look like "a third person can see it".
+    await go(Z, "/account");
+    assert(!/\/signin/.test(Z.url()), "Zoe isn't signed in, so this check would prove nothing");
+    assert((await Z.locator('a[href="/signin"], a[href^="/signin?"]').count()) === 0, "Zoe's browser is showing sign-in links, so she is signed out");
     const res = await Z.goto(base + cardPath);
     assert(res?.status() === 404, `a third person got status ${res?.status()}`);
     const x = await person(browser);
