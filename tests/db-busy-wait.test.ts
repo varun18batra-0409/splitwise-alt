@@ -41,7 +41,8 @@ async function holdLock(ms: number) {
     child.stdout.on("data", (d: Buffer) => d.toString().includes("locked") && ok());
     child.on("exit", (n) => fail(new Error(`the lock holder stopped early (${n})`)));
   });
-  return new Promise<void>((done) => child.on("exit", () => done()));
+  // Wrapped in an object: returning the bare promise from this async function would make the caller wait for the release too.
+  return { released: new Promise<void>((done) => child.on("exit", () => done())) };
 }
 
 afterAll(async () => {
@@ -54,7 +55,7 @@ afterAll(async () => {
 describe("a local test database waits for another write instead of failing", () => {
   it("a plain write after a transaction waits", async () => {
     await db.$transaction(async (tx) => tx.$queryRawUnsafe("SELECT 1")); // the client now has a fresh connection
-    const released = holdLock(1500);
+    const { released } = await holdLock(1500);
     // Proof the other write really holds the lock, and of the old fault: a fresh connection that isn't told to wait fails at once.
     const bare = createClient({ url });
     await expect(bare.execute("INSERT INTO busy_probe VALUES (9)")).rejects.toThrow(/busy|locked/i);
@@ -67,7 +68,7 @@ describe("a local test database waits for another write instead of failing", () 
 
   it("a write inside a transaction waits", async () => {
     await db.$transaction(async (tx) => tx.$queryRawUnsafe("SELECT 1"));
-    const released = holdLock(1000);
+    const { released } = await holdLock(1000);
     const t = Date.now();
     await db.$transaction(async (tx) => tx.$executeRawUnsafe("INSERT INTO busy_probe VALUES (2)"), { timeout: 10_000, maxWait: 10_000 });
     expect(Date.now() - t).toBeGreaterThanOrEqual(500);
