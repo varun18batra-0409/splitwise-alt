@@ -294,7 +294,7 @@ export function BillForm({
                 </span>
               </label>
             ))}
-            <p className={`px-4 py-2.5 text-xs ${(split === "percent" ? pctTotal === 100 : amtTotal === amountNum && amountNum > 0) ? "text-owed" : "text-gray-500"}`}>
+            <p className={`px-4 py-2.5 text-xs ${(split === "percent" ? pctTotal === 100 : amtTotal === amountNum && amountNum > 0) ? "text-fg/80" : "text-gray-500"}`}>
               {split === "percent"
                 ? pctTotal === 100
                   ? "Adds up to 100% ✓"

@@ -1591,6 +1591,67 @@ if (!hosted && !desktop && !ios) {
     console.log("✗ GD- shots (set-up failed)", String(e).split("\n")[0]);
   }
 }
+// This batch's screens (phones only), at 390 and 320: Settle with someone you are even with across two groups ("Clear both"), the People tab in
+// money colours, a flat's deposit and a savings goal with someone who left, and a card-paid expense with its "incl. 3% card fee" line.
+// A throwaway account on the local database only.
+if (!desktop && !hosted) {
+  const { db } = await import("../src/lib/db");
+  const stamp = Date.now();
+  const me = await db.account.create({ data: { email: `shots-b11b-${stamp}@uat.loopin.test`, name: "Varun" } });
+  const asha = await db.account.create({ data: { email: `shots-b11b-asha-${stamp}@uat.loopin.test`, name: "Asha" } });
+  const mk = async (name: string, type: string, currency: string, others: string[]) =>
+    db.group.create({
+      data: {
+        name, type, currency, cardMarkupBp: 300, inviteCode: `b11b${name.replace(/\W/g, "").toLowerCase()}${stamp.toString(36)}`,
+        members: { create: [{ name: "Varun", accountId: me.id, claimedAt: new Date() }, { name: "Asha", accountId: asha.id, claimedAt: new Date() }, ...others.map((n) => ({ name: n })), ...(type === "home" ? [{ name: "Dev", leftAt: new Date() }] : [])] },
+      },
+      include: { members: true },
+    });
+  const flat = await mk("Flat 402", "home", "INR", ["Kabir"]);
+  const trip = await mk("Thailand trip", "trip", "INR", ["Ravi"]);
+  const id = (g: typeof flat, n: string) => g.members.find((m) => m.name === n)!.id;
+  const spend = (g: typeof flat, description: string, amount: number, paid: string, who: string[], extra: Record<string, unknown> = {}) =>
+    db.expense.create({
+      data: { groupId: g.id, description, splitType: "equal", amount, originalAmount: amount, convertedAmount: amount, originalCurrency: g.currency, baseCurrency: g.currency, paidById: id(g, paid), createdById: id(g, paid), ...extra,
+        shares: { create: who.map((n) => ({ memberId: id(g, n), amount: amount / who.length })) } },
+    });
+  // Asha owes Varun 4200 in the flat; Varun owes Asha 4200 on the trip: even across groups.
+  await spend(flat, "Groceries", 840000, "Varun", ["Varun", "Asha"]);
+  await spend(trip, "Hotel", 840000, "Asha", ["Varun", "Asha"]);
+  // A card-paid dinner in baht (3% card fee) on the trip.
+  await spend(trip, "Dinner at Jay Fai", 193004, "Ravi", ["Varun", "Ravi"], { originalAmount: 75000, originalCurrency: "THB", exchangeRate: "2.5", convertedAmount: 187383, markupBp: 300, markupAmount: 5622 });
+  // Money for the flat's deposit and a goal, including Dev who left.
+  const dep = await db.deposit.create({ data: { groupId: flat.id, heldBy: "Mr. Iyer (landlord)" } });
+  for (const [n, amount] of [["Varun", 5000000], ["Asha", 4200000], ["Kabir", 4200000], ["Dev", 3000000]] as const) await db.depositShare.create({ data: { depositId: dep.id, memberId: id(flat, n), amount } });
+  const goal = await db.goal.create({ data: { groupId: flat.id, name: "Sofa", target: 6000000, createdById: id(flat, "Varun") } });
+  for (const [n, amount] of [["Varun", 2000000], ["Asha", 2000000], ["Kabir", 1500000], ["Dev", 500000]] as const) await db.goalEntry.create({ data: { goalId: goal.id, memberId: id(flat, n), amount } });
+  const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+  await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: { [flat.id]: id(flat, "Varun"), [trip.id]: id(trip, "Varun") }, a: me.id, v: 0 }), url: base }]);
+  const p = await c.newPage();
+  for (const w of [390, 320] as const) {
+    await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+    for (const [n, path] of [
+      ["settle-even", "/settle"],
+      ["people", `/groups/${trip.id}/people`],
+      ["expenses-card-fee", `/groups/${trip.id}?tab=activity`],
+      ["deposit-left", `/groups/${flat.id}/deposit`],
+      ["goal-left", `/groups/${flat.id}/goals/${goal.id}`],
+      ["recap", "/search"],
+    ] as const) {
+      try {
+        await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+        await p.waitForTimeout(500);
+        if (n === "settle-even") await p.getByRole("button", { name: "Clear both" }).first().click().catch(() => undefined);
+        await p.waitForTimeout(300);
+        await p.screenshot({ path: `${out}/b11b${w}-${n}.png`, fullPage: true });
+        console.log(`  ✓ b11b${w}-${n}`);
+      } catch (e) {
+        console.log(`  ✗ b11b${w}-${n}`, String(e).split("\n")[0]);
+      }
+    }
+  }
+  await c.close();
+}
 await browser.close();
 }
 

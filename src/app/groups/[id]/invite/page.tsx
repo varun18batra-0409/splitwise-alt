@@ -260,7 +260,7 @@ export default async function AddPeoplePage({
                   : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
           return (
             <li key={m.id} className="flex items-center gap-3 px-4 py-3.5">
-              <Avatar name={m.name} />
+              <Avatar name={m.name} you={me} />
               <span className="min-w-0 flex-1 truncate font-medium">
                 {m.name}
                 {me && <span className="text-gray-400"> (you)</span>}

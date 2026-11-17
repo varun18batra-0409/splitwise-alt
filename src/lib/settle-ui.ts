@@ -1,6 +1,7 @@
 // Plain constants for the all-groups Settle up cards. Kept out of the "use client" component file so a server page can import them.
 
-export const TONE = { owe: "text-owe", owed: "text-owed" } as const;
+// "even" is neutral: nothing is owed either way, so no money colour.
+export const TONE = { owe: "text-owe", owed: "text-owed", even: "text-fg" } as const;
 // A long amount (₹1,23,456.78) must still fit a 320px phone: the size follows the number of characters.
 const SIZE = {
   xl: "text-[34px] min-[360px]:text-[40px]",

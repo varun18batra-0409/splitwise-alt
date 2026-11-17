@@ -5,6 +5,7 @@ import { compactMoney, signedMoney } from "@/lib/chart-labels";
 import { overviewMoney, percentsTo100, recapShownDiff, roundPartsToTotal, signedOverview } from "@/lib/money-display";
 import { recapDiffLabel } from "@/lib/insights";
 import { getCategory } from "@/lib/categories";
+import { skippedLine } from "@/lib/insights";
 import { bucketLabel, bucketTitle, type Grain } from "@/lib/search";
 
 // The top of Search: your money over time, at a glance. A "Your share | Group
@@ -17,6 +18,7 @@ export type InsightsData = {
   view: "share" | "spent";
   grain: Grain;
   currency: string;
+  skipped?: number; // expenses left out because their currency has no saved rate
   converted: boolean; // some groups were in other currencies (shown with ≈)
   me: { share: number; paid: number; net: number }; // the lit period: my cut, what I paid, the difference
   bars: { key: string; value: number; href: string }[];
@@ -58,6 +60,11 @@ export function Insights({ d }: { d: InsightsData }) {
 
   return (
     <section aria-label="Insights" className="mb-8">
+      {skippedLine(d.skipped ?? 0) && (
+        <p className="mb-3 px-1 text-[13.5px] leading-snug text-fg/65" data-insights-skipped>
+          {skippedLine(d.skipped ?? 0)}
+        </p>
+      )}
       {/* Your share | Group spend */}
       <div className="grid grid-cols-2 gap-1 rounded-full bg-mist p-1" role="tablist" aria-label="What to show">
         <Link href={d.link({ v: "share" })} role="tab" aria-selected={d.view === "share"} className={pill(d.view === "share")}>

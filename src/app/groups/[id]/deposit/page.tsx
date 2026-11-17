@@ -7,6 +7,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonC
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { returnDeposit, saveDeposit } from "@/app/bill-actions";
 import { formatMoney, toInputAmount } from "@/lib/money";
+import { leaverDepositRows } from "@/lib/leaver-rows";
 import { leaverOf } from "@/lib/left-view-db";
 import { readNotes } from "@/lib/flash";
 
@@ -35,6 +36,7 @@ export default async function DepositPage({
   const money = (n: number) => formatMoney(n, group.currency);
   const shares = group.deposit?.shares ?? [];
   const held = shares.filter((s) => s.status === "held");
+  const gone = leaverDepositRows(shares, group.members);
   const total = held.reduce((s, x) => s + x.amount, 0);
   const name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const amountOf = (mid: string) => {
@@ -79,6 +81,22 @@ export default async function DepositPage({
               ))}
           </ul>
         </fieldset>
+        {gone.length > 0 && (
+          <section aria-label="Left the flat" data-left-deposit>
+            <h2 className="mb-2 text-base font-semibold text-fg/75">Left the flat</h2>
+            <ul className="divide-y divide-line rounded-2xl border border-line">
+              {gone.map((g) => (
+                <li key={g.memberId} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="min-w-0">
+                    <span className="block truncate">{g.name}</span>
+                    <span className="block text-sm text-fg/60">Kept on record until the lease ends</span>
+                  </span>
+                  <span className="money shrink-0 tabular-nums">{money(g.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <button type="submit" className={secondaryButtonClass}>
           Save deposit
         </button>

@@ -215,6 +215,9 @@ export function RecordedView({
   backHref: string;
   undo: React.ReactNode; // the existing Undo form, or null when it can't be undone
 }) {
+  // Green means money coming to you: only when you are the person paid. If you paid, or you are neither, the amount and the stamp are off-white.
+  const notPaidToMe = to !== "You";
+  const hue = notPaidToMe ? "text-fg" : "text-owed";
   return (
     <div className="mx-auto max-w-sm pt-2" data-payment-recorded>
       <section aria-label="Payment recorded" className={`${CARD} px-4 pb-4 pt-4`}>
@@ -224,7 +227,7 @@ export function RecordedView({
         <div aria-hidden>
           <Route from={from} to={to} mark={mark} />
         </div>
-        <p className="mt-2.5 font-display text-[30px] font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums text-owed">{amount}</p>
+        <p className={`mt-2.5 font-display text-[30px] font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums ${hue}`}>{amount}</p>
         <p className="mt-1.5 truncate text-[13.5px] text-fg/55">{groupName}</p>
       </section>
       <div className="lp-stub relative mx-2 -mt-px flex items-center gap-3 rounded-b-[18px] border border-t-2 border-dashed border-[#34343b] bg-[#16161a] px-4 py-3.5">
@@ -235,8 +238,8 @@ export function RecordedView({
           <b className="block truncate text-[15px] font-semibold">{stubName}</b>
           <span className="block truncate text-[13px] text-fg/55">{stubLine}</span>
         </span>
-        <span aria-hidden className="relative grid h-[60px] w-[60px] shrink-0 -rotate-12 place-items-center rounded-full border-[2.5px] border-owed font-display text-[16px] font-semibold text-owed">
-          <span className="absolute inset-[3px] rounded-full border border-owed/50" />
+        <span aria-hidden className={`relative grid h-[60px] w-[60px] shrink-0 -rotate-12 place-items-center rounded-full border-[2.5px] ${notPaidToMe ? "border-fg" : "border-owed"} font-display text-[16px] font-semibold ${hue}`}>
+          <span className={`absolute inset-[3px] rounded-full border ${notPaidToMe ? "border-fg/50" : "border-owed/50"}`} />
           Paid
         </span>
       </div>

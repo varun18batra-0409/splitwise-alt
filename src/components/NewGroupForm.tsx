@@ -113,7 +113,7 @@ export function NewGroupForm({
           </div>
           {type === "pot" && (
             <p className="mt-3 rounded-[20px] border border-line bg-white px-3.5 py-2.5 text-[13px] leading-snug text-fg/80">
-              <strong className="font-semibold text-owed">{GAME_NIGHT}</strong> is for cards, board games or any game. Everyone puts chips in to play and takes home
+              <strong className="font-semibold text-fg">{GAME_NIGHT}</strong> is for cards, board games or any game. Everyone puts chips in to play and takes home
               what’s left. Loopin works out who came out ahead, who came out behind and who pays whom. It never holds or moves money. {GAME_NOTE}
             </p>
           )}

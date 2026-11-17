@@ -94,7 +94,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">
-                  {f.name} <span className="ml-1 rounded-full bg-owed/15 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-owed">On Loopin ✓</span>
+                  {f.name} <span className="ml-1 rounded-full bg-mist px-1.5 py-0.5 align-middle text-[10px] font-semibold text-fg/75">On Loopin ✓</span>
                 </span>
               </span>
               {f.inGroup ? (
@@ -225,7 +225,7 @@ export function ContactInvite({ groupId, groupName, link, india = true }: { grou
               <li key={key} className="px-3 py-2.5">
                 <p className="truncate font-medium">
                   {c.name || c.tel || c.email}
-                  {sent[key] && <span className="ml-2 text-xs font-normal text-owed">{inviteLabel(sent[key])}</span>}
+                  {sent[key] && <span className="ml-2 text-xs font-normal text-fg/70">{inviteLabel(sent[key])}</span>}
                 </p>
                 <p className="truncate text-xs text-gray-400">{[c.tel, c.email].filter(Boolean).join(" · ")}</p>
                 <div className="mt-2 flex flex-wrap gap-2">

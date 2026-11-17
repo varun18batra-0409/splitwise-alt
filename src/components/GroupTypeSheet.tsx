@@ -75,7 +75,7 @@ export function GroupTypeSheet({ groupId, type }: { groupId: string; type: strin
         <ul className="mt-4 space-y-3">
           {sheet.cards.map((c) => (
             <li key={c.title} className="flex gap-3 rounded-2xl border border-line bg-mist p-4">
-              <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-canvas text-owed">
+              <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-canvas text-fg/80">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   {ICONS[c.icon]}
                 </svg>

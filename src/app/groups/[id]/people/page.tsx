@@ -142,7 +142,7 @@ export default async function PeoplePage({
       : "";
     const head = (
       <>
-        <Avatar name={m.name} />
+        <Avatar name={m.name} you={me} />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">
             {m.name}
@@ -152,7 +152,15 @@ export default async function PeoplePage({
             )}
           </span>
           <span className="block text-xs text-gray-400">
-            {mine ? ownStatus : m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : bal > 0 ? `gets ${listFmt(bal)}` : bal < 0 ? `owes ${listFmt(-bal)}` : "settled up"}
+            {mine ? ownStatus : m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : bal > 0 ? (
+              <>
+                gets <span className="text-owed">{listFmt(bal)}</span>
+              </>
+            ) : bal < 0 ? (
+              <>
+                owes <span className="text-owe">{listFmt(-bal)}</span>
+              </>
+            ) : "settled up"}
           </span>
         </span>
       </>
