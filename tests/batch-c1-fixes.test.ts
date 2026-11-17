@@ -371,6 +371,8 @@ describe("Redo of “settle everything” tells the payer and the person paid (r
     const ravi1 = "Asha recorded getting ₹300 from you. If that’s wrong, open it to delete it."; // Ravi → Asha, Asha did it: Ravi is told
     const ravi2 = "Asha recorded that you paid Meera ₹300. If that’s wrong, open it to delete it."; // Ravi → Meera: Ravi is told
     const meera2 = "Asha recorded that Ravi paid you ₹300. If that’s wrong, open it to delete it."; // Ravi → Meera: Meera is told
+    // Diagnosis while CI saw one message: print everything the redo sent (no secrets: test ids, urls and tags only).
+    console.log("REDO-PUSHES", JSON.stringify({ r: w.r, m: w.m, a: w.a, ids, pushes: state.pushes.map((x) => ({ ids: x.ids, url: x.p.url, tag: x.p.tag })), live: (await db.payment.findMany({ where: { groupId: w.gid }, select: { id: true, deletedAt: true } })).map((x) => [x.id, Boolean(x.deletedAt)]) }));
     const got = state.pushes.filter((x) => x.p.url.includes("open=")).flatMap((x) => x.ids.map((id) => ({ id, body: x.p.body, url: x.p.url })));
     expect(got.map((g) => g.id).sort()).toEqual([w.m, w.r, w.r].sort()); // exactly Meera, Ravi, Ravi: Asha, who redid it, is not told
     expect(got.map((g) => `${g.id}|${g.body}`).sort()).toEqual([`${w.r}|${ravi1}`, `${w.r}|${ravi2}`, `${w.m}|${meera2}`].sort());
