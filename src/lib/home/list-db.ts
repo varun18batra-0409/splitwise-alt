@@ -16,6 +16,9 @@ async function memberOf(groupId: string, actorId: string) {
   return m ? { id: m.id, name: m.name, closed: m.group.closed, deleted: Boolean(m.group.deletedAt) } : null;
 }
 
+// (The same words as CLOSED_LIST_ERROR: kept under this name for the tests that were written with it.)
+export const LIST_CLOSED = CLOSED_LIST_ERROR;
+
 export async function addListItem(groupId: string, actorId: string, text: string): Promise<Result> {
   if ((await db.group.findUnique({ where: { id: groupId }, select: { type: true } }))?.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   const who = await memberOf(groupId, actorId);

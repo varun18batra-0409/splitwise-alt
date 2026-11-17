@@ -30,7 +30,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
       <span data-countdown-line className={hot ? "font-semibold text-fg" : undefined}>
         {headerTripLine(phase)}
       </span>
-    ) : !group.tripStart ? (
+    ) : !group.tripStart && !v.leaver ? (
       <Link href={`/groups/${group.id}/settings#trip`} className="-my-3 inline-flex min-h-11 items-center font-semibold text-fg underline underline-offset-4" data-add-dates>
         Add dates
       </Link>
@@ -99,9 +99,11 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         {/* Who this phone is in this group — and a way to fix a wrong pick. */}
         <div className="mt-1 flex items-center justify-between gap-3 border-t border-line px-3 pb-1 pt-2.5 text-xs text-gray-400">
           <span className="truncate">You’re {me?.name ?? "—"} in this group</span>
-          <Link href={`/groups/${group.id}/invite`} className="shrink-0 font-semibold text-fg">
-            Add people
-          </Link>
+          {!v.leaver && (
+            <Link href={`/groups/${group.id}/invite`} className="shrink-0 font-semibold text-fg">
+              Add people
+            </Link>
+          )}
         </div>
       </div>
     </details>
@@ -159,26 +161,29 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
             <BackIcon size={20} />
           </Link>
           {switcher(false)}
-          <details className="group/more relative shrink-0">
-            <summary aria-label="More about this group" className={`${rowButton} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
-              <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="5" cy="12" r="1.8" />
-                <circle cx="12" cy="12" r="1.8" />
-                <circle cx="19" cy="12" r="1.8" />
-              </svg>
-            </summary>
-            <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-2xl border border-line bg-white p-2 shadow-2xl shadow-black/60">
-              <Link href={`/groups/${group.id}/settings`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 active:bg-mist">
-                <GearIcon size={18} />
-                Group settings
-              </Link>
-              {!v.leaver && (
+          {/* Settings is refused for someone who left; Our passports still works unless they were removed. A removed person has nothing left in the menu. */}
+          {!v.leaver?.removed && (
+            <details className="group/more relative shrink-0">
+              <summary aria-label="More about this group" className={`${rowButton} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+                <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="5" cy="12" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="19" cy="12" r="1.8" />
+                </svg>
+              </summary>
+              <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-2xl border border-line bg-white p-2 shadow-2xl shadow-black/60">
+                {!v.leaver && (
+                  <Link href={`/groups/${group.id}/settings`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 active:bg-mist">
+                    <GearIcon size={18} />
+                    Group settings
+                  </Link>
+                )}
                 <Link href={`/groups/${group.id}/passports`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 active:bg-mist">
                   Our passports
                 </Link>
-              )}
-            </div>
-          </details>
+              </div>
+            </details>
+          )}
         </div>
         {cover !== "plain" && (
           <div className="relative mt-3 h-[150px] overflow-hidden rounded-[20px] bg-mist min-[390px]:h-[168px]" data-group-photo>
@@ -222,12 +227,16 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
           <BackIcon size={20} />
         </Link>
         <span className="flex-1" />
-        <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className={glass}>
-          <InviteIcon size={20} />
-        </Link>
-        <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={glass}>
-          <GearIcon size={20} />
-        </Link>
+        {!v.leaver && (
+          <>
+            <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className={glass}>
+              <InviteIcon size={20} />
+            </Link>
+            <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={glass}>
+              <GearIcon size={20} />
+            </Link>
+          </>
+        )}
       </div>
       <div className="absolute inset-x-5 bottom-1">
         <div className="flex [text-shadow:0_2px_18px_rgba(0,0,0,0.35)]">{switcher(true)}</div>

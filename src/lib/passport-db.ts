@@ -20,12 +20,15 @@ export async function recordPassportChoice(accountId: string, show: boolean) {
 // "Our passports" for one group: who is listed, from the viewer's side. The same rule as canSeePassport:
 // the viewer must have really joined and not been removed (else null: the screen sends them away), and the
 // list holds only people who have really joined and were not removed (plus the viewer). Someone who
-// left on their own still counts. Hiding a passport ("private") is decided per person by the screen.
-type RosterMember = { id: string; addedBy: string; seenAt: Date | null; removedAt: Date | null };
+// left on their own still counts, and if the viewer is that someone, only people who joined by the day they left. Hiding a passport ("private") is decided per person by the screen.
+type RosterMember = { id: string; addedBy: string; seenAt: Date | null; removedAt: Date | null; createdAt?: Date; leftAt?: Date | null };
 export function passportRoster<T extends RosterMember>(members: T[], viewerId: string): T[] | null {
   const me = members.find((m) => m.id === viewerId);
   if (!me || isPending(me) || me.removedAt) return null;
-  return members.filter((m) => m.id === viewerId || (!isPending(m) && !m.removedAt));
+  // Someone who left on their own sees only the people who were in the group by the day they left (the same rule as membersAsOf in
+  // left-view.ts): nobody who joined after they left.
+  const day = me.leftAt ? me.leftAt.getTime() : null;
+  return members.filter((m) => m.id === viewerId || (!isPending(m) && !m.removedAt && (day === null || !m.createdAt || m.createdAt.getTime() <= day)));
 }
 
 // The spending an undated trip's stamp rests on, as one database filter: not deleted, not a card-game result, and (for someone who

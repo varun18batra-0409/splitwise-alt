@@ -54,7 +54,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       <section>
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>
-          {!leaver && <Link href={`/groups/${group.id}/passports`} className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline underline-offset-4" data-our-passports>
+          {!leaver?.removed && <Link href={`/groups/${group.id}/passports`} className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline underline-offset-4" data-our-passports>
             <span className="inline-flex items-center gap-1.5">
               <PeoplePassportsIcon size={16} /> Our passports
             </span>
@@ -173,9 +173,11 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
         <p className="text-xs text-gray-400">
           Amounts in {group.currency}
           {hasMarkup ? `, including card fees (${formatPercent(group.cardMarkupBp)} on card payments abroad)` : ""}.{" "}
-          <Link href={`/groups/${group.id}/settings`} className="underline underline-offset-4">
-            Change
-          </Link>
+          {!v.leaver && (
+            <Link href={`/groups/${group.id}/settings`} className="underline underline-offset-4">
+              Change
+            </Link>
+          )}
         </p>
         {v.secondary && (
           <p className="text-xs text-gray-400">

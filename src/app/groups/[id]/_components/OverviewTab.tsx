@@ -54,7 +54,7 @@ export function OverviewTab({ v, facts, strip }: { v: GroupView; facts: GroupFac
         </section>
       )}
 
-      <GroupFooter groupId={group.id} type={group.type} />
+      <GroupFooter groupId={group.id} type={group.type} settings={!v.leaver} />
     </div>
   );
 }

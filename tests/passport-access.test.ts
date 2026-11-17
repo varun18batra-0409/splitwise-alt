@@ -174,6 +174,20 @@ describe("our passports page: who may open it and who is listed", () => {
     expect(passportRoster([row("asha"), row("ravi")], "ravi")).not.toBeNull();
   });
 
+  it("someone who left sees only people who were in the group by the day they left: Riya leaves 2 Nov, Karan joins 10 Nov, so no Karan", () => {
+    const day = (d: string) => new Date(`2026-11-${d}T10:00:00Z`);
+    const people = [
+      { ...row("asha"), createdAt: day("01") },
+      { ...row("riya"), createdAt: day("01"), leftAt: day("02") },
+      { ...row("karan"), createdAt: day("10") },
+    ];
+    expect(passportRoster(people, "riya")!.map((m) => m.id)).toEqual(["asha", "riya"]);
+    // A member still in the group sees all three, Karan included.
+    expect(passportRoster(people, "asha")!.map((m) => m.id)).toEqual(["asha", "riya", "karan"]);
+    // Joined on the very day they left (same moment): counts as there.
+    expect(passportRoster([...people, { ...row("same"), createdAt: day("02") }], "riya")!.map((m) => m.id)).toEqual(["asha", "riya", "same"]);
+  });
+
   it("agrees with canSeePassport for a real group: a removed viewer is a stranger there too", async () => {
     const owner = await account("Owner13");
     const viewer = await account("Viewer13");

@@ -29,12 +29,37 @@ export default async function AddExpensePage({
   const sp = await searchParams;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, removedAt: true, splitWeight: true } } },
   });
   if (!group || group.deletedAt) notFound();
 
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
+
+  // Someone who left or was removed comes first, even in a closed group: they can't reopen it, so the Reopen button would only fail.
+  const me = group.members.find((m) => m.id === myId);
+  if (me?.leftAt || me?.removedAt) {
+    return (
+      <>
+        <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
+        {me.removedAt ? (
+          <>
+            <p className="mb-6 text-gray-600">You were removed from this group, so you can’t add expenses. Ask the person who looks after it to invite you again.</p>
+            <a href={`/groups/${group.id}`} className={primaryButtonClass}>
+              Back to {group.name}
+            </a>
+          </>
+        ) : (
+          <>
+            <p className="mb-6 text-gray-600">You left this group. Rejoin it to add expenses again.</p>
+            <a href={`/groups/${group.id}/people`} className={primaryButtonClass}>
+              Go to People
+            </a>
+          </>
+        )}
+      </>
+    );
+  }
 
   if (group.closed && group.type !== "direct") {
     return (
@@ -48,18 +73,6 @@ export default async function AddExpensePage({
             Reopen group
           </button>
         </form>
-      </>
-    );
-  }
-
-  if (group.members.find((m) => m.id === myId)?.leftAt) {
-    return (
-      <>
-        <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
-        <p className="mb-6 text-gray-600">You left this group. Rejoin it to add expenses again.</p>
-        <a href={`/groups/${group.id}/people`} className={primaryButtonClass}>
-          Go to People
-        </a>
       </>
     );
   }

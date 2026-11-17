@@ -89,3 +89,22 @@ export function GroupLine({ g, tz }: { g: Entry; tz: string }) {
     </li>
   );
 }
+
+// A group I left or was removed from (Your groups, under "Groups you left"): the same quiet row as a closed group, with no amount,
+// because someone who left always owes nothing. Opens the group as a leaver, where Rejoin, Undo my move-out and the download live.
+export function LeftGroupRow({ g, line }: { g: Entry; line: string }) {
+  return (
+    <li data-left-group>
+      <Link href={`/groups/${g.group.id}`} className="flex min-h-11 items-center gap-3 py-3.5 active:bg-mist">
+        <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl" aria-hidden>
+          <GroupCover {...coverFor(g.group)} uid={`left-${g.group.id}`} letter={g.group.name} letterClass="text-lg" sizes="44px" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{g.group.name}</span>
+          <span className="block truncate text-sm text-gray-400">{line}</span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-fg/55" />
+      </Link>
+    </li>
+  );
+}
