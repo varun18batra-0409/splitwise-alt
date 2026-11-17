@@ -1,0 +1,228 @@
+{
+ "timing": {
+  "Home": {
+   "1": {
+    "median": 81,
+    "p95": 84
+   },
+   "10": {
+    "median": 659,
+    "p95": 691
+   },
+   "25": {
+    "median": 1598,
+    "p95": 1654
+   }
+  },
+  "Busy trip: activity": {
+   "1": {
+    "median": 205,
+    "p95": 216
+   },
+   "10": {
+    "median": 1510,
+    "p95": 1696
+   },
+   "25": {
+    "median": 3820,
+    "p95": 3834
+   }
+  },
+  "Busy trip: balances": {
+   "1": {
+    "median": 186,
+    "p95": 188
+   },
+   "10": {
+    "median": 1381,
+    "p95": 1397
+   },
+   "25": {
+    "median": 3344,
+    "p95": 3450
+   }
+  },
+  "Busy trip: charts": {
+   "1": {
+    "median": 190,
+    "p95": 198
+   },
+   "10": {
+    "median": 1450,
+    "p95": 1508
+   },
+   "25": {
+    "median": 3438,
+    "p95": 3559
+   }
+  },
+  "Busy trip: settle up": {
+   "1": {
+    "median": 45,
+    "p95": 52
+   },
+   "10": {
+    "median": 372,
+    "p95": 379
+   },
+   "25": {
+    "median": 918,
+    "p95": 1002
+   }
+  },
+  "Settle across groups": {
+   "1": {
+    "median": 65,
+    "p95": 71
+   },
+   "10": {
+    "median": 466,
+    "p95": 477
+   },
+   "25": {
+    "median": 1105,
+    "p95": 1142
+   }
+  },
+  "Search “Expense 1”": {
+   "1": {
+    "median": 331,
+    "p95": 331
+   },
+   "10": {
+    "median": 2458,
+    "p95": 2615
+   },
+   "25": {
+    "median": 6234,
+    "p95": 6329
+   }
+  },
+  "Alerts": {
+   "1": {
+    "median": 84,
+    "p95": 108
+   },
+   "10": {
+    "median": 674,
+    "p95": 686
+   },
+   "25": {
+    "median": 1616,
+    "p95": 1744
+   }
+  }
+ },
+ "profile": {
+  "Home": {
+   "totalMs": 79,
+   "queries": 37,
+   "rows": 1241,
+   "dbMs": 247,
+   "otherMs": 0,
+   "kb": 137,
+   "slowest": "Payment.groupBy 20 ms (20 rows)",
+   "loopP99": 22.86
+  },
+  "Busy trip: activity": {
+   "totalMs": 207,
+   "queries": 15,
+   "rows": 99,
+   "dbMs": 183,
+   "otherMs": 24,
+   "kb": 350,
+   "slowest": "Group.findUnique 136 ms (1 rows)",
+   "loopP99": 42.24
+  },
+  "Busy trip: balances": {
+   "totalMs": 190,
+   "queries": 12,
+   "rows": 99,
+   "dbMs": 174,
+   "otherMs": 16,
+   "kb": 191,
+   "slowest": "Group.findUnique 133 ms (1 rows)",
+   "loopP99": 44.4
+  },
+  "Busy trip: charts": {
+   "totalMs": 199,
+   "queries": 12,
+   "rows": 99,
+   "dbMs": 177,
+   "otherMs": 22,
+   "kb": 198,
+   "slowest": "Group.findUnique 151 ms (1 rows)",
+   "loopP99": 44.56
+  },
+  "Busy trip: settle up": {
+   "totalMs": 48,
+   "queries": 15,
+   "rows": 541,
+   "dbMs": 114,
+   "otherMs": 0,
+   "kb": 90,
+   "slowest": "raw.$queryRaw 22 ms (183 rows)",
+   "loopP99": 44.56
+  },
+  "Settle across groups": {
+   "totalMs": 59,
+   "queries": 21,
+   "rows": 792,
+   "dbMs": 152,
+   "otherMs": 0,
+   "kb": 190,
+   "slowest": "Payment.groupBy 18 ms (20 rows)",
+   "loopP99": 52.43
+  },
+  "Search “Expense 1”": {
+   "totalMs": 327,
+   "queries": 11,
+   "rows": 64,
+   "dbMs": 232,
+   "otherMs": 95,
+   "kb": 432,
+   "slowest": "Group.findMany 219 ms (21 rows)",
+   "loopP99": 60.69
+  },
+  "Alerts": {
+   "totalMs": 84,
+   "queries": 18,
+   "rows": 207,
+   "dbMs": 31,
+   "otherMs": 53,
+   "kb": 558,
+   "slowest": "GroupEvent.findMany 5 ms (100 rows)",
+   "loopP99": 34.67
+  },
+  "Busy trip: balances, with Undo bar": {
+   "totalMs": 191,
+   "queries": 14,
+   "rows": 101,
+   "dbMs": 175,
+   "otherMs": 16,
+   "kb": 192,
+   "slowest": "Group.findUnique 130 ms (1 rows)",
+   "loopP99": 32
+  },
+  "Trip I left: balances": {
+   "totalMs": 38,
+   "queries": 20,
+   "rows": 153,
+   "dbMs": 32,
+   "otherMs": 6,
+   "kb": 73,
+   "slowest": "Group.findUnique 8 ms (1 rows)",
+   "loopP99": 32
+  },
+  "Trip I left: activity": {
+   "totalMs": 80,
+   "queries": 24,
+   "rows": 153,
+   "dbMs": 41,
+   "otherMs": 39,
+   "kb": 454,
+   "slowest": "Group.findUnique 10 ms (1 rows)",
+   "loopP99": 15.65
+  }
+ }
+}
