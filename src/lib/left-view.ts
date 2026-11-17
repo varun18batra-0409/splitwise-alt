@@ -177,7 +177,10 @@ export type MemberChange = { kind: string; createdAt: Date };
 export const MARK = "@mark:";
 export const PHOTO_ONLY_MARK = `${MARK}photo-only`;
 export const memberMark = (memberId: string) => `${MARK}member=${memberId}`;
-export const isMark = (line: string) => line.startsWith(MARK);
+// Only the exact forms count: a line a person typed that merely starts with "@mark:" (a member named "@mark:Bob" in a share line)
+// is an ordinary line and stays visible.
+const MEMBER_MARK = /^@mark:member=([A-Za-z0-9_-]+)$/;
+export const isMark = (line: string) => line === PHOTO_ONLY_MARK || MEMBER_MARK.test(line);
 
 // Which person a "member_left" / "member_rejoined" line is about: it is in the saved undo text ({ type: "member_set", memberId }),
 // or, for lines with no undo, in a member mark in the details.
@@ -190,8 +193,8 @@ export function memberOfChange(undo: string | null | undefined, details?: string
   }
   try {
     const lines: unknown = JSON.parse(details ?? "[]");
-    const m = Array.isArray(lines) ? lines.find((l): l is string => typeof l === "string" && l.startsWith(`${MARK}member=`)) : undefined;
-    return m ? m.slice(`${MARK}member=`.length) || null : null;
+    const m = Array.isArray(lines) ? lines.find((l): l is string => typeof l === "string" && MEMBER_MARK.test(l)) : undefined;
+    return m ? (MEMBER_MARK.exec(m)?.[1] ?? null) : null;
   } catch {
     return null;
   }
@@ -226,10 +229,10 @@ export function membershipPeriods(m: SpanRow, history: MemberChange[] = [], now:
   if (end && last && last.to === null) last.to = end.getTime() < last.from.getTime() ? last.from : end;
   if (!end && last && last.to !== null) {
     // In the group now, but the last line says they left and no line says they came back (a rejoin from before those lines were
-    // written). The old stay is NOT reopened: the gap stays a gap. The new stay starts at a point we can stand behind: the last time
-    // they were seen using the group after leaving, else now.
-    const seen = m.seenEventsAt && m.seenEventsAt.getTime() > last.to.getTime() && m.seenEventsAt.getTime() <= now.getTime() ? m.seenEventsAt : now;
-    out.push({ from: seen, to: null });
+    // written). The old stay is NOT reopened: the gap stays a gap. The new stay starts now, the one point we can stand behind.
+    // (Not seenEventsAt: the notifications stamp is also written for groups someone has left, so it can fall in the time they were
+    // away and would connect them to people they were never there with. Every current way back writes a line.)
+    out.push({ from: now, to: null });
   }
   return out;
 }

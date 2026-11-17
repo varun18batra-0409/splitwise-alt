@@ -88,7 +88,7 @@ export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; 
     allExpenses
       ? db.expense.findMany({
           where: { AND: [allExpenses, { deletedAt: null, kind: { not: "pot" } }, onDate(monthWin.from, monthWin.to)] },
-          select: { groupId: true, amount: true, kind: true, category: true, spentAt: true, createdAt: true, shares: { where: { memberId: { in: myIds } }, select: { memberId: true, amount: true } } },
+          select: { id: true, groupId: true, amount: true, kind: true, category: true, spentAt: true, createdAt: true, shares: { where: { memberId: { in: myIds } }, select: { memberId: true, amount: true } } },
         })
       : Promise.resolve([]),
     tripIds.length
@@ -119,10 +119,17 @@ export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; 
 
   // Groups you left: rows changed or deleted after you left are shown as they were that day (MA-3). The database filters above read
   // today's state, so these groups' changed rows are swapped for their as-of versions here. Only what is shown changes.
+  // (Worked out once per group, all at once; the same result serves Latest and Your month, and the group totals in group-data.ts.)
+  const leaverGroups = all.filter((x) => x.leaver && x.readable);
+  const asOf = new Map<string, Awaited<ReturnType<typeof asOfChanged>>>();
+  await Promise.all(
+    leaverGroups.map(async (g) => {
+      const me = g.group.members.find((m) => m.id === g.myId);
+      if (me) asOf.set(g.group.id, await asOfChanged(g.group.id, me));
+    }),
+  );
   for (const g of open.filter((x) => x.leaver && x.readable)) {
-    const me = g.group.members.find((m) => m.id === g.myId);
-    if (!me) continue;
-    const { expenses, payments } = await asOfChanged(g.group.id, me);
+    const { expenses, payments } = asOf.get(g.group.id) ?? { expenses: [], payments: [] };
     if (!expenses.length && !payments.length) continue;
     const s = slot(g.group.id);
     const eIds = new Set(expenses.map((x) => x.id));
@@ -131,9 +138,26 @@ export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; 
     s.payments = [...s.payments.filter((p) => !pIds.has(p.id)), ...payments.flatMap((x) => (!x.shown || x.shown.deletedAt ? [] : [x.shown as PaymentRow]))].sort(newestFirst);
   }
 
+  // Your month counts a group you left only up to the day you left (as the totals do): a bill changed or deleted after that day
+  // counts as it stood that day.
+  const dayOf = (e: { spentAt: Date | null; createdAt: Date }) => (e.spentAt ?? e.createdAt).getTime();
+  const monthList: MonthRow[] = [...monthRows];
+  for (const g of leaverGroups) {
+    const { expenses } = asOf.get(g.group.id) ?? { expenses: [] };
+    if (!expenses.length) continue;
+    const ids = new Set(expenses.map((x) => x.id));
+    for (let i = monthList.length - 1; i >= 0; i--) if (monthList[i].groupId === g.group.id && ids.has(monthList[i].id)) monthList.splice(i, 1);
+    for (const x of expenses) {
+      const e = x.shown;
+      if (!e || e.deletedAt || e.kind === "pot") continue;
+      if (dayOf(e) < monthWin.from.getTime() || dayOf(e) >= monthWin.to.getTime()) continue;
+      monthList.push({ id: e.id, groupId: e.groupId, amount: e.amount, kind: e.kind, category: e.category, spentAt: e.spentAt, createdAt: e.createdAt, shares: e.shares.filter((sh) => myIds.includes(sh.memberId)).map((sh) => ({ memberId: sh.memberId, amount: sh.amount })) });
+    }
+  }
+
   // Your month, shaped for monthNumbers (which keeps only what dayKey puts in the month in the viewer's zone).
   const byGroup = new Map<string, MonthRow[]>();
-  for (const r of monthRows) (byGroup.get(r.groupId) ?? byGroup.set(r.groupId, []).get(r.groupId)!).push(r);
+  for (const r of monthList) (byGroup.get(r.groupId) ?? byGroup.set(r.groupId, []).get(r.groupId)!).push(r);
   const monthGroups = all.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: byGroup.get(g.group.id) ?? [] }));
 
   const today = new Map<string, TodayRow[]>();

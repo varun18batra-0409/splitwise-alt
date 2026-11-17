@@ -28,6 +28,8 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   const money = (x: number) => formatMoney(x, group.currency);
   const photo = group.type === "trip" ? placePhoto(group.name)?.src : undefined;
   const square = transfers.length === 0 && expenses.length > 0;
+  // Someone who left only sees their own part of the ledger, so "nobody owes anybody" is not theirs to say (and not theirs to share).
+  const leaver = Boolean(data.leaver);
   const tiles = squareTiles(n, { hide, formatSpent: money });
 
   return (
@@ -54,7 +56,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
             <p className="mt-9 text-center font-display text-[44px] font-semibold leading-none tracking-tight" data-square>
               All square
             </p>
-            <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">Nobody owes anybody. Nice one.</p>
+            <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">{leaver ? "You're settled up here. Nice one." : "Nobody owes anybody. Nice one."}</p>
             <dl className={`mt-8 grid w-full gap-2 text-center ${tiles.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
               {tiles.map(([v, l]) => (
                 <div key={l} className="rounded-2xl border border-line px-2 py-3">
@@ -77,9 +79,11 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
                 <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${hide ? "left-6" : "left-1"}`} />
               </span>
             </a>
+            {!leaver && (
             <div className="mt-4 w-full">
               <ShareSheet image={`/groups/${group.id}/square-image${hide ? "?amounts=0" : ""}`} fileName="all-square.png" title="Share: all square" words={`${group.name}: all square 🎉 Nobody owes anybody.`} label="Share the moment" />
             </div>
+            )}
           </>
         ) : (
           <>

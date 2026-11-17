@@ -10,7 +10,10 @@ type PaymentNow = Prisma.PaymentGetPayload<object>;
 // Database side of left-view.ts: what a person who left may still read.
 
 // Expenses and payments that changes after `cut` touched this person in.
-export async function touchedAfter(groupId: string, me: string, cut: Date): Promise<{ expenseIds: string[]; paymentIds: string[] }> {
+// (Read once per group per request: Home asks for it for the totals and again for Latest. Callers only read the lists.)
+export const touchedAfter = (groupId: string, me: string, cut: Date) => touchedAfterOnce(groupId, me, cut.getTime());
+const touchedAfterOnce = cache(async (groupId: string, me: string, cutMs: number): Promise<{ expenseIds: string[]; paymentIds: string[] }> => {
+  const cut = new Date(cutMs);
   const evs = await db.groupEvent.findMany({
     where: { groupId, createdAt: { gt: cut }, touches: { contains: me } },
     select: { expenseId: true, paymentId: true, touches: true },
@@ -20,7 +23,7 @@ export async function touchedAfter(groupId: string, me: string, cut: Date): Prom
     expenseIds: [...new Set(mine.map((e) => e.expenseId).filter((x): x is string => Boolean(x)))],
     paymentIds: [...new Set(mine.map((e) => e.paymentId).filter((x): x is string => Boolean(x)))],
   };
-}
+});
 
 // Prisma filters for a group's expenses and payments as this member may read them
 // (null = no limit: they're still in the group).
@@ -133,7 +136,11 @@ function paymentIdsInUndo(undo: string | null): string[] {
 
 // The rows a leaver may read that CHANGED after the day they left (edited, deleted or brought back), each as it was on that day
 // (null = not shown: its earlier state isn't known). Rows that never changed are not listed. Payments the same (deleted / brought back).
-export async function asOfChanged(groupId: string, member: { id: string; leftAt: Date | null; removedAt?: Date | null }) {
+// (Worked out once per group per request: Home's totals and its Latest list both need it. Callers only read the result.)
+export const asOfChanged = (groupId: string, member: { id: string; leftAt: Date | null; removedAt?: Date | null }) =>
+  asOfChangedOnce(groupId, member.id, member.leftAt?.getTime() ?? 0, member.removedAt?.getTime() ?? 0);
+const asOfChangedOnce = cache(async (groupId: string, memberId: string, leftMs: number, removedMs: number) => {
+  const member = { id: memberId, leftAt: leftMs ? new Date(leftMs) : null, removedAt: removedMs ? new Date(removedMs) : null };
   const cut = leaverCut(member);
   const scope = await readableWhere(groupId, member);
   if (!cut || !scope) return { expenses: [] as { id: string; now: ExpenseNow; shown: ExpenseNow | null }[], payments: [] as { id: string; now: PaymentNow; shown: PaymentNow | null }[] };
@@ -155,7 +162,7 @@ export async function asOfChanged(groupId: string, member: { id: string; leftAt:
     expenses: rows.map((e) => ({ id: e.id, now: e, shown: eShown.get(e.id) ?? null })),
     payments: pays.map((p) => ({ id: p.id, now: p, shown: pShown.get(p.id) ?? null })),
   };
-}
+});
 
 // For the lightweight Home loader, which never loads the rows: how far "spent" and the expense count move when the rows a leaver
 // may read are shown as they were on the day they left. The deltas are added to the database totals (which count today's state);

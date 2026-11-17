@@ -240,12 +240,11 @@ describe("second review: rejoining by the join link, move-out undo, marks", () =
     expect(span.periods).toEqual([{ from: d("01-05"), to: d("01-20") }, { from: NOW, to: null }]);
     expect(overlapped(span, membershipSpan(raviRow))).toBe(false);
   });
-  it("...and once she is seen using the group, the new stay starts then (the earliest point we can stand behind)", () => {
+  it("...and a notifications stamp (seenEventsAt) never starts the new stay: Asha leaves 20 Jan, stamp 15 Mar, Ravi 1-30 Mar, back with no line: no overlap", () => {
     const h = [{ kind: "member_left", createdAt: d("01-20") }];
-    const seen = { ...ashaRow, seenEventsAt: d("03-10") };
-    expect(membershipSpan(seen, h, NOW).periods![1].from).toEqual(d("03-10"));
-    expect(overlapped(membershipSpan(seen, h, NOW), membershipSpan(raviRow))).toBe(true); // she really was there in March
-    // seen only BEFORE she left doesn't count as after:
+    const seen = { ...ashaRow, seenEventsAt: d("03-15") }; // markNotificationsSeen stamps this even on a group she has left
+    expect(membershipSpan(seen, h, NOW).periods![1].from).toEqual(NOW);
+    expect(overlapped(membershipSpan(seen, h, NOW), membershipSpan(raviRow))).toBe(false); // they were never there together
     expect(membershipSpan({ ...ashaRow, seenEventsAt: d("01-10") }, h, NOW).periods![1].from).toEqual(NOW);
   });
   it("new data: the join link now writes a 'rejoined' line with a member_set undo, so the stay starts the day she came back", () => {
@@ -268,6 +267,43 @@ describe("second review: rejoining by the join link, move-out undo, marks", () =
     expect(isMark(PHOTO_ONLY_MARK)).toBe(true);
     expect(isMark("Amount: ₹900 → ₹1,200")).toBe(false);
     expect(readFileSync("src/lib/events.ts", "utf8")).toContain("!isMark(x)"); // parseDetails drops them
+  });
+  it("only the exact marks are marks: a line that merely starts with @mark: (a member named @mark:Bob) stays visible", () => {
+    expect(isMark("@mark:photo-only")).toBe(true);
+    expect(isMark("@mark:member=cm0abc_12-X")).toBe(true);
+    expect(isMark("@mark:Bob: ₹300")).toBe(false); // a share line for a member named "@mark:Bob"
+    expect(isMark("@mark:Bob")).toBe(false);
+    expect(isMark("@mark:member=")).toBe(false);
+    expect(isMark("@mark:member=a b")).toBe(false);
+    expect(isMark("@mark:photo-only extra")).toBe(false);
+    // The reader and the writer agree: what memberMark writes is a mark and is read back; a typed look-alike is not.
+    expect(isMark(memberMark("asha"))).toBe(true);
+    expect(memberOfChange("", JSON.stringify(["@mark:Bob: ₹300", memberMark("asha")]))).toBe("asha");
+    expect(memberOfChange("", JSON.stringify(["@mark:member=Bob Jones"]))).toBeNull();
+  });
+  it("the join link writes the line in the same transaction as clearing leftAt (checked in the source)", () => {
+    const src = readFileSync("src/lib/join.ts", "utf8");
+    expect(src).toMatch(/\$transaction\(async \(tx\) => \{\s*if \(\(await tx\.member\.updateMany\(\{ where: \{ id: mine\.id, removedAt: null \}, data: \{ leftAt: null \}[\s\S]*?logEvent\(tx, \{[^}]*kind: "member_rejoined"/);
+  });
+  it("a changed reaction emoji takes a new time, so a leaver never sees a change made after they left (checked in the source)", () => {
+    const src = readFileSync("src/app/moment-actions.ts", "utf8");
+    expect(src).toContain("update: { emoji, createdAt: new Date() }");
+    expect(src).toContain("data: { emoji, createdAt: new Date() }");
+  });
+  it("the square page and picture say nothing about other people's money to a leaver (checked in the source)", () => {
+    expect(readFileSync("src/app/groups/[id]/square-image/route.tsx", "utf8")).toMatch(/if \(data\.leaver\) return new Response\([^)]*409/);
+    const page = readFileSync("src/app/groups/[id]/square/page.tsx", "utf8");
+    expect(page).toContain("You're settled up here");
+    expect(page).toMatch(/\{!leaver && \(\s*<div className="mt-4 w-full">\s*<ShareSheet/);
+  });
+  it("Home works out each left group's as-of changes once per request, in parallel, and Your month uses them (checked in the source)", () => {
+    const db = readFileSync("src/lib/left-view-db.ts", "utf8");
+    expect(db).toContain("const asOfChangedOnce = cache(");
+    expect(db).toContain("const touchedAfterOnce = cache(");
+    const home = readFileSync("src/lib/home/home-data.ts", "utf8");
+    expect(home.match(/await asOfChanged\(/g)?.length).toBe(1);
+    expect(home).toContain("Promise.all(\n    leaverGroups.map");
+    expect(home).toContain("monthList");
   });
   it("the join link writes the line, and the move-out undo carries the mark (checked in the source)", () => {
     expect(readFileSync("src/lib/join.ts", "utf8")).toMatch(/kind: "member_rejoined"[\s\S]*type: "member_set"/);

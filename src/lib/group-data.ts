@@ -276,9 +276,12 @@ export async function loadMyGroupsLight(memberships: Record<string, string>, opt
     Promise.all(
       leavers.map(async (g) => {
         const scope = (await readableWhere(g.id, g.members.find((m) => m.id === memberships[g.id])!))!;
-        const stats = await visibleStats({ groupId: g.id, AND: [scope.expenses] }, { groupId: g.id, AND: [scope.payments] });
-        // Rows that were changed or deleted after they left count as they stood that day (MA-3).
-        const fix = await asOfFixes(g.id, g.members.find((m) => m.id === memberships[g.id])!);
+        // Rows that were changed or deleted after they left count as they stood that day (MA-3). (Read alongside the totals; the
+        // as-of work is shared with Home's Latest list within the request.)
+        const [stats, fix] = await Promise.all([
+          visibleStats({ groupId: g.id, AND: [scope.expenses] }, { groupId: g.id, AND: [scope.payments] }),
+          asOfFixes(g.id, g.members.find((m) => m.id === memberships[g.id])!),
+        ]);
         const base = stats.get(g.id) ?? NO_STATS;
         return { id: g.id, scope, stats: { ...base, spent: base.spent + fix.spentDelta, expenseCount: base.expenseCount + fix.countDelta } };
       }),
