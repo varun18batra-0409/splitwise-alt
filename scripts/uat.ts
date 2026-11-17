@@ -16,6 +16,7 @@
 // A step that only makes sense on some devices says so (stepOn) and is reported
 // as "not applicable" on the others, never skipped quietly. Besides report.md and
 // summary.txt, coverage.md / coverage.json map every step to an area.
+import "./test-db-guard"; // first on purpose: refuses to run against the live database (OB-10)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";

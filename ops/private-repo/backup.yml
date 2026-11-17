@@ -1,0 +1,117 @@
+# TEMPLATE. This file does nothing here: it is not under .github. Copy it to the PRIVATE ops repo as
+# .github/workflows/backup.yml (see README.md next to this file).
+#
+# Nightly backup of the live database, kept as an encrypted file for 14 days (the same promise as the privacy page).
+# - The live database is opened with a READ-ONLY token, so this job cannot change or delete live data.
+# - The public repo is fetched at ONE pinned commit (PUBLIC_REPO_SHA below), so only code you chose runs with the key.
+# - Secrets are given only to the steps that need them, never to the whole job.
+# - Every night the backup is rebuilt into a scratch file and checked (the "file drill").
+#   Every Sunday it is also rebuilt into the spare Turso database loopin-restore-drill (the "real drill"),
+#   which is the path a real recovery would take.
+#
+# Secrets in the private repo (Settings > Secrets and variables > Actions):
+#   LIVE_DB_URL, LIVE_DB_READONLY_TOKEN, BACKUP_PASSPHRASE, DRILL_DB_URL, DRILL_DB_TOKEN
+#   Optional: HEALTHCHECK_URL (a healthchecks.io ping address; gives you an email when a night is missed)
+name: Backup
+on:
+  schedule:
+    - cron: "17 21 * * *" # every day, 02:47 India time
+  workflow_dispatch:
+    inputs:
+      real_drill:
+        description: "Also restore into the spare drill database now (normally only on Sundays)"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+env:
+  PUBLIC_REPO: varun18batra-0409/splitwise-alt
+  # The exact commit of the public repo whose scripts run here. Replace with a full 40-character commit id of
+  # `main` (see README.md). Update it when the backup scripts change.
+  PUBLIC_REPO_SHA: REPLACE_WITH_40_CHARACTER_COMMIT_ID
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: The pinned commit has been filled in
+        run: |
+          case "$PUBLIC_REPO_SHA" in
+            *[!0-9a-f]*|"") echo "::error title=Not set up::PUBLIC_REPO_SHA must be a full 40-character commit id (see README.md)."; exit 1;;
+          esac
+          [ "${#PUBLIC_REPO_SHA}" -eq 40 ] || { echo "::error title=Not set up::PUBLIC_REPO_SHA must be 40 characters long."; exit 1; }
+      - name: Is it Sunday in India?
+        run: '[ "$(TZ=Asia/Kolkata date +%u)" != 7 ] || echo "IS_SUNDAY=1" >> "$GITHUB_ENV"'
+      # PIN: replace each @v4 below with the full commit id of that tag, as in the public repo's workflows.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ env.PUBLIC_REPO }}
+          ref: ${{ env.PUBLIC_REPO_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Dump and encrypt
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.LIVE_DB_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.LIVE_DB_READONLY_TOKEN }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ] && [ -n "$BACKUP_PASSPHRASE" ] || { echo "::error title=Backup::LIVE_DB_URL, LIVE_DB_READONLY_TOKEN or BACKUP_PASSPHRASE is not set."; exit 1; }
+          npm install --no-save --ignore-scripts @libsql/client@0.15.0
+          node scripts/backup.mjs "$RUNNER_TEMP/backup.json"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSPHRASE \
+            -in "$RUNNER_TEMP/backup.json" -out "$RUNNER_TEMP/backup.json.enc"
+          rm -f "$RUNNER_TEMP/backup.json"
+          # Prove the encrypted copy opens with the passphrase.
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE \
+            -in "$RUNNER_TEMP/backup.json.enc" -out "$RUNNER_TEMP/check.json"
+          grep -q '"takenAt"' "$RUNNER_TEMP/check.json"
+          echo "::notice title=Backup::Encrypted backup made ($(du -h "$RUNNER_TEMP/backup.json.enc" | cut -f1)). Compare with the 500 MB private storage allowance: 14 copies must fit."
+      # The next two steps use only the decrypted copy and (for the real drill) the drill database's own token.
+      - name: File drill (rebuild into a scratch file and check the data)
+        run: |
+          set -uo pipefail
+          drill=0
+          node scripts/restore.mjs "$RUNNER_TEMP/check.json" "file:$RUNNER_TEMP/drill.db" > "$RUNNER_TEMP/drill.log" 2>&1 || drill=$?
+          cat "$RUNNER_TEMP/drill.log"
+          rm -f "$RUNNER_TEMP/drill.db"
+          if [ "$drill" -ne 0 ] || grep -q '^✗' "$RUNNER_TEMP/drill.log"; then
+            echo "::error title=Restore drill FAILED::exit $drill. $(grep '^✗' "$RUNNER_TEMP/drill.log" | head -8 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+            exit 1
+          fi
+          echo "::notice title=Restore drill (file)::$(tail -1 "$RUNNER_TEMP/drill.log") $(grep -c '✓' "$RUNNER_TEMP/drill.log") checks OK."
+      - name: Real drill (Sundays, or when asked) into the spare Turso database
+        if: (github.event_name == 'workflow_dispatch' && inputs.real_drill) || env.IS_SUNDAY == '1'
+        env:
+          TURSO_AUTH_TOKEN: ${{ secrets.DRILL_DB_TOKEN }}
+          DRILL_DB_URL: ${{ secrets.DRILL_DB_URL }}
+        run: |
+          set -uo pipefail
+          [ -n "$DRILL_DB_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ] || { echo "::error title=Real drill::DRILL_DB_URL or DRILL_DB_TOKEN is not set."; exit 1; }
+          drill=0
+          node scripts/restore.mjs --drill "$RUNNER_TEMP/check.json" "$DRILL_DB_URL" > "$RUNNER_TEMP/real.log" 2>&1 || drill=$?
+          cat "$RUNNER_TEMP/real.log"
+          if [ "$drill" -ne 0 ] || grep -q '^✗' "$RUNNER_TEMP/real.log"; then
+            echo "::error title=Real restore drill FAILED::exit $drill. $(grep '^✗' "$RUNNER_TEMP/real.log" | head -8 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+            exit 1
+          fi
+          echo "::notice title=Real restore drill::$(tail -1 "$RUNNER_TEMP/real.log")"
+      - name: Delete the decrypted copy
+        if: always()
+        run: rm -f "$RUNNER_TEMP/check.json" "$RUNNER_TEMP/backup.json" "$RUNNER_TEMP/drill.db"
+      # Kept even when a drill failed (the run is red, but the file is still the best copy there is).
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: db-backup
+          path: ${{ runner.temp }}/backup.json.enc
+          retention-days: 14
+          if-no-files-found: warn
+      # Optional: tells healthchecks.io the night worked. If a night is missed, it emails you.
+      - name: Tell healthchecks.io
+        if: success()
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          [ -z "$HEALTHCHECK_URL" ] || curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL" > /dev/null

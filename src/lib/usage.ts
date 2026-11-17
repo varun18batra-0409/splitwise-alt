@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { readOrgUsage } from "./usage-read";
 
 // Usage against the free plans, for the owner's Stats page.
 // Free-plan limits (checked Oct 2026):
@@ -14,17 +15,6 @@ export const LIMITS = {
   vercelInvocations: 1_000_000,
 };
 
-// Pull a number out of the Turso usage answer, wherever it sits.
-function findNumber(obj: unknown, key: string): number | null {
-  if (!obj || typeof obj !== "object") return null;
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    if (k === key && typeof v === "number") return v;
-    const inner = findNumber(v, key);
-    if (inner !== null) return inner;
-  }
-  return null;
-}
-
 // Real figures from Turso, if the owner added a read-only platform token.
 export async function tursoUsage(): Promise<{ rowsRead: number | null; rowsWritten: number | null; storage: number | null } | null> {
   const token = process.env.TURSO_PLATFORM_TOKEN;
@@ -38,7 +28,7 @@ export async function tursoUsage(): Promise<{ rowsRead: number | null; rowsWritt
     });
     if (!r.ok) return null;
     const j = await r.json();
-    return { rowsRead: findNumber(j, "rows_read"), rowsWritten: findNumber(j, "rows_written"), storage: findNumber(j, "storage_bytes") };
+    return readOrgUsage(j);
   } catch {
     return null;
   }

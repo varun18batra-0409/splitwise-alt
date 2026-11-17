@@ -1,9 +1,12 @@
 // Fills the database with realistic demo groups (used for automatic screenshots).
 // Run: npx tsx scripts/seed-demo.ts  — writes .demo.json with the ids it created.
+import "./test-db-guard"; // first on purpose: refuses to run against the live database (OB-10)
 import { writeFileSync } from "node:fs";
 import { db } from "@/lib/db";
 import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
-import { logEvent } from "@/lib/events";
+import { recordPaymentCore } from "@/lib/pay-record";
+import { loadGroup } from "@/lib/group-data";
+import { planKey, settleAllAndClose } from "@/lib/settle-all";
 import type { RateAnswer } from "@/lib/rate-cache";
 import { addMonths, monthKey } from "@/lib/home/month";
 import { dayKey } from "@/lib/dates";
@@ -71,8 +74,9 @@ await saveExpense(input(trip.g.id, { expenseId: snacks.id, name: "7-Eleven snack
 const extra = await add(trip.g.id, M, { name: "Souvenirs", amount: "500", currency: "THB", paymentMethod: "cash", date: "2026-10-14" });
 const { setExpenseDeleted } = await import("@/lib/save-expense");
 await setExpenseDeleted(extra.id, M, true);
-const pay = await db.payment.create({ data: { groupId: trip.g.id, fromId: R, toId: V, amount: 500000, createdById: R } });
-await logEvent(db, { groupId: trip.g.id, actorId: R, kind: "payment_recorded", text: "paid Varun ₹5,000", paymentId: pay.id, undo: { type: "payment_delete", paymentId: pay.id } });
+// Ravi pays Varun back ₹5,000 (500,000 paise), recorded with the app's own function so the checks, the history line and Undo are real.
+const paid = await recordPaymentCore({ groupId: trip.g.id, fromId: R, toId: V, amount: 500000, currency: "INR", myId: R, fp: "seed", warnOver: false });
+if (paid.kind !== "done") throw new Error(`Seed payment was not recorded: ${paid.kind}`);
 await db.member.update({ where: { id: V }, data: { seenEventsAt: new Date("2026-10-11T00:00:00Z") } });
 
 // A flat (Home group): bigger room pays 1.2×, regular bills that add
@@ -121,8 +125,14 @@ if (goal.ok) {
   await addGoalEntryFor(us.g.id, UR, goal.id, "32000", `seed-goal-r-${Date.now()}`);
 }
 
-const goa = await group("Goa 2025", [{ name: "Varun" }, { name: "Meera" }], { closed: true });
-await add(goa.g.id, goa.id("Varun"), { name: "Beach shack lunch", amount: "1800", date: "2026-10-01" }).catch(() => undefined);
+// Goa is a finished trip: ₹1,800 paid by Varun, split equally: 90,000 + 90,000 paise. Before settling Varun is +90,000 and Meera -90,000
+// (sum 0). Meera pays Varun 90,000 and the group is closed, both with the app's own "Settle everything & close", so both end at 0.
+const goa = await group("Goa 2025", [{ name: "Varun" }, { name: "Meera" }]);
+await add(goa.g.id, goa.id("Varun"), { name: "Beach shack lunch", amount: "1800", date: "2026-10-01" });
+const goaData = await loadGroup(goa.g.id, { events: false });
+if (!goaData) throw new Error("Goa group missing");
+const settled = await settleAllAndClose(goa.g.id, goa.id("Varun"), planKey(goaData.transfers));
+if (!settled.ok) throw new Error(`Goa was not settled and closed: ${settled.error}`);
 
 writeFileSync(
   ".demo.json",

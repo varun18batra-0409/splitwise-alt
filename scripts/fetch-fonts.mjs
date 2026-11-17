@@ -15,14 +15,18 @@ const FONTS = {
 mkdirSync("public/og-fonts", { recursive: true });
 const got = {};
 for (const [name, url] of Object.entries(FONTS)) {
-  try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (!r.ok || buf.length < 5_000) throw new Error(`${r.status} ${buf.length} bytes`);
-    writeFileSync(`public/og-fonts/${name}.woff`, buf);
-    got[name] = `/og-fonts/${name}.woff`;
-  } catch (e) {
-    console.log(`fonts: ${name} ✗ ${String(e).slice(0, 80)}`);
+  // Up to 3 tries per font: a slow or failed download is often gone a few seconds later.
+  for (let attempt = 1; attempt <= 3 && !got[name]; attempt++) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (!r.ok || buf.length < 5_000) throw new Error(`${r.status} ${buf.length} bytes`);
+      writeFileSync(`public/og-fonts/${name}.woff`, buf);
+      got[name] = `/og-fonts/${name}.woff`;
+    } catch (e) {
+      console.log(`fonts: ${name} ✗ ${String(e).slice(0, 80)}${attempt < 3 ? " (trying again)" : ""}`);
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
   }
 }
 mkdirSync("src/generated", { recursive: true });

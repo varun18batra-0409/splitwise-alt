@@ -1,5 +1,6 @@
 // Takes phone-sized screenshots of every screen (used by the GitHub check so
 // the design can be reviewed). Needs the app running on :3000 and .demo.json.
+import "./test-db-guard"; // first on purpose: refuses to run against the live database (OB-10)
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium, webkit, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
@@ -1422,7 +1423,7 @@ if (!hosted && !desktop && !ios) {
       ["Souvenirs at Don Quijote", 520000, "Kabir", 5],
     ];
     for (const [d, amount, by, ago] of bills) {
-      const spentAt = new Date(`${ist(-ago)}T12:00:00+05:30`);
+      const spentAt = new Date(`${ist(-ago)}T12:00:00Z`);
       await db.expense.create({
         data: {
           groupId: tokyo.id, description: d, amount, splitType: "equal", forMode: "everyone", category: guessCategory(d), paidById: who(by),

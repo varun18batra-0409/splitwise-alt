@@ -3,6 +3,7 @@
 // - Vercel keeps test copies private; the "protection bypass" secret lets the
 //   test browser in. It is only ever sent to the test copy's own address.
 // - Never the live app: refuses loopinapps.com and the old address.
+import "./test-db-guard"; // first on purpose: refuses to run against the live database (OB-10)
 import type { Browser } from "playwright";
 
 export const base = process.env.APP_URL ?? "http://localhost:3000";

@@ -1,0 +1,41 @@
+# TEMPLATE (not active here). Copy to the PRIVATE ops repo as .github/workflows/live-stats.yml (see README.md).
+# Numbers about the live app (run by hand): speed on people's phones, and whether invites become members.
+# Counts and timings only, never names, emails or amounts. Shown on the run's summary page, which is now private.
+# Uses the READ-ONLY live token. Secrets in the private repo: LIVE_DB_URL, LIVE_DB_READONLY_TOKEN.
+name: Live stats
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "How many hours back"
+        default: "24"
+permissions:
+  contents: read
+env:
+  PUBLIC_REPO: varun18batra-0409/splitwise-alt
+  # Full 40-character commit id of the public repo's main (see README.md).
+  PUBLIC_REPO_SHA: REPLACE_WITH_40_CHARACTER_COMMIT_ID
+jobs:
+  stats:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: The pinned commit has been filled in
+        run: |
+          case "$PUBLIC_REPO_SHA" in *[!0-9a-f]*|"") echo "::error title=Not set up::PUBLIC_REPO_SHA must be a full 40-character commit id."; exit 1;; esac
+          [ "${#PUBLIC_REPO_SHA}" -eq 40 ] || { echo "::error title=Not set up::PUBLIC_REPO_SHA must be 40 characters long."; exit 1; }
+      # PIN: replace each @v4 with the full commit id of that tag.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ env.PUBLIC_REPO }}
+          ref: ${{ env.PUBLIC_REPO_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --ignore-scripts @libsql/client@0.15.0
+      - name: Collect and show the numbers
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.LIVE_DB_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.LIVE_DB_READONLY_TOKEN }}
+          HOURS: ${{ github.event.inputs.hours }}
+        run: node scripts/live-stats.mjs && cat live-stats.md >> "$GITHUB_STEP_SUMMARY"

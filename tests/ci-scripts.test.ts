@@ -58,6 +58,16 @@ describe("schema workflows keep the real command status", () => {
     expect(r.out).toContain("apply exited 7; plan exited 9");
   });
 
+  // OB-11: turso-sync --plan exits 3 (and prints REFUSE) when a deploy would refuse the change; that must turn the run red.
+  it("a plan that exits 3 (the change would be refused) fails the job, in plan-only and apply runs", () => {
+    const p = schema("plan", { plan: 3 });
+    expect(p.code, p.out).toBe(1);
+    expect(p.out).toContain("plan exited 3");
+    const a = schema("apply", { plan: 3 });
+    expect(a.code, a.out).toBe(1);
+    expect(a.out).toContain("plan exited 3");
+  });
+
   it("no target is reported as SKIPPED (a warning, not a success) for the plan, and a failure for a hand-run apply", () => {
     const skipped = schema("plan", { target: "", noTarget: "skip" });
     expect(skipped.code, skipped.out).toBe(0);

@@ -3,6 +3,7 @@
 // a cold open takes, how much script it downloads, and how long the common
 // taps take (opening a group, searching people, saving an expense).
 // Needs the app running on :3000 and .demo.json. Writes screenshots/uat/perf.md.
+import "./test-db-guard"; // first on purpose: refuses to run against the live database (OB-10)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
