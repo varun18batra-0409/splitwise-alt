@@ -30,7 +30,8 @@ describe("erasing deleted groups after 30 days", () => {
     const live = await makeGroup("live");
 
     const n = await eraseExpiredGroups(now);
-    expect(n).toBeGreaterThanOrEqual(1);
+    expect(n.erased).toBeGreaterThanOrEqual(1);
+    expect(n.failed).toBe(0);
     expect(await db.group.findUnique({ where: { id: old } })).toBeNull();
     for (const t of [db.member, db.expense, db.payment, db.groupEvent, db.bill] as unknown as { count: (a: object) => Promise<number> }[]) {
       expect(await t.count({ where: { groupId: old } })).toBe(0);
@@ -40,5 +41,47 @@ describe("erasing deleted groups after 30 days", () => {
       expect(await db.group.findUnique({ where: { id } })).not.toBeNull();
       expect(await db.expense.count({ where: { groupId: id } })).toBe(1);
     }
+  });
+});
+
+describe("erasing one group at a time", () => {
+  it("one group failing does not stop the others: the other two are erased, the failing one stays, and it is counted", async () => {
+    const now = new Date();
+    // Oldest first: g1 (400 days), g2 (399), g3 (398). The test hook throws for g2 only.
+    const g1 = await makeGroup("pg-1", { deletedAt: new Date(now.getTime() - 400 * day) });
+    const g2 = await makeGroup("pg-2", { deletedAt: new Date(now.getTime() - 399 * day) });
+    const g3 = await makeGroup("pg-3", { deletedAt: new Date(now.getTime() - 398 * day) });
+    const r = await eraseExpiredGroups(now, 1000, () => false, async (id) => {
+      if (id === g2) throw new Error("test: this group fails");
+    });
+    // (Other leftover groups from other tests may also be erased, so at least 2; exactly 1 failed.)
+    expect(r.erased).toBeGreaterThanOrEqual(2);
+    expect(r.failed).toBe(1);
+    expect(await db.group.findUnique({ where: { id: g1 } })).toBeNull();
+    expect(await db.group.findUnique({ where: { id: g3 } })).toBeNull();
+    // g2 is whole: its group, people, expense and payment are all still there, so tomorrow's run can try again.
+    expect(await db.group.findUnique({ where: { id: g2 } })).not.toBeNull();
+    expect(await db.member.count({ where: { groupId: g2 } })).toBe(2);
+    expect(await db.expense.count({ where: { groupId: g2 } })).toBe(1);
+    expect(await db.payment.count({ where: { groupId: g2 } })).toBe(1);
+    // The next run, with nothing failing, erases it.
+    expect((await eraseExpiredGroups(now, 1000)).failed).toBe(0);
+    expect(await db.group.findUnique({ where: { id: g2 } })).toBeNull();
+  });
+
+  it("stops starting new groups when the time budget says stop (the rest wait for tomorrow)", async () => {
+    const now = new Date();
+    const a = await makeGroup("st-1", { deletedAt: new Date(now.getTime() - 500 * day) });
+    const b = await makeGroup("st-2", { deletedAt: new Date(now.getTime() - 499 * day) });
+    let asked = 0;
+    // Allowed to start one group, then "stop".
+    const r = await eraseExpiredGroups(now, 1000, () => ++asked > 1);
+    expect(r.failed).toBe(0);
+    // At most one of the two went (an older leftover group from another test may have used the one start).
+    const gone = (await Promise.all([a, b].map((id) => db.group.findUnique({ where: { id } })))).filter((g) => g === null).length;
+    expect(gone).toBeLessThanOrEqual(1);
+    await eraseExpiredGroups(now, 1000);
+    expect(await db.group.findUnique({ where: { id: a } })).toBeNull();
+    expect(await db.group.findUnique({ where: { id: b } })).toBeNull();
   });
 });

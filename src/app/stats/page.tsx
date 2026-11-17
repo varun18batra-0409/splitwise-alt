@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
-import { netBalances } from "@/lib/balances";
-import { computeStats, signedInPeople } from "@/lib/stats";
+import { unstable_cache } from "next/cache";
+import { loadStatsData, STATS_PEOPLE_SHOWN } from "@/lib/stats-db";
 import { getTimeZone } from "@/lib/tz";
 import { LIMITS, appUsage, pct, tursoUsage } from "@/lib/usage";
 import { PageHeader } from "@/components/ui";
@@ -17,24 +17,11 @@ export default async function Stats() {
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   if (!account || !admins.includes(account.email)) notFound();
 
-  const [groups, members, expenses, payments, events, accounts, errors] = await Promise.all([
-    db.group.findMany({ select: { id: true, createdAt: true, deletedAt: true, closed: true } }),
-    db.member.findMany({ select: { id: true, groupId: true, claimedAt: true, accountId: true, leftAt: true, removedAt: true } }),
-    db.expense.findMany({ where: { deletedAt: null }, select: { groupId: true, createdAt: true, paidById: true, payers: true, kind: true, amount: true, shares: { select: { memberId: true, amount: true } } } }),
-    db.payment.findMany({ where: { deletedAt: null }, select: { groupId: true, fromId: true, toId: true, amount: true } }),
-    db.groupEvent.findMany({ where: { createdAt: { gte: new Date(Date.now() - 60 * 86_400_000) } }, select: { groupId: true, createdAt: true, kind: true } }),
-    db.account.findMany({ select: { id: true, email: true, name: true, createdAt: true } }),
-    db.errorLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
-  ]);
-
-  const balancesSettled: Record<string, boolean> = {};
-  for (const g of groups) {
-    const ids = members.filter((m) => m.groupId === g.id).map((m) => m.id);
-    const net = netBalances(ids, expenses.filter((e) => e.groupId === g.id), payments.filter((p) => p.groupId === g.id));
-    balancesSettled[g.id] = Object.values(net).every((v) => v === 0);
-  }
-  const s = computeStats({ groups, members, expenses, events, balancesSettled, accounts: accounts.length });
-  const people = signedInPeople(accounts, members, new Set(groups.filter((g) => !g.deletedAt).map((g) => g.id)));
+  // Read only now, after the admin check, and kept for five minutes (the owner's page is not live to the second).
+  const data = await unstable_cache(loadStatsData, ["admin-stats-v1"], { revalidate: 300 })();
+  const s = data.s;
+  const people = data.people.map((p) => ({ ...p, since: new Date(p.since) }));
+  const errors = await db.errorLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
   const tz = await getTimeZone();
   const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: tz });
   const [usage, turso] = await Promise.all([appUsage(), tursoUsage()]);
@@ -82,7 +69,7 @@ export default async function Stats() {
       </div>
 
       <h2 className="mb-1 mt-10 font-display text-lg font-semibold tracking-tight">Who has signed in</h2>
-      <p className="mb-3 text-sm text-gray-500">Everyone with a Loopin account, newest first. Only you can see this.</p>
+      <p className="mb-3 text-sm text-gray-500">{data.accountsTotal > STATS_PEOPLE_SHOWN ? `The newest ${STATS_PEOPLE_SHOWN} of ${data.accountsTotal} Loopin accounts, newest first.` : "Everyone with a Loopin account, newest first."} Only you can see this.</p>
       <ul className="divide-y divide-line rounded-2xl border border-line text-sm" data-signed-in-people>
         {people.map((p) => (
           <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">

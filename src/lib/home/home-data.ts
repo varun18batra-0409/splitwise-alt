@@ -40,7 +40,7 @@ export function wrappedEnded(g: Pick<Entry, "group" | "expenseCount" | "leaver">
 }
 
 // "Spent on this day" in one filter: the expense's own day if it has one, else the day it was added.
-const onDate = (from: Date, to: Date): Prisma.ExpenseWhereInput => ({ OR: [{ spentAt: { gte: from, lt: to } }, { spentAt: null, createdAt: { gte: from, lt: to } }] });
+export const onDate = (from: Date, to: Date): Prisma.ExpenseWhereInput => ({ OR: [{ spentAt: { gte: from, lt: to } }, { spentAt: null, createdAt: { gte: from, lt: to } }] });
 
 // Groups whose rows may be read: everyone's in full, a leaver's only what they may see.
 function readableExpenses(groups: Entry[]): Prisma.ExpenseWhereInput | null {

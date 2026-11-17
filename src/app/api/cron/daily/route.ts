@@ -84,7 +84,13 @@ export async function GET(req: Request) {
   // Photos saved before file storage was connected move over, a few each day.
   await part("move-photos", async () => (await import("@/lib/photo-store")).movePhotosToBlob(60));
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
-  const groupsErased = await part("erase-deleted-groups", () => eraseExpiredGroups(now));
+  // One group at a time; a group that fails is reported (the daily email) and tried again tomorrow.
+  const erasedRun = await part("erase-deleted-groups", async () => {
+    const r = await eraseExpiredGroups(now, 100, stop);
+    if (r.failed > 0) failed.push("erase-deleted-groups");
+    return r;
+  });
+  const groupsErased = "erased" in erasedRun ? erasedRun.erased : erasedRun;
   // The admin's email when something needs a look (failed parts, errors, emails not sent, orphan rows).
   const { sendOpsDigest } = await import("@/lib/ops-digest");
   const check = await sendOpsDigest(now, failed).catch(() => ({ sent: false, reason: "digest failed" }));

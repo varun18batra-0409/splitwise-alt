@@ -1,3 +1,5 @@
+import { netBalances } from "./balances";
+
 // Numbers for the private stats page, worked out from the app's own data
 // (no tracking). Pure function so it can be tested.
 
@@ -89,4 +91,31 @@ export function signedInPeople(
   return accounts
     .map((a) => ({ id: a.id, name: a.name.trim(), email: maskEmail(a.email), since: a.createdAt, groups: groups.get(a.id)?.size ?? 0 }))
     .sort((a, b) => b.since.getTime() - a.since.getTime());
+}
+
+// Is every group square (everyone's balance 0)? One pass: rows are put in Maps by group first, so each group looks only at its own
+// rows (the old way filtered ALL rows once per group). Groups in the bin are left out (the stats ignore them).
+export function settledByGroup(
+  groups: { id: string; deletedAt: Date | null }[],
+  members: { id: string; groupId: string }[],
+  expenses: { groupId: string; paidById: string; amount: number; payers?: string | null; kind?: string | null; shares: { memberId: string; amount: number }[] }[],
+  payments: { groupId: string; fromId: string; toId: string; amount: number }[],
+): Record<string, boolean> {
+  const by = <T extends { groupId: string }>(rows: T[]) => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) {
+      const list = m.get(r.groupId);
+      if (list) list.push(r);
+      else m.set(r.groupId, [r]);
+    }
+    return m;
+  };
+  const ms = by(members), es = by(expenses), ps = by(payments);
+  const out: Record<string, boolean> = {};
+  for (const g of groups) {
+    if (g.deletedAt) continue;
+    const net = netBalances((ms.get(g.id) ?? []).map((m) => m.id), es.get(g.id) ?? [], ps.get(g.id) ?? []);
+    out[g.id] = Object.values(net).every((v) => v === 0);
+  }
+  return out;
 }

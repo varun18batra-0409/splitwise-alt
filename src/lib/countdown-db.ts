@@ -98,7 +98,8 @@ export async function sendDayPulse(now = new Date(), stop: () => boolean = () =>
   const { spentAmount, payersOf } = await import("./payers");
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const trips = await db.group.findMany({
-    where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: today, not: "" } },
+    // Trips already over are left out by the database too (the check below stays): ended by tripEnd, or no end date and starting today.
+    where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: today, not: "" }, OR: [{ tripEnd: { gte: today } }, { tripEnd: "", tripStart: { gte: today } }] },
     select: { id: true, name: true, currency: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true, name: true } } },
   });
   let sent = 0;

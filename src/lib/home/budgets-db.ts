@@ -7,6 +7,7 @@ import { DEFAULT_TIME_ZONE } from "../dates";
 import { BUDGET_CATEGORIES, budgetLevelsCrossed, budgetStatus } from "./budgets";
 import { monthSummary } from "./summary";
 import { monthKey } from "./month";
+import { monthWindow, onDate } from "./home-data";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -58,12 +59,15 @@ export async function budgetsNow(groupId: string, expenses: Parameters<typeof mo
 export async function checkBudgets(groupId: string, now = new Date()): Promise<string[]> {
   const budgets = await db.budget.findMany({ where: { groupId } });
   if (!budgets.length) return [];
+  const month = monthKey(now, DEFAULT_TIME_ZONE);
+  // Only this month's expenses are read (the month widened by 14 hours each way, so no time zone can miss one); monthSummary
+  // below still keeps exactly the ones that fall in the month in India time. Older history is not needed for the budget numbers.
+  const win = monthWindow(month);
   const group = await db.group.findUnique({
     where: { id: groupId },
-    include: { members: { where: { leftAt: null }, select: { id: true } }, expenses: { where: { deletedAt: null }, include: { shares: true } } },
+    include: { members: { where: { leftAt: null }, select: { id: true } }, expenses: { where: { deletedAt: null, ...onDate(win.from, win.to) }, include: { shares: true } } },
   });
   if (!group || group.deletedAt) return [];
-  const month = monthKey(now, DEFAULT_TIME_ZONE);
   const s = monthSummary(group.expenses, "", month, DEFAULT_TIME_ZONE);
   const sent: string[] = [];
   for (const b of budgetStatus(budgets, s.byCategory)) {

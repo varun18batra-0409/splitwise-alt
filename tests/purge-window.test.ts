@@ -60,7 +60,7 @@ describe("erasing groups deleted over 30 days ago", () => {
     await db.potGame.create({ data: { groupId: g.id, name: "Friday", hostId: ann.id, players: JSON.stringify([ann.id, ben.id]) } });
     await db.paymentClaim.create({ data: { groupId: g.id, fromId: ann.id, toId: ben.id, amount: 5000 } });
 
-    expect(await eraseExpiredGroups(new Date(), 1000)).toBeGreaterThanOrEqual(1);
+    expect((await eraseExpiredGroups(new Date(), 1000)).erased).toBeGreaterThanOrEqual(1);
 
     expect(await db.group.findUnique({ where: { id: g.id } })).toBeNull();
     expect(await db.member.count({ where: { groupId: g.id } })).toBe(0);
