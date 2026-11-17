@@ -217,6 +217,9 @@ describe("no free text from the address is shown unsigned", () => {
   // addresses and print one unchecked fail here; a field that IS checked is listed with the reason.
   const CHECKED_FIELDS: Record<string, string[]> = {
     "src/app/signin/verify/page.tsx": ["code"], // digits only, cut to 6
+    // Deliberate search echoes: the person's own search words in quotes, cut short. Plain text, never a link or a name from elsewhere.
+    "src/app/search/page.tsx": ["q"],
+    "src/app/passport/friends/page.tsx": ["q"],
   };
   it("no page prints a raw value from the address as text", () => {
     for (const f of files.filter((x) => x.endsWith("page.tsx"))) {
@@ -230,16 +233,17 @@ describe("no free text from the address is shown unsigned", () => {
       }
       // one step of derived names: const y = sp.field.slice(...) / const y = typed ?? ""
       const raw = (e: string) => (spName ? new RegExp(`\\b${spName}\\.\\w+`).test(e) : false) || [...names].some((n) => new RegExp(`(?<![\\w.])${n}\\b`).test(e));
-      const SAFE = /shownEmail|readNotes|safePath|===|!==|hasOwnProperty|Number\(|Boolean\(|\.test\(|\.replace\(/;
+      // a value looked up from the database (await ...) is the stored text, not the address text
+      const SAFE = /shownEmail|readNotes|safePath|===|!==|hasOwnProperty|Number\(|Boolean\(|\.test\(|\.replace\(|\bawait\b/;
       for (const line of src.split("\n")) {
         const m = /^\s*const (\w+) = (.*);$/.exec(line);
         if (m && raw(m[2]) && !SAFE.test(m[2]) && !line.includes("searchParams")) names.add(m[1]);
       }
       const allowed = CHECKED_FIELDS[f.replace(/\\/g, "/")] ?? [];
       for (const line of src.split("\n")) {
-        // a JSX text child that is nothing but the value (optionally cut or defaulted)
-        const m = /(?:>|^\s*)\{\s*([\w.]+)(?:\.slice\([^)]*\))?(?:\s*\?\?\s*"[^"]*")?\s*\}\s*(?:<|$)/.exec(line);
-        if (!m) continue;
+        // a JSX text child that is the value (optionally cut or defaulted), alone or inside surrounding text or quotes
+        const m = /(?:>|^\s*|[\w\s“”"'‘’:,.!?-])\{\s*([\w.]+)(?:\.slice\([^)]*\))?(?:\s*\?\?\s*"[^"]*")?\s*\}(?=\s*(?:<|$)|[“”"'‘’:,.!?-]|\s+[\w“”"'‘’])/.exec(line);
+        if (!m || /^\s*(const|let|var)\b/.test(line)) continue;
         const expr = m[1];
         const field = expr.replace(new RegExp(`^${spName}\\.`), "");
         const isRaw = (spName && expr.startsWith(`${spName}.`)) || names.has(expr);
@@ -291,6 +295,13 @@ describe("the browser value (lp_v) is set before any page draws", () => {
     expect(mw).toContain("shouldMove(host, req.method, req.nextUrl.pathname)");
     expect(mw).toContain('requestHeaders.set("x-nonce", nonce)');
     expect(mw).toContain("res.cookies.set(SESSION_COOKIE");
+  });
+  it("on the live site the cookie is __Host-lp_v, so a subdomain or plain-http hop can't plant it", () => {
+    const src = readFileSync("src/lib/viewer-cookie.ts", "utf8");
+    expect(src).toContain('export const VIEWER_COOKIE = SECURE ? "__Host-lp_v" : "lp_v";');
+    expect(src).toContain('const SECURE = process.env.NODE_ENV === "production" && process.env.E2E_PLAIN_HTTP !== "1";');
+    expect(src).toMatch(/secure: SECURE, path: "\/"/);
+    expect(src).not.toMatch(/domain\s*:/i); // __Host- cookies must not carry a Domain
   });
   it("lp_v is made of 128 random bits and only a proper value is accepted", async () => {
     const { newViewerId, cleanViewer } = await import("@/lib/viewer-cookie");

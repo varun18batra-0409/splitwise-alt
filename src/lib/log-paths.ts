@@ -17,6 +17,11 @@ export function hideSecretsIn(text: string): string {
   return String(text)
     .replace(/\/+(join|c|p)\/+[^\s/?#"'<>)]+/gi, "/$1/:code")
     // A database or library error can print the row it was about: { inviteCode: "abc" }, token: 'abc', code=abc.
-    .replace(/\b(inviteCode|invite_code|token|code)(["']?\s*[:=]\s*)(["'`])[^"'`]*\3/gi, "$1$2$3:code$3")
-    .replace(/\b(inviteCode|invite_code|token|code)(\s*=\s*)[^\s,;&)"'`]+/gi, "$1$2:code");
+    .replace(/\b(inviteCode|invite_code|token|code)(["']?\s*[:=]\s*)(["'`])([^"'`]*)\3/gi, (all, k, sep, q, v) => (keepCode(k, v) ? all : `${k}${sep}${q}:code${q}`))
+    .replace(/\b(inviteCode|invite_code|token|code)(\s*=\s*)([^\s,;&)"'`]+)/gi, (all, k, sep, v) => (keepCode(k, v) ? all : `${k}${sep}:code`));
+}
+
+// Plain error codes (Prisma P2002, Node ECONNRESET, SQLITE_BUSY) are not secrets and help when reading the error log.
+function keepCode(key: string, value: string): boolean {
+  return key.toLowerCase() === "code" && /^(P\d{4}|E[A-Z]{3,}|SQLITE_[A-Z_]+|ERR_[A-Z_]+)$/.test(value);
 }
