@@ -34,7 +34,8 @@ import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
 import { moveOutPaymentIds } from "@/lib/payment-change";
-import { gameVisible, stillIn } from "@/lib/left-view";
+import { stillIn } from "@/lib/left-view";
+import { gamesForStories, homeBills, recentGames } from "@/lib/home/home-lists";
 import { canUndo, originAtDb, paymentsForUndo } from "@/lib/undo";
 import { isGroupAdmin } from "@/lib/group-admin";
 import { UndoBar } from "@/components/UndoBar";
@@ -195,11 +196,9 @@ export default async function Home({
   // Stories: the moments in your groups (a trip coming up, last night's game,
   // a group that just got square, a collection filling up, a year ago today).
   const potIds = open.filter((g) => g.group.type === "pot").map((g) => g.group.id);
-  const gameRows = potIds.length
-    ? await db.potGame.findMany({ where: { groupId: { in: potIds }, status: "done", deletedAt: null, finishedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, include: { moves: { where: { deletedAt: null } } }, take: 10 })
-    : [];
-  // Games played after someone left the group aren't theirs to see.
-  const games = gameRows.filter((gm) => gameVisible(open.find((x) => x.group.id === gm.groupId)?.leaver ?? null, gm));
+  const gameRows = await recentGames(potIds, new Date(Date.now() - 3 * 86_400_000));
+  // No game story for a group you left: it links to a page that people who left can't open.
+  const games = gamesForStories(gameRows, open);
   // What each story shows: the place's photos, the crew, today's numbers, a game's table.
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
   const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt).map((m) => (m.id === g.myId ? "You" : first(m.name)));
@@ -386,7 +385,7 @@ export default async function Home({
   // The sliding row on Home (one row, in this order; see src/lib/home/highlights.ts): the usual weather for your next trip, your month,
   // a bill due within 5 days, a postcard, your passport, and the festival for your country when it is on. No trip photos.
   // A group they left shows no bills.
-  const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
+  const billRows = await homeBills(open.filter((g) => !g.leaver).map((g) => g.group.id));
   const fahrenheit = usesFahrenheit(region.country);
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
   const weatherCard = beforeYouGo(

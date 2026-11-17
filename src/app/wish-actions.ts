@@ -7,6 +7,7 @@ import { getAccount, setMyMemberId } from "@/lib/identity";
 import { SITE_URL } from "@/lib/site";
 import { cleanKey } from "@/lib/once";
 import { allow } from "@/lib/rate-limit";
+import { planCurrency } from "@/lib/region";
 import { cleanCountries, cleanCountry, cleanScope } from "@/lib/wishes";
 
 // "Want to go". Every action takes only country codes and friend ids; the owner is always the signed-in account (never a form field).
@@ -64,7 +65,7 @@ export async function planTogetherAction(f: FormData) {
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = process.env.VERCEL_ENV === "production" ? SITE_URL : `${proto}://${host}`;
   const { planTogether } = await import("@/lib/wishes-db");
-  const r = await planTogether(a, friendId, country, { key: cleanKey(f.get("rid")), origin, later: (job) => after(job) });
+  const r = await planTogether(a, friendId, country, { key: cleanKey(f.get("rid")), origin, currency: planCurrency(a.homeCountry, h), later: (job) => after(job) });
   if (!r.ok) redirect(back({ error: r.error }));
   await setMyMemberId(r.groupId, r.memberId);
   redirect(`/groups/${r.groupId}`);

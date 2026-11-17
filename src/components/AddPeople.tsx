@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { addPerson, invitePeople } from "@/app/actions";
 import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
-import { whatsappLink } from "@/lib/whatsapp";
+import { waPhone, whatsappLink } from "@/lib/whatsapp";
 import { INVITE_EMAIL_HINT, inviteLabel, type InviteChannel } from "@/lib/invite-label";
 
 type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; left?: boolean; mayAdd?: boolean };
@@ -16,12 +16,14 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Found[]>([]);
   const [busy, setBusy] = useState(false);
+  const [tooBusy, setTooBusy] = useState(false); // the server said "too many searches": say so, and don't remember it as "no one found"
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cache = useRef(new Map<string, Found[]>());
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     const term = q.trim();
+    setTooBusy(false);
     if (term.length < 2) {
       setFound([]);
       setBusy(false);
@@ -41,7 +43,9 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
       try {
         const r = await fetch(`/api/people?g=${encodeURIComponent(groupId)}&q=${encodeURIComponent(term)}`, { signal: ctl.signal, cache: "no-store" });
         const list: Found[] = r.ok ? await r.json() : [];
-        cache.current.set(term.toLowerCase(), list);
+        // Only a real answer is remembered; a failure or a busy server is tried again next time.
+        if (r.ok) cache.current.set(term.toLowerCase(), list);
+        setTooBusy(r.status === 429);
         setFound(list);
         setBusy(false);
         reportSpeed("search", location.pathname, performance.now() - t0);
@@ -111,7 +115,8 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
             </li>
           ))}
           {busy && found.length === 0 && <li className="px-3 py-3 text-sm text-gray-400">Searching…</li>}
-          {!busy && found.length === 0 && !showInvite && (
+          {!busy && found.length === 0 && !showInvite && tooBusy && <li className="px-3 py-3 text-sm text-gray-500">Search is busy. Try again in a minute.</li>}
+          {!busy && found.length === 0 && !showInvite && !tooBusy && (
             <li className="px-3 py-3 text-sm text-gray-500">
               Not someone you share a group with. To find anyone else on Loopin, type their full email (like name@gmail.com), or send your invite link below.
             </li>
@@ -151,7 +156,7 @@ function contactsApi(): ContactsManager | null {
   return c && typeof c.select === "function" ? c : null;
 }
 
-export function ContactInvite({ groupId, groupName, link }: { groupId: string; groupName: string; link: string }) {
+export function ContactInvite({ groupId, groupName, link, india = true }: { groupId: string; groupName: string; link: string; india?: boolean }) {
   const [picker, setPicker] = useState<boolean | null>(null);
   const [picked, setPicked] = useState<Contact[]>([]);
   const [sent, setSent] = useState<Record<string, InviteChannel>>({});
@@ -226,7 +231,7 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
                 <div className="mt-2 flex flex-wrap gap-2">
                   {c.tel && (
                     <a
-                      href={whatsappLink(text(first), c.tel.replace(/\D/g, ""))}
+                      href={whatsappLink(text(first), waPhone(c.tel, india))}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={mark("whatsapp")}

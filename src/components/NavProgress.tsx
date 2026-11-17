@@ -53,6 +53,16 @@ function Bar() {
     };
   }, []);
 
+  // A form stopped its own send (see releaseSubmit): nothing is coming, so hide the bar.
+  useEffect(() => {
+    const cancelled = () => {
+      setOn(false);
+      pending.current = null;
+    };
+    window.addEventListener("loopin:submit-cancelled", cancelled);
+    return () => window.removeEventListener("loopin:submit-cancelled", cancelled);
+  }, []);
+
   // Never leave it running (e.g. a form that only shows an error in place).
   useEffect(() => {
     if (!on) return;

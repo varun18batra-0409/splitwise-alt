@@ -23,6 +23,7 @@ import { CoverPicker } from "@/components/CoverPicker";
 import { TripDates } from "@/components/TripDates";
 import { WhereTo } from "@/components/WhereTo";
 import { coverFor, coverOf } from "@/lib/covers";
+import { tripPhotoSrc } from "@/lib/places";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
 const PRESETS = [0, 200, 300, 400];
@@ -146,7 +147,7 @@ export default async function GroupSettings({
         {/* Where to: for everyone's trip passport (a stamp for each place). */}
         {group.type === "trip" && <WhereTo name={group.name} place={group.tripPlace} country={group.tripCountry} />}
 
-        <CoverPicker defaultValue={coverOf(group)} letter={group.name} uid={group.id} legendClassName="mb-1 text-base font-semibold" own={{ groupId: group.id, src: coverFor(group).src }} />
+        <CoverPicker defaultValue={!group.cover && tripPhotoSrc(group) ? undefined : coverOf(group)} letter={group.name} uid={group.id} legendClassName="mb-1 text-base font-semibold" own={{ groupId: group.id, src: coverFor(group).src }} />
 
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Group currency</legend>

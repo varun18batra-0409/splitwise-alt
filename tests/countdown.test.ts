@@ -75,7 +75,7 @@ describe("countdown card words by stage", () => {
     const { countdownStage } = await import("@/lib/countdown");
     expect(countdownStage({ kind: "before", days: 39 })).toBe("w45");
     expect(countdownStage({ kind: "before", days: 3 })).toBe("w3");
-    expect(countdownStage({ kind: "during", day: 1, of: 4 })).toBe("first");
+    expect(countdownStage({ kind: "during", day: 1, of: 4 })).toBe("during") // day 1 is "today" in tripPhase, so a "first" stage could never show; it was removed;
     expect(countdownStage({ kind: "during", day: 4, of: 4 })).toBe("last");
   });
   it("dates in words, the way people say them", () => {
@@ -84,5 +84,34 @@ describe("countdown card words by stage", () => {
     expect(tripRange("2026-12-30", "2027-01-02")).toBe("30 Dec 2026 – 2 Jan 2027");
     expect(tripRange("2026-11-12", "")).toBe("12 Nov 2026");
     expect(tripRange("2026-11-12", "2026-11-12")).toBe("12 Nov 2026");
+  });
+});
+
+describe("B5: place names, emoji and weeks", () => {
+  it("SB-9: placeOf tidies dashes, commas and a dangling month", () => {
+    expect(placeOf("Goa trip - 2026")).toBe("Goa");
+    expect(placeOf("Bali, 2027")).toBe("Bali");
+    expect(placeOf("Manali: Dec 2026")).toBe("Manali");
+    expect(placeOf("- Goa -")).toBe("Goa");
+    expect(placeOf("Goa trip 2026")).toBe("Goa");
+    expect(placeOf("Trip")).toBe("Trip");
+    expect(placeOf("Weekend getaway")).toBe("Weekend getaway");
+  });
+  it("SB-10: words inside other words no longer pick an emoji", () => {
+    for (const n of ["Whiskey trail", "Overseas trip", "Seattle", "Monsoon season", "Campus reunion", "Footy weekend", "Goals"]) expect(tripEmoji(n)).toBe("✈️");
+    expect(tripEmoji("Goa trip")).toBe("🌴");
+    expect(tripEmoji("Goa2026")).toBe("🌴");
+    expect(tripEmoji("Snowboarding week")).toBe("❄️");
+    expect(tripEmoji("Trekking Kedarkantha")).toBe("🏔️");
+    expect(tripEmoji("Camping weekend")).toBe("🏕️");
+    expect(tripEmoji("Beaches of Goa")).toBe("🌴");
+  });
+  it("SB-11: over 60 days it is always weeks, rounded down", () => {
+    const w = (days: number) => countdownWords("Manali", { kind: "before", days })!;
+    expect(w(63).big).toBe("9");
+    expect(w(62).line).toBe("Manali in 8 weeks 🏔️");
+    expect(w(60).big).toBe("8");
+    expect(w(59).line).toBe("Manali in 59 days 🏔️");
+    expect(w(70).big).toBe("10");
   });
 });

@@ -20,6 +20,11 @@ export function currencyForCountry(country: string | null | undefined): string |
   return code && isSupportedCurrency(code) ? code : null;
 }
 
+// The currency for a trip planned together: the planner's own home country first, else where the phone seems to be, else rupees.
+export function planCurrency(homeCountry: string | null | undefined, h: { get(name: string): string | null }): string {
+  return currencyForCountry(homeCountry) ?? defaultCurrency(h, "INR");
+}
+
 // "en-GB,en;q=0.9" → "GB"
 export function countryFromLanguages(acceptLanguage: string | null | undefined): string | null {
   for (const part of (acceptLanguage ?? "").split(",")) {

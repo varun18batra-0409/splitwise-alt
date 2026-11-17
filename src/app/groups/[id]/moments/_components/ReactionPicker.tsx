@@ -16,11 +16,24 @@ export function ReactionPicker({ summaryClass, children }: { summaryClass: strin
     const fit = () => {
       if (!d.open || !panel.current) return;
       const b = d.getBoundingClientRect();
-      const w = Math.min(panel.current.offsetWidth || 248, window.innerWidth - 32);
+      // The card around the "+" may cut off what hangs outside it, so room is measured against the nearer of that card and the window.
+      let box = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+      for (let el = d.parentElement; el && el !== document.body; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        if (cs.overflow !== "visible" || cs.overflowX !== "visible" || cs.overflowY !== "visible") {
+          const r = el.getBoundingClientRect();
+          box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) };
+          break;
+        }
+      }
+      const w = Math.min(panel.current.offsetWidth || 248, box.right - box.left - 32, window.innerWidth - 32);
       const h = panel.current.offsetHeight || 120;
-      const left = Math.min(Math.max(b.left, 16), window.innerWidth - 16 - w) - b.left; // 16 px from each edge at least
-      const room = window.innerHeight - 96; // keep clear of the floating bar at the bottom
-      const above = b.bottom + 8 + h > room && b.top - 8 - h > 8;
+      const left = Math.min(Math.max(b.left, box.left + 16), box.right - 16 - w) - b.left; // 16 px from each edge at least
+      const below = Math.min(box.bottom, window.innerHeight - 96) - (b.bottom + 8); // keep clear of the floating bar at the bottom
+      const upTo = Math.max(box.top, 8);
+      const up = b.top - 8 - upTo;
+      // Below when it fits; above when below is cut off and above fits; if neither fits, the side with more room.
+      const above = below >= h ? false : up >= h ? true : up > below;
       setPlace({ left, above });
     };
     const onToggle = () => requestAnimationFrame(fit);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { recordCustomPayment } from "@/app/actions";
 import { currencySign } from "@/lib/add-expense-sentence";
+import { releaseSubmit } from "@/components/DoubleTapGuard";
 import { recordButtonLabel, recordButtonText } from "@/lib/pay-words";
 
 // Record a payment, drawn as a ticket being filled in: From (avatar, name) ┄ ✈ To, the amount, a perforation, then what Smart Settle suggests.
@@ -96,6 +97,7 @@ export function RecordPaymentForm({
         const gap = !who(from) ? "from" : !who(to) ? "to" : null;
         if (gap) {
           e.preventDefault();
+          releaseSubmit(e.currentTarget); // the guard had already marked this form busy; the next tap must go through
           setOpen(gap);
         }
         setMissing(gap);

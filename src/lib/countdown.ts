@@ -62,15 +62,18 @@ export function tripPhase(start: string, end: string, today: string): TripPhase 
 }
 
 // An emoji from the trip's name: beach, mountains, snow, a city… or a plane.
+// Each pattern only matches whole words (letter boundaries), so "Seattle" is not "sea", "Whiskey" is not "ski" and "Goals" is not "goa".
+// Words that take endings say so ("snow\w*", "trek(?:king)?"); "Goa2026" still matches because a digit is not a letter.
+const words = (src: string) => new RegExp(`(?<!\\p{L})(?:${src})(?!\\p{L})`, "iu");
 const EMOJI: [RegExp, string][] = [
-  [/goa|beach|bali|maldives|phuket|andaman|gokarna|varkala|pondi|coast|island|thailand|krabi|sea/i, "🌴"],
-  [/snow|ski|gulmarg|auli|swiss|switzerland|iceland|lapland|winter/i, "❄️"],
-  [/manali|ladakh|leh|spiti|kasol|himachal|uttarakhand|rishikesh|trek|hike|mountain|hills|nepal|darjeeling|sikkim|munnar|ooty|coorg/i, "🏔️"],
-  [/camp|forest|jungle|safari|ranthambore|jim corbett|kabini/i, "🏕️"],
-  [/wedding|shaadi|sangeet/i, "💍"],
-  [/concert|festival|fest|sunburn|gig/i, "🎶"],
-  [/paris|london|europe|rome|tokyo|japan|new york|nyc|dubai|singapore|bangkok|vegas/i, "🌆"],
-  [/road ?trip|drive/i, "🚗"],
+  [words("goa|beach(?:es)?|bali|maldives|phuket|andaman|gokarna|varkala|pondi|coast|islands?|thailand|krabi|sea"), "🌴"],
+  [words("snow\\w*|ski(?:ing)?|gulmarg|auli|swiss|switzerland|iceland|lapland|winter"), "❄️"],
+  [words("manali|ladakh|leh|spiti|kasol|himachal|uttarakhand|rishikesh|trek(?:king)?|hik(?:e|es|ing)|mountains?|hills?|nepal|darjeeling|sikkim|munnar|ooty|coorg"), "🏔️"],
+  [words("camp(?:ing)?|forest|jungle|safari|ranthambore|jim corbett|kabini"), "🏕️"],
+  [words("wedding|shaadi|sangeet"), "💍"],
+  [words("concerts?|festivals?|fest|sunburn|gig"), "🎶"],
+  [words("paris|london|europe|rome|tokyo|japan|new york|nyc|dubai|singapore|bangkok|vegas"), "🌆"],
+  [words("road ?trip|drive"), "🚗"],
 ];
 export function tripEmoji(name: string): string {
   for (const [re, e] of EMOJI) if (re.test(name)) return e;
@@ -79,13 +82,24 @@ export function tripEmoji(name: string): string {
 
 // "Goa trip 2026" → "Goa": the place, for lines like "Goa in 12 days".
 export function placeOf(name: string): string {
-  const t = name
+  const MONTH = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+  const hadYear = /\b(19|20)\d{2}\b/.test(name);
+  let t = name
     .replace(/\b(road|bike|weekend|girls|boys|family|friends)\s+(trip|tour|getaway)\b/gi, "")
     .replace(/\b(trip|tour|holiday|vacation|getaway|outing|plan|plans|gang|squad|group)\b/gi, "")
-    .replace(/\b(19|20)\d{2}\b/g, "")
-    .replace(/[-–—:|·,]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/\b(19|20)\d{2}\b/g, "");
+  // Tidy until nothing changes: spaces, dashes and commas at either end, and a month left dangling after the year went ("Manali: Dec 2026").
+  for (let i = 0; i < 10; i++) {
+    const before = t;
+    t = t
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^[\s\-–—:|·,]+|[\s\-–—:|·,]+$/g, "")
+      .trim();
+    // A month at the end goes when something separates it from the place, or a year was there too.
+    t = t.replace(new RegExp(`(?:[\\-–—:|·,]\\s*|${hadYear ? "\\s+" : "(?!)"})${MONTH}$`, "i"), "");
+    if (t === before) break;
+  }
   return t || name.trim();
 }
 
@@ -112,7 +126,10 @@ export function countdownWords(name: string, p: TripPhase): { big: string; small
     case "before":
       if (p.days === 1) return { big: "1", small: "sleep to go", line: `${place} tomorrow ${e}` };
       if (p.days <= 7) return { big: String(p.days), small: "sleeps to go", line: `${p.days} sleeps to ${place} ${e}` };
-      if (p.days >= 60 && p.days % 7 === 0) return { big: String(p.days / 7), small: "weeks to go", line: `${place} in ${p.days / 7} weeks ${e}` };
+      if (p.days >= 60) {
+        const w = Math.floor(p.days / 7); // always weeks over 60 days, rounded down: 62 days is "8 weeks"
+        return { big: String(w), small: "weeks to go", line: `${place} in ${w} weeks ${e}` };
+      }
       return { big: String(p.days), small: "days to go", line: `${place} in ${p.days} days ${e}` };
     case "today":
       return { big: "Today", small: "it’s happening", line: `It’s ${place} day ${e}` };
@@ -206,12 +223,12 @@ export function countdownNudge(g: { id: string; name: string }, daysLeft: number
 // Each stage of the countdown has its own small heading and one-liner, in several versions. With
 // a few trips on Home, trips at the same stage get different versions (never the same words twice
 // on one screen), and each trip's words move on day by day. "Boarding" only appears in the last days.
-export type CountdownStage = "far" | "w60" | "w45" | "w30" | "w14" | "w7" | "w3" | "w1" | "today" | "first" | "during" | "last";
+export type CountdownStage = "far" | "w60" | "w45" | "w30" | "w14" | "w7" | "w3" | "w1" | "today" | "during" | "last";
 
 export function countdownStage(p: TripPhase): CountdownStage | null {
   if (p.kind === "before") return p.days > 60 ? "far" : p.days > 45 ? "w60" : p.days > 30 ? "w45" : p.days > 14 ? "w30" : p.days > 7 ? "w14" : p.days > 3 ? "w7" : p.days > 1 ? "w3" : "w1";
   if (p.kind === "today") return "today";
-  if (p.kind === "during") return p.day <= 1 ? "first" : p.day >= p.of ? "last" : "during";
+  if (p.kind === "during") return p.day >= p.of ? "last" : "during";
   return null;
 }
 
@@ -252,10 +269,6 @@ const STAGE: Record<CountdownStage, { kickers: string[]; quips: Quip[] }> = {
   today: {
     kickers: ["Boarding today", "It's go day", "Today's the day", "Wheels up", "We're off", "Departure day", "Here we go"],
     quips: [(p, e) => `It's ${p} day ${e}`, () => `Phone, wallet, ID, charger`, () => `Add the first expense from the road`, (p) => `${p}, here you come`, () => `Holiday mode: on`, () => `The group photo starts now`, () => `Out of office. Officially.`],
-  },
-  first: {
-    kickers: ["Day one", "Just landed", "First day", "Settling in", "Arrived", "It's begun", "Day one energy"],
-    quips: [(p, e) => `Day one in ${p} ${e}`, () => `Add as you go, settle at the end`, () => `First meal on the trip: legendary`, (p) => `${p} looks good on you`, () => `Unpack later. Explore now.`, () => `Receipts in, worries out`, () => `Group photo before anyone's tired`],
   },
   during: {
     kickers: ["On the trip", "Living it", "Mid-trip", "Out exploring", "Holiday mode", "In the moment", "Away we are"],

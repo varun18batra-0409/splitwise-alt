@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { shrink } from "@/components/OwnPhoto";
+import { releaseSubmit } from "@/components/DoubleTapGuard";
 import { useRequestKey } from "@/components/FreshKeyInput";
 import { CameraIcon } from "@/components/MomentIcons";
 import { inputClass, primaryButtonClass } from "@/components/ui";
@@ -45,10 +46,11 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
     }
   }
 
-  async function send() {
+  async function send(form?: HTMLFormElement | null) {
     if (!photo || busy) return;
     if (cleanCaption(caption) === null) {
       setError(`Keep the words to ${MOMENT_CAPTION_MAX} characters or fewer.`);
+      releaseSubmit(form);
       return;
     }
     setBusy(true);
@@ -69,6 +71,7 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn’t save that photo. Please try again.");
       setBusy(false);
+      releaseSubmit(form);
     }
   }
 
@@ -76,7 +79,7 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        void send();
+        void send(e.currentTarget);
       }}
       className="space-y-6 pb-8"
     >

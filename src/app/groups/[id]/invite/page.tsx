@@ -206,7 +206,7 @@ export default async function AddPeoplePage({
 
       <section className={`mt-3 ${box}`}>
         {step(ico("M16 19.5v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18v1.5M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 8v6M22 11h-6"), "From your contacts", "Pick people and send them the invite")}
-        <ContactInvite groupId={group.id} groupName={group.name} link={link} />
+        <ContactInvite groupId={group.id} groupName={group.name} link={link} india={group.currency === "INR"} />
       </section>
 
       <section className={`mt-3 ${box}`}>

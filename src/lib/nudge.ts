@@ -1,4 +1,4 @@
-import { whatsappLink } from "./whatsapp";
+import { waPhone, whatsappLink } from "./whatsapp";
 import { payLinkLabel, type PayWays } from "./pay-links";
 // A friendly WhatsApp reminder: opens WhatsApp with the message ready to send
 // (straight to their chat if we have their number). Nothing is sent by the app.
@@ -12,7 +12,5 @@ export function nudgeMessage(name: string, amountText: string, groupName: string
 }
 
 export function nudgeLink(phone: string, name: string, amountText: string, groupName: string, extra?: { ways?: PayWays | null; link?: string }): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.length === 10) digits = `91${digits}`; // Indian mobile without country code
-  return whatsappLink(nudgeMessage(name, amountText, groupName, extra), digits.length >= 11 && digits.length <= 15 ? digits : "");
+  return whatsappLink(nudgeMessage(name, amountText, groupName, extra), waPhone(phone));
 }
