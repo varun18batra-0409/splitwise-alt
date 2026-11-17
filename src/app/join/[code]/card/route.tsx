@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const group = await db.group.findUnique({ where: { inviteCode: code }, select: { name: true, type: true, deletedAt: true, tripPlace: true, members: { where: { leftAt: null }, select: { id: true } } } });
+  const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true, name: true, type: true, deletedAt: true, tripPlace: true, members: { where: { leftAt: null }, select: { id: true } } } });
   if (group?.type === "direct") return new Response("Not found", { status: 404 }); // a pair has no invite link, so no card
   const fonts = await loadOgFonts(new URL(req.url).origin);
   const name = group && !group.deletedAt && group.type !== "direct" ? group.name.slice(0, 34) : "a group on Loopin";
