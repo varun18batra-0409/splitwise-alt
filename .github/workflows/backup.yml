@@ -1,5 +1,6 @@
 # Daily backup of the online database. The file is ENCRYPTED before it is
 # stored, because this repository is public. Kept for 14 days.
+# INTERIM: this moves to a private repo (see ops/private-repo/README.md) and is then deleted.
 # Needs three repository secrets: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and
 # BACKUP_PASSPHRASE. Without them it skips quietly.
 #
@@ -20,27 +21,32 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-24.04
-    env:
-      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    # The secrets are given only to the two steps that use them (not to the whole job).
     steps:
       - name: Check the secrets are set
         id: ready
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           if [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ] && [ -n "$BACKUP_PASSPHRASE" ]; then
             echo "ok=1" >> "$GITHUB_OUTPUT"
           else
             echo "::warning title=Backup skipped::Add TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and BACKUP_PASSPHRASE in Settings → Secrets → Actions."
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.ready.outputs.ok == '1'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.ready.outputs.ok == '1'
         with:
           node-version: 22
       - name: Dump and encrypt
         if: steps.ready.outputs.ok == '1'
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           set -euo pipefail
           npm install --no-save --ignore-scripts @libsql/client@0.15.0
@@ -69,7 +75,7 @@ jobs:
           rm -f "$RUNNER_TEMP/check.json" "$RUNNER_TEMP/drill.db"
           echo "::notice title=Backup::Encrypted backup saved ($(du -h "$RUNNER_TEMP/backup.json.enc" | cut -f1))."
       # Kept even when the drill failed (the run is red, but the file is still the best copy there is).
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.ready.outputs.ok == '1'
         with:
           name: db-backup

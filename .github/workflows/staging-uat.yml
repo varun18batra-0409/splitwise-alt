@@ -21,9 +21,10 @@ jobs:
       CRON_SECRET: ${{ secrets.STAGING_CRON_SECRET }}
       LIVE_URL: ${{ secrets.TURSO_DATABASE_URL }}
       GH_TOKEN: ${{ github.token }}
+      LOOPIN_STAGING_DB: "1" # tells scripts/test-db-guard.ts this really is the staging database
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Safety check (staging settings present, and not the live database)
@@ -31,13 +32,15 @@ jobs:
           [ -n "$TURSO_DATABASE_URL" ] || { echo "::error title=Staging::STAGING_TURSO_DATABASE_URL is missing"; exit 1; }
           [ -n "$TURSO_AUTH_TOKEN" ] || { echo "::error title=Staging::STAGING_TURSO_AUTH_TOKEN is missing"; exit 1; }
           [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || { echo "::error title=Staging::VERCEL_AUTOMATION_BYPASS_SECRET is missing"; exit 1; }
-          [ "$TURSO_DATABASE_URL" != "$LIVE_URL" ] || { echo "::error title=Staging::The staging database is the LIVE database. Stopping."; exit 1; }
+          [ -n "$LIVE_URL" ] || { echo "::error title=Staging::TURSO_DATABASE_URL (the live address) is missing, so 'not the live database' cannot be checked. Stopping."; exit 1; }
+          # Compared after tidying both (case, libsql:// or https://, trailing slash, query), so one database written two ways is still caught. Fails closed: anything but "different" stops the run.
+          node scripts/db-address.mjs differ "$TURSO_DATABASE_URL" "$LIVE_URL" || { echo "::error title=Staging::The staging database is the LIVE database. Stopping."; exit 1; }
           echo "::notice title=Staging::settings present; staging database is not the live one"
       - run: npm ci
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
       - name: Browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -65,13 +68,17 @@ jobs:
       - name: Demo data
         run: npx tsx scripts/seed-demo.ts
       - name: UAT on the test copy
+        id: uat
+        continue-on-error: true # the screenshots and speed steps below still run; the last step turns the job red
         run: |
           npx tsx scripts/uat.ts 2>&1 | tee uat.log || true
+          [ -f screenshots/uat/summary.txt ] || { echo "::error title=UAT (hosted)::no summary.txt was written, so the run did not finish"; exit 1; }
           echo "::notice title=UAT (hosted)::$(head -1 screenshots/uat/summary.txt)"
-          if grep -q "✗\|crashed" screenshots/uat/summary.txt; then
-            echo "::warning title=UAT failures (hosted)::$(sed -e 's/%/%25/g' screenshots/uat/summary.txt | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
-          fi
           echo "::notice title=UAT notes (hosted)::$(grep -E '^\| ✅ .*\| [^ |]' screenshots/uat/report.md | awk -F'|' '$5 ~ /[a-z]/ {print $4 "→" $5}' | head -15 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+          if grep -q "✗\|crashed" screenshots/uat/summary.txt; then
+            echo "::error title=UAT failures (hosted)::$(sed -e 's/%/%25/g' screenshots/uat/summary.txt | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+            exit 1
+          fi
       - name: Screenshots of the test copy
         run: npx tsx scripts/screenshots.ts > shots.log 2>&1 || true
       - name: Real-hosting speed (mid-range Android, 4G)
@@ -88,3 +95,9 @@ jobs:
           git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com add .
           git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Staging screens for ${GITHUB_SHA::7}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "screenshots:screenshots-staging"
+      # Last on purpose: the screenshots and logs above are saved first, then a failed or missing UAT makes the job red.
+      - name: Result (UAT must pass)
+        if: always()
+        run: |
+          [ "${{ steps.uat.outcome }}" = success ] || { echo "::error title=UAT (hosted) did not pass::outcome: ${{ steps.uat.outcome }}"; exit 1; }
+          echo "::notice title=UAT (hosted)::passed."

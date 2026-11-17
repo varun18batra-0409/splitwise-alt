@@ -149,4 +149,91 @@ describe("restore drill checks the data, not only the row counts", () => {
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain("Loopin rules not checked");
   });
+
+  // OA-8: a row can point at a REAL member of another group. The old checks still pass (every id exists, shares add up,
+  // each group still nets to 0 when the other group's balances are counted with it), so these need their own checks.
+  // Group g2 has one member, kai. Hand-worked, all in paise.
+  const withKai = (): Rows => {
+    const rows = good();
+    rows.Group.push({ id: "g2" });
+    rows.Member.push({ id: "kai", groupId: "g2" });
+    return rows;
+  };
+
+  it("the good fixture with a second group (kai in g2) still passes untouched", () => {
+    const r = drill(withKai());
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).toContain("Restore complete and verified");
+  });
+
+  it("case 1: a share for kai (g2) on a g1 expense is reported", () => {
+    // dinner shares become asha 3334 + ravi 3333 + kai 3333 = 10000: they still add up to the amount.
+    const rows = withKai();
+    rows.ExpenseShare[2].memberId = "kai"; // was zoe
+    const r = drill(rows);
+    expect(r.code, r.out).toBe(2);
+    expect(r.out).toContain("✗ Shares: 1 share(s) belong to a member of another group than the expense's group");
+    expect(r.out).not.toContain("do not add up to the amount");
+  });
+
+  it("case 2: a payment ravi -> kai of 1000 inside g1 is reported", () => {
+    const rows = withKai();
+    rows.Payment.push({ id: "p2", groupId: "g1", fromId: "ravi", toId: "kai", amount: 1000, deletedAt: null });
+    const r = drill(rows);
+    expect(r.code, r.out).toBe(2);
+    expect(r.out).toContain("✗ Payments: 1 payment(s) are between members of another group than the payment's group");
+  });
+
+  it("case 3: snacks paid zoe 6000 + kai 4000 = 10000 is reported", () => {
+    const rows = withKai();
+    rows.Expense[2].payers = JSON.stringify([{ m: "zoe", a: 6000 }, { m: "kai", a: 4000 }]);
+    const r = drill(rows);
+    expect(r.code, r.out).toBe(2);
+    expect(r.out).toContain("✗ Expenses: 1 payer(s) belong to a member of another group than the expense's group");
+    expect(r.out).not.toContain("payers do not add up");
+  });
+
+  it("case 3b: a single payer (paidById) from another group is reported too", () => {
+    const rows = withKai();
+    rows.Expense[1].paidById = "kai"; // taxi
+    const r = drill(rows);
+    expect(r.code, r.out).toBe(2);
+    expect(r.out).toContain("✗ Expenses: 1 payer(s) belong to a member of another group");
+  });
+
+  it("case 4: a payment of 0, and a payment ravi -> ravi, are each reported", () => {
+    const zero = good();
+    zero.Payment.push({ id: "p2", groupId: "g1", fromId: "ravi", toId: "asha", amount: 0, deletedAt: null });
+    const a = drill(zero);
+    expect(a.code, a.out).toBe(2);
+    expect(a.out).toContain("✗ Payments: 1 payment(s) have an amount of 0 or less");
+
+    const self = good();
+    self.Payment.push({ id: "p3", groupId: "g1", fromId: "ravi", toId: "ravi", amount: 500, deletedAt: null });
+    const b = drill(self);
+    expect(b.code, b.out).toBe(2);
+    expect(b.out).toContain("✗ Payments: 1 payment(s) are from a person to themselves");
+    expect(b.out).not.toContain("have an amount of 0 or less");
+  });
+
+  it("a negative share is reported even when the shares still add up", () => {
+    // taxi 9000: 3000 + 6000 + 0 would be fine; here 9500 + (-500) + 0 = 9000 adds up but one share is negative.
+    const rows = good();
+    rows.ExpenseShare[3].amount = 9500;
+    rows.ExpenseShare[4].amount = -500;
+    rows.ExpenseShare[5].amount = 0;
+    const r = drill(rows);
+    expect(r.code, r.out).toBe(2);
+    expect(r.out).toContain("✗ Shares: 1 share(s) have a negative amount");
+    expect(r.out).not.toContain("do not add up to the amount");
+  });
+
+  it("says how many photo rows keep their file in Blob storage (a note, not a failure)", () => {
+    const schemas = { ...T, GroupPhoto: 'CREATE TABLE "GroupPhoto" ("groupId" TEXT NOT NULL PRIMARY KEY, "blobKey" TEXT NOT NULL DEFAULT \'\')' };
+    const rows = good();
+    rows.GroupPhoto = [{ groupId: "g1", blobKey: "photos/a" }, { groupId: "g2", blobKey: "" }, { groupId: "g3", blobKey: "photos/c" }];
+    const r = drill(rows, schemas);
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).toContain("✓ 2 photo rows keep their file in Blob storage, which is not in this backup");
+  });
 });

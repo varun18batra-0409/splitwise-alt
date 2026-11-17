@@ -13,6 +13,7 @@
 //    (without them the queries columns say n/a).
 // Writes screenshots/uat/load.md and load.json (read by scripts/load-gates.mjs).
 // Needs the app running on :3000.
+import "./test-db-guard"; // first on purpose: refuses to run against the live database (OB-10)
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { db } from "../src/lib/db";
 import { encodeSession, SESSION_COOKIE } from "../src/lib/session";

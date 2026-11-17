@@ -40,8 +40,8 @@ jobs:
       GOOGLE_CLIENT_ID: e2e-test.apps.googleusercontent.com
       GOOGLE_CLIENT_SECRET: e2e-not-a-secret
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: npm ci
@@ -52,7 +52,7 @@ jobs:
         id: pw
         run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
       - name: Browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-webkit
@@ -91,7 +91,7 @@ jobs:
           [ $a -eq 0 ] && [ $b -eq 0 ]
       - name: Keep the HTML report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-report-local
           path: |
@@ -100,7 +100,7 @@ jobs:
           retention-days: 5
       - name: Keep failure details (screenshots, traces, browser logs, server log)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-failures-local
           path: |
@@ -129,8 +129,8 @@ jobs:
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Safety check (staging settings present, and not the live database)
@@ -140,7 +140,9 @@ jobs:
           [ -n "$TURSO_AUTH_TOKEN" ] || missing="$missing STAGING_TURSO_AUTH_TOKEN"
           [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || missing="$missing VERCEL_AUTOMATION_BYPASS_SECRET"
           [ -z "$missing" ] || { echo "::error title=Missing GitHub secrets::$missing"; exit 1; }
-          [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
+          [ -n "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::TURSO_DATABASE_URL (the live address) is missing, so 'not the live database' cannot be checked."; exit 1; }
+          # Compared after tidying both (case, libsql:// or https://, trailing slash, query), so one database written two ways is still caught. Fails closed: anything but "different" stops the run.
+          node scripts/db-address.mjs differ "$TURSO_DATABASE_URL" "$LIVE_TURSO_DATABASE_URL" || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
       - run: npm ci
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
       # The cache is named after the Playwright version in the lockfile and the browsers in it; the install
@@ -149,7 +151,7 @@ jobs:
         id: pw
         run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
       - name: Browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-webkit
@@ -192,14 +194,14 @@ jobs:
         run: node e2e/summary.mjs
       - name: Keep the HTML report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-report-staging
           path: e2e-report/
           retention-days: 5
       - name: Keep failure details (screenshots, traces, browser logs)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-failures-staging
           path: e2e-results/

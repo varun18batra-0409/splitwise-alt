@@ -244,6 +244,9 @@ describe("upgrading data saved by the older version", () => {
         shares: { create: [{ memberId: a, amount: 30000 }, { memberId: b, amount: 30000 }] },
       },
     });
+    // The upgrade remembers finished steps ("data-upgrade:done") and skips them. The test database was already upgraded once by its
+    // setup, so forget that note (this is the throwaway test copy) to prove the repair steps still do their work on old-style rows.
+    await db.appSetting.deleteMany({ where: { key: "data-upgrade:done" } });
     execFileSync("node", ["prisma/upgrade-data.mjs"], { stdio: "pipe" });
     const e = await db.expense.findUniqueOrThrow({ where: { id: old.id }, include: { shares: true } });
     expect({
