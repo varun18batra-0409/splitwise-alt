@@ -1,6 +1,6 @@
 import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { fitOf, type Fit } from "@/lib/postcards/format";
-import { ADDRESS_MIN_SCALE, addressLineScale, handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { ADDRESS_MIN_SCALE, addressLineScale, handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, yearOfPostDate, WAVES_SVG } from "@/lib/postcards/catalog";
 
 // A postcard, front and back, drawn at any width (sizes are in "cqw": a share of the card's width),
 // so the same card works as a thumbnail, full screen, and as the picture sent on WhatsApp.
@@ -91,12 +91,13 @@ export type BackProps = {
   address: string[];
   place: string;
   date: string;
+  stampYear?: number; // the year on the stamp: the year the card was sent (read from `date` when not given)
   from: string;
   k: string;
   className?: string;
 };
 
-export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touches = "", seal = "", address, place, date, from, k, className = "" }: BackProps) {
+export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touches = "", seal = "", address, place, date, stampYear, from, k, className = "" }: BackProps) {
   const h = handOf(hand);
   const pen = { fontFamily: `'${h.family}', cursive`, color: inkColor(ink) };
   const [p0, p1, p2] = paperTones(paper);
@@ -111,7 +112,7 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touche
       </div>
       <div aria-hidden className="absolute right-[5%] top-[30%] w-[34%] opacity-40 [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: WAVES_SVG }} />
       <div aria-hidden className="absolute right-[21.5%] top-[9%] w-[14.5%] rotate-[-12deg] opacity-60 [&>svg]:h-auto [&>svg]:w-full" data-postmark dangerouslySetInnerHTML={{ __html: postmarkSvg(place || "Loopin", date, k) }} />
-      <div aria-hidden className="absolute right-[6%] top-[7%] w-[13.5%] rotate-[2deg] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full" data-stamp-svg dangerouslySetInnerHTML={{ __html: stampSvg(stamp, k) }} />
+      <div aria-hidden className="absolute right-[6%] top-[7%] w-[13.5%] rotate-[2deg] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full" data-stamp-svg dangerouslySetInnerHTML={{ __html: stampSvg(stamp, k, stampYear ?? yearOfPostDate(date)) }} />
       <div className="absolute bottom-[11%] left-[60%] right-[6%] flex flex-col gap-[2.6cqw]" style={{ ...pen, fontSize: `${3.7 * h.size}cqw` }} data-back-address>
         {[0, 1, 2].map((i) => (
           <span key={i} className={`block min-h-[1.15em] border-b border-[#bfb39b] pb-px ${addressLineScale((address[i] ?? "").length) <= ADDRESS_MIN_SCALE ? "break-words leading-[1.1]" : "overflow-hidden whitespace-nowrap"}`}>

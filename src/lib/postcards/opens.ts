@@ -1,5 +1,22 @@
 // When a sealed postcard opens, in the reader's own terms. It opens at midnight where the sender was (the start of the
 // day they picked), which can be a different clock time for the reader: "Opens 1 January 2027 at 05:30 your time".
+// The day a sealed card opens, as the SENDER meant it ("1 January 2027"): in the sender's zone, which is where it opens at midnight.
+// The sender's saved zone can be out of date if they have since moved; the reader still sees their own clock in `opensLine`.
+// `senderTz` is "" or not a real zone when it isn't known: `fallbackTz` (the reader's) is used then.
+export function sealedDay(opensAt: Date, senderTz: string | null | undefined, fallbackTz: string, style: "long" | "short" = "long"): string {
+  const ok = (z: string | null | undefined): z is string => {
+    if (!z) return false;
+    try {
+      new Intl.DateTimeFormat("en-GB", { timeZone: z });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const zone = ok(senderTz) ? senderTz : ok(fallbackTz) ? fallbackTz : "UTC";
+  return new Intl.DateTimeFormat("en-GB", style === "short" ? { day: "numeric", month: "short", timeZone: zone } : { day: "numeric", month: "long", year: "numeric", timeZone: zone }).format(opensAt);
+}
+
 export function opensLine(opensAt: Date, tz: string): string {
   let zone = tz;
   try {

@@ -75,7 +75,7 @@ export function MemoriesTab({
       {days.map((d) => (
         <section key={d.key} aria-label={d.label} data-memory-day={d.key}>
           <h2 className="mb-2 text-[13px] font-medium text-fg/55">{d.label}</h2>
-          <MomentsFeed cards={d.cards} groupId={group.id} now={now} />
+          <MomentsFeed cards={d.cards} groupId={group.id} now={now} tz={tz} />
         </section>
       ))}
 

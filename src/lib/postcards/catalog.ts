@@ -372,8 +372,8 @@ export function stampOrder(current: string, tripCc = "", home = "", rareIds: str
 // The stamp as a standalone SVG (76×92), drawn like an engraved (intaglio) stamp: white perforated
 // margin, a picture panel of fine engraved lines with a light vignette, the landmark in ink, the value
 // in a solid cartouche, the name reversed out of an ink banner, and a slight unevenness to the ink.
-export function stampSvg(id: string, k = "s"): string {
-  const d = stampDef(id);
+export function stampSvg(id: string, k = "s", year?: number): string {
+  const d = stampDef(id, year);
   const m = `m${k.replace(/[^a-z0-9]/gi, "")}`;
   const holes: string[] = [];
   for (let x = 4; x <= 72; x += 6) holes.push(`<circle cx="${x}" cy="0" r="2.1"/><circle cx="${x}" cy="92" r="2.1"/>`);
@@ -423,6 +423,13 @@ export const WAVES_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
 
 // Photos from Loopin's own picture set (public/photos/…): the only outside pictures a front may use.
 export const isSitePhoto = (src: string) => /^\/photos\/[a-z0-9-]+\.jpg$/.test(src);
+
+// The year on a postmark date ("17 NOV 2026" gives 2026), or undefined when there is none. The stamp keeps the year the card
+// was sent, not the year it is looked at.
+export function yearOfPostDate(date: string): number | undefined {
+  const m = /\b(\d{4})\b/.exec(date);
+  return m ? Number(m[1]) : undefined;
+}
 
 export function postDate(d: Date, tz: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: tz }).format(d).toUpperCase();

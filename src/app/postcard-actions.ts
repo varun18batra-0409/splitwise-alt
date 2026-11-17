@@ -7,6 +7,7 @@ import { getAccount } from "@/lib/identity";
 import { allow } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
 import { getTimeZone } from "@/lib/tz";
+import { sealedDay } from "@/lib/postcards/opens";
 import { cleanLook, cleanSeal, cleanTouches, reactionOf, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
@@ -82,9 +83,9 @@ export async function sendPostcardAction(f: FormData) {
   }
   // Sealed until a day you pick (from tomorrow, up to two years ahead): opens at midnight your time.
   let opensAt: Date | null = null;
+  const tz = await getTimeZone(); // the sender's zone: the day is picked, and shown in the push, in it
   const day = field(f, "opensOn", 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-    const tz = await getTimeZone();
     const noonUtc = new Date(`${day}T12:00:00Z`);
     const offset = new Date(noonUtc.toLocaleString("en-US", { timeZone: tz })).getTime() - new Date(noonUtc.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
     const at = new Date(new Date(`${day}T00:00:00Z`).getTime() - offset);
@@ -168,7 +169,7 @@ export async function sendPostcardAction(f: FormData) {
       accountIds: [p.toId],
       kind: "postcard",
       title: opensAt ? `${sender} sent you a sealed postcard` : `${sender} sent you a postcard`,
-      body: opensAt ? `It opens on ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" }).format(opensAt)}. No peeking.` : data.words ? `Greetings from ${data.words}` : message.slice(0, 80),
+      body: opensAt ? `It opens on ${sealedDay(opensAt, tz, tz)}. No peeking.` : data.words ? `Greetings from ${data.words}` : message.slice(0, 80),
       url: `/postcards/${p.id}`,
       tag: `postcard-${p.id}`,
       fromAccountId: me.id,

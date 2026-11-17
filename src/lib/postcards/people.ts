@@ -9,7 +9,7 @@ const COUNTS = { ...JOINED, removedAt: null };
 // Who you can send a postcard to: everyone who has a Loopin account and has been in a group with you
 // (open or closed, card nights included; even if one of you left on your own, but not if the admin removed either of you). Never a name that was only typed
 // into a group, and never a deleted group. Both of you must have really joined: someone added
-// straight in who hasn't opened the group yet isn't offered (and can't be sent to) until they do. Grouped by group, most recent first; each person once overall.
+// straight in who hasn't opened the group yet isn't offered (and can't be sent to) until they do. Grouped by group, most recent first. Someone you share several groups with is listed under each of them ("Select all" works per group); ticks are kept by account id, so ticking them once ticks them everywhere.
 export type PostcardGroup = { id: string; name: string; type: string; people: { id: string; name: string }[] };
 
 export async function postcardPeople(accountId: string): Promise<PostcardGroup[]> {
@@ -23,7 +23,6 @@ export async function postcardPeople(accountId: string): Promise<PostcardGroup[]
   const accountIds = [...new Set(groups.flatMap((g) => g.members.map((m) => m.accountId!)).filter((id) => id !== accountId && !blocked.has(id)))];
   const accounts = accountIds.length ? await db.account.findMany({ where: { id: { in: accountIds } }, select: { id: true, name: true } }) : [];
   const nameOf = new Map(accounts.map((a) => [a.id, a.name]));
-  const seen = new Set<string>();
   const out: PostcardGroup[] = [];
   for (const g of groups) {
     const people: { id: string; name: string }[] = [];
@@ -33,7 +32,6 @@ export async function postcardPeople(accountId: string): Promise<PostcardGroup[]
       people.push({ id, name: (nameOf.get(id) || m.name).trim() || m.name });
     }
     if (people.length) out.push({ id: g.id, name: g.name, type: g.type, people });
-    for (const p of people) seen.add(p.id);
   }
   return out;
 }

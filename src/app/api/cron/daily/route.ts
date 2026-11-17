@@ -60,6 +60,8 @@ export async function GET(req: Request) {
   // Write down what is left (ran out of time, failed, or waiting for the day) for the evening catch-up.
   // If writing the list down failed, the day is NOT marked finished: the evening then runs every part (each claims its work first).
   await finishDailyRun(now, [...main.deferred, ...failed.filter((f) => (PART_NAMES as readonly string[]).includes(f))]);
+  // The day-end trip message for people whose morning it is (they were past their evening when it was sent). Never fails the job.
+  const pulse = await part("day-pulse", async () => (await import("@/lib/countdown-db")).sendDayPulse(now, stop, { run: "morning" }));
   // Speed numbers are kept two weeks.
   const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
   // Error records are kept 30 days, as the privacy page says.
@@ -88,5 +90,5 @@ export async function GET(req: Request) {
   // The admin's email when something needs a look (failed parts, errors, emails not sent, orphan rows).
   const { sendOpsDigest } = await import("@/lib/ops-digest");
   const check = await sendOpsDigest(now, failed).catch(() => ({ sent: false, reason: "digest failed" }));
-  return Response.json({ ok: true, ...main.results, speedLogsRemoved, groupsErased, deferred, check });
+  return Response.json({ ok: true, ...main.results, pulse, speedLogsRemoved, groupsErased, deferred, check });
 }

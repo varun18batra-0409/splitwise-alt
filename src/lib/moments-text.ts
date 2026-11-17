@@ -15,11 +15,21 @@ export function graphemeCount(s: string): number {
 export const CAPTION_RAW_MAX = 2000; // room for 80 real characters (a family emoji alone is 8 units), small enough to stop huge captions
 export const CAPTION_MARKS_MAX = 3;
 
-// Zero-width spaces and joiners, byte-order mark, left/right marks, Arabic letter mark: invisible, and only useful for hiding things.
-// (Written as escapes on purpose.) A joiner (U+200D) is kept only where it glues two emoji together (a family, a couple).
-const INVISIBLE = /[\u200b\u200c\u200e\u200f\u061c\ufeff]/g;
-const keepJoiner = (str: string, at: number) =>
-  /\p{Extended_Pictographic}\ufe0f?$/u.test(str.slice(0, at)) && /^\p{Extended_Pictographic}/u.test(str.slice(at + 1));
+// Zero-width spaces, byte-order mark, left/right marks, Arabic letter mark: invisible, and only useful for hiding things.
+// (Written as escapes on purpose.) The two joiners are kept only where they do real work:
+//  - U+200D glues two emoji together (a family, a couple, a woman technologist), also after a skin tone or U+FE0F;
+//  - U+200D and U+200C between two letters or signs of the same Indian script (Devanagari, Bengali, ... Sinhala) shape
+//    the conjunct, so Hindi, Tamil, Sinhala and the like are written correctly.
+const INVISIBLE = /[\u200b\u200e\u200f\u061c\ufeff]/g;
+const INDIC = ["Devanagari", "Bengali", "Gurmukhi", "Gujarati", "Oriya", "Tamil", "Telugu", "Kannada", "Malayalam", "Sinhala"].map((n) => new RegExp(`^\\p{Script=${n}}$`, "u"));
+const lastChar = (str: string) => Array.from(str).pop() ?? "";
+const sameIndicScript = (a: string, b: string) => !!a && !!b && INDIC.some((re) => re.test(a) && re.test(b));
+const keepJoiner = (str: string, at: number, ch: string) => {
+  const before = str.slice(0, at);
+  const after = str.slice(at + 1);
+  if (sameIndicScript(lastChar(before), Array.from(after)[0] ?? "")) return true;
+  return ch === "\u200d" && /\p{Extended_Pictographic}(?:\ufe0f|\p{Emoji_Modifier})*$/u.test(before) && /^\p{Extended_Pictographic}/u.test(after);
+};
 
 // At most CAPTION_MARKS_MAX combining marks in a row after a letter; the rest are dropped.
 function capMarks(s: string): string {
@@ -44,7 +54,7 @@ export function cleanCaption(raw: unknown): string | null {
     text
       .replace(/[\u202a-\u202e\u2066-\u2069]/g, "")
       .replace(INVISIBLE, "")
-      .replace(/\u200d/g, (m, at: number, str: string) => (keepJoiner(str, at) ? m : ""))
+      .replace(/[\u200c\u200d]/g, (m, at: number, str: string) => (keepJoiner(str, at, m) ? m : ""))
       .replace(/[\p{Cc}\u2028\u2029]/gu, " ")
       .replace(/\s+/g, " ")
       .trim(),
@@ -88,8 +98,9 @@ export function dayLabel(takenOn: string, start: string, end: string): string {
   return i < 0 ? "" : `Day ${i + 1}`;
 }
 
-// "just now", "12 min ago", "3 h ago", "2 days ago", then the date ("5 Nov"). `now` is for tests.
-export function timeAgo(then: Date, now = new Date()): string {
+// "just now", "12 min ago", "3 h ago", "2 days ago", then the date ("5 Nov") as the reader sees it, in their time zone `tz`.
+// `now` is for tests.
+export function timeAgo(then: Date, now: Date, tz: string): string {
   const s = Math.max(0, Math.floor((now.getTime() - then.getTime()) / 1000));
   if (s < 60) return "just now";
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
@@ -98,8 +109,7 @@ export function timeAgo(then: Date, now = new Date()): string {
     const d = Math.floor(s / 86_400);
     return `${d} ${d === 1 ? "day" : "days"} ago`;
   }
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${then.getUTCDate()} ${months[then.getUTCMonth()]}`;
+  return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz });
 }
 
 // Who a moment is "by", for the viewer. "You" only when the author is the viewer (same account, or the same member of the group);

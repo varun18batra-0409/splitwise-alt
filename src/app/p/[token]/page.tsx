@@ -4,6 +4,8 @@ import Link from "@/components/Link";
 import { CopyButton } from "@/components/CollectBits";
 import { ErrorNote, secondaryButtonClass } from "@/components/ui";
 import { db } from "@/lib/db";
+import { paidOnLabel } from "@/lib/dates";
+import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
 import { payButtons } from "@/lib/pay-links";
 import { readPayLink, type PayLinkState } from "@/lib/pay-link";
@@ -47,6 +49,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
   const { token } = await params;
   const sp = await searchParams;
   const s = await readPayLink(token);
+  const tz = await getTimeZone();
 
   const header = (
     <header className="mb-6 flex items-center justify-between">
@@ -81,7 +84,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
     <>
       {header}
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
-      {s.kind === "owes" ? <Owes s={s} money={money} to={to} from={from} token={token} undone={Boolean(sp.undone)} /> : <Done s={s} money={money} to={to} from={from} token={token} justPaid={Boolean(sp.paid)} />}
+      {s.kind === "owes" ? <Owes s={s} money={money} to={to} from={from} token={token} undone={Boolean(sp.undone)} /> : <Done tz={tz} s={s} money={money} to={to} from={from} token={token} justPaid={Boolean(sp.paid)} />}
       <p className="mt-10 text-center text-xs leading-relaxed text-fg/55">
         {PAYMENT_LINE}
         <br />
@@ -166,8 +169,8 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
   );
 }
 
-function Done({ s, money, to, from, token, justPaid }: { s: Shown; money: string; to: string; from: string; token: string; justPaid: boolean }) {
-  const when = s.paidAt ? s.paidAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : "";
+function Done({ s, money, to, from, token, justPaid, tz }: { tz: string; s: Shown; money: string; to: string; from: string; token: string; justPaid: boolean }) {
+  const when = s.paidAt ? paidOnLabel(s.paidAt, tz) : "";
   const view =
     s.kind === "paid"
       ? justPaid

@@ -7,7 +7,7 @@ export type Step = "front" | "back" | "send";
 
 // Back (to the step before, or out of the editor from the first one), the steps, Home. The steps are tabs: tap one to go there.
 // In the Send step the page title shows and the steps sit under it.
-export function TopBar({ title, steps, step, onStep, onBack, backHref, visibleTitle = false, error }: {
+export function TopBar({ title, steps, step, onStep, onBack, backHref, visibleTitle = false, error, done }: {
   title: string;
   steps: { id: Step; name: string }[];
   step: Step;
@@ -16,6 +16,7 @@ export function TopBar({ title, steps, step, onStep, onBack, backHref, visibleTi
   backHref: string;
   visibleTitle?: boolean;
   error?: string;
+  done?: Partial<Record<Step, boolean>>; // a step before this one is ticked only when it is not marked false here
 }) {
   const circle = "flex size-11 shrink-0 items-center justify-center rounded-full border border-fg/15 bg-[#16161a] text-fg active:scale-95";
   const at = steps.findIndex((s) => s.id === step);
@@ -25,8 +26,8 @@ export function TopBar({ title, steps, step, onStep, onBack, backHref, visibleTi
         <span key={s.id} role="presentation" className="flex items-center gap-1">
           {n > 0 && <span aria-hidden className="h-px w-3 bg-fg/30" />}
           <button type="button" role="tab" aria-selected={step === s.id} onClick={() => onStep(s.id)} data-step={s.id} className="flex h-11 items-center px-0.5 text-[13px] font-semibold">
-            <span className={`flex h-7 items-center gap-1.5 rounded-full px-3 ${step === s.id ? "bg-fg text-canvas" : n < at ? "text-fg/85" : "text-fg/60"}`}>
-              {n < at && <span aria-hidden className="text-fg/85">{Icons.check}</span>}
+            <span className={`flex h-7 items-center gap-1.5 rounded-full px-3 ${step === s.id ? "bg-fg text-canvas" : n < at && done?.[s.id] !== false ? "text-fg/85" : "text-fg/60"}`}>
+              {n < at && done?.[s.id] !== false && <span aria-hidden className="text-fg/85">{Icons.check}</span>}
               {s.name}
             </span>
           </button>

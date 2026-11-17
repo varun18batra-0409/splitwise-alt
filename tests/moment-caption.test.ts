@@ -83,12 +83,12 @@ describe("how long ago", () => {
   const now = new Date("2026-11-13T12:00:00Z");
   const ago = (ms: number) => new Date(now.getTime() - ms);
   it("reads in plain words", () => {
-    expect(timeAgo(ago(20_000), now)).toBe("just now");
-    expect(timeAgo(ago(12 * 60_000), now)).toBe("12 min ago");
-    expect(timeAgo(ago(3 * 3_600_000), now)).toBe("3 h ago");
-    expect(timeAgo(ago(86_400_000), now)).toBe("1 day ago");
-    expect(timeAgo(ago(2 * 86_400_000), now)).toBe("2 days ago");
-    expect(timeAgo(new Date("2026-11-02T12:00:00Z"), now)).toBe("2 Nov");
+    expect(timeAgo(ago(20_000), now, "Asia/Kolkata")).toBe("just now");
+    expect(timeAgo(ago(12 * 60_000), now, "Asia/Kolkata")).toBe("12 min ago");
+    expect(timeAgo(ago(3 * 3_600_000), now, "Asia/Kolkata")).toBe("3 h ago");
+    expect(timeAgo(ago(86_400_000), now, "Asia/Kolkata")).toBe("1 day ago");
+    expect(timeAgo(ago(2 * 86_400_000), now, "Asia/Kolkata")).toBe("2 days ago");
+    expect(timeAgo(new Date("2026-11-02T12:00:00Z"), now, "Asia/Kolkata")).toBe("2 Nov");
   });
 });
 

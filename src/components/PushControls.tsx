@@ -32,6 +32,10 @@ async function currentSubscription() {
 
 type State = PhoneState;
 
+// Shown while this phone can't get notifications at all (iPhone not on the Home Screen, blocked, or not supported),
+// so the switches further down don't look as if they work. Words only.
+const PHONE_NOT_READY = "Until then, this phone won’t get notifications, even with the switches below turned on.";
+
 // "This phone": whether THIS phone lets Loopin send notifications at all, and the switch for it.
 // (What Loopin chooses to send is separate: see the "What Loopin sends" row and each group’s settings.)
 export function PhoneStatus({ compact = false }: { compact?: boolean }) {
@@ -159,16 +163,16 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
       {state === "ios-install" && (
         <p className="mt-3 rounded-xl bg-mist px-3 py-2.5 text-sm text-gray-600">
           On iPhone, notifications work once Loopin is on your Home Screen: tap <strong className="text-fg">Share ⬆︎</strong> →{" "}
-          <strong className="text-fg">Add to Home Screen</strong>, open Loopin from there, and turn this on.
+          <strong className="text-fg">Add to Home Screen</strong>, open Loopin from there, and turn this on. {PHONE_NOT_READY}
         </p>
       )}
       {state === "denied" && (
         <p className="mt-3 rounded-xl bg-mist px-3 py-2.5 text-sm text-gray-600">
-          Notifications are blocked for Loopin. Allow them in your phone’s settings for this app or site, then come back.
+          Notifications are blocked for Loopin. Allow them in your phone’s settings for this app or site, then come back. {PHONE_NOT_READY}
         </p>
       )}
       {state === "unsupported" && (
-        <p className="mt-3 text-sm text-gray-500">This browser can’t show notifications. Try Chrome on Android or Safari on iPhone.</p>
+        <p className="mt-3 text-sm text-gray-500">This browser can’t show notifications, so the switches below won’t do anything here. Try Chrome on Android or Safari on iPhone.</p>
       )}
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
     </section>

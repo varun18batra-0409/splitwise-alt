@@ -27,6 +27,11 @@ export function isTimeZone(tz: unknown): tz is string {
 }
 
 // A chosen expense day is stored as exactly 12:00:00.000 UTC.
+// "18 Nov": the day a payment was marked paid, as the reader sees it in their zone `tz`.
+export function paidOnLabel(d: Date, tz: string): string {
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz });
+}
+
 export function isDayMarker(d: Date): boolean {
   return d.getUTCHours() === 12 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
 }

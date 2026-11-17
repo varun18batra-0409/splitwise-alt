@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { HANDS, HAND_PICKS, INKS, INK_PICKS, OPENERS, PAPERS, PAPER_PICKS, paperTones, stampSvg } from "@/lib/postcards/catalog";
+import { HANDS, HAND_PICKS, INKS, INK_PICKS, OPENERS, PAPERS, PAPER_PICKS, paperTones, stampSvg, yearOfPostDate } from "@/lib/postcards/catalog";
 import { SEAL_COLOURS, SEAL_COLOUR_PICKS, SEAL_DESIGNS, SEAL_DESIGN_PICKS, waxSeal } from "@/lib/postcards/looks";
 import { MESSAGE_MAX, overText, withOpener } from "@/lib/postcards/fit";
 import { ONESIDE_MAX, type Format } from "@/lib/postcards/format";
@@ -141,7 +141,7 @@ const stampLabel = (id: string) => {
   return n.charAt(0).toUpperCase() + n.slice(1);
 };
 
-export function StampPanel({ stamp, setStamp, list, rare }: { stamp: string; setStamp: (s: string) => void; list: string[]; rare: { id: string; until: string }[] }) {
+export function StampPanel({ stamp, setStamp, list, rare, date = "" }: { date?: string; stamp: string; setStamp: (s: string) => void; list: string[]; rare: { id: string; until: string }[] }) {
   const rareIds = rare.map((r) => r.id);
   return (
     <Panel tool="stamp" label="Stamp">
@@ -153,7 +153,7 @@ export function StampPanel({ stamp, setStamp, list, rare }: { stamp: string; set
       <Strip data-stamps className="gap-2.5">
         {list.map((s) => (
           <button key={s} type="button" onClick={() => setStamp(s)} aria-pressed={stamp === s} className={`min-h-11 shrink-0 rounded-[4px] p-0.5 transition-transform active:scale-95 motion-reduce:transition-none ${stamp === s ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} aria-label={`Stamp ${s}`} data-stamp-choice={s}>
-            <span aria-hidden className="block w-[46px] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(s, `c${s}`) }} />
+            <span aria-hidden className="block w-[46px] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(s, `c${s}`, yearOfPostDate(date)) }} />
             {rareIds.includes(s) && <span className="mt-1 block text-center text-[10.5px] font-semibold text-fg/65">Limited</span>}
           </button>
         ))}

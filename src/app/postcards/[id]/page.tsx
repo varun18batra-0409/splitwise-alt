@@ -1,4 +1,4 @@
-import { opensLine } from "@/lib/postcards/opens";
+import { opensLine, sealedDay } from "@/lib/postcards/opens";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
@@ -33,13 +33,13 @@ export default async function PostcardPage({ params, searchParams }: { params: P
   const shut = Boolean(p.opensAt && p.opensAt > new Date());
   if (!mine && !p.readAt && !shut) await db.postcard.update({ where: { id }, data: { readAt: new Date() } });
   const [from, to, tz] = await Promise.all([
-    db.account.findUnique({ where: { id: p.fromId }, select: { name: true } }),
+    db.account.findUnique({ where: { id: p.fromId }, select: { name: true, timeZone: true } }),
     db.account.findUnique({ where: { id: p.toId }, select: { name: true } }),
     getTimeZone(),
   ]);
   const first = (n?: string | null) => (n ?? "").trim().split(/\s+/)[0] || "A friend";
   const c = cardProps(p, first(from?.name), tz);
-  const opens = p.opensAt ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: tz }).format(p.opensAt) : "";
+  const opens = p.opensAt ? sealedDay(p.opensAt, from?.timeZone, tz) : ""; // the day the sender wrote it for, in their zone
   const r = reactionOf(p.reaction);
 
   return (

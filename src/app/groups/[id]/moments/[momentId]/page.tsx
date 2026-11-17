@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui";
 import { canDeleteMoment, canReactToMoment, canReportMoment, loadMomentViewer } from "@/lib/moments-access";
 import { loadMomentCard } from "@/lib/moments-db";
 import { memoriesBack } from "@/lib/home/memories";
+import { getTimeZone } from "@/lib/tz";
 import { MomentBig } from "../_components/MomentBig";
 
 export const metadata = { title: "Moment", robots: { index: false } };
@@ -37,6 +38,7 @@ export default async function MomentPage({ params, searchParams }: { params: Pro
         back={`${here}/${card.id}`}
         from={cameFrom === "home" ? "home" : cameFrom === "memories" ? "memories" : "view"}
         now={new Date()}
+        tz={await getTimeZone()}
       />
     </div>
   );

@@ -17,6 +17,7 @@ export function MomentBig({
   link,
   from,
   now,
+  tz,
 }: {
   card: MomentCard;
   place: string;
@@ -28,6 +29,7 @@ export function MomentBig({
   link?: string; // the photo opens the viewer (on the list); on the viewer itself there is none
   from: "list" | "view" | "home" | "memories";
   now: Date;
+  tz: string;
 }) {
   const ratio = card.width > 0 && card.height > 0 ? `${card.width} / ${card.height}` : "4 / 3";
   const photo = (
@@ -42,7 +44,7 @@ export function MomentBig({
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-semibold">{card.authorName}</p>
-          <p className="text-[13px] text-fg/55">{timeAgo(card.createdAt, now)}</p>
+          <p className="text-[13px] text-fg/55">{timeAgo(card.createdAt, now, tz)}</p>
         </div>
         <MomentMenu card={card} back={back} canDelete={canDelete} canReport={canReport} guest={guest} openHref={link} />
       </header>

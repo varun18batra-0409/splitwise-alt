@@ -213,22 +213,39 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
   const pickTool = (id: string) => setTools((t) => ({ ...t, [toolKey]: id }));
   const messageTool = () => setTools((t) => ({ ...t, [oneSide ? "one" : "back"]: "message" }));
 
+  // Why the card can't be sent yet, or "" when it can.
+  const sendBlock = () =>
+    !message.trim() ? "Write a few words first" : tooLong ? (oneSide ? `A one-side card holds up to ${ONESIDE_MAX} characters. Take a few out.` : overText(fitInfo.over)) : "";
+
   // Next: Front goes to Note. Note (or the one-side Card) needs a message that fits: if not, the Message tool opens and says so (never silent).
   const next = () => {
     if (tab === "front" && !oneSide) return goStep("back");
-    if (!message.trim()) {
+    const block = sendBlock();
+    if (block) {
       messageTool();
-      setNudge("Write a few words first");
-      return;
-    }
-    if (tooLong) {
-      messageTool();
-      setNudge(oneSide ? `A one-side card holds up to ${ONESIDE_MAX} characters. Take a few out.` : overText(fitInfo.over));
+      setNudge(block);
       return;
     }
     setNudge("");
     goStep("send");
   };
+  // Tapping "Send" in the step bar is held to the same rules as the Next button: no message, or one that is too long,
+  // sends you to where it is written, with the reason (never silent).
+  const toStep = (s: Step) => {
+    if (s === "send") {
+      const block = sendBlock();
+      if (block) {
+        messageTool();
+        setNudge(block);
+        return goStep(oneSide ? "front" : "back");
+      }
+      setNudge("");
+    }
+    goStep(s);
+  };
+  // Which steps are really done (the step bar only ticks those).
+  const messageOk = Boolean(message.trim()) && !tooLong;
+  const done: Partial<Record<Step, boolean>> = { back: messageOk, front: oneSide ? messageOk : true };
   const flip = () => {
     buzz("tap");
     goStep(tab === "front" ? "back" : "front");
@@ -295,7 +312,7 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
       return <MessagePanel format={format} message={message} setMessage={onMessage} over={fitInfo.over} nudge={nudge} signoff={signoff} setSignoff={setSignoff} myFirst={firstOf(myName)} hand={hand} ink={ink} addr={address} setAddr={setAddr} onFocus={() => setTyping(true)} onBlur={() => setTyping(false)} />;
     if (t === "pen") return <PenPanel hand={hand} setHand={setHand} ink={ink} setInk={setInk} />;
     if (t === "paper") return <PaperPanel paper={paper} setPaper={setPaper} />;
-    if (t === "stamp") return <StampPanel stamp={stamp} setStamp={setStamp} list={stampList} rare={rare} />;
+    if (t === "stamp") return <StampPanel stamp={stamp} setStamp={setStamp} list={stampList} rare={rare} date={date} />;
     if (t === "seal") return <SealPanel on={sealOn} setOn={setSealOn} seal={seal} setSeal={setSeal} name={firstOf(myName)} />;
     // touches
     if (oneSide) return <TouchesPanel side="back" touches={touches} toggle={toggleTouch} ids={ONE_TOUCHES} />;
@@ -338,13 +355,13 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
 
       {tab === "send" ? (
         <div>
-          <TopBar title={title} steps={steps} step={tab} onStep={goStep} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} visibleTitle error={error} />
+          <TopBar title={title} steps={steps} step={tab} onStep={toStep} done={done} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} visibleTitle error={error} />
           <SendStep groups={groups} to={to} setTo={setTo} opensOn={opensOn} setOpensOn={setOpensOn} hasMessage={Boolean(message.trim())} onWrite={() => (messageTool(), goStep(oneSide ? "front" : "back"))} front={frontProps} back={backProps} one={oneSide ? oneProps : null} />
         </div>
       ) : (
         // The edit steps are one fixed screen (this gets around the page's bottom padding). A long list scrolls inside its own panel.
         <div className="fixed inset-0 z-30 mx-auto flex max-w-md flex-col gap-2.5 bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] max-[359px]:px-4" data-composer data-step-now={tab}>
-          <TopBar title={title} steps={steps} step={tab} onStep={goStep} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={error} />
+          <TopBar title={title} steps={steps} step={tab} onStep={toStep} done={done} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={error} />
           {tab === "front" && <FormatSwitch format={format} onChange={changeFormat} />}
           <div className="flex min-h-0 max-h-[calc((min(100vw,28rem)-2.5rem)*0.64+3rem)] flex-1 items-center justify-center [container-type:size]" data-composer-preview data-typing={typing ? "" : undefined}>
             {preview}
