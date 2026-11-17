@@ -1787,14 +1787,21 @@ async function main() {
     const PAYMENT_OF_MINE = /\bpaid you\b|\bYou paid [A-Za-z]/;
     const before = await shownBalances(V, g);
     await go(V, `${g}?tab=activity`);
-    const row = V.locator("details summary").filter({ hasText: PAYMENT_OF_MINE }).first();
-    await row.click();
-    await clickAndWait(V, V.getByRole("button", { name: "Delete payment" }).first());
+    // Pick one live payment of mine and remember WHICH one (its row id). Looking for "the first payment of mine" again after the delete
+    // could land on a different row (several payments of Varun's are in this group by now), and that row has nothing to restore.
+    const mine = V.locator('li[id^="item-"]').filter({ has: V.locator("details summary").filter({ hasText: PAYMENT_OF_MINE }) }).filter({ hasNotText: "Deleted by" });
+    const li = mine.first();
+    const rowId = await li.getAttribute("id");
+    assert(rowId, "no live payment of Varun's in the history");
+    await li.locator("summary").click();
+    await clickAndWait(V, li.getByRole("button", { name: "Delete payment" }));
     const mid = await shownBalances(V, g);
     assert(JSON.stringify(mid) !== JSON.stringify(before), "balances didn't change after deleting the payment");
     await go(V, `${g}?tab=activity`);
-    await V.locator("details summary").filter({ hasText: PAYMENT_OF_MINE }).first().click();
-    await clickAndWait(V, V.getByRole("button", { name: "Restore payment" }).first());
+    const same = V.locator(`li[id="${rowId}"]`);
+    assert(/Deleted by/.test(await same.innerText()), "the payment I deleted isn't shown as deleted in the history");
+    await same.locator("summary").click();
+    await clickAndWait(V, same.getByRole("button", { name: "Restore payment" }));
     const after = await shownBalances(V, g);
     assert(JSON.stringify(after) === JSON.stringify(before), `restore didn't put balances back: ${JSON.stringify(after)} vs ${JSON.stringify(before)}`);
   });
