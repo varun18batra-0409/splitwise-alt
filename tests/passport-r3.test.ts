@@ -63,7 +63,7 @@ describe("R3: one set of numbers", () => {
   it("the page, the book (cover and page 1) and the share picture all read passportCounts", () => {
     expect(src("src/app/passport/page.tsx")).toContain("passportCounts(p, today)");
     expect(src("src/app/passport/page.tsx")).toContain("counts={counts}");
-    expect(src("src/app/passport/friends/[accountId]/page.tsx")).toContain("counts={passportCounts(p, today)}");
+    expect(src("src/app/passport/friends/[accountId]/page.tsx")).toContain("passportCounts({ ...p, stamps: p.stamps.filter((s) => s.kind === \"country\") }, today)"); // a friend's cover counts only the stamps their book shows
     const book = src("src/components/PassportBook.tsx");
     expect(book).toContain("data-cover-counts={`${counts.countries}|${counts.stamps}`}");
     expect(book).toContain("data-passport-counts={`${counts.countries}|${counts.stamps}|${counts.trips}`}");
@@ -187,5 +187,18 @@ describe("R3: the passport page follows mockup 14", () => {
     expect(card).toContain("{c.cta.label}");
     expect(card).not.toMatch(/Relive trip\s*→|View memories\s*→|→/);
     expect(card).toContain('data-been-card={hand ? "hand" : "trip"}');
+  });
+  it("a card with a photo has no rectangle stamp; the ring stamp is only on the no-photo panel; the menu is top right", () => {
+    const card = src("src/components/BeenCard.tsx");
+    expect(card).not.toContain('variant="card"');
+    expect(card.match(/<StampArt/g)).toHaveLength(1);
+    expect(card.indexOf("<StampArt")).toBeLessThan(card.indexOf("export function StampCard")); // the one stamp is in Picture (no photo)
+    expect(card).toContain('className="absolute right-[-6px] top-[-2px]"');
+    expect(card).not.toContain("absolute bottom-0 right-0");
+  });
+  it("Home's passport keepsake has no stamp over it", () => {
+    const h = src("src/components/HighlightCard.tsx");
+    expect(h).not.toContain("StampArt");
+    expect(h).toContain("<PassportKeepsake />");
   });
 });

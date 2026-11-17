@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COUNTRIES, countryOf, searchCountries, tripStops } from "@/lib/geo";
 import { readFileSync } from "node:fs";
-import { buildPassport, parseHandPlaces, passportZone, stampDay, stampPages, undatedFacts, undatedTripDay, wentOnTrip } from "@/lib/passport";
+import { buildPassport, parseHandPlaces, passportCounts, shareStamps, passportZone, stampDay, stampPages, undatedFacts, undatedTripDay, wentOnTrip } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
@@ -56,10 +56,13 @@ describe("Trip passport: stamps", () => {
     const b = Object.fromEntries(p.badges.map((x) => [x.id, x.earned ? "✓" : `${x.have}/${x.need}`]));
     expect(b).toEqual({ "first-abroad": "✓", beach: "✓", hills: "0/3", city: "1/3", cities: "4/10", countries: "4/10", frequent: "2/5", year: "✓", trips: "5/10" });
   });
-  it("pages of six: one passport, trip stamps first, then Been there, no separate section", () => {
-    const pages = stampPages(p.stamps, p.been, 2);
-    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Stamps", 2], ["Stamps", 2], ["Stamps", 2], ["Stamps", 1]]);
-    expect(pages.flatMap((x) => x.stamps).slice(-2).every((s) => s.byHand)).toBe(true);
+  it("pages: country stamps (trips abroad, then Been there) on \"Stamps\", then the home trips on their own pages", () => {
+    const pages = stampPages(p.stamps, p.been, 2, "India");
+    // Country stamps: Thailand, Italy (trips) + Italy, Japan (Been there) = 4 -> 2 pages. Home: Goa x3 -> 2 pages.
+    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Stamps", 2], ["Stamps", 2], ["Trips at home · India", 2], ["Trips at home · India", 1]]);
+    expect(pages.slice(0, 2).flatMap((x) => x.stamps).slice(-2).every((s) => s.byHand)).toBe(true);
+    expect(pages.slice(0, 2).flatMap((x) => x.stamps).every((s) => s.kind === "country")).toBe(true);
+    expect(pages.slice(2).flatMap((x) => x.stamps).every((s) => s.kind === "city")).toBe(true);
   });
   it("Places I've been are countries only (old cities dropped, no repeats)", () => {
     expect(parseHandPlaces('[{"c":"th","city":" Krabi "},{"c":"TH"},{"c":"XX"},"junk"]')).toEqual([{ c: "TH" }]);
@@ -305,5 +308,52 @@ describe("who went on a trip, and which day its stamp is", () => {
     const src = readFileSync("src/app/(home)/page.tsx", "utf8");
     expect(src).not.toContain("const wentOn");
     expect(src).toMatch(/import \{[^}]*\bstampDay\b[^}]*\} from "@\/lib\/passport"/);
+  });
+});
+
+describe("Passport book: trips at home get their own pages", () => {
+  const trip = (groupId: string, name: string, start: string, place = "") => ({ groupId, name, start, end: "", place, country: "", people: 4 });
+  // Hand-worked: India is home. Lonavala, Pune, Goa are 3 home stamps; Thailand 1 country stamp; Been there Austria, Croatia, Italy 3 more.
+  const trips = [trip("a", "Lonavala", "2026-01-10"), trip("b", "Pune", "2026-02-10"), trip("c", "Goa", "2026-03-10"), trip("d", "Thailand", "2026-05-01")];
+  const p = buildPassport(
+    trips,
+    [{ c: "AT" }, { c: "HR" }, { c: "IT" }],
+    "IN",
+    "2026-10-27",
+  );
+  it("countries count the home country once: India, Thailand, Austria, Croatia, Italy = 5", () => {
+    expect(p.stats.countries).toBe(5);
+    expect(p.index.map((r) => r.code).sort()).toEqual(["AT", "HR", "IN", "IT", "TH"]);
+  });
+  it("country pages hold 4 stamps (TH, AT, HR, IT), the home page 3 (Lonavala, Pune, Goa)", () => {
+    const pages = stampPages(p.stamps, p.been, 6, "India");
+    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Stamps", 4], ["Trips at home · India", 3]]);
+    expect(pages[0].stamps.map((s) => s.code)).toEqual(["TH", "AT", "HR", "IT"]);
+    expect(pages[1].stamps.map((s) => s.name)).toEqual(["Lonavala", "Pune", "Goa"]);
+  });
+  it("the cover's stamp count stays 7 (3 + 1 + 3) and the dots follow the pages: 2 stamp pages + 3 = 5", () => {
+    expect(passportCounts({ ...p, trips }, "2026-10-27").stamps).toBe(7);
+    expect(stampPages(p.stamps, p.been, 6, "India").length + 3).toBe(5);
+  });
+  it("more than six home trips run on to a second home page; no home country name still gets a title", () => {
+    const seven = Array.from({ length: 7 }, (_, i) => trip(`g${i}`, `Goa`, `2026-0${i + 1}-01`));
+    const q = buildPassport(seven, [], "IN", "2026-10-27");
+    expect(stampPages(q.stamps, q.been, 6, "").map((x) => [x.title, x.stamps.length])).toEqual([["Trips at home", 6], ["Trips at home", 1]]);
+  });
+  it("a friend (and Send in Loopin) sees country pages only", () => {
+    const pages = stampPages(p.stamps, p.been, 6, null);
+    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Stamps", 4]]);
+  });
+  it("the share picture's stamps hold no city or home stamps: 4 country stamps, newest first, then Been there", () => {
+    const shown = shareStamps(p.stamps, p.been);
+    expect(shown.map((s) => s.code)).toEqual(["TH", "AT", "HR", "IT"]);
+    expect(shown.some((s) => s.kind === "city")).toBe(false);
+    expect(shown.some((s) => s.name === "Goa" || s.name === "Pune" || s.name === "Lonavala")).toBe(false);
+    expect(passportCounts({ ...p, trips }, "2026-10-27").countries).toBe(5); // the countries line is unchanged
+  });
+  it("the book titles say Stamps, never Visas and stamps", () => {
+    for (const f of ["src/components/PassportBook.tsx", "src/app/passport/image/route.tsx", "src/lib/passport.ts"]) expect(readFileSync(f, "utf8")).not.toContain("Visas and stamps");
+    expect(readFileSync("src/app/passport/image/route.tsx", "utf8")).toContain(">Stamps<");
+    expect(readFileSync("src/app/passport/image/route.tsx", "utf8")).toContain("shareStamps(p.stamps, p.been)");
   });
 });

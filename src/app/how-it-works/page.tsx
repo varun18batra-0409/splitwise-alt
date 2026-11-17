@@ -369,7 +369,7 @@ export default async function HowItWorks() {
       <Section slot="place-santorini" title="Your trip passport">
         <p>
           Every trip stamps your <strong>passport</strong>: a city stamp at home, a country stamp abroad. Add the countries you went to before Loopin
-          with a few ticks. Open it from the <strong>You</strong> page (the three numbers on top: trips and days come from your trips in Loopin, countries also include places you add by hand), flip the pages, and share it to WhatsApp as a picture of your passport. It’s yours to show or keep private.
+          with a few ticks. Open it from the <strong>You</strong> page (the three numbers on top: trips and days come from your trips in Loopin, countries also include places you add by hand), flip the pages (country stamps first, then your trips at home on their own pages), and share it to WhatsApp as a picture of your passport, with country stamps only. It’s yours to show or keep private.
         </p>
         <Steps
           items={[

@@ -1,6 +1,5 @@
 import Link from "@/components/Link";
 import Image from "next/image";
-import { StampArt } from "./stamps/StampArt";
 import type { Highlight } from "@/lib/home/highlights";
 
 // One of the sliding cards on Home (weather for your next trip, a bill due, a postcard, your passport, a festival): words on the left, a small drawn object
@@ -59,19 +58,19 @@ export function WeatherIcon({ kind, size = 24 }: { kind: string; size?: number }
   );
 }
 
-// The keepsake on a photo card, as in the mockups: a burgundy passport with your own stamps (14), or a cream postcard with a photo
+// The keepsake on a photo card, as in the mockups: a plain burgundy passport (14; the small stamp that used to sit over it is gone), or a cream postcard with a photo
 // taped on, a stamp and "Wish you were here" (15). It sits on the right, between the headline and the words at the bottom, and is a
 // little smaller under 360px so it never covers the words.
 type KeepsakeProps = NonNullable<Extract<Highlight, { kind: "card" }>["keepsake"]>;
 function Keepsake({ k }: { k: KeepsakeProps }) {
   return (
     <div aria-hidden data-keepsake={k.kind} className="pointer-events-none absolute right-[-6px] top-[56px] h-[150px] w-[150px] origin-top-right max-[359px]:scale-[0.74] min-[360px]:max-[399px]:scale-[0.86]">
-      {k.kind === "passport" ? <PassportKeepsake stamps={k.stamps} /> : <PostcardKeepsake photo={k.photo} />}
+      {k.kind === "passport" ? <PassportKeepsake /> : <PostcardKeepsake photo={k.photo} />}
     </div>
   );
 }
 
-function PassportKeepsake({ stamps }: { stamps: { code: string; country: string; when: string; byHand?: boolean }[] }) {
+function PassportKeepsake() {
   const gold = "#d8b46a";
   return (
     <>
@@ -91,16 +90,6 @@ function PassportKeepsake({ stamps }: { stamps: { code: string; country: string;
           <path d="M3 12h18M4.6 7.5h14.8M4.6 16.5h14.8" />
         </svg>
       </div>
-      {stamps[0] && (
-        <div className="absolute left-0 top-[66px]">
-          <StampArt variant="card" code={stamps[0].code} country={stamps[0].country} when={stamps[0].when} byHand={stamps[0].byHand} tilt={-9} scale={0.78} />
-        </div>
-      )}
-      {stamps[1] && (
-        <div className="absolute bottom-[-6px] right-[12px]">
-          <StampArt variant="card" code={stamps[1].code} country={stamps[1].country} when={stamps[1].when} byHand={stamps[1].byHand} tilt={7} scale={0.7} />
-        </div>
-      )}
     </>
   );
 }

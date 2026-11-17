@@ -9,7 +9,7 @@ import map from "@/generated/map.json";
 
 // The trip passport as a little booklet. A cover in Loopin's colours you tap to open, then
 // pages you swipe like a real passport: the photo page with your counts, the
-// stamp pages (six stamps a page, each inked at a slant: the same drawing as the share picture), and an index at the back.
+// stamp pages (six stamps a page, countries first, then "Trips at home", each inked at a slant: the same drawing as the share picture), and an index at the back.
 
 // The cover in Loopin's own colours: the dark surface and off-white foil. No green: that is for money.
 const GOLD = "#ece8dc";
@@ -217,7 +217,7 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
           {/* The stamp pages */}
           {pages.map((p, k) => (
             <Sheet key={k} n={k + 3} of={total} label={`${p.title}, page ${k + 1}`}>
-              <p className="absolute left-6 top-4 text-[12px] font-semibold text-[#8a8270]">Visas and stamps</p>
+              <p className="absolute left-6 top-4 text-[12px] font-semibold text-[#8a8270]">{p.title}</p>
               {/* Six to a page, two across, each at its own slant. */}
               <div className="absolute inset-x-3 bottom-7 top-12 grid grid-cols-2 grid-rows-3 place-items-center" data-stamp-page>
                 {p.stamps.map((s) => (

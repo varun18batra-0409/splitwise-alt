@@ -291,13 +291,25 @@ export function newestMark(marks: Mark[], seen: Set<string>): Mark | undefined {
   return marks.filter((m) => !seen.has(m.id)).sort((a, b) => rank[a.ladder] - rank[b.ladder] || b.n - a.n)[0];
 }
 
-// The booklet's pages: a few stamps each, one passport: trip stamps first, then
-// the lighter Been there ones, on the same run of pages.
-export function stampPages(stamps: Stamp[], been: Stamp[], per = 6) {
-  const all = [...stamps, ...been];
-  const pages: { title: string; stamps: Stamp[] }[] = [];
-  for (let i = 0; i < all.length; i += per) pages.push({ title: "Stamps", stamps: all.slice(i, i + per) });
+// The booklet's pages, a few stamps each. "Stamps" holds the country stamps only (trips abroad first, then the lighter Been there
+// ones, on the same run of pages). Trips in your home country (the city stamps) follow on their own pages, "Trips at home · <country>".
+// `homeName`: null leaves the home pages out (what a friend and the share picture see: countries only). Pure.
+export type StampPage = { title: string; stamps: Stamp[] };
+export function stampPages(stamps: Stamp[], been: Stamp[], per = 6, homeName?: string | null): StampPage[] {
+  const countries = [...stamps.filter((s) => s.kind === "country"), ...been];
+  const pages: StampPage[] = [];
+  for (let i = 0; i < countries.length; i += per) pages.push({ title: "Stamps", stamps: countries.slice(i, i + per) });
+  if (homeName === null) return pages;
+  const home = stamps.filter((s) => s.kind === "city");
+  const title = homeName ? `Trips at home · ${homeName}` : "Trips at home";
+  for (let i = 0; i < home.length; i += per) pages.push({ title, stamps: home.slice(i, i + per) });
   return pages;
+}
+
+// The stamps the share picture holds, newest trips first, then Been there: country stamps only, never a city stamp from a trip at
+// home. (The picture says "Stamps"; the home trips live on their own pages of the book.) Pure.
+export function shareStamps(stamps: Stamp[], been: Stamp[]): Stamp[] {
+  return [...[...stamps].reverse().filter((s) => s.kind === "country"), ...been];
 }
 
 

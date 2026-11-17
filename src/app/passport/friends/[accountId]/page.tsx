@@ -51,7 +51,7 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
   return (
     <>
       <PageHeader title={`${first}’s passport`} back={back} />
-      <PassportBook name={first} stats={p.stats} counts={passportCounts(p, today)} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={withCountryPhotos(p.index)} badges={p.badges} own={false} />
+      <PassportBook name={first} stats={p.stats} counts={passportCounts({ ...p, stamps: p.stamps.filter((s) => s.kind === "country") }, today)} milestones={p.milestones} pages={stampPages(p.stamps, p.been, 6, null)} index={withCountryPhotos(p.index)} badges={p.badges} own={false} />
       {empty && <NudgeBox accountId={accountId} first={first} sent={sp.nudged === "1"} error={notes.error} />}
       <p className="mt-5 text-center text-sm text-gray-500">
         <Link href="/passport/friends" className="font-semibold text-fg underline underline-offset-4">

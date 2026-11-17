@@ -61,7 +61,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
     return (
       <>
         <PageHeader title="Passport book" back="/passport" />
-        <PassportBook name={account.name} stats={p.stats} counts={counts} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={withCountryPhotos(p.index)} badges={p.badges} />
+        <PassportBook name={account.name} stats={p.stats} counts={counts} milestones={p.milestones} pages={stampPages(p.stamps, p.been, 6, home?.name ?? "")} index={withCountryPhotos(p.index)} badges={p.badges} />
         {!empty && (
           <div className="mb-10 mt-5 scroll-mb-28" data-passport-actions>
             <div className="grid grid-cols-2 gap-3">

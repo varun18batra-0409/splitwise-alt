@@ -127,7 +127,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Trip recap, and share it as a picture. You can hide the amounts first." },
       {
         q: "What is the trip passport?",
-        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days travelled on top. Trips and days come from your trips in Loopin; countries also include places you add by hand. You can add countries you visited before Loopin with Add a place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
+        a: "A card for every trip with the place’s photo, and your countries, trips and days travelled on top. Trips and days come from your trips in Loopin; countries also include places you add by hand. You can add countries you visited before Loopin with Add a place, share your passport to WhatsApp as a picture, and open the passport book from the passport on top. In the book, country stamps have their own pages (Stamps), and trips in your home country follow on pages called Trips at home. A shared passport shows country stamps only.",
       },
       {
         q: "Who can see my passport?",

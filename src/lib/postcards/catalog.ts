@@ -142,9 +142,14 @@ export const PAPERS = [
   { id: "lavender", name: "Lavender", g: ["#f3eff8", "#e4dcef", "#d5cae5"] },
   { id: "rose", name: "Rose", g: ["#fbecee", "#f1d6da", "#e6c0c6"] },
   { id: "stone", name: "Stone", g: ["#efeeeb", "#dedcd6", "#cdcac2"] },
+  { id: "terracotta", name: "Terracotta", g: ["#f9e6d9", "#f1cfba", "#e8bda5"] },
+  { id: "saffron", name: "Saffron", g: ["#fdeec6", "#fbd996", "#f4c670"] },
+  { id: "seafoam", name: "Seafoam", g: ["#e2f4f2", "#bce4e2", "#9fd5d6"] },
+  { id: "pistachio", name: "Pistachio", g: ["#f0f5d4", "#dfeab4", "#cfdf97"] },
+  { id: "harbour", name: "Harbour", g: ["#e2eaf6", "#c3d4ec", "#aec3e2"] },
 ] as const;
-// Thirteen to pick from. Butter, rose and mint are not offered: they stay valid for old cards and are drawn as the nearest one.
-export const PAPER_PICKS = ["cream", "ivory", "airmail", "kraft", "linen", "parchment", "aged", "stone", "sage", "sky", "dusk", "blush", "lavender"] as const;
+// Eighteen to pick from (the last five are the warm and sea tones, added in November 2026). Butter, rose and mint are not offered: they stay valid for old cards and are drawn as the nearest one.
+export const PAPER_PICKS = ["cream", "ivory", "airmail", "kraft", "linen", "parchment", "aged", "stone", "sage", "sky", "dusk", "blush", "lavender", "terracotta", "saffron", "seafoam", "pistachio", "harbour"] as const;
 const PAPER_NEAREST: Record<string, string> = { butter: "cream", rose: "cream", mint: "sage" };
 export const keptPaper = (id: string) => PAPER_NEAREST[id] ?? id;
 export const paperOf = (id: string) => PAPERS.find((p) => p.id === keptPaper(id))?.id ?? "cream";

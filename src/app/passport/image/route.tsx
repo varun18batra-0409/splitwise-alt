@@ -6,7 +6,7 @@ import { todayKey } from "@/lib/dates";
 import { visitorRegion } from "@/lib/region";
 import { countryOf } from "@/lib/geo";
 import { loadPassport } from "@/lib/passport-db";
-import { passportCounts } from "@/lib/passport";
+import { passportCounts, shareStamps } from "@/lib/passport";
 import { StampArt } from "@/components/stamps/StampArt";
 import { loadOgFonts, worldMapImage } from "@/lib/og-assets";
 
@@ -37,8 +37,8 @@ export async function GET(req: Request) {
   const [fonts, mapSrc] = await Promise.all([loadOgFonts(origin), worldMapImage(origin, p.index.filter((r) => r.trips > 0).map((r) => r.code), p.index.filter((r) => r.trips === 0).map((r) => r.code))]);
   const sans = fonts.some((f) => f.name === "Sans") ? "Sans, SansExt" : undefined;
 
-  // Every stamp, newest trips first, then Been there; the grid shrinks to fit them all (up to 20, then "+N more").
-  const all = [...[...p.stamps].reverse(), ...p.been];
+  // Every country stamp, newest trips first, then Been there (no city stamps from trips at home); the grid shrinks to fit them all (up to 20, then "+N more").
+  const all = shareStamps(p.stamps, p.been);
   const PAGE_W = 446;
   const PAGE_H = 940;
   const cols = all.length <= 6 ? 2 : all.length <= 12 ? 3 : 4;
@@ -119,7 +119,7 @@ export async function GET(req: Request) {
           <div style={{ display: "flex", width: 4, height: 1040, background: "linear-gradient(90deg, #b9b09a, #d9d1bc)" }} />
           {/* Right page: the stamps. */}
           <div style={{ position: "relative", display: "flex", flexDirection: "column", width: 486, height: 1040, padding: "30px 20px", borderRadius: "4px 16px 16px 4px", backgroundColor: PAPER, backgroundImage: `linear-gradient(90deg, rgba(38,35,29,0.18) 0%, rgba(0,0,0,0) 14%), ${print}`, color: INKTEXT }}>
-            <div style={{ display: "flex", paddingLeft: 6, fontSize: 19, color: MUTED, fontWeight: 700 }}>Visas and stamps</div>
+            <div style={{ display: "flex", paddingLeft: 6, fontSize: 19, color: MUTED, fontWeight: 700 }}>Stamps</div>
             <div style={{ display: "flex", flexWrap: "wrap", marginTop: 14 }}>
               {shown.map((s, i) => (
                 <div key={`${s.id}-${i}`} style={{ display: "flex", width: cellW, height: cellH, alignItems: "center", justifyContent: "center" }}>

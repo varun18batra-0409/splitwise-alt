@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PostcardOneSide } from "@/components/postcards/OneSide";
 import { HAND_PICKS, HANDS, INK_PICKS, INKS, LETTERINGS, LETTERING_PICKS, PAPER_PICKS, PAPERS, TONE_PICKS, TONES, handOf, inkColor, inkOf, keptHand, keptInk, keptLettering, keptPaper, keptTone, letteringOf, paperOf, paperTones, toneOf } from "@/lib/postcards/catalog";
 import { LOOKS, LOOK_PICKS, SEAL_COLOURS, SEAL_COLOUR_PICKS, SEAL_DESIGNS, SEAL_DESIGN_PICKS, TOUCH_PICKS, TOUCHES, cleanLook, cleanSeal, cleanTouches, keptLook, lookCss, lookOf, sealOf, touchesOn } from "@/lib/postcards/looks";
 
@@ -8,7 +11,7 @@ describe("postcard editor: what is offered", () => {
   it("the exact lists", () => {
     expect(HAND_PICKS.map((h) => `${h.id}:${h.name}`)).toEqual(["caveat:Classic", "kalam:Casual", "patrick:Neat", "homemade:Inky", "dancing:Flowing", "satisfy:Brush", "parisienne:Parisian", "allura:Formal", "sacramento:Fine", "labelle:Loose", "nothing:Quick", "cedarville:School", "shadows:Light"]);
     expect([...LETTERING_PICKS]).toEqual(["classic", "italic", "elegant", "vogue", "riviera", "roman", "deco", "artdeco", "engraved", "poster", "bold", "typewriter", "script", "signpainter"]);
-    expect([...PAPER_PICKS]).toEqual(["cream", "ivory", "airmail", "kraft", "linen", "parchment", "aged", "stone", "sage", "sky", "dusk", "blush", "lavender"]);
+    expect([...PAPER_PICKS]).toEqual(["cream", "ivory", "airmail", "kraft", "linen", "parchment", "aged", "stone", "sage", "sky", "dusk", "blush", "lavender", "terracotta", "saffron", "seafoam", "pistachio", "harbour"]);
     expect([...INK_PICKS]).toEqual(["navy", "blue", "indigo", "black", "slate", "sepia", "brown", "oxblood", "crimson", "plum", "violet", "green", "teal"]);
     expect([...TONE_PICKS]).toEqual(["white", "ivory", "cream", "gold", "coral", "blush", "sea", "sky", "lilac", "red", "navy", "teal", "plum", "black"]);
     expect([...LOOK_PICKS]).toEqual(["none", "golden", "faded", "matte", "riviera", "cool", "bw", "sepia"]);
@@ -30,7 +33,7 @@ describe("postcard editor: what is offered", () => {
       ["touches", TOUCH_PICKS, TOUCHES.map((t) => t.id)],
     ];
     for (const [name, picked, all] of lists) {
-      expect(picked.length, name).toBeLessThanOrEqual(15);
+      expect(picked.length, name).toBeLessThanOrEqual(name === "papers" ? 18 : 15); // paper is one sideways row of 18
       for (const id of picked) expect(all, `${name}: ${id}`).toContain(id);
       expect(new Set(picked).size, `${name} has no repeats`).toBe(picked.length);
     }
@@ -79,6 +82,24 @@ describe("postcard editor: a dropped choice is drawn as the nearest one offered 
     expect(paperOf("kraft")).toBe("kraft");
     expect(paperOf("lavender")).toBe("lavender");
     expect(paperOf("made-up")).toBe("cream");
+  });
+  it("the five new papers: offered last, exact tones, saved as themselves, drawn by the card and the saved-image drawing alike", () => {
+    expect(PAPER_PICKS).toHaveLength(18);
+    expect([...PAPER_PICKS].slice(-5)).toEqual(["terracotta", "saffron", "seafoam", "pistachio", "harbour"]);
+    const tones: Record<string, string[]> = {
+      terracotta: ["#f9e6d9", "#f1cfba", "#e8bda5"],
+      saffron: ["#fdeec6", "#fbd996", "#f4c670"],
+      seafoam: ["#e2f4f2", "#bce4e2", "#9fd5d6"],
+      pistachio: ["#f0f5d4", "#dfeab4", "#cfdf97"],
+      harbour: ["#e2eaf6", "#c3d4ec", "#aec3e2"],
+    };
+    for (const [id, g] of Object.entries(tones)) {
+      expect(paperOf(id), id).toBe(id); // a saved card keeps it
+      expect([...paperTones(id)], id).toEqual(g); // render.ts (saved and sent images) and Card.tsx both read paperTones
+    }
+    // The card on screen uses the middle tone of the new paper.
+    const oneSide = { size: "medium", front: "print:beach", message: "Hi", hand: "caveat", stamp: "t:airmail", paper: "harbour", place: "Goa", date: "2 JAN 2026", from: "Asha", k: "p" };
+    expect(renderToStaticMarkup(createElement(PostcardOneSide, oneSide))).toContain("#e2eaf6");
   });
   it("ink", () => {
     expect(inkOf("burnt")).toBe("sepia");

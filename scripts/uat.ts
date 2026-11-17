@@ -3633,7 +3633,7 @@ async function main() {
     await go(V, `${trip}/settings`);
     assert((await V.getByLabel("Places").inputValue()) === "Krabi", "Where to? wasn't saved");
     await go(V, "/passport");
-    await V.locator("[data-country-stamp='TH'][data-by-hand='0']").waitFor({ state: "attached" });
+    await V.locator("[data-been-card='trip']").first().waitFor({ state: "attached" }); // the trip's card (no small stamp on it any more)
   });
 
   await step(V, "Fun", "Trip passport opens like a booklet, and several countries from before Loopin can be added at once", async () => {
@@ -3655,8 +3655,8 @@ async function main() {
     await sheet.getByRole("button", { name: "Add 2 countries" }).click();
     await V.waitForURL(/added=2/);
     await go(V, "/passport?all=1"); // every card, however many trips there are
-    await V.locator("[data-country-stamp='TH'][data-by-hand='1']").waitFor({ state: "attached" });
-    await V.locator("[data-country-stamp='JP'][data-by-hand='1']").waitFor({ state: "attached" });
+    await V.locator("[data-been-card='hand'][data-country='TH']").waitFor({ state: "attached" });
+    await V.locator("[data-been-card='hand'][data-country='JP']").waitFor({ state: "attached" });
     await go(V, "/passport?book=1");
     await V.locator("[data-index-country='JP']").waitFor({ state: "attached" });
   });

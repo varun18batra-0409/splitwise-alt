@@ -6,10 +6,10 @@ import { removePlaceAction } from "@/app/passport-actions";
 import { titleFit, type BeenCardData } from "@/lib/passport-cards";
 
 // The one card of the passport's Been tab (mockup 14): the place's photo on the left; its name, cities, dates and days on the
-// right with a tilted stamp (COUNTRY over MON YEAR) and one outline button. A country added by hand is the same card
-// (dashed "been there" stamp, no button, a menu to take it out). Server-drawn.
+// right with one outline button. No small rectangle stamp: the card already says the country in big letters. A country added by hand is the
+// same card (no button, a "…" menu at the top right, level with the name, to take it out). With no photo, the big ring stamp sits where the photo would be. Server-drawn.
 
-// The cream paper of the passport pages, for a card with no photo: the stamp is drawn big on it (and is then the card's only stamp).
+// The cream paper of the passport pages, for a card with no photo: the stamp is drawn big on it (the only stamp a card ever has).
 const PAPER_STYLE = {
   backgroundColor: "#efe8d6",
   backgroundImage:
@@ -74,14 +74,8 @@ export function StampCard({ c }: { c: BeenCardData }) {
     <article className="grid grid-cols-[36%_1fr] gap-1 overflow-hidden rounded-[20px] border border-line bg-white p-1.5" data-been-card={hand ? "hand" : "trip"} data-group={c.groupId} data-country={hand ? c.code : undefined}>
       <Picture c={c} />
       <div className="relative min-w-0 py-2 pl-2.5 pr-2">
-        <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+        <div className={`flex flex-wrap items-start gap-x-2 gap-y-1 ${hand ? "pr-10" : ""}`}>
           <Title text={c.title} />
-          {c.photo && (
-            // Over a photo the stamp sits on the card, tilted; with no photo the cream panel already holds it.
-            <span className="ml-auto mr-1 mt-1 shrink-0">
-              <StampArt variant="card" code={c.code} country={c.countryName} when={c.stampWhen} byHand={hand} scale={0.9} />
-            </span>
-          )}
         </div>
         {c.cities.length > 0 && <p className="mt-1 text-[14px] leading-snug text-fg/75">{c.cities.join(" · ")}</p>}
         {(c.dates || c.days > 0) && (
@@ -104,11 +98,11 @@ export function StampCard({ c }: { c: BeenCardData }) {
           </Link>
         )}
         {hand && (
-          <details className="absolute bottom-0 right-0">
+          <details className="absolute right-[-6px] top-[-2px]">
             <summary aria-label={`More for ${c.title}`} className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full text-fg/75 active:bg-mist [&::-webkit-details-marker]:hidden">
               <DotsIcon size={20} />
             </summary>
-            <form action={removePlaceAction} className="absolute bottom-full right-0 z-10 mb-1 w-52 rounded-[14px] border border-line bg-canvas p-1 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.9)]">
+            <form action={removePlaceAction} className="absolute right-0 top-full z-10 mt-1 w-52 rounded-[14px] border border-line bg-canvas p-1 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.9)]">
               <input type="hidden" name="country" value={c.code} />
               <button type="submit" className="flex min-h-11 w-full items-center rounded-[10px] px-3 text-left text-[14px] text-fg active:bg-mist">
                 Remove from passport
