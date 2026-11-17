@@ -32,7 +32,8 @@ describe("secrets stay where they are needed", () => {
   it("no job puts the live database key (secrets.TURSO_AUTH_TOKEN) in a job-level env", () => {
     // usage.yml and live-stats.yml are about to be deleted from the public repo (they move to the private one), so they are not held to this.
     for (const f of files.filter((x) => x !== "usage.yml" && x !== "live-stats.yml")) {
-      for (const l of jobEnvLines(lines(f))) expect(l, f).not.toMatch(/secrets\.TURSO_AUTH_TOKEN|secrets\.TURSO_READONLY_TOKEN|BACKUP_PASSPHRASE|TURSO_PLATFORM_TOKEN/);
+      // Live keys and the reports write token: a job-level secret reaches every step, including installs. (Staging keys are allowed.)
+      for (const l of jobEnvLines(lines(f))) expect(l, f).not.toMatch(/secrets\.(TURSO_AUTH_TOKEN|TURSO_READONLY_TOKEN|REPORTS_TOKEN)\b|BACKUP_PASSPHRASE|TURSO_PLATFORM_TOKEN/);
     }
   });
 
@@ -135,5 +136,17 @@ describe("the private-repo templates (ops/private-repo)", () => {
     expect(t).toMatch(/retention-days: 14/);
     expect(t).toContain("restore.mjs --drill");
     expect(t).toContain("secrets.DRILL_DB_TOKEN");
+  });
+});
+
+describe("unknown places report", () => {
+  const src = () => readFileSync(".github/workflows/unknown-places.yml", "utf8");
+  it("uses only the read-only database key, never the full one", () => {
+    expect(src()).not.toMatch(/secrets\.TURSO_AUTH_TOKEN|TURSO_READ_TOKEN\b/);
+    expect(src()).toContain("secrets.TURSO_READONLY_TOKEN");
+  });
+  it("pushes the list only after checking the reports repository is private and not this one", () => {
+    expect(src()).toContain('JSON.parse(s).private===true');
+    expect(src()).toContain('THIS_REPO: ${{ github.repository }}');
   });
 });

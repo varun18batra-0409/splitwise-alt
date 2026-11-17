@@ -120,7 +120,9 @@ export function pushAllToReceivers(msgs: PartyMessage[], item: "payments.claimed
   try {
     after(async () => {
       const { sendPushTo } = await import("./push");
-      for (const m of msgs) await sendPushTo([m.toId], m.p, item, m.fromId);
+      // Payment messages reach people who left (it's their money) and blocked pairs (so a wrong payment can be spotted); push.ts limits
+      // blocked pairs to a few an hour. The same exemption pushToReceiver uses.
+      for (const m of msgs) await sendPushTo([m.toId], m.p, item, m.fromId, { includeLeft: true, allowBlocked: true });
     });
   } catch {
     /* not inside a request (tests, scripts): nothing is sent */

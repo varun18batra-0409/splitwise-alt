@@ -11,8 +11,10 @@
 #      and save it here as the repository secret REPORTS_TOKEN.
 #   3. Save the repository's name as the repository variable REPORTS_REPO (Settings → Secrets and variables → Actions → Variables).
 #   Until both exist, the job only says "N places waiting, report repo not set up".
-# RECOMMENDED: a READ-ONLY Turso token, saved as the secret TURSO_READ_TOKEN. It is used when present; otherwise the
-# usual TURSO_AUTH_TOKEN (the same secrets as Live stats).
+#   4. A READ-ONLY Turso token for the live database, saved as the secret TURSO_READONLY_TOKEN (the same one Schema plan uses).
+#      The full live key is never used here: without the read-only token the job only says it is not set up.
+# Each secret is given only to the step that needs it, and the list is pushed only after GitHub confirms REPORTS_REPO is private
+# and is not this repository.
 name: Unknown places
 on:
   schedule:
@@ -24,19 +26,18 @@ jobs:
   report:
     runs-on: ubuntu-24.04
     env:
-      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
       REPORTS_REPO: ${{ vars.REPORTS_REPO }}
-      REPORTS_TOKEN: ${{ secrets.REPORTS_TOKEN }}
     steps:
       - name: Check the secrets are set
         id: ready
         env:
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READ_TOKEN || secrets.TURSO_AUTH_TOKEN }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
         run: |
           if [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ]; then
             echo "ok=1" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning title=Unknown places skipped::Add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Settings → Secrets → Actions."
+            echo "::warning title=Unknown places skipped::Add TURSO_DATABASE_URL and a read-only TURSO_READONLY_TOKEN in Settings → Secrets → Actions."
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.ready.outputs.ok == '1'
@@ -51,12 +52,23 @@ jobs:
       - name: Count the places (names are never printed)
         if: steps.ready.outputs.ok == '1'
         env:
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READ_TOKEN || secrets.TURSO_AUTH_TOKEN }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
+          # Only whether the reports token exists ("set" or empty), never the token itself.
+          REPORTS_TOKEN: ${{ secrets.REPORTS_TOKEN != '' && 'set' || '' }}
         run: node scripts/unknown-places.mjs && cat unknown-places.md >> "$GITHUB_STEP_SUMMARY"
       - name: Save the list to the PRIVATE reports repository
-        if: steps.ready.outputs.ok == '1' && env.REPORTS_REPO != '' && env.REPORTS_TOKEN != ''
+        if: steps.ready.outputs.ok == '1' && env.REPORTS_REPO != ''
+        env:
+          REPORTS_TOKEN: ${{ secrets.REPORTS_TOKEN }}
+          THIS_REPO: ${{ github.repository }}
         run: |
+          [ -n "$REPORTS_TOKEN" ] || exit 0
           [ -f unknown-places.json ] || exit 0
+          # Never this (public) repository, and only a repository GitHub says is private.
+          if [ "$(echo "$REPORTS_REPO" | tr A-Z a-z)" = "$(echo "$THIS_REPO" | tr A-Z a-z)" ]; then echo "::error title=Reports repository::REPORTS_REPO is this public repository; refusing."; exit 1; fi
+          priv=$(curl -fsS -H "Authorization: Bearer ${REPORTS_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${REPORTS_REPO}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).private===true))}catch{process.stdout.write("false")}})') || priv=false
+          [ "$priv" = "true" ] || { echo "::error title=Reports repository::REPORTS_REPO is not a private repository the token can see; refusing."; exit 1; }
           mkdir /tmp/r && cp unknown-places.json /tmp/r/ && cd /tmp/r
           git init -q -b places-report && git add unknown-places.json
           git -c user.name=ci -c user.email=ci@loopin.invalid commit -qm "Places without a photo, $(date -u +%F)"
