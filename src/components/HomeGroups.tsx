@@ -65,7 +65,7 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
                 noteTone={status.tone === "square" ? undefined : status.tone}
                 photoClass="aspect-square max-h-[104px]"
                 captionClass="text-[19px]"
-                noteClass="text-[13px]"
+                noteClass="text-[13px] max-[359px]:text-[12px]"
                 wrapCaption
                 wrapNote
                 sizes="(max-width: 430px) 40vw, 150px"

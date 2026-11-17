@@ -21,12 +21,12 @@ export function TopBar({ title, steps, step, onStep, onBack, backHref, visibleTi
   const circle = "flex size-11 shrink-0 items-center justify-center rounded-full border border-fg/15 bg-[#16161a] text-fg active:scale-95";
   const at = steps.findIndex((s) => s.id === step);
   const tabs = (
-    <div role="tablist" aria-label="Postcard steps" className="flex items-center justify-center gap-1">
+    <div role="tablist" aria-label="Postcard steps" className="flex min-w-0 items-center justify-center gap-1 max-[359px]:gap-0.5">
       {steps.map((s, n) => (
-        <span key={s.id} role="presentation" className="flex items-center gap-1">
-          {n > 0 && <span aria-hidden className="h-px w-3 bg-fg/30" />}
-          <button type="button" role="tab" aria-selected={step === s.id} onClick={() => onStep(s.id)} data-step={s.id} className="flex h-11 items-center px-0.5 text-[13px] font-semibold">
-            <span className={`flex h-7 items-center gap-1.5 rounded-full px-3 ${step === s.id ? "bg-fg text-canvas" : n < at && done?.[s.id] !== false ? "text-fg/85" : "text-fg/60"}`}>
+        <span key={s.id} role="presentation" className="flex items-center gap-1 max-[359px]:gap-0.5">
+          {n > 0 && <span aria-hidden className="h-px w-3 bg-fg/30 max-[359px]:w-1.5" />}
+          <button type="button" role="tab" aria-selected={step === s.id} onClick={() => onStep(s.id)} data-step={s.id} className="flex h-11 items-center px-0.5 text-[13px] font-semibold max-[359px]:px-0">
+            <span className={`flex h-7 items-center gap-1.5 rounded-full px-3 max-[359px]:gap-1 max-[359px]:px-2 ${step === s.id ? "bg-fg text-canvas" : n < at && done?.[s.id] !== false ? "text-fg/85" : "text-fg/60"}`}>
               {n < at && done?.[s.id] !== false && <span aria-hidden className="text-fg/85">{Icons.check}</span>}
               {s.name}
             </span>

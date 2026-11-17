@@ -37,6 +37,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
 import { GroupTypeSheet } from "@/components/GroupTypeSheet";
+import { offersTypeSheet } from "@/lib/group-type-sheet";
 import { GamesTab } from "./_components/GamesTab";
 import { gamesToSettle, loadGames } from "@/lib/pot-db";
 import { canAddMoment, loadMomentViewer } from "@/lib/moments-access";
@@ -234,7 +235,7 @@ export default async function GroupPage({
                 key={t.id}
                 href={`/groups/${group.id}?tab=${t.id}`}
                 aria-current={lit ? "page" : undefined}
-                className={`relative flex min-h-11 items-center justify-center whitespace-nowrap pb-1 text-[14px] font-semibold transition-colors min-[360px]:text-[15px] ${lit ? "text-fg" : "text-fg/60"}`}
+                className={`relative flex min-h-11 items-center justify-center whitespace-nowrap pb-1 text-[14px] max-[359px]:text-[13px] font-semibold transition-colors min-[360px]:text-[15px] ${lit ? "text-fg" : "text-fg/60"}`}
               >
                 {t.label}
                 {lit && <span aria-hidden className="absolute inset-x-1 -bottom-px h-[2px] rounded-full bg-fg" />}
@@ -291,7 +292,7 @@ export default async function GroupPage({
       <LeftFootnote v={v} />
 
       {/* A brand-new flat, couple or card night: what's special about it, once on this device. */}
-      {!leaver && active.length === 0 && (group.type === "home" || group.type === "couple" || group.type === "pot") && <GroupTypeSheet groupId={group.id} type={group.type} showNote={!(pot && tab === "games")} />}
+      {offersTypeSheet({ type: group.type, closed: group.closed, left: Boolean(leaver), activeCount: active.length }) && <GroupTypeSheet groupId={group.id} type={group.type} showNote={!(pot && tab === "games")} />}
 
       {showUndo && (
         <UndoBar

@@ -1,3 +1,4 @@
+import { compactName } from "@/lib/format";
 import { neutralGameText } from "@/lib/game-words";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { Confetti } from "@/components/Confetti";
@@ -62,6 +63,7 @@ export default async function GroupSettle({
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
+  const short = (mid: string) => (mid === myId ? "You" : compactName(group.members.find((m) => m.id === mid)?.name ?? "Someone", group.members.map((m) => m.name)));
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (n: number) => formatMoney(n, group.currency);
   // The payment rows: if any has paise, every row keeps its two decimals so they line up (₹2,670.00 beside ₹30,723.44).
@@ -367,7 +369,7 @@ export default async function GroupSettle({
                       <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-[14px] text-fg/75">
-                            <b className="font-semibold text-fg">{nameOf(t.from)}</b> pays <b className="font-semibold text-fg">{nameOf(t.to)}</b>
+                            <b className="font-semibold text-fg">{short(t.from)}</b> pays <b className="font-semibold text-fg">{short(t.to)}</b>
                           </p>
                           <p className="font-display text-[20px] font-medium leading-tight tracking-[-0.02em] lining-nums tabular-nums">{listFmt(t.amount)}</p>
                         </div>

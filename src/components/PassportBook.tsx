@@ -265,7 +265,7 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
             <span className="mt-14">
               <Emblem />
             </span>
-            <span className="mt-12 font-display text-[30px] font-semibold tracking-[0.28em]">PASSPORT</span>
+            <span className="mt-12 font-display text-[30px] font-semibold tracking-[0.28em] max-[389px]:text-[26px] max-[389px]:tracking-[0.2em]">PASSPORT</span>
             <span className="mt-3 h-px w-14" style={{ background: GOLD }} aria-hidden />
             <span className="mt-3 text-[13px] opacity-80">{name || "Traveller"}</span>
             {(counts.countries > 0 || counts.stamps > 0) && (

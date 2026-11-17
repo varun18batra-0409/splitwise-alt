@@ -46,8 +46,8 @@ export default async function StampAlbumPage() {
                 className={`block w-[72px] [&>svg]:h-auto [&>svg]:w-full ${got ? `drop-shadow-[0_3px_4px_rgba(0,0,0,0.5)] ${i % 2 ? "rotate-[2deg]" : "-rotate-[2deg]"}` : "opacity-[0.55] grayscale"}`}
                 dangerouslySetInnerHTML={{ __html: stampSvg(withHome(id, home), `al${i}`) }}
               />
-              <span className={`mt-2 text-[12.5px] font-semibold ${got ? "text-fg" : "text-fg/75"}`}>{r.name}</span>
-              <span className={`text-[11px] ${open ? "text-[#e2c27a]" : "text-fg/70"}`}>{open ? "On issue now" : rareWhen(id)}</span>
+              <span className={`mt-2 text-[12.5px] font-semibold leading-tight [overflow-wrap:normal] [text-wrap:balance] max-[389px]:min-h-[2.5em] ${got ? "text-fg" : "text-fg/75"}`}>{r.name}</span>
+              <span className={`text-[11px] [text-wrap:balance] ${open ? "text-[#e2c27a]" : "text-fg/70"}`}>{open ? "On issue now" : rareWhen(id)}</span>
             </li>
           );
         })}

@@ -1,3 +1,4 @@
+import { keepAmp } from "@/lib/format";
 import { roundToWhole } from "@/lib/round-whole";
 import Link from "@/components/Link";
 import { getCategory } from "@/lib/categories";
@@ -250,7 +251,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           <ul className="space-y-3 text-sm">
             {s.byCategory.slice(0, 6).map((c) => (
               <li key={c.id} className="grid grid-cols-[96px_1fr_84px] items-center gap-2.5">
-                <span className="line-clamp-2 break-words leading-tight" data-category-name>{getCategory(c.id).short}</span>
+                <span className="line-clamp-2 break-words leading-tight" data-category-name>{keepAmp(getCategory(c.id).short)}</span>
                 <span className="h-2 overflow-hidden rounded-full bg-mist">
                   <span className="block h-full rounded-full bg-gray-600" style={{ width: `${Math.max(2, Math.round((Math.max(0, c.amount) * 100) / Math.max(1, s.byCategory[0].amount)))}%` }} />
                 </span>
@@ -273,7 +274,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             {extras.budgets.map((b) => (
               <li key={b.category}>
                 <div className="flex justify-between text-sm">
-                  <span>{getCategory(b.category).label}</span>
+                  <span>{keepAmp(getCategory(b.category).label)}</span>
                   <span>
                     <span className={`money tabular-nums ${b.level === "over" ? "text-owe" : ""}`}><span title={money(b.spent)} data-exact={money(b.spent)}>{overviewMoney(b.spent, group.currency)}</span></span>{" "}
                     <span className="text-gray-500">of {money(b.amount)}</span>

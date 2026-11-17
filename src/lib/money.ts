@@ -159,6 +159,11 @@ export function formatMoney(minor: number, currency = "INR", opts?: { keepDecima
   return `${currency} ${new Intl.NumberFormat("en-US", fmt).format(minor / 10 ** d)}`;
 }
 
+// For display only: keeps a currency code with its number ("THB 5,099.17" never splits as "THB" / "5,099.17").
+export function glueAmounts(text: string): string {
+  return text.replace(/\b([A-Z]{3}) (?=\d)/g, "$1\u00a0");
+}
+
 export function formatPercent(bp: number): string {
   return `${Number((bp / 100).toFixed(2))}%`; // 300 → "3%", 350 → "3.5%", 3333 → "33.33%"
 }

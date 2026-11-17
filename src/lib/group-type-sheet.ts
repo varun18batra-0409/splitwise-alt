@@ -52,6 +52,12 @@ export function sheetFor(type: string, groupId: string): TypeSheet | null {
   return null;
 }
 
+// Whether the page offers the sheet at all: a brand-new flat, couple or card night, for someone still in it. Never for a closed group
+// (it is finished: there is nothing to set up), and never when there is already something in it.
+export function offersTypeSheet(o: { type: string; closed: boolean; left: boolean; activeCount: number }): boolean {
+  return !o.closed && !o.left && o.activeCount === 0 && (o.type === "home" || o.type === "couple" || o.type === "pot");
+}
+
 // "Shown once", remembered per phone and per group. Storage can be blocked or full (private
 // browsing, strict settings): that must never break the page, so every call is guarded.
 type Store = Pick<Storage, "getItem" | "setItem">;

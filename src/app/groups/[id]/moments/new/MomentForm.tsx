@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { shrink } from "@/components/OwnPhoto";
 import { releaseSubmit } from "@/components/DoubleTapGuard";
@@ -26,8 +26,16 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
   const [caption, setCaption] = useState("");
   const [day, setDay] = useState("");
   const [error, setError] = useState("");
+  const box = useRef<HTMLTextAreaElement>(null);
   const count = graphemeCount(caption);
   const over = count > MOMENT_CAPTION_MAX;
+  // The box grows with the words (never cut off at the bottom, even at 80 characters on a narrow phone).
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + (el.offsetHeight - el.clientHeight)}px`;
+  }, [caption]);
 
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -116,6 +124,7 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
         </span>
         {/* Two lines, so all 80 characters are in view. Enter does not add a line break (a caption is one line of words). */}
         <textarea
+          ref={box}
           value={caption}
           rows={2}
           onChange={(e) => setCaption(e.target.value.replace(/[\r\n]+/g, " "))}
@@ -124,7 +133,7 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
           }}
           placeholder="e.g. The boat we almost missed"
           autoComplete="off"
-          className={`${inputClass} emoji-font resize-none leading-snug placeholder:text-fg/35!`}
+          className={`${inputClass} emoji-font resize-none overflow-hidden leading-snug placeholder:text-fg/35!`}
           aria-invalid={over}
         />
       </label>

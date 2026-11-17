@@ -29,7 +29,7 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
       ) : (
         <Art kind={h.art} />
       )}
-      <p className="relative z-[1] max-w-[66%] truncate text-sm text-fg/55">{h.eyebrow}</p>
+      <p className="relative z-[1] max-w-[66%] text-sm leading-snug text-fg/55 [text-wrap:balance]">{h.eyebrow}</p>
       <p className="relative z-[1] mt-1 max-w-[60%] font-display text-[25px] font-semibold leading-[1.1]">{h.title}</p>
       <p className="relative z-[1] mt-auto max-w-[60%] pt-2 text-[13px] leading-snug text-gray-700">{h.text}</p>
       <Link href={h.href} className={`relative z-[1] mt-3 ${button}`}>

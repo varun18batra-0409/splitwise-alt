@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { revealSelected } from "@/lib/reveal-selected";
 
 export type ToolDef = { id: string; name: string; icon: React.ReactNode };
 
@@ -22,6 +23,7 @@ export function ToolRow({ label, tools, active, onPick }: { label: string; tools
       ro?.disconnect();
     };
   }, [tools.length]);
+  useEffect(() => revealSelected(ref.current, 4), [active]);
   return (
     <nav aria-label={label} className="flex-none">
       <div ref={ref} className="flex gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none]" style={more ? { WebkitMaskImage: "linear-gradient(to right,#000 calc(100% - 28px),transparent)", maskImage: "linear-gradient(to right,#000 calc(100% - 28px),transparent)" } : undefined} data-tool-row>

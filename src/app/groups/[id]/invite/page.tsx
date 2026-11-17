@@ -227,9 +227,9 @@ export default async function AddPeoplePage({
           <p className="mb-2 mt-8 text-sm text-gray-500">Invited · waiting to join</p>
           <ul className="divide-y divide-line rounded-2xl border border-line">
             {looseInvites.map((i) => (
-              <li key={i.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={i.id} className="flex items-center gap-3 px-4 py-3 max-[389px]:flex-wrap max-[389px]:gap-y-1">
                 {/* The email someone typed is shown only to the person who invited; everyone else sees that an invitation is out. */}
-                <span className="min-w-0 flex-1 truncate text-sm" data-invite-row>
+                <span className="min-w-0 flex-1 truncate text-sm max-[389px]:basis-full" data-invite-row>
                   {inviteRowLabel(i, myId, nameOf(i.invitedById))}
                 </span>
                 <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs text-gray-500">Invited · hasn’t joined yet</span>
@@ -257,13 +257,13 @@ export default async function AddPeoplePage({
                   ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
                   : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
           return (
-            <li key={m.id} className="flex items-center gap-3 px-4 py-3.5">
+            <li key={m.id} className="flex items-center gap-3 px-4 py-3.5 max-[389px]:flex-wrap max-[389px]:gap-y-1">
               <Avatar name={m.name} you={me} />
-              <span className="min-w-0 flex-1 truncate font-medium">
+              <span className="min-w-0 flex-1 truncate font-medium max-[389px]:basis-[calc(100%-52px)] max-[389px]:[white-space:normal]">
                 {m.name}
                 {me && <span className="text-gray-400"> (you)</span>}
               </span>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${status.cls}`} data-member-status={me ? "me" : undefined}>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap max-[389px]:ml-[52px] ${status.cls}`} data-member-status={me ? "me" : undefined}>
                 {status.text}
               </span>
             </li>

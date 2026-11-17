@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode, type CSSProperties } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import Link from "./Link";
@@ -89,7 +89,7 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
                     <Picture s={s} uid={`st-${s.id}`} />
                   </span>
                 </span>
-                <span className={`block w-full truncate text-[13px] leading-tight ${isNew ? "text-fg" : "text-fg/70"}`} data-story-label>
+                <span className={`line-clamp-2 w-full text-[13px] leading-tight ${isNew ? "text-fg" : "text-fg/70"}`} data-story-label>
                   {storyShort(s.short ?? s.label)}
                 </span>
               </button>
@@ -159,7 +159,7 @@ function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
         )}
         <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[110px] pt-24">
           <Sticker>{f.kicker}</Sticker>
-          <p className="mt-1 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
+          <p className="mt-1 font-display text-[length:var(--fs)] font-semibold leading-[0.95] tracking-[-0.02em] [overflow-wrap:normal] max-[389px]:text-[length:var(--fsn)]" style={{ "--fs": `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)`, "--fsn": `min(84px, ${Math.floor(138 / Math.max(5, f.big.length))}vw)` } as CSSProperties} data-story-headline>
             {f.big}
           </p>
           <span aria-hidden className="mt-5 block h-[3px] w-14 rounded-full" style={{ background: accent }} />

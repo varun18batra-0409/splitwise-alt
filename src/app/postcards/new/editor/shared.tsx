@@ -23,7 +23,7 @@ export function Strip({ children, className = "", ...rest }: { children: ReactNo
 // The options panel for one tool: it sits right above the tool row. Long panels scroll inside themselves, never the page.
 export function Panel({ tool, label, children, action }: { tool: string; label: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section aria-label={label} data-panel={tool} className="max-h-[40svh] min-h-[7rem] shrink overflow-y-auto rounded-[18px] border border-fg/10 bg-[#16161a] px-3.5 py-3">
+    <section aria-label={label} data-panel={tool} className="max-h-[40svh] min-h-[7rem] shrink overflow-y-auto max-[359px]:max-h-none max-[359px]:shrink-0 rounded-[18px] border border-fg/10 bg-[#16161a] px-3.5 py-3">
       <div className="mb-1 flex min-h-6 items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold">{label}</h2>
         {action}

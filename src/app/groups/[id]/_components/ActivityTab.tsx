@@ -134,7 +134,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               </div>
               <div className="flex gap-2">
                 <SelectField name="cat" defaultValue={filter.cat ?? ""} aria-label="Category" size="sm" className="min-w-0 flex-1">
-                  <option value="">All categories</option>
+                  <option value="">Category</option>
                   {CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.short}

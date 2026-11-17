@@ -2,6 +2,7 @@
 
 import { avatarTone } from "@/components/ui";
 import { ExpenseGlyph } from "./ExpenseGlyph";
+import { revealSelected } from "@/lib/reveal-selected";
 import { useEffect, useMemo, useReducer, useRef, useState, useTransition } from "react";
 import { markupBox, markupBoxStart, markupBoxValue } from "@/lib/markup-box";
 import { addExpense, lookupRate } from "@/app/actions";
@@ -20,7 +21,7 @@ import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { MAX_ITEM_LINES, splitByItems } from "@/lib/item-split";
 import { chooseSplit, splitFields, type SplitAction } from "@/lib/split-draft";
-import { niceDate, rateText } from "@/lib/format";
+import { compactName, niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
 import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
@@ -80,7 +81,8 @@ export function AddExpenseForm({
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
-  const who = (id: string) => (id === myId ? "You" : nameOf(id));
+  const payerRow = useRef<HTMLDivElement>(null);
+  const who = (id: string) => (id === myId ? "You" : compactName(nameOf(id), members.map((m) => m.name)));
 
   // 1–4: what, how much, category, currency
   const [name, setName] = useState(initial?.name ?? "");
@@ -123,6 +125,7 @@ export function AddExpenseForm({
   // 5–7: who paid, who it was for, how to split
   const [showPeople, setShowPeople] = useState(Boolean(initialItems?.length)); // editing a split by item: open on the items
   const [paidById, setPaidById] = useState(initial?.paidById ?? myId);
+  useEffect(() => revealSelected(payerRow.current), [paidById]); // the chosen payer is always fully in view
   const [multiPay, setMultiPay] = useState(Boolean(initial?.multiPay));
   const [kind, setKind] = useState<"expense" | "refund">(initial?.kind ?? "expense");
   const multiLabel = kind === "refund" ? "More than one person got it" : "More than one person paid";
@@ -939,7 +942,7 @@ export function AddExpenseForm({
           <span id="who-paid-label" className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
           {/* One scrolling row, with a fade at the right edge so a cut-off name reads as "more this way". With several payers the single choice is off. */}
           <div className={`relative -mx-5 ${multiPay ? "opacity-40" : ""}`} data-payer-row aria-disabled={multiPay || undefined}>
-            <div role="group" aria-labelledby="who-paid-label" className={`flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none] ${multiPay ? "pointer-events-none" : ""}`}>
+            <div ref={payerRow} role="group" aria-labelledby="who-paid-label" className={`flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none] ${multiPay ? "pointer-events-none" : ""}`}>
               {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
                 <Chip
                   key={m.id}

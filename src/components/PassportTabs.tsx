@@ -23,7 +23,7 @@ export function PassportArt() {
         <g transform="rotate(14 60 52)">
           <rect x="34" y="8" width="54" height="76" rx="5" fill="#4a1a24" stroke="#f4f2ec" strokeOpacity="0.25" />
           <rect x="34" y="8" width="6" height="76" rx="3" fill="#2e0f16" />
-          <text x="64" y="30" textAnchor="middle" fontSize="7.5" fontWeight="600" letterSpacing="1.6" fill="#ece8dc" fillOpacity="0.75" style={{ fontFamily: "var(--font-display), serif" }}>
+          <text x="64" y="30" textAnchor="middle" fontSize="6.6" fontWeight="600" letterSpacing="0.9" fill="#ece8dc" fillOpacity="0.75" style={{ fontFamily: "var(--font-display), serif" }}>
             PASSPORT
           </text>
           <g stroke="#ece8dc" strokeOpacity="0.7" strokeWidth="1.1">

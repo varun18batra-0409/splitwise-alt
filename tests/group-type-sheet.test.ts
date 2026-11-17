@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHEET_OFF_KEY, markSheetSeen, sheetFor, sheetKey, shouldShowSheet } from "@/lib/group-type-sheet";
+import { SHEET_OFF_KEY, markSheetSeen, offersTypeSheet, sheetFor, sheetKey, shouldShowSheet } from "@/lib/group-type-sheet";
 
 // A tiny phone storage, and one that is blocked (private browsing, strict settings).
 const memory = () => {
@@ -68,5 +68,20 @@ describe("the one-time group-type sheet: shown once per phone and group", () => 
     expect(shouldShowSheet(null, "g")).toBe(false);
     expect(shouldShowSheet(undefined, "g")).toBe(false);
     expect(() => markSheetSeen(undefined, "g")).not.toThrow();
+  });
+});
+
+describe("when the page offers the sheet at all", () => {
+  const base = { type: "home", closed: false, left: false, activeCount: 0 };
+  it("a new open flat, couple or card night offers it", () => {
+    for (const type of ["home", "couple", "pot"]) expect(offersTypeSheet({ ...base, type })).toBe(true);
+  });
+  it("a CLOSED group never does, even with nothing in it", () => {
+    for (const type of ["home", "couple", "pot"]) expect(offersTypeSheet({ ...base, type, closed: true })).toBe(false);
+  });
+  it("not for someone who left, a group with spending in it, or a trip", () => {
+    expect(offersTypeSheet({ ...base, left: true })).toBe(false);
+    expect(offersTypeSheet({ ...base, activeCount: 2 })).toBe(false);
+    expect(offersTypeSheet({ ...base, type: "trip" })).toBe(false);
   });
 });

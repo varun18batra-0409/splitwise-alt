@@ -833,3 +833,14 @@ body:has([data-tint]) {
     animation: none;
   }
 }
+
+/* Words fit (review of cut-off text): short headings and lines break evenly, so a lone last word ("yet", "app") is rare.
+   `pretty` for paragraphs (only avoids a single orphan word), `balance` for headings. CSS only, no copy changes. */
+h1,
+h2,
+h3 {
+  text-wrap-style: balance; /* the style only: never touches nowrap / truncate */
+}
+p {
+  text-wrap-style: pretty;
+}

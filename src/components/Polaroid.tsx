@@ -54,12 +54,12 @@ export function Polaroid({
         <span aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(160deg,rgba(255,255,255,0.10),transparent_40%,rgba(0,0,0,0.12))]" />
         {children}
       </span>
-      <span className="block px-1 pb-1.5 pt-0.5 leading-none" style={{ color: INK }}>
+      <span className="block px-1 pb-1.5 pt-0.5 leading-none max-[389px]:pb-2.5" style={{ color: INK }}>
         <span className={`block font-hand font-bold leading-[1.1] ${wrapCaption ? "line-clamp-2 break-words [text-wrap:balance]" : "truncate"} ${captionClass}`} title={wrapCaption ? caption : undefined}>
           {caption}
         </span>
         {note && (
-          <span className={`mt-0.5 block font-semibold tabular-nums ${wrapNote ? "line-clamp-2 break-words" : "truncate"} ${noteClass}`} style={{ color: noteTone === "owed" ? INK_OWED : noteTone === "owe" ? INK_OWE : "#6d685e" }}>
+          <span className={`mt-0.5 block font-semibold tabular-nums ${wrapNote ? "line-clamp-2 break-words [text-wrap:balance]" : "truncate"} ${noteClass}`} style={{ color: noteTone === "owed" ? INK_OWED : noteTone === "owe" ? INK_OWE : "#6d685e" }}>
             {note}
           </span>
         )}

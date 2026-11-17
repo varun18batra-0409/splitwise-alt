@@ -26,7 +26,7 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
             className={`inline-flex min-h-11 max-w-full shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 text-sm ${s.key === set.key ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`}
           >
             {s.label}
-            {!s.hideCount && <span className={s.key === set.key ? "text-fg/55" : "text-fg/60"}> {s.countries.length}</span>}
+            {!s.hideCount && <span className={s.key === set.key ? "text-fg/55" : "text-fg/60"}>{"\u00a0·\u00a0"}{s.countries.length}</span>}
           </button>
         ))}
       </div>

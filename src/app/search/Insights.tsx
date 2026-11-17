@@ -1,3 +1,4 @@
+import { keepAmp } from "@/lib/format";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
@@ -203,7 +204,7 @@ export function Insights({ d }: { d: InsightsData }) {
                   <ExpenseGlyph title="" category={c.id} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="line-clamp-2 min-w-0 break-words font-medium leading-tight" data-category-name>{cat.label}</span>
+                      <span className="line-clamp-2 min-w-0 break-words font-medium leading-tight" data-category-name>{keepAmp(cat.label)}</span>
                       <span className="shrink-0 tabular-nums text-fg/80" title={formatMoney(c.amount, d.currency)} data-exact={formatMoney(c.amount, d.currency)}>
                         {approx}
                         {overviewMoney(catShown[n] ? catShown[n] : c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>

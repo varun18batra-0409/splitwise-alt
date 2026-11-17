@@ -43,11 +43,11 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
     const status = pillHidden ? "" : badge ? badge.label : b.bill.nature === "daily" ? "Review days" : b.due ? `Due ${shortDate(b.due)}` : "";
     const tone = badge ? CHIP[badge.tone] : "border-fg/15 text-fg/55";
     return (
-      <li key={b.bill.id} className="flex items-center gap-3 rounded-[20px] border border-line bg-white p-3.5" data-bill-state={pillHidden ? badge?.id : undefined}>
-        <Link href={`/groups/${group.id}/bills/${b.bill.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+      <li key={b.bill.id} className="flex items-center gap-3 rounded-[20px] border border-line bg-white p-3.5 max-[389px]:flex-wrap max-[389px]:gap-y-2" data-bill-state={pillHidden ? badge?.id : undefined}>
+        <Link href={`/groups/${group.id}/bills/${b.bill.id}`} className="flex min-w-0 flex-1 items-center gap-3 max-[389px]:basis-[calc(100%-32px)]">
           <ExpenseGlyph title={b.bill.name} category="bills" emoji={BILL_EMOJI[b.bill.icon]} size={44} />
-          <span className="min-w-0 flex-1">
-            <span className="block break-words font-display text-[17px] font-semibold leading-tight tracking-tight">{b.bill.name}</span>
+          <span className="min-w-0 flex-1 max-[389px]:min-w-[120px]">
+            <span className="block [overflow-wrap:break-word] font-display text-[17px] font-semibold leading-tight tracking-tight">{b.bill.name}</span>
             <span className="block text-[13px] text-fg/60">
               {cadence}{b.bill.nature === "daily" ? "" : ` · ${ordinalDay(b.bill.day).replace(/^last day$/, "Last day")}`} · {who}
               {turns}
@@ -56,7 +56,7 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
             {b.status === "waiting" && hold === "fix" && b.reason && <span className="block text-xs text-fg/75">On hold: {b.reason}</span>}
           </span>
         </Link>
-        <span className="flex shrink-0 flex-col items-end gap-1.5 text-right">
+        <span className="flex shrink-0 flex-col items-end gap-1.5 text-right max-[389px]:order-3 max-[389px]:basis-full max-[389px]:flex-row max-[389px]:flex-wrap max-[389px]:items-center max-[389px]:justify-between max-[389px]:pl-14">
           {b.status === "waiting" ? (
             <Link
               href={hold === "fix" ? `/groups/${group.id}/bills/${b.bill.id}` : `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}`}
@@ -74,7 +74,7 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
             </span>
           )}
         </span>
-        <ChevronRight size={16} className="shrink-0 text-fg/55" />
+        <ChevronRight size={16} className="shrink-0 text-fg/55 max-[389px]:order-2" />
       </li>
     );
   };

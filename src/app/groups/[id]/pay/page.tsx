@@ -1,3 +1,4 @@
+import { compactName } from "@/lib/format";
 import Link from "@/components/Link";
 import { FocusOnShow } from "@/components/FocusOnShow";
 import { notFound, redirect } from "next/navigation";
@@ -59,6 +60,7 @@ export default async function RecordPayment({
   const qAmount = sp.amount ?? (pre ? toInputAmount(pre.amount, group.currency) : "");
   const from = isMember(qFrom) ? qFrom! : myId;
   const to = isMember(qTo) && qTo !== from ? qTo! : "";
+  const short = (mid: string) => (mid === myId ? "You" : compactName(group.members.find((m) => m.id === mid)?.name ?? "Someone", group.members.map((m) => m.name)));
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (m: number) => formatMoney(m, group.currency);
   const fill = (f: string, t: string, a: number) =>
@@ -109,7 +111,7 @@ export default async function RecordPayment({
                 <li key={`${t.from}-${t.to}`}>
                   <Link href={fill(t.from, t.to, t.amount)} className="flex min-h-11 items-center justify-between gap-3 py-2 text-[14px] active:opacity-70">
                     <span className="min-w-0 truncate">
-                      {nameOf(t.from)} → {t.to === myId ? "you" : nameOf(t.to)}
+                      {short(t.from)} → {t.to === myId ? "you" : short(t.to)}
                     </span>
                     <span className="shrink-0 font-semibold tabular-nums">{money(t.amount)}</span>
                   </Link>

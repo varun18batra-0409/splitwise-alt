@@ -2,7 +2,7 @@ import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { payerIds, payersOf, spentAmount } from "@/lib/payers";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { dayKey, expenseDate } from "@/lib/dates";
-import { niceDate } from "@/lib/format";
+import { niceDate, keepAmp } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import { overviewMoney, percentsTo100, roundPartsToTotal } from "@/lib/money-display";
 import { Amt } from "@/components/Amt";
@@ -62,7 +62,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
         cats.set(c, (cats.get(c) ?? 0) + sign(e) * sh);
       }
       const parts = CATEGORIES.filter((c) => (cats.get(c.id) ?? 0) > 0)
-        .map((c) => ({ id: c.id, label: c.short, amount: cats.get(c.id)!, href: `/search?g=${group.id}&c=${c.id}` }))
+        .map((c) => ({ id: c.id, label: keepAmp(c.short), amount: cats.get(c.id)!, href: `/search?g=${group.id}&c=${c.id}` }))
         .sort((a, b) => b.amount - a.amount);
       return { id: mem.id, name: mem.id === myId ? "You" : `${mem.name}${mem.leftAt || mem.removedAt ? " (left)" : ""}`, total: parts.reduce((t, x) => t + x.amount, 0), parts };
     })

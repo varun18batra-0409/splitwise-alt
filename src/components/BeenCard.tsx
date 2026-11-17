@@ -56,9 +56,11 @@ function TripWords({ c }: { c: BeenCardData }) {
 }
 
 // The title wraps only at spaces and "·", never inside a word; one very long word steps the type down for this card.
+// A title with a very long word ("Thiruvananthapuram") takes the line to itself, so the stamp drops under it instead of covering its end.
 function Title({ text }: { text: string }) {
+  const longWord = Math.max(0, ...text.split(/\s+/).map((w) => w.length)) > 11;
   return (
-    <div className="@container min-w-[9ch] flex-1">
+    <div className={`@container min-w-[9ch] ${longWord ? "max-w-full flex-auto" : "flex-1"}`}>
       <h3 className="font-display font-semibold leading-tight tracking-tight [overflow-wrap:normal] [word-break:normal]" style={{ fontSize: titleFit(text, 22) }}>
         {text}
       </h3>

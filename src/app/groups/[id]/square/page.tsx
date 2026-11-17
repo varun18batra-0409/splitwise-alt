@@ -65,7 +65,16 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
                 <div key={l} className="rounded-2xl border border-line px-2 py-3">
                   <dt className="sr-only">{l}</dt>
                   <dd className="money text-lg font-semibold tabular-nums">{v}</dd>
-                  <dd className="text-xs text-gray-500">{l}</dd>
+                  <dd className="text-xs text-gray-500" aria-hidden>
+                    {l === "spent together" ? (
+                      <>
+                        <span className="max-[359px]:hidden">{l}</span>
+                        <span className="min-[360px]:hidden">spent</span>
+                      </>
+                    ) : (
+                      l
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>

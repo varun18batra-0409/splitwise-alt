@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { revealSelected } from "@/lib/reveal-selected";
 
 // A row of chips that scrolls sideways. Names are never cut with "…": a long one is a long chip, and the row scrolls.
 // The row runs to the screen's edges (so the next chip is seen coming in), and while there is more to the right a soft fade
@@ -21,6 +22,8 @@ export function ChipRow({ label, children, dataKey }: { label: string; children:
       ro?.disconnect();
     };
   }, []);
+  // The picked chip is always in full view when the row opens or changes.
+  useEffect(() => revealSelected(el.current));
   return (
     <div className="relative -mx-5 mb-5">
       <nav ref={el} aria-label={label} className="flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" {...(dataKey ? ({ [dataKey]: "" } as Record<string, string>) : {})}>

@@ -60,7 +60,7 @@ export default async function MemoriesPage({ searchParams }: { searchParams: Pro
                       <span aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(160deg,rgba(255,255,255,0.10),transparent_40%,rgba(0,0,0,0.12))]" />
                     </span>
                     <span className="block px-1 pb-1.5 pt-0.5 leading-none" style={{ color: INK }}>
-                      <span className="block truncate font-hand text-[20px] font-bold leading-[1.1]" data-memory-caption>
+                      <span className="line-clamp-2 break-words font-hand text-[20px] font-bold leading-[1.1] [text-wrap:balance]" data-memory-caption>
                         {m.caption || "A moment"}
                       </span>
                       <span className="mt-0.5 block truncate text-[11px] font-semibold text-[#6d685e]" data-memory-group>

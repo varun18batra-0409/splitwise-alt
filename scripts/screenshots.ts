@@ -20,13 +20,24 @@ mkdirSync(out, { recursive: true });
 // A page screenshot. The browser can't save a picture taller than 32767 device pixels, so a very long page (a phone at 2x, like the guide)
 // is saved in parts of at most 30000 pixels: name.png when it fits, otherwise name-part1.png, name-part2.png, ... Short pages are unchanged.
 const MAX_SHOT_PX = 30000;
+// A page taller than 8000 pixels is also saved in review parts of 4000 pixels each (name-review1.png, name-review2.png, ...), so a reviewer's
+// viewer shows every part at full size instead of shrinking the whole page. The full picture is still saved as before.
+const REVIEW_OVER_PX = 8000;
+const REVIEW_PART_PX = 4000;
 async function fullShot(p: Page, path: string, fullPage: boolean) {
   if (!fullPage) return void (await p.screenshot({ path, fullPage }));
   const { w, h, dpr } = await p.evaluate(() => ({ w: Math.max(document.documentElement.scrollWidth, window.innerWidth), h: document.documentElement.scrollHeight, dpr: window.devicePixelRatio || 1 }));
   const slice = Math.floor(MAX_SHOT_PX / dpr);
-  if (h <= slice) return void (await p.screenshot({ path, fullPage: true }));
-  for (let i = 0, y = 0; y < h; i++, y += slice) {
-    await p.screenshot({ path: path.replace(/\.png$/, `-part${i + 1}.png`), fullPage: true, clip: { x: 0, y, width: w, height: Math.min(slice, h - y) } });
+  if (h <= slice) await p.screenshot({ path, fullPage: true });
+  else
+    for (let i = 0, y = 0; y < h; i++, y += slice) {
+      await p.screenshot({ path: path.replace(/\.png$/, `-part${i + 1}.png`), fullPage: true, clip: { x: 0, y, width: w, height: Math.min(slice, h - y) } });
+    }
+  if (h * dpr > REVIEW_OVER_PX) {
+    const part = Math.floor(REVIEW_PART_PX / dpr);
+    for (let i = 0, y = 0; y < h; i++, y += part) {
+      await p.screenshot({ path: path.replace(/\.png$/, `-review${i + 1}.png`), fullPage: true, clip: { x: 0, y, width: w, height: Math.min(part, h - y) } });
+    }
   }
 }
 
@@ -76,6 +87,13 @@ async function gotoQuiet(p: Page, url: string, quick = false) {
   }
 }
 
+// The main browser is signed out part-way through (context.clearCookies() before the join / tour screens). Anything shot after that with
+// `shot()` must sign the demo person back in first, or it captures "Private group" or the signed-out Home instead of the intended screen.
+async function signBackIn() {
+  if (hosted) await signInOnTestCopy(context, Object.values(demo.memberships) as string[]);
+  else await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base }]);
+}
+
 async function shot(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
   try {
     await gotoQuiet(page, base + path, hosted);
@@ -111,8 +129,16 @@ async function rowCard(name: string, n: number) {
     if (await pause.count()) await pause.click({ force: true });
     const total = await row.locator('[aria-roledescription="slide"]').count();
     if (n > total) throw new Error(`only ${total} cards`);
-    await row.locator("div.snap-x").first().evaluate((el, i) => el.scrollTo({ left: i * el.clientWidth, behavior: "auto" }), n - 1);
-    await p.waitForTimeout(700);
+    const track = row.locator("div.snap-x").first();
+    // Move to card n and check the card at the left edge really is n (after a window resize the row can snap back to the first card).
+    // Try a few times; if it still is not card n, say so rather than saving a picture of the wrong card.
+    let at = -1;
+    for (let tries = 0; tries < 4 && at !== n - 1; tries++) {
+      await track.evaluate((el, i) => el.scrollTo({ left: i * el.clientWidth, behavior: "auto" }), n - 1);
+      await p.waitForTimeout(700);
+      at = await track.evaluate((el) => Math.round(el.scrollLeft / el.clientWidth));
+    }
+    if (at !== n - 1) throw new Error(`card ${n} did not come to the front (the row shows card ${at + 1})`);
     await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await p.waitForTimeout(300);
   }, false);
@@ -1292,7 +1318,6 @@ if (!hosted) {
       await p.locator("[data-reactions] summary[aria-label='React']").click();
       await p.waitForTimeout(900);
     }, false],
-    ["home-story-circles", "/", undefined, false],
     // Moments are Memories only: Home's one polaroid (fixed layout), then the Memories page, then the same page filtered to one group.
     ["home-memories-collapsed", "/", async (p) => {
       await p.locator("[data-memories-row]").waitFor({ timeout: 10_000 });
@@ -1357,6 +1382,10 @@ if (!hosted) {
   await spend(gone, "Hotel in Koh Samui", 900000, "Nupur", 500);
   await spend(gone, "Boat to the island", 300000, "Riya", 450);
 
+  // Home's story circles need the trips to have something to tell (today's spending), so they are shot here, after the expenses above.
+  await shots(varu, W, [["home-story-circles", "/", async (p) => {
+    await p.locator("[data-stories] [data-story-label]").first().waitFor({ timeout: 15_000 });
+  }, false]]);
   const gshots = async (who: { id: string }, list: { name: string; path: string; prepare?: (p: Page) => Promise<void>; full?: boolean; widths?: readonly number[] }[]) => {
     const c = await browser.newContext({ viewport: screen, deviceScaleFactor: desktop ? 1 : 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
     await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: who.id, v: 0 }), url: base }]);
@@ -1626,6 +1655,7 @@ if (!desktop) {
   }
 
   // VA1-48 and CB-17 / VA2-37: the trip report with its plain labels, and the organiser's collection page with 44 px taps (demo person's phone).
+  await signBackIn(); // the main browser was signed out above (clearCookies): the report needs the demo person
   for (const w of widths) {
     await page.setViewportSize(dims(w));
     await shot(`SO-trip-report-${w}`, `${g}/report`);
@@ -1948,6 +1978,7 @@ if (!desktop && !hosted) {
 
 // 16 Nov (founder-approved mockups s1 to s5): the one split row, grouped digits as you type, "Add expense" on every group overview, and the
 // Home month card. Each is taken at 390 and 320 wide; the page is put back to normal after.
+await signBackIn(); // as a member of the trip and the flat, not the signed-out visitor the earlier join / tour shots leave behind
 for (const width of [390, 320]) {
   await page.setViewportSize({ width, height: 844 });
   const w = `b11c-${width}`;
@@ -1975,7 +2006,10 @@ for (const width of [390, 320]) {
   }, false);
   await shot(`${w}-group-overview-add-expense`, g, undefined, false);
   await shot(`${w}-flat-overview-add-expense`, `/groups/${demo.flat.id}`, undefined, false);
-  await shot(`${w}-moment-caption-placeholder`, `${g}/moments/new`, undefined, false);
+  await shot(`${w}-moment-caption-placeholder`, `${g}/moments/new`, async (p) => {
+    await p.locator("textarea").first().waitFor({ timeout: 15_000 }); // the form, not its loading skeleton
+    await p.waitForTimeout(300);
+  }, false);
   await shot(`${w}-budgets-grouped`, `${g}/budgets`);
   await rowCard(`${w}-home-month-card`, 2);
 }

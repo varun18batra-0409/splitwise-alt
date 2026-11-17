@@ -80,7 +80,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
             maxLength={60}
             autoComplete="off"
             enterKeyHint="done"
-            placeholder="Add an item… e.g. bread"
+            placeholder="Add item, e.g. bread"
             className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
           />
         </label>

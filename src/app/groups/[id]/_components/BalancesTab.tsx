@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/DrawnIcons";
 import { Notice } from "@/components/Notice";
-import { formatMoney, formatPercent } from "@/lib/money";
+import { formatMoney, formatPercent, glueAmounts } from "@/lib/money";
 import { listMoney } from "@/lib/money-display";
 import { settleHeadline } from "@/lib/settle-ui";
 import { foreignPartLine } from "@/lib/foreign-part";
@@ -74,31 +74,31 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             return (
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>
-                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 max-[389px]:flex-wrap max-[389px]:gap-y-1 [&::-webkit-details-marker]:hidden">
                     <Avatar name={m.name} you={m.id === myId} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{m.id === myId ? `${m.name} (you)` : m.name}</span>
+                    <span className="min-w-0 flex-1 max-[389px]:basis-[calc(100%-84px)]">
+                      <span className="block break-words font-medium">{m.id === myId ? `${m.name} (you)` : m.name}</span>
                       {(() => {
                         const t = titles.find((x) => x.memberId === m.id);
                         return t ? (
-                          <span className="mb-0.5 mt-0.5 inline-block rounded-full border border-fg/15 px-2 py-0.5 text-[11px] font-semibold text-fg/75" title={t.why} data-title={t.title}>
+                          <span className="mb-0.5 mt-0.5 inline-block rounded-full border border-fg/15 px-2 py-0.5 text-[11px] font-semibold text-fg/75 [overflow-wrap:normal]" title={t.why} data-title={t.title}>
                             {t.title}
                           </span>
                         ) : null;
                       })()}
                       <span className={`block text-[13px] text-fg/65 ${foreign ? "break-words" : "truncate"}`} data-foreign-part={foreign ? "1" : undefined} title={foreign ? foreignExact : undefined} data-exact={foreign ? foreignExact : undefined}>
-                        {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
+                        {(foreign && glueAmounts(foreign)) || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>
                     </span>
                     <span
-                      className={`shrink-0 whitespace-nowrap text-right money tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}
+                      className={`shrink-0 whitespace-nowrap text-right money tabular-nums max-[389px]:order-3 max-[389px]:basis-full max-[389px]:pl-[52px] max-[389px]:text-left ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}
                       title={b !== 0 ? money(Math.abs(b)) : undefined}
                       data-exact={b !== 0 ? money(Math.abs(b)) : undefined}
                       data-balance={b !== 0 ? money(Math.abs(b)) : "0"}
                     >
                       {b > 0 ? `gets ${listFmt(b)}` : b < 0 ? `owes ${listFmt(-b)}` : "settled"}
                     </span>
-                    <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/40 transition-transform group-open/person:rotate-90 motion-reduce:transition-none">
+                    <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/40 transition-transform group-open/person:rotate-90 motion-reduce:transition-none max-[389px]:order-2">
                       <path d="m9 6 6 6-6 6" />
                     </svg>
                   </summary>
@@ -155,7 +155,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     title={val !== 0 ? formatMoney(Math.abs(val), l.currency) : undefined}
                     data-exact={val !== 0 ? formatMoney(Math.abs(val), l.currency) : undefined}
                   >
-                    {val > 0 ? `you’re owed ${formatMoney(val, l.currency)}` : val < 0 ? `you owe ${formatMoney(-val, l.currency)}` : "even"}
+                    {glueAmounts(val > 0 ? `you’re owed ${formatMoney(val, l.currency)}` : val < 0 ? `you owe ${formatMoney(-val, l.currency)}` : "even")}
                   </span>
                 </li>
               );

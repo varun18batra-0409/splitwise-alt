@@ -12,7 +12,7 @@ import { displayRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
 import { after } from "next/server";
 import { BILL_EMOJI, nextDueDay } from "@/lib/home/bills";
-import { niceDate } from "@/lib/format";
+import { niceDate, keepAmp } from "@/lib/format";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -285,7 +285,7 @@ export default async function SearchPage({
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Search expenses, people, places…"
+          placeholder="Search expenses, people"
           aria-label="Search"
           enterKeyHint="search"
           className="w-full rounded-full border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
@@ -296,7 +296,7 @@ export default async function SearchPage({
         <div className="mb-6 flex items-center gap-3 rounded-[20px] border border-line bg-mist/60 px-4 py-3" data-category-filter={cat}>
           <ExpenseGlyph title="" category={cat} size={34} />
           <span className="min-w-0 flex-1">
-            <span className="block font-display text-[17px] font-semibold">{getCategory(cat).label}</span>
+            <span className="block font-display text-[17px] font-semibold">{keepAmp(getCategory(cat).label)}</span>
             <span className="block text-[13px] text-fg/60">
               {shown.filter((r) => r.item.kind === "expense").length} expenses{groupId ? ` in ${groups[0].group.name}` : " across your groups"}
             </span>
