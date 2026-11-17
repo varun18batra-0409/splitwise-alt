@@ -4,7 +4,8 @@
 //   node scripts/restore.mjs --drill backup.json libsql://loopin-restore-drill.turso.io   (+ TURSO_AUTH_TOKEN)
 // The target must be EMPTY (a new database): it never overwrites live data.
 //
-// --drill is for the weekly restore test into a spare database that exists only for that. The target must be
+// --drill is for the weekly restore test into a spare database that exists only for that (its address must contain
+// "drill", or the run is refused). The target must be
 // empty, or must hold the marker table "_loopin_drill_target" (put there by an earlier drill). With the marker
 // the old tables are dropped first and then the backup is restored again. A database with tables but no marker
 // is refused, exactly as without --drill. The live database never has the marker, and the drill's token can only
@@ -57,6 +58,12 @@ async function main() {
   const [file, url] = args.filter((a) => a !== "--drill");
   if (!file || !url) {
     console.error("Usage: node scripts/restore.mjs [--drill] <backup.json> <database url>");
+    process.exit(1);
+  }
+  // L2: a drill must only ever target a database that is named as a drill one. Otherwise a real recovery into a new
+  // empty database, run with --drill by mistake, would plant the drill marker in what is about to become live.
+  if (drill && !/drill/i.test(url)) {
+    console.error('Refusing --drill: the target address must contain the word "drill" (the spare drill database). For a real recovery, run without --drill. Nothing was touched.');
     process.exit(1);
   }
   const backup = JSON.parse(readFileSync(file, "utf8"));

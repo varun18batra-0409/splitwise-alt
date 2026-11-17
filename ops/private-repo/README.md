@@ -22,16 +22,27 @@ not on a public page.
    `main` that you trust. (On the public repo's page, open the latest commit and copy the long id.) The private
    jobs run the public repo's scripts at exactly that commit, so a later change to `main` cannot reach the key
    until you update this line. Update it again whenever the backup scripts change.
-5. The files still say `@v4` for GitHub's own actions. Replace each with the full commit id for that tag, the same
-   ones used in the public repo's workflows once those are pinned.
+5. The GitHub actions in these files are already pinned to full commit ids (checkout `11d5960a` is
+   actions/checkout v4.4.0). Leave them as they are.
 6. Run "Backup" once by hand (Actions > Backup > Run workflow, tick "real drill"). Check it goes green, and note the
    backup size in the run's notice: 14 copies must fit in the private repo's 500 MB.
 7. After two green nightly runs, in the public repo: delete the secrets `BACKUP_PASSPHRASE`, `TURSO_PLATFORM_TOKEN` and
    `TURSO_ORG`, delete the old `db-backup` files from old runs, and then the public Backup, Live stats and Usage
    workflows can be removed.
+8. Final step, the live key. **Before anyone runs "Schema apply"**, create the `live-database` environment (public repo:
+   Settings > Environments) with a required reviewer (you), deployment limited to the `main` branch, and its own
+   `TURSO_AUTH_TOKEN` (the live full-access key). If it does not exist when Schema apply first runs, GitHub creates it
+   automatically with no protection. Then **delete the repository-level `TURSO_AUTH_TOKEN`**. Until you do, the key is
+   still readable by every workflow in the public repo, whatever the environment says. Keep only the live database
+   address (`TURSO_DATABASE_URL`), which e2e.yml and staging-uat.yml use for the "this is not the live database" check.
 
 ## Good to know
 
+- If the first drill reports old rows (a payment of 0, a payment to yourself, a negative share), that is a finding
+  about old data to look at, not a broken backup. The restore still writes everything; the checks only point at it.
+- `--drill` only accepts a database whose address contains the word "drill", and the schema sync refuses any database
+  that carries the drill marker. So a drill copy can never become the live database by mistake. For a real recovery,
+  run the restore without `--drill`.
 - The backup uses a read-only key, so it cannot change live data. If Turso refuses to open a read-only
   transaction, the first manual run will say so; tell Claude and it will adjust.
 - The weekly real drill writes the whole database into the spare database. That counts towards Turso's monthly

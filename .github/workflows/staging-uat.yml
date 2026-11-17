@@ -33,7 +33,8 @@ jobs:
           [ -n "$TURSO_AUTH_TOKEN" ] || { echo "::error title=Staging::STAGING_TURSO_AUTH_TOKEN is missing"; exit 1; }
           [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || { echo "::error title=Staging::VERCEL_AUTOMATION_BYPASS_SECRET is missing"; exit 1; }
           [ -n "$LIVE_URL" ] || { echo "::error title=Staging::TURSO_DATABASE_URL (the live address) is missing, so 'not the live database' cannot be checked. Stopping."; exit 1; }
-          [ "$TURSO_DATABASE_URL" != "$LIVE_URL" ] || { echo "::error title=Staging::The staging database is the LIVE database. Stopping."; exit 1; }
+          # Compared after tidying both (case, libsql:// or https://, trailing slash, query), so one database written two ways is still caught. Fails closed: anything but "different" stops the run.
+          node scripts/db-address.mjs differ "$TURSO_DATABASE_URL" "$LIVE_URL" || { echo "::error title=Staging::The staging database is the LIVE database. Stopping."; exit 1; }
           echo "::notice title=Staging::settings present; staging database is not the live one"
       - run: npm ci
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)

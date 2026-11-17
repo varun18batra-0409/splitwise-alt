@@ -8,7 +8,7 @@
 //     the live address is known (LIVE_URL or LIVE_TURSO_DATABASE_URL), and it is different from this one.
 // Anything else stops with exit 1. The message never contains the address.
 
-import { checkTestDb } from "./test-db-rule";
+import { checkTestDb } from "./test-db-rule.ts"; // explicit extension: works under plain node (strip-types) and under tsx
 
 const verdict = checkTestDb(process.env);
 if (!verdict.ok) {

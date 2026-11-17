@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createClient } from "@libsql/client";
@@ -54,7 +54,7 @@ describe("restore --drill target rules", () => {
 
   it("a non-empty target without the marker is refused with exit 1 and left untouched", async () => {
     const dir = mkdtempSync(join(tmpdir(), "lp-drill-"));
-    const url = `file:${join(dir, "live.db")}`;
+    const url = `file:${join(dir, "drill-spare.db")}`;
     const c = createClient({ url });
     await c.execute('CREATE TABLE "Group" ("id" TEXT PRIMARY KEY)');
     await c.execute("INSERT INTO \"Group\" VALUES ('precious')");
@@ -74,5 +74,27 @@ describe("restore --drill target rules", () => {
     expect(run(["--drill", backup(dir, ["g1"]), url]).status).toBe(0);
     const r = run([backup(dir, ["g2"]), url]);
     expect(r.status).toBe(1);
+  });
+
+  it("L2: --drill into an address without the word drill is refused before anything is touched", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lp-rec-")); // not "drill" in the path, or the address would pass
+    const file = join(dir, "new-live.db");
+    const r = run(["--drill", backup(dir, ["g1"]), `file:${file}`]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('must contain the word "drill"');
+    expect(existsSync(file)).toBe(false); // nothing was created, so no marker was planted
+    // an online address too (refused before any connection is made)
+    const o = run(["--drill", backup(dir, ["g1"]), "libsql://loopin-new-recovery.turso.io"]);
+    expect(o.status).toBe(1);
+    expect(o.stderr).toContain('must contain the word "drill"');
+  });
+
+  it("L2: the word drill is matched in any letter case, and a real restore (no --drill) into any name still works", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lp-drill-"));
+    const a = `file:${join(dir, "Loopin-DRILL.db")}`;
+    expect(run(["--drill", backup(dir, ["g1"]), a]).status).toBe(0);
+    const b = `file:${join(dir, "recovered.db")}`;
+    expect(run([backup(dir, ["g1"]), b]).status).toBe(0);
+    expect(await tablesOf(b)).toEqual(["Group", "Member"]); // no marker in a real recovery
   });
 });

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { checkTestDb } from "../scripts/test-db-rule";
+// @ts-expect-error plain .mjs without types
+import { normaliseDbAddress, sameDb } from "../scripts/db-address.mjs";
 
 // OB-10: test and demo scripts must never run against the live database.
 const LIVE = "libsql://loopin-live-abc.turso.io";
@@ -31,6 +33,41 @@ describe("test-db-guard rules", () => {
   });
 });
 
+describe("the same address written different ways (L6)", () => {
+  const forms = [
+    "libsql://Loopin-Live-ABC.turso.io",
+    "https://loopin-live-abc.turso.io",
+    "http://loopin-live-abc.turso.io/",
+    "wss://loopin-live-abc.turso.io//",
+    "libsql://loopin-live-abc.turso.io?authToken=zzz",
+    "  loopin-live-abc.turso.io  ",
+  ];
+  it("all normalise to the bare host", () => {
+    for (const f of forms) expect(normaliseDbAddress(f), f).toBe("loopin-live-abc.turso.io");
+  });
+  it("a different database is not the same; empty is never the same as empty", () => {
+    expect(sameDb(LIVE, STAGING)).toBe(false);
+    expect(sameDb("", "")).toBe(false);
+  });
+  it("the rule refuses staging written as another form of the live address", () => {
+    for (const f of forms.slice(0, 5)) {
+      expect(checkTestDb({ TURSO_DATABASE_URL: f, LOOPIN_STAGING_DB: "1", LIVE_URL: LIVE }).ok, f).toBe(false);
+      expect(checkTestDb({ TURSO_DATABASE_URL: LIVE, LOOPIN_STAGING_DB: "1", LIVE_TURSO_DATABASE_URL: f }).ok, f).toBe(false);
+    }
+    expect(checkTestDb({ TURSO_DATABASE_URL: "https://loopin-staging-xyz.turso.io/", LOOPIN_STAGING_DB: "1", LIVE_URL: LIVE }).ok).toBe(true);
+  });
+  it("the workflow command line (node scripts/db-address.mjs same A B) agrees", () => {
+    const r = (a: string, b: string) => spawnSync(process.execPath, ["scripts/db-address.mjs", "same", a, b], { cwd: process.cwd() }).status;
+    expect(r("https://LOOPIN-live-abc.turso.io/", LIVE)).toBe(0);
+    expect(r(STAGING, LIVE)).toBe(1);
+    const d = (a: string, b: string) => spawnSync(process.execPath, ["scripts/db-address.mjs", "differ", a, b], { cwd: process.cwd() }).status;
+    expect(d(STAGING, LIVE)).toBe(0); // different: the check passes
+    expect(d("https://LOOPIN-live-abc.turso.io/", LIVE)).toBe(1); // same: stops
+    expect(d("", LIVE)).toBe(1); // empty: stops (fails closed)
+    expect(d(STAGING, "")).toBe(1);
+  });
+});
+
 describe("test-db-guard as the first import", () => {
   const run = (env: Record<string, string>) => {
     const clean = { ...process.env } as Record<string, string | undefined>;
@@ -44,6 +81,15 @@ describe("test-db-guard as the first import", () => {
     expect(r.out).toContain("Refusing");
     expect(r.out).not.toContain("loopin-live-abc");
     expect(r.out).not.toContain("turso.io");
+  });
+  it("exits 1 when the live address is written another way", () => {
+    const r = run({ TURSO_DATABASE_URL: "https://LOOPIN-LIVE-ABC.turso.io/", LOOPIN_STAGING_DB: "1", LIVE_URL: LIVE });
+    expect(r.code, r.out).toBe(1);
+    expect(r.out).toContain("Refusing");
+  });
+  it("exits 0 for a different online database (the guard really loads and runs its rule: not a crash)", () => {
+    const r = run({ TURSO_DATABASE_URL: STAGING, LOOPIN_STAGING_DB: "1", LIVE_URL: LIVE });
+    expect(r.code, r.out).toBe(0);
   });
   it("exits 0 quietly on a file: database", () => {
     const r = run({ TURSO_DATABASE_URL: "file:/tmp/x.db" });

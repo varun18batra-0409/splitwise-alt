@@ -41,7 +41,7 @@ jobs:
           [ "${#PUBLIC_REPO_SHA}" -eq 40 ] || { echo "::error title=Not set up::PUBLIC_REPO_SHA must be 40 characters long."; exit 1; }
       - name: Is it Sunday in India?
         run: '[ "$(TZ=Asia/Kolkata date +%u)" != 7 ] || echo "IS_SUNDAY=1" >> "$GITHUB_ENV"'
-      # PIN: replace each @v4 below with the full commit id of that tag, as in the public repo's workflows.
+      # The GitHub actions below are already pinned to full commit ids (checkout 11d5960a is actions/checkout v4.4.0). Keep them pinned.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ env.PUBLIC_REPO }}

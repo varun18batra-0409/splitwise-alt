@@ -141,7 +141,8 @@ jobs:
           [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || missing="$missing VERCEL_AUTOMATION_BYPASS_SECRET"
           [ -z "$missing" ] || { echo "::error title=Missing GitHub secrets::$missing"; exit 1; }
           [ -n "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::TURSO_DATABASE_URL (the live address) is missing, so 'not the live database' cannot be checked."; exit 1; }
-          [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
+          # Compared after tidying both (case, libsql:// or https://, trailing slash, query), so one database written two ways is still caught. Fails closed: anything but "different" stops the run.
+          node scripts/db-address.mjs differ "$TURSO_DATABASE_URL" "$LIVE_TURSO_DATABASE_URL" || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
       - run: npm ci
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
       # The cache is named after the Playwright version in the lockfile and the browsers in it; the install

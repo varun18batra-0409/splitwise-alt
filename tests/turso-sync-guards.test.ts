@@ -133,4 +133,33 @@ describe("turso-sync guards", () => {
     c.close();
     expect(idx.length).toBe(0);
   });
+
+  it("L3: dropping a UNIQUE index is refused (plan exits 3 with REFUSE, apply exits 1, the index is still there)", async () => {
+    const file = await online(THING("", "  @@unique([name])\n"));
+    const to = schemaFile(THING());
+    const plan = sync(file, to, ["--plan"]);
+    expect(plan.code, plan.out).toBe(3);
+    expect(plan.out).toContain("REFUSE: unique index Thing_name_key");
+    const r = sync(file, to);
+    expect(r.code, r.out).toBe(1);
+    expect(r.out).toContain("UNIQUE index Thing_name_key");
+    const c = createClient({ url: `file:${file}` });
+    const idx = (await c.execute("SELECT name FROM sqlite_master WHERE type='index' AND name = 'Thing_name_key'")).rows;
+    c.close();
+    expect(idx.length).toBe(1);
+  });
+
+  it("L2: a restore-drill copy (it has the _loopin_drill_target table) is never deployed to, plan or apply", async () => {
+    const file = await online(THING());
+    const c = createClient({ url: `file:${file}` });
+    await c.execute('CREATE TABLE "_loopin_drill_target" ("note" TEXT)');
+    c.close();
+    const to = schemaFile(THING("  extra String @default(\"x\")\n"));
+    for (const args of [[], ["--plan"]]) {
+      const r = sync(file, to, args);
+      expect(r.code, r.out).toBe(1);
+      expect(r.out).toContain("restore-drill copy");
+    }
+    expect(await columns(file)).toEqual(["id", "name"]);
+  });
 });

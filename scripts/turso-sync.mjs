@@ -18,6 +18,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { splitStatements, findForbiddenStatement, droppedUniqueIndexes } from "./sync-rules.mjs";
 
 // Rule 1 (OB-4): the old "allow a destructive change" switch is gone. If it is still set anywhere, say so loudly.
 if (process.env.ALLOW_DESTRUCTIVE_MIGRATION !== undefined) {
@@ -42,34 +43,13 @@ if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
   process.exit(0);
 }
 
-// Rule 3 (OA-10): what counts as destructive. A DROP INDEX on its own is not (it loses no data).
+// Rule 3 (OA-10): what counts as destructive. A DROP INDEX on its own is not (it loses no data), unless the index is UNIQUE (rule 10).
 const DESTRUCTIVE = /\bDROP\s+(TABLE|VIEW|TRIGGER|COLUMN)\b|RedefineTables|"new_\w+"/i;
 // Rule 4 (OB-13): a default SQLite can't add in place (it must be a constant).
 const NON_CONSTANT_DEFAULT = /DEFAULT\s+(CURRENT_TIMESTAMP|CURRENT_DATE|CURRENT_TIME|\()/i;
 const SCHEMA = process.env.TURSO_SYNC_SCHEMA || "prisma/schema.prisma";
 const plan = process.argv.includes("--plan");
 const firstLine = (e) => String(e?.message ?? e).split("\n")[0].slice(0, 200);
-
-// Rule 7: split Prisma's SQL into statements: comment lines dropped, a statement ends at a ";" at the end of a line.
-function splitStatements(sql) {
-  const out = [];
-  let cur = [];
-  for (const line of sql.split("\n")) {
-    if (/^\s*--/.test(line)) continue;
-    if (!line.trim() && !cur.length) continue;
-    cur.push(line);
-    if (/;\s*$/.test(line)) {
-      out.push(cur.join("\n").trim().replace(/;$/, ""));
-      cur = [];
-    }
-  }
-  const rest = cur.join("\n").trim();
-  if (rest) out.push(rest.replace(/;$/, ""));
-  return out.filter(Boolean);
-}
-// Words that would break "one transaction", ignoring anything inside quotes (a column called "commit" is fine).
-const TRANSACTION_WORDS = /\b(PRAGMA|BEGIN|COMMIT)\b/i;
-const outsideQuotes = (s) => s.replace(/"(?:[^"]|"")*"|'(?:[^']|'')*'/g, "");
 
 const remote = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
 const dir = mkdtempSync(join(tmpdir(), "schema-"));
@@ -79,6 +59,12 @@ try {
   const { rows } = await remote.execute(
     "SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'libsql_%' AND name NOT LIKE '_litestream%' AND name NOT LIKE '_cf_%'",
   );
+  // Rule 9 (L2): a restore-drill copy (it carries the drill marker table) is never a place to deploy to: if a real
+  // recovery were pointed at one by mistake, the marker would let the next drill wipe what had become live.
+  if (rows.some((r) => r.type === "table" && String(r.name) === "_loopin_drill_target")) {
+    console.error("turso-sync: REFUSING: this database is a restore-drill copy (it has the _loopin_drill_target table). A drill copy can never be deployed to. Nothing was touched.");
+    process.exit(1);
+  }
   const local = createClient({ url: `file:${snapshot}` });
   for (const kind of ["table", "index", "view", "trigger"]) {
     for (const r of rows.filter((x) => x.type === kind)) await local.execute(String(r.sql));
@@ -138,9 +124,12 @@ try {
     }
   }
 
-  const destructive = !isEmpty(sql) && DESTRUCTIVE.test(sql);
+  // Rule 10 (L3): dropping a UNIQUE index silently removes a double-save guarantee, unless the same plan puts back an identical one.
+  const lostUnique = isEmpty(sql) ? [] : droppedUniqueIndexes(splitStatements(sql), rows.map((r) => ({ type: String(r.type), name: String(r.name), sql: String(r.sql) })));
+  const destructive = !isEmpty(sql) && (DESTRUCTIVE.test(sql) || lostUnique.length > 0);
   const explain = () => {
     for (const b of blocked) console.error(`turso-sync: cannot add column ${b}`);
+    for (const u of lostUnique) console.error(`turso-sync: the plan drops the UNIQUE index ${u} (a double-save guarantee) without putting an identical one back`);
   };
 
   if (plan) {
@@ -149,6 +138,7 @@ try {
     if (destructive) {
       console.log("REFUSE: this change would drop or rebuild a table, so a deploy would stop. Nothing was changed.");
       for (const b of blocked) console.log(`REFUSE: column ${b}`);
+      for (const u of lostUnique) console.log(`REFUSE: unique index ${u} would be dropped without an identical one put back`);
       code = 3;
     } else if (!isEmpty(sql)) {
       // Rule 8: for each new unique index, how many rows already clash (counts only, read-only).
@@ -175,9 +165,9 @@ try {
     code = 1;
   } else {
     const stmts = splitStatements(sql);
-    const bad = stmts.find((s) => TRANSACTION_WORDS.test(outsideQuotes(s)));
+    const bad = findForbiddenStatement(stmts);
     if (bad) {
-      console.error(`turso-sync: REFUSING: a statement uses PRAGMA/BEGIN/COMMIT, which can't run inside the all-or-nothing batch:\n${bad.split("\n")[0]}`);
+      console.error(`turso-sync: REFUSING: a statement uses PRAGMA/BEGIN/COMMIT/END/ROLLBACK/SAVEPOINT/RELEASE/ATTACH/DETACH, which can't run inside the all-or-nothing batch:\n${bad.split("\n")[0]}`);
       code = 1;
     } else {
       console.log("turso-sync: applying\n" + sql);

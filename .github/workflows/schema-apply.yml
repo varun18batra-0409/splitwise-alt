@@ -2,8 +2,13 @@
 # production deploy runs first), and saves the output to the "schema-plan"
 # branch. Only adds; refuses anything that would drop or rebuild a table.
 # Runs only from main, and only after the owner approves it: the live database's
-# full-access key lives in the "live-database" environment (Settings > Environments),
-# not in the repository's general secrets.
+# full-access key is meant to live in the "live-database" environment (Settings > Environments).
+# TODAY IT STILL IS ALSO A REPOSITORY-LEVEL SECRET, so any workflow in this repo can read it. That stops being
+# true only when the founder moves the key into the environment and deletes the repository-level
+# TURSO_AUTH_TOKEN (see ops/private-repo/README.md, the founder's final step).
+# BEFORE ANYONE RUNS "Schema apply": the founder must create the "live-database" environment first, with a
+# required reviewer, deployment limited to the main branch, and its own TURSO_AUTH_TOKEN. If it does not exist,
+# GitHub creates it automatically on the first run, with NO protection at all.
 name: Schema apply
 on:
   workflow_dispatch:
