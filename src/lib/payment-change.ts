@@ -6,7 +6,7 @@ import { withRetry } from "./once";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, leaversOffZero } from "./money-guard";
 import { RestoreRefused, restorePayments } from "./payments";
 import { onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
-import { tellBroughtBack, tellParties } from "./payment-claims";
+import { partyMessages, pushAllToReceivers, tellBroughtBack, tellParties } from "./payment-claims";
 import type { Prisma } from "@prisma/client";
 
 // The ONE place a payment is taken off or put back by people (Batch C).
@@ -334,11 +334,13 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
     if (e) return { ok: false, error: e };
     throw err;
   }
+  // Every payment's messages go out from one job (see pushAllToReceivers in payment-claims.ts).
+  const msgs: ReturnType<typeof partyMessages> = [];
   for (const r of rows) {
     const ev = events.find((x) => x.paymentId === r.id);
     const mine = actorIn.get(r.groupId)!;
     const actor = await db.member.findUnique({ where: { id: mine }, select: { name: true } });
-    tellParties({
+    msgs.push(...partyMessages({
       event: deleted ? "deleted" : "restored",
       actorId: mine,
       actorName: actor?.name ?? "Someone",
@@ -352,11 +354,12 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
       paymentId: r.id,
       eventId: ev?.eventId,
       direct: r.group.type === "direct",
-    });
+    }));
     for (const m of ev?.back ?? []) {
       if (m.accountId && m.id !== mine) tellBroughtBack({ groupId: r.groupId, groupName: r.group.name, memberId: m.id, receiverName: actor?.name ?? "Someone", amountText: moneyOf(r), paymentId: r.id, receiverId: mine, how: "deleted" });
     }
   }
+  pushAllToReceivers(msgs);
   return { ok: true, id: clicked.id, eventId: events.find((x) => x.paymentId === clicked.id)?.eventId };
 }
 
