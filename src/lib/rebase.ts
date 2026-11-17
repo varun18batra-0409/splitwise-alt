@@ -127,7 +127,7 @@ export type SquareResult = {
   targets: Record<string, number>; // the balance each fixed person must end on
 };
 
-type Edge = { t: "e" | "r"; u: string; v: string } | { t: "p+" | "p-"; p: string };
+type Edge = { t: "e"; u: string; v: string } | { t: "r"; u: string; v: string } | { t: "p+"; p: string } | { t: "p-"; p: string };
 
 export function keepSquareAtZero(input: SquareInput): SquareResult | null {
   const ids = input.members.map((m) => m.id);
