@@ -405,16 +405,17 @@ export default async function HowItWorks() {
       <Section slot="place-goa-4" title="Postcards, sealed and stamped">
         <p>
           Turn any trip photo into a <strong>postcard</strong>. Pick the paper, the ink, the lettering and a look for the photo, add finishing
-          touches (pressed flowers, tape, a luggage tag), and close it with a <strong>wax seal</strong> in your colour. Every card gets a real-looking
-          stamp, with special limited stamps around festivals where you live.
+          touches (pressed flowers, tape, a luggage tag), and close it with a <strong>wax seal</strong>: pick its colour and its design in two labelled rows.
+          The card stays the same size on every tool, light lettering gets a soft dark band so it always reads, and on a taped print or a white border the
+          words sit on the card’s margin under the photo. Every card gets a real-looking stamp, with special limited stamps around festivals where you live.
         </p>
         <Steps
           items={[
             <><strong>Send it anywhere.</strong> In Loopin to anyone you share a group with, or on WhatsApp to anyone at all.</>,
             <><strong>Seal it for later.</strong> Choose a day it opens: New Year’s Day, a month from now, a year from today.</>,
-            <><strong>Write back.</strong> Press a wax seal back on a card you got, or reply with your own.</>,
+            <><strong>Write back.</strong> Press a wax seal back on a card you got: the one you press looks pressed, the others fade, and the line says “Sent: Love it”. Or reply with your own card.</>,
             <><strong>Reuse a design.</strong> Send the same card to someone else, or borrow the look of one you received.</>,
-            <><strong>Stamp album.</strong> Every stamp you send or get is kept: You → Your postcards → Stamp album.</>,
+            <><strong>Stamp album.</strong> Every stamp you send or get is kept: You → Your postcards → Stamp album. Stamps you haven’t collected yet show in grey with the dates they’re available (Holi, 10 to 25 March; Diwali, 25 Oct to 12 Nov).</>,
             <><strong>Report or block.</strong> Something unwelcome? Tap <strong>Report</strong> or <strong>Block</strong> on the card, a friend’s passport, a moment or a person in People. You’ll still see shared group expenses and balances. Unblock in You → Privacy & sharing.</>,
           ]}
         />

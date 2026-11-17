@@ -162,6 +162,9 @@ export function StampPanel({ stamp, setStamp, list, rare, date = "" }: { date?: 
   );
 }
 
+// The small label above each row of the wax seal picker ("Colour", "Design").
+const labelCaps = "mt-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-fg/60";
+
 // The wax seal: on or off, its colour and its design. Choosing a colour or design puts the seal on (the saved data is the same as
 // before: "seal" among the touches, and the colour:design pair).
 export function SealPanel({ on, setOn, seal, setSeal, name }: { on: boolean; setOn: (on: boolean) => void; seal: string; setSeal: (s: string) => void; name: string }) {
@@ -181,24 +184,30 @@ export function SealPanel({ on, setOn, seal, setSeal, name }: { on: boolean; set
       }
     >
       <div data-seal-picker>
-        <Strip data-wax-colours>
+        <span className={labelCaps} data-wax-label="colour">
+          Colour
+        </span>
+        <Strip data-wax-colours className="!pt-0.5">
           {SEAL_COLOUR_PICKS.map((id) => SEAL_COLOURS.find((c) => c.id === id)!).map((c) => {
             const sel = on && col === c.id;
             return (
               <button key={c.id} type="button" onClick={() => pick(`${c.id}:${des}`)} aria-label={`${c.name} wax`} aria-pressed={sel} className="flex min-h-[60px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5">
                 <span aria-hidden className={`block w-[38px] rounded-full transition-transform active:scale-90 motion-reduce:transition-none [&>svg]:h-auto [&>svg]:w-full ${sel ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${c.id}:${des}`, name, `pc${c.id}`) }} />
-                <span className={`truncate text-[10.5px] ${sel ? "text-fg" : "text-fg/65"}`}>{c.name}</span>
+                <span className={`text-center text-[10.5px] leading-tight ${sel ? "font-bold text-fg" : "text-fg/65"}`}>{c.name}</span>
               </button>
             );
           })}
         </Strip>
-        <Strip data-wax-designs>
+        <span className={labelCaps} data-wax-label="design">
+          Design
+        </span>
+        <Strip data-wax-designs className="!pt-0.5">
           {SEAL_DESIGN_PICKS.map((id) => SEAL_DESIGNS.find((d) => d.id === id)!).map((d) => {
             const sel = on && des === d.id;
             return (
               <button key={d.id} type="button" onClick={() => pick(`${col}:${d.id}`)} aria-label={`Seal design: ${d.name}`} aria-pressed={sel} className="flex min-h-[60px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5">
                 <span aria-hidden className={`block w-[38px] rounded-full transition-transform active:scale-90 motion-reduce:transition-none [&>svg]:h-auto [&>svg]:w-full ${sel ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${col}:${d.id}`, name, `pd${d.id}`) }} />
-                <span className={`text-center text-[10.5px] leading-tight ${sel ? "text-fg" : "text-fg/65"}`}>{d.name}</span>
+                <span className={`text-center text-[10.5px] leading-tight ${sel ? "font-bold text-fg" : "text-fg/65"}`}>{d.name}</span>
               </button>
             );
           })}

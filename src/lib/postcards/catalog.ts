@@ -308,6 +308,21 @@ export const RARE: Record<string, Rare> = {
   thanksgiving: { icon: "leaf", ink: "#9a4a1a", tint: "#f6e6d4", value: "$0.73", name: "Thanksgiving", from: "11-20", to: "11-30", when: "Thanksgiving week", where: ["US"] },
   summersouth: { icon: "sun", ink: "#b0661a", tint: "#f8ead6", value: "$1.50", name: "Summer hols", from: "12-15", to: "01-31", when: "December and January", where: ["AU", "NZ", "ZA", "AR", "BR", "CL", "UY"] },
 };
+// A window as words, from the dates the app enforces ("MM-DD"): "10 to 25 March" in one month, "25 Oct to 12 Nov" across two.
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export function windowLabel(from: string, to: string): string {
+  const [fm, fd] = from.split("-").map(Number);
+  const [tm, td] = to.split("-").map(Number);
+  if (fm === tm) return `${fd} to ${td} ${MONTHS[fm - 1]}`;
+  return `${fd} ${MONTHS[fm - 1].slice(0, 3)} to ${td} ${MONTHS[tm - 1].slice(0, 3)}`;
+}
+// What the album says under a stamp that is not on issue: its description, or its dates when the description only repeats the name
+// (Holi, Diwali, Songkran, Oktoberfest, Lunar New Year).
+export function rareWhen(id: string): string {
+  const r = RARE[baseStamp(id).replace(/^r:/, "")];
+  if (!r) return "";
+  return r.when.trim().toLowerCase() === r.name.trim().toLowerCase() ? windowLabel(r.from, r.to) : r.when;
+}
 export const RARE_STAMP_IDS = Object.keys(RARE).map((r) => `r:${r}`);
 const mdIn = (tz: string, d: Date) => new Intl.DateTimeFormat("en-CA", { month: "2-digit", day: "2-digit", timeZone: tz }).format(d).replace("/", "-");
 export function rareOpen(id: string, now = new Date(), tz = "Asia/Kolkata"): boolean {

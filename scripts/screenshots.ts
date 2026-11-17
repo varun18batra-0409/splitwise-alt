@@ -1017,6 +1017,81 @@ if (!hosted) {
       if (before) await page.setViewportSize(before);
     }
 
+    // --- Postcard editor, stamps and seals, and the countdown slide (the b11e review fixes), at 390 and 320 ---
+    {
+      const before = page.viewportSize();
+      const pressCard = await db.postcard.create({
+        data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here.", hand: "caveat", stamp: "c:IN", paper: "cream", address: JSON.stringify(["Varun", "", ""]), place: "Goa" },
+      });
+      for (const w of [390, 320] as const) {
+        await page.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+        const edw = `/postcards/new?group=${lona.id}`;
+        const toolw = (name: string) => async (p: Page) => {
+          const t = p.locator(`[data-tool="${name}"]`);
+          await t.scrollIntoViewIfNeeded();
+          await t.click();
+          await p.waitForTimeout(500);
+        };
+        const msg = "Remember the bus that never came? Best wrong turn ever. Same time next year?";
+        // s1: the card keeps one size on every tab (Photo, Words, then the Message tab, with its keyboard-sized panel)
+        await shot(`b11e-s1-card-photo-${w}`, edw, async (p) => { await p.waitForTimeout(1000); }, false);
+        await shot(`b11e-s1-card-words-${w}`, edw, async (p) => { await toolw("words")(p); }, false);
+        await shot(`b11e-s1-card-message-${w}`, edw, async (p) => {
+          await p.getByRole("tab", { name: "Note" }).click();
+          await p.getByRole("textbox", { name: "Your message" }).fill(msg);
+          await p.getByRole("textbox", { name: "Your message" }).focus();
+          await p.waitForTimeout(900);
+        }, false);
+        // s2: labelled wax seal rows, and the coffee ring in the empty corner
+        await shot(`b11e-s2-wax-seal-${w}`, edw, async (p) => {
+          await p.getByRole("tab", { name: "Note" }).click();
+          await p.getByRole("textbox", { name: "Your message" }).fill(msg);
+          await toolw("seal")(p);
+          await p.getByRole("button", { name: "Gold wax", exact: true }).click();
+          await p.getByRole("button", { name: "Seal design: Crest" }).click();
+          await p.waitForTimeout(700);
+        }, false);
+        await shot(`b11e-s2-coffee-ring-${w}`, edw, async (p) => {
+          await p.getByRole("tab", { name: "Note" }).click();
+          await p.getByRole("textbox", { name: "Your message" }).fill(msg);
+          await toolw("touches")(p);
+          await p.getByRole("button", { name: "Coffee ring" }).click();
+          await p.waitForTimeout(800);
+        }, false);
+        // s3: gold lettering gets a scrim; a taped print puts the words on the margin
+        await shot(`b11e-s3-gold-scrim-${w}`, edw, async (p) => {
+          await toolw("colour")(p);
+          await p.getByRole("button", { name: "Gold words" }).click();
+          await p.waitForTimeout(800);
+        }, false);
+        await shot(`b11e-s3-taped-margin-${w}`, edw, async (p) => {
+          await p.locator('[data-fit-choice="taped"]').click();
+          await p.waitForTimeout(900);
+        }, false);
+        await shot(`b11e-s3-border-margin-${w}`, edw, async (p) => {
+          await p.locator('[data-fit-choice="border"]').click();
+          await p.waitForTimeout(900);
+        }, false);
+        // s4: the stamp album (uncollected stamps and their dates), the shelf line, and a seal pressed
+        await shot(`b11e-s4-stamp-album-${w}`, "/postcards/stamps", async (p) => { await p.waitForTimeout(800); }, true);
+        await shot(`b11e-s4-shelf-${w}`, "/postcards", async (p) => { await p.locator("[data-stamp-album-link]").scrollIntoViewIfNeeded(); await p.waitForTimeout(600); }, false);
+        await shot(`b11e-s4-seal-pressed-${w}`, `/postcards/${pressCard.id}`, async (p) => {
+          await p.getByRole("button", { name: "Seal: Love it" }).click();
+          await p.waitForTimeout(1200);
+          await p.getByRole("region", { name: "Seal it back" }).scrollIntoViewIfNeeded();
+          await p.waitForTimeout(500);
+        }, false);
+        // s5: the countdown slide
+        await shot(`b11e-s5-countdown-slide-${w}`, "/", async (p) => {
+          await p.locator("[data-stories] [data-story='trip'] button").first().click();
+          await p.waitForTimeout(500);
+          await p.getByRole("button", { name: "Next" }).click();
+          await p.waitForTimeout(900);
+        }, false);
+      }
+      if (before) await page.setViewportSize(before);
+    }
+
     // --- Passport Been tab (part P1): full, and long names, at 320 / 360 / 390 ---
     {
       const before = page.viewportSize();
@@ -1167,6 +1242,12 @@ if (!hosted) {
     ["viewer-reactions", `/groups/${thai.id}/moments/${first.id}`, async (p) => {
       await p.locator("[data-reactions] summary[aria-label='React']").click();
     }, true],
+    // s6: the picker opens right under the "+" (the page scrolls to fit), with a small pointer; the viewport only, not the whole page
+    ["viewer-reactions-fit", `/groups/${thai.id}/moments/${first.id}`, async (p) => {
+      await p.locator("[data-reactions]").scrollIntoViewIfNeeded();
+      await p.locator("[data-reactions] summary[aria-label='React']").click();
+      await p.waitForTimeout(900);
+    }, false],
     ["home-story-circles", "/", undefined, false],
     // Moments are Memories only: Home's one polaroid (fixed layout), then the Memories page, then the same page filtered to one group.
     ["home-memories-collapsed", "/", async (p) => {

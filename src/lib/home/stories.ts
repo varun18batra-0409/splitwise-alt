@@ -16,7 +16,7 @@ export type Tone = "sun" | "coral" | "sky" | "pink" | "lilac" | "mint";
 export type Frame =
   | { kind: "photo"; photo: string; kicker?: string; head: string; line?: string; calm?: boolean } // calm: a person's own words (a moment), set smaller and plain
   | { kind: "art"; art: StoryKind; kicker?: string; head: string; line?: string } // designed artwork (card night, collection…) instead of a photo
-  | { kind: "poster"; tone: Tone; kicker: string; big: string; line?: string }
+  | { kind: "poster"; tone: Tone; kicker: string; big: string; line?: string; photo?: string } // photo: the place's picture behind the words, under a dark layer
   | { kind: "list"; tone: Tone; kicker: string; rows: { label: string; value?: string; good?: boolean; bad?: boolean; share?: number }[]; line?: string };
 
 export type Story = {
@@ -63,6 +63,11 @@ function tripLine(p: TripPhase, people: number): string {
   return "Mark it in your calendar";
 }
 
+// The countdown slide: the trip's own photo behind the number (when there is one), "Sleeps to Manali", and a line that says what to do.
+export function countdownPoster(days: number, where: string, photo?: string): Frame {
+  return { kind: "poster", tone: "sun", kicker: `${days === 1 ? "Sleep" : "Sleeps"} to ${where}`, big: String(days), line: days <= 3 ? "Not that anyone's counting 👀" : "Time to start packing", ...(photo ? { photo } : {}) };
+}
+
 function tripFrames(t: StoryInput["trips"][number]): Frame[] {
   const p = t.phase;
   const where = place(t.name);
@@ -96,7 +101,7 @@ function tripFrames(t: StoryInput["trips"][number]): Frame[] {
   const out: (Frame | null)[] = [];
   if (p.kind === "before") {
     out.push(photo(0, p.days === 1 ? "Tomorrow" : `In ${p.days} days`, where, tripLine(p, t.people)));
-    out.push({ kind: "poster", tone: "sun", kicker: p.days === 1 ? "Sleeps to go" : "Sleeps to go", big: String(p.days), line: p.days <= 3 ? "Not that anyone's counting 👀" : "Someone has a countdown on their lock screen" });
+    out.push(countdownPoster(p.days, where, photos[0]));
     { const c = cap(0, 1); out.push(photo(1, c[0], c[1])); }
     out.push(crew);
     { const c = cap(1, 2); out.push(photo(2, c[0], c[1])); }

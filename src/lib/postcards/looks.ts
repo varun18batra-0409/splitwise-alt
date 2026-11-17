@@ -305,8 +305,9 @@ export const TOUCHES: Touch[] = [
     id: "coffee",
     name: "Coffee ring",
     side: "back",
-    x: 0.03,
-    y: 0.2,
+    // The empty bottom-right corner, under the address lines: never over the handwritten message (which fills the left half).
+    x: 0.64,
+    y: 0.53,
     w: 0.3,
     rot: 0,
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160"><g fill="none" stroke="#8a5a2a"><circle cx="80" cy="80" r="62" stroke-width="5" stroke-opacity=".14"/><path d="M28 60 A58 58 0 0 1 132 68" stroke-width="2.4" stroke-opacity=".2"/><path d="M40 128 A60 60 0 0 0 138 92" stroke-width="1.6" stroke-opacity=".18"/></g><circle cx="80" cy="80" r="58" fill="#8a5a2a" opacity=".035"/></svg>`,
@@ -418,7 +419,8 @@ export const touchesOn = (raw: string | undefined, side: "front" | "back" | "one
 // Touches that fit a one-side card, with their own spots.
 export const ONESIDE_TOUCHES: Record<string, { x: number; y: number; w: number; rot: number }> = {
   seal: { x: 0.4, y: 0.74, w: 0.13, rot: -8 },
-  coffee: { x: 0.58, y: 0.55, w: 0.3, rot: 0 },
+  // Bottom-left, under the print and left of the note: the note and its sign-off stay clear.
+  coffee: { x: 0.02, y: 0.68, w: 0.26, rot: 0 },
   flower: { x: 0.05, y: 0.62, w: 0.16, rot: 14 },
   paravion: { x: 0.43, y: 0.04, w: 0.18, rot: -3 },
 };
@@ -433,6 +435,11 @@ export const REACTIONS = [
   { id: "ha", name: "Ha!", glyph: "Ha!" },
 ] as const;
 export const reactionOf = (id: string) => REACTIONS.find((r) => r.id === id);
+// The line over the five seals: it asks until one is pressed, then says which went ("Sent: Love it").
+export const sealBackLine = (reaction: string | null | undefined) => {
+  const r = reactionOf(String(reaction ?? ""));
+  return r ? `Sent: ${r.name}` : "Press a seal back on it";
+};
 export const reactionSvg = (id: string, k = "r") => {
   const r = reactionOf(id);
   return r ? seal(r.glyph, `${id}${k.replace(/[^a-z0-9]/gi, "")}`) : "";

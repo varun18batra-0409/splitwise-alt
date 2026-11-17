@@ -23,7 +23,9 @@ describe("PostcardFront fit", () => {
     const m = html({ fit: "border" });
     expect(m).toContain('data-fit="border"');
     expect(m).toContain("data-print-frame");
-    expect(m).toContain("inset-[5%]");
+    // With words, the bottom margin is deeper and holds them (see b11e-review-fixes.test.ts); with none, the frame is the even 5% all round.
+    expect(m).toContain("inset-x-[5%]");
+    expect(html({ fit: "border", words: "" })).toContain("inset-[5%]");
   });
   it("taped: a tilted white-edged print", () => {
     const m = html({ fit: "taped" });

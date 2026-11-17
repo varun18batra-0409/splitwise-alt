@@ -9,6 +9,8 @@ import { buzz } from "@/lib/haptics";
 import { keptLook, keptTouches } from "@/lib/postcards/looks";
 import { HANDS, keptHand, keptInk, keptLettering, keptPaper, keptTone, stampOrder, toneOf } from "@/lib/postcards/catalog";
 import { messageFit, overText, roughMeasure, type MeasureEm } from "@/lib/postcards/fit";
+import { wordsOnMargin } from "@/lib/postcards/lettering";
+import { PREVIEW_CLASS } from "@/lib/postcards/preview";
 import { fitOf, formatOf, oneSideTooLong, photoSizeOf, ONESIDE_MAX, type Fit, type Format, type PhotoSize } from "@/lib/postcards/format";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
@@ -166,11 +168,11 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
       if (fileRef.current) fileRef.current.value = "";
     }
   }
-  // A taped print is white-edged on cream: light words would vanish on it, so the first time it is chosen (with a light colour) the
-  // words go Navy. Change them back whenever you like.
+  // With a taped print or a white border the words sit on the card's light margin: light words would vanish there, so the first time
+  // one is chosen (with a light colour) the words go Navy. Change them back whenever you like.
   const chooseFit = (f: Fit) => {
     setFit(f);
-    if (f === "taped" && !autoNavy.current && !toneOf(tone).dark) {
+    if (wordsOnMargin(f) && !autoNavy.current && !toneOf(tone).dark) {
       autoNavy.current = true;
       setTone("navy");
     }
@@ -262,7 +264,8 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
   const showBack = tab === "back";
   const trip = front.startsWith("photo:") ? front.slice(6) : "";
   const lookSrc = front === "own" ? own?.url ?? "" : trip;
-  const cardW = typing ? "w-[min(60cqw,90cqh)]" : "w-[min(96cqw,144cqh)]";
+  // One size on every tab, with the keyboard open or not: the options panel is what gives way (and scrolls).
+  const cardW = PREVIEW_CLASS;
   const preview = oneSide ? (
     <div className={cardW} data-composer-card="oneside">
       <PostcardOneSide {...oneProps} />
@@ -360,10 +363,10 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
         </div>
       ) : (
         // The edit steps are one fixed screen (this gets around the page's bottom padding). A long list scrolls inside its own panel.
-        <div className="fixed inset-0 z-30 mx-auto flex max-w-md flex-col gap-2.5 bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] max-[359px]:px-4" data-composer data-step-now={tab}>
+        <div className="fixed inset-0 z-30 mx-auto flex max-w-md flex-col gap-2.5 overflow-y-auto bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] max-[359px]:px-4" data-composer data-step-now={tab}>
           <TopBar title={title} steps={steps} step={tab} onStep={toStep} done={done} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={error} />
           {tab === "front" && <FormatSwitch format={format} onChange={changeFormat} />}
-          <div className="flex min-h-0 max-h-[calc((min(100vw,28rem)-2.5rem)*0.64+3rem)] flex-1 items-center justify-center [container-type:size]" data-composer-preview data-typing={typing ? "" : undefined}>
+          <div className="flex flex-none items-center justify-center" data-composer-preview data-typing={typing ? "" : undefined}>
             {preview}
           </div>
           {panel}

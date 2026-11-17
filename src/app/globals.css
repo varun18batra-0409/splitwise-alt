@@ -56,10 +56,19 @@
 
 }
 
+/* The phone's own colour emoji font, named so it comes first for emoji. Without this a phone can draw some emoji (😂 😭 😍) from a
+   grey outline symbol font that sits ahead of its colour one in the system list. Only emoji ranges (plus the joiners), so ordinary text
+   and symbols like ✓ or ♥ stay as they were. No font file is shipped: a phone with no colour emoji font falls through to what it has. */
+@font-face {
+  font-family: "Loopin Colour Emoji";
+  src: local("Apple Color Emoji"), local("Noto Color Emoji"), local("NotoColorEmoji"), local("Segoe UI Emoji"), local("Twemoji Mozilla");
+  unicode-range: U+1F000-1FAFF, U+200D, U+FE0F, U+2764, U+2B50, U+2B55, U+2705, U+274C, U+2728, U+26A1, U+2615, U+231A-231B, U+23E9-23F3;
+}
+
 @theme inline {
   /* Instrument Sans for everything you read; the phone's own font fills in any sign it lacks (₹). */
-  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-sans: var(--font-instrument), "Loopin Colour Emoji", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-fraunces), "Loopin Colour Emoji", ui-serif, Georgia, serif;
   --font-hand: var(--font-caveat), "Bradley Hand", "Segoe Print", cursive;
 }
 
@@ -802,10 +811,10 @@ body:has([data-tint]) {
 
 /* Emoji that draw in colour on every phone and computer (not a grey outline): used on reactions, the emoji picker and moment captions. */
 .emoji-font {
-  font-family: var(--font-sans, system-ui), system-ui, -apple-system, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-family: var(--font-sans, system-ui), "Loopin Colour Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, -apple-system, sans-serif;
 }
 .emoji-font-display {
-  font-family: var(--font-display, serif), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif;
+  font-family: var(--font-display, serif), "Loopin Colour Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif;
 }
 
 /* Payment recorded: the torn-off stub drops a few pixels and turns, once. With reduced motion it simply sits turned. */

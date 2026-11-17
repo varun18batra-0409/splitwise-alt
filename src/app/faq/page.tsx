@@ -122,7 +122,7 @@ const sections = (): { title: string; items: QA[] }[] => [
     items: [
       {
         q: "What are the little circles on Home?",
-        a: "Stories from your groups: a trip countdown, today’s spend while you’re away, a game night result, a group that just got all square. Tap the right side for the next slide, and swipe down or press Back to close. A bright ring means you haven’t seen it yet.",
+        a: "Stories from your groups: a trip countdown (with the trip’s photo behind it), today’s spend while you’re away, a game night result, a group that just got all square. Tap the right side for the next slide, and swipe down or press Back to close. A bright ring means you haven’t seen it yet.",
       },
       { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Charts, and share it as a picture. You can hide the amounts first." },
       {
@@ -133,7 +133,7 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "Who can see my passport?",
         a: "Nobody, until you say yes. Loopin asks once whether to show your places to people in your groups, and you can keep it private (Only me) any time. Friends see stamps and countries only, never your money, groups or email, and trips still happening stay hidden until they’re over.",
       },
-      { q: "How do postcards work?", a: "Pick a trip photo, write a few words and send it in Loopin to anyone you share a group with, or on WhatsApp to anyone. You can seal it until a day you choose, and every stamp you send or get is kept in your stamp album." },
+      { q: "How do postcards work?", a: "Pick a trip photo, write a few words and send it in Loopin to anyone you share a group with, or on WhatsApp to anyone. You can seal it until a day you choose, and every stamp you send or get is kept in your stamp album, where the ones you haven’t collected yet show the dates they’re available." },
       { q: "Who can see our moments?", a: "Only the people in that trip group. Someone who left sees the moments added before they left, and someone the group’s admin removed sees none. Block a person and you stop seeing their moments. Loopin looks at a moment only if someone reports it." },
       { q: "How do I remove a moment?", a: "Open it, tap the three dots, and choose Delete if you added it. Whoever looks after the group can remove any moment. The photo is erased for everyone and can’t be brought back. To report one, use the same menu." },
       { q: "Reactions, titles and the spinning wheel?", a: "Open any expense to react with an emoji. Once a group has a few expenses, everyone gets a title on Balances, for habits and never for who paid less. On Add expense, Spin for it lets the wheel decide who pays tonight." },

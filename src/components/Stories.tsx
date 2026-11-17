@@ -105,7 +105,7 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
 // A handwritten label on a strip of paper tape, stuck on at a slight angle ("Day 2 of 5").
 function Sticker({ children }: { children: ReactNode }) {
   return (
-    <p className="mb-3 inline-block -rotate-[4deg] bg-[#f4f2ec] px-3.5 pb-1 pt-0.5 font-hand text-[25px] font-bold leading-tight text-[#0d0d0f] shadow-[0_8px_18px_-6px_rgba(0,0,0,0.6)]">{children}</p>
+    <p className="mb-3 inline-block max-w-full break-words -rotate-[4deg] bg-[#f4f2ec] px-3.5 pb-1 pt-0.5 font-hand text-[25px] font-bold leading-tight text-[#0d0d0f] shadow-[0_8px_18px_-6px_rgba(0,0,0,0.6)]">{children}</p>
   );
 }
 
@@ -147,7 +147,15 @@ function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
   if (f.kind === "poster")
     return (
       <div className="absolute inset-0 text-[#f7f4ec]">
-        <Backdrop accent={accent} />
+        {f.photo ? (
+          <>
+            <Image src={f.photo} alt="" aria-hidden fill unoptimized={isOwnApi(f.photo)} sizes={STORY_SIZES} quality={STORY_QUALITY} priority className="lp-drift object-cover" />
+            {/* A dark layer over the photo, so the big number and the words stay easy to read. */}
+            <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.62)_0%,rgba(0,0,0,0.55)_45%,rgba(0,0,0,0.8)_100%)]" data-poster-scrim />
+          </>
+        ) : (
+          <Backdrop accent={accent} />
+        )}
         <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[110px] pt-24">
           <Sticker>{f.kicker}</Sticker>
           <p className="mt-1 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
