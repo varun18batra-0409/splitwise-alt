@@ -113,7 +113,7 @@ export function beenCards(
         ? { label: "View memories", href: `/groups/${t.groupId}/moments` }
         : { label: tripIsOver(t, today) ? "Relive trip" : "Trip so far", href: `/groups/${t.groupId}/report` },
     };
-    card.photo = cardPhoto(card, have);
+    card.photo = cardPhoto({ ...card, atHome: abroad.length === 0 }, have);
     cards.push(card);
   }
   // Countries added by hand: no dates, no button; only a photo that is really that country.

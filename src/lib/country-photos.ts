@@ -29,12 +29,18 @@ export function countryPhoto(code: string, have?: Have): string | null {
 // The picture on a Been card.
 //  - A trip: the place's photo, then its country's photo, then a mood photo (a beach, a city…).
 //  - A country added by hand: only its own country photo; never a mood picture. None: the drawn panel.
-export function cardPhoto(c: { kind: "trip" | "hand"; groupName: string; place: string; title: string; cities: string[]; code: string; countryName: string }, have?: Have): string | undefined {
-  const slot = placeSlot(`${c.groupName} ${c.place}`) ?? placeSlot(c.title) ?? placeSlot(c.cities.join(" ")) ?? placeSlot(c.countryName);
+// `atHome`: a trip inside the person's own country. Its card shows a photo only of the place itself; when the place isn't one we know,
+// the card has no photo and shows the big ring stamp instead (founder, 17 Nov): never the country's photo (a Chennai or Kerala trip
+// would show the Taj Mahal) and never a general mood photo.
+export function cardPhoto(c: { kind: "trip" | "hand"; groupName: string; place: string; title: string; cities: string[]; code: string; countryName: string; atHome?: boolean }, have?: Have): string | undefined {
+  const slot = c.atHome
+    ? placeSlot(`${c.groupName} ${c.place}`) ?? placeSlot(c.title)
+    : placeSlot(`${c.groupName} ${c.place}`) ?? placeSlot(c.title) ?? placeSlot(c.cities.join(" ")) ?? placeSlot(c.countryName);
   if (slot) {
     const own = (have ? photoSet(slot, have) : photoSet(slot))[0];
     if (own) return own;
   }
+  if (c.atHome) return undefined;
   const country = countryPhoto(c.code, have);
   if (country) return country;
   if (c.kind === "trip" && !have) return placePhotos(c.groupName, c.place, 1)[0];

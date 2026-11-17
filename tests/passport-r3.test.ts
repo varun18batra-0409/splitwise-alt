@@ -115,6 +115,13 @@ describe("R3: country photos", () => {
     const t = { kind: "trip" as const, groupName: "Boys trip", place: "", title: "Malaysia", cities: [] as string[], code: "MY", countryName: "Malaysia" };
     expect(cardPhoto(t, { ...have, "country-my": { src: "/photos/country-my.jpg" } })).toBe("/photos/country-my.jpg");
   });
+  it("a trip at home whose place we don't know gets no photo, so the card shows the ring stamp (never the Taj for Chennai, never a mood photo)", () => {
+    const withIndia = { ...have, "cover-taj": { src: "/photos/cover-taj.jpg" }, "place-goa": { src: "/photos/place-goa.jpg" } };
+    const chennai = { kind: "trip" as const, groupName: "Chennai weekend", place: "Chennai", title: "Chennai", cities: [] as string[], code: "IN", countryName: "India", atHome: true };
+    expect(cardPhoto(chennai, withIndia)).toBeUndefined();
+    expect(cardPhoto({ ...chennai, groupName: "Goa trip", place: "Goa", title: "Goa" }, withIndia)).toBe("/photos/place-goa.jpg"); // a place we know keeps its photo
+    expect(cardPhoto({ ...chennai, atHome: false }, withIndia)).toBe("/photos/cover-taj.jpg"); // abroad (a visitor's India trip): the country photo, as before
+  });
 });
 
 describe("R3: the stamp drawing", () => {
