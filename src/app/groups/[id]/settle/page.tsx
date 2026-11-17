@@ -32,6 +32,8 @@ import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
 import { notReceivedDone, notReceivedQuestion } from "@/lib/payment-words";
 import { planSettleRow, settleMainAction, settleRowFacts, tripEnded } from "@/lib/settle-row";
+import { listMoney } from "@/lib/money-display";
+import { leaverMoneyLine, settledPercent, squareWords } from "@/lib/settle-ui";
 import { confirmPaymentAction, markAllPaidAction, rejectPaymentAction } from "@/app/pay-actions";
 
 // Settle up inside one group: the fewest payments that clear every debt.
@@ -60,6 +62,8 @@ export default async function GroupSettle({
 
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (n: number) => formatMoney(n, group.currency);
+  // The payment rows: if any has paise, every row keeps its two decimals so they line up (₹2,670.00 beside ₹30,723.44).
+  const listFmt = listMoney(transfers.map((t) => t.amount), group.currency);
   // The group's rule "leave out small amounts" hides tiny payments here (they stay in the balances).
   const { shown, hidden } = applySettleMin(transfers, group.settleMin);
   const ordered = [
@@ -98,7 +102,8 @@ export default async function GroupSettle({
   const mainAction = settleMainAction({ type: group.type, transfers: transfers.length, shown: ordered.length, left: iLeft, ended });
   // Paid back so far, out of everything that needed paying back (payments made + what's still left).
   const left = transfers.reduce((t, x) => t + x.amount, 0);
-  const settledPct = paidSoFar + left > 0 ? Math.round((paidSoFar / (paidSoFar + left)) * 100) : 100;
+  const settledPct = settledPercent(paidSoFar, left);
+  const words = squareWords({ leaver: Boolean(data.leaver) });
 
   const cover: StubCover = { id: group.id, cover: coverFor(group), photo: tripPhotoSrc(group), name: group.name };
   const mark = groupMark(group.type);
@@ -207,11 +212,11 @@ export default async function GroupSettle({
       {/* How far the group is: one segment per payment, filled once it is paid. */}
       <div className="-mt-2 mb-7">
         <p className="font-display text-[28px] font-semibold leading-[1.04] tracking-[-0.02em]">
-          {transfers.length === 0 ? "All square" : `${transfers.length === 1 ? "One payment" : `${transfers.length} payments`} and you’re all square`}
+          {transfers.length === 0 ? words.headline : data.leaver ? leaverMoneyLine(transfers, myId, (id) => nameOf(id).split(/\s+/)[0], money) : `${transfers.length === 1 ? "One payment" : `${transfers.length} payments`} and you’re all square`}
         </p>
         <p className="mt-1.5 text-[13px] leading-snug text-fg/55">
           {group.name}
-          {transfers.length > 0 && before > transfers.length ? `: ${transfers.length} instead of ${before}` : ""}
+          {!data.leaver && transfers.length > 0 && before > transfers.length ? `: ${transfers.length} instead of ${before}` : ""}
         </p>
         {paymentCount + transfers.length > 0 && <SettleProgress pct={settledPct} />}
       </div>
@@ -283,8 +288,8 @@ export default async function GroupSettle({
         <div className="rounded-[20px] border border-line bg-white px-4 py-10 text-center">
           {expenseCount > 0 && <Confetti id={`${group.id}:${expenseCount}:${paymentCount}`} />}
           <SquareSeal size={56} className="mx-auto" />
-          <p className="mt-3 font-display text-xl font-semibold">All square</p>
-          <p className="mt-1 text-sm text-fg/60">Nobody owes anybody here.</p>
+          <p className="mt-3 font-display text-xl font-semibold">{words.headline}</p>
+          <p className="mt-1 text-sm text-fg/60">{words.line}</p>
           {expenseCount > 0 && (
             <Link href={`/groups/${group.id}/square`} className={`${OUTLINE_PILL} mx-auto mt-4 inline-flex`}>
               Share the moment
@@ -321,7 +326,7 @@ export default async function GroupSettle({
                       from={nameOf(t.from)}
                       to={nameOf(t.to)}
                       mark={mark}
-                      amount={money(t.amount)}
+                      amount={listFmt(t.amount)}
                       fields={passFieldsHere}
                       tone={iPay ? "owe" : "owed"}
                       sr={`${nameOf(t.from)} ${iPay ? "pay" : "pays"} ${t.to === myId ? "you" : nameOf(t.to)} ${money(t.amount)}`}
@@ -362,7 +367,7 @@ export default async function GroupSettle({
                           <p className="text-[14px] text-fg/75">
                             <b className="font-semibold text-fg">{nameOf(t.from)}</b> pays <b className="font-semibold text-fg">{nameOf(t.to)}</b>
                           </p>
-                          <p className="font-display text-[20px] font-medium leading-tight tracking-[-0.02em] lining-nums tabular-nums">{money(t.amount)}</p>
+                          <p className="font-display text-[20px] font-medium leading-tight tracking-[-0.02em] lining-nums tabular-nums">{listFmt(t.amount)}</p>
                         </div>
                         {f.actionButton("inline-flex min-h-11 shrink-0 items-center rounded-full border border-fg/25 px-4 text-[13.5px] font-semibold text-fg active:scale-[0.97]")}
                       </div>

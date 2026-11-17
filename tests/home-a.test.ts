@@ -77,7 +77,7 @@ describe("slim money card label", () => {
     expect(moneyLabel({ mode: "owe" })).toBe("You owe");
   });
   it("square and even and mixed currencies", () => {
-    expect(moneyLabel({ mode: "square", people: [] })).toBe("Nobody owes anybody");
+    expect(moneyLabel({ mode: "square", people: [] })).toBe("You’re all square");
     expect(moneyLabel({ mode: "even", people: two })).toBe("It all evens out");
     expect(moneyLabel({ mode: "owe", acrossCurrencies: true, people: two })).toBe("Across currencies");
   });

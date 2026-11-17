@@ -32,6 +32,7 @@ export default async function WrappedPage({ params }: { params: Promise<{ id: st
     tripEnd: group.tripEnd,
     stillToSettle: still,
     myId,
+    leaver: Boolean(data.leaver),
   });
   return (
     <>

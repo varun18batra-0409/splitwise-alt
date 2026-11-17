@@ -3,7 +3,7 @@ import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
 import { buildActivity, byDay, filterActivity } from "@/lib/activity";
-import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap, type Grain } from "@/lib/search";
+import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap, recapRows, type Grain } from "@/lib/search";
 import { Insights, type InsightsData } from "./Insights";
 import { computeInsights } from "@/lib/insights";
 import { db } from "@/lib/db";
@@ -15,7 +15,6 @@ import { nextDueDay } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney } from "@/lib/money-display";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { PageHeader } from "@/components/ui";
@@ -53,18 +52,7 @@ export default async function SearchPage({
   const { months, years } = periodsOf(rows.map((r) => r.item.date), tz);
   const shown = rows.filter((r) => inPeriod(r.item.date, period, tz)).sort((a, b) => b.item.date.getTime() - a.item.date.getTime());
 
-  const sum = recap(
-    shown.flatMap(({ item, g }) =>
-      item.kind === "expense"
-        ? [{
-            amount: item.refund ? -item.amount : item.amount,
-            category: item.category,
-            currency: g.group.currency,
-            mine: (item.refund ? -1 : 1) * (g.expenses.find((e) => e.id === item.id)?.shares.find((s) => s.memberId === g.myId)?.amount ?? 0),
-          }]
-        : [],
-    ),
-  );
+  const sum = recap(recapRows(shown, ({ item, g }) => g.expenses.find((e) => e.id === item.id)?.shares.find((s) => s.memberId === g.myId)?.amount ?? 0));
 
   // Insights settings: what to show, and by week, month or year.
   const view: "share" | "spent" = sp.v === "spent" ? "spent" : "share";
@@ -204,8 +192,8 @@ export default async function SearchPage({
           title={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
           data-exact={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} | ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
         >
-          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => overviewMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
-          {sum.totals.map((t) => overviewMoney(t.mine, t.currency)).join(" + ")}
+          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
+          {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
         </p>
       )}
 

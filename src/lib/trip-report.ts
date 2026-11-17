@@ -4,6 +4,7 @@ import { dayKey, expenseDate } from "./dates";
 import { niceDate } from "./format";
 import { decimalsOf, formatMoney } from "./money";
 import type { Transfer } from "./settle";
+import { percentsTo100 } from "./money-display";
 
 // The trip report (and the short "insight" lines shown on a trip's Charts tab):
 // totals, days, per person, top categories, biggest expense, who paid most and
@@ -41,6 +42,7 @@ export type TripReport = {
   busiestDay: { day: string; amount: number } | null;
   shares: { id: string; name: string; amount: number }[]; // what each person's part came to, biggest first
   settle: { from: string; to: string; fromId: string; toId: string; amount: number }[]; // names, and who they are
+  viewerLeft?: boolean; // set by the report page when the viewer has left the group (their words change: they owe nobody, nobody owes them)
 };
 
 export function tripReport(input: { name: string; type?: string; currency: string; members: Member[]; expenses: Expense[]; transfers: Transfer[]; tz: string }): TripReport {
@@ -68,8 +70,12 @@ export function tripReport(input: { name: string; type?: string; currency: strin
     const d = dayKey(expenseDate(e), tz);
     perDay.set(d, (perDay.get(d) ?? 0) + spentAmount(e));
   }
-  const categories = CATEGORIES.filter((c) => (byCat.get(c.id) ?? 0) > 0)
-    .map((c) => ({ id: c.id, label: c.label, emoji: c.emoji, amount: byCat.get(c.id)!, pct: total > 0 ? Math.round((byCat.get(c.id)! * 100) / total) : 0 }))
+  // Every category's share of the total, shown ones and dropped ones together, so the percentages add up to 100.
+  const catRows = CATEGORIES.filter((c) => (byCat.get(c.id) ?? 0) !== 0);
+  const catPcts = percentsTo100(catRows.map((c) => byCat.get(c.id)!));
+  const categories = catRows
+    .map((c, i) => ({ id: c.id, label: c.label, emoji: c.emoji, amount: byCat.get(c.id)!, pct: catPcts[i] }))
+    .filter((c) => c.amount > 0)
     .sort((a, b) => b.amount - a.amount);
   const real = expenses.filter((e) => e.kind !== "refund" && e.kind !== "pot");
   const big = real.reduce<Expense | null>((b, e) => (!b || e.amount > b.amount ? e : b), null);
@@ -110,8 +116,11 @@ export function dateRange(r: Pick<TripReport, "from" | "to">): string {
 }
 
 // The message that goes to WhatsApp with the picture (or on its own). No link to the group.
-export function reportText(r: TripReport): string {
-  const m = (x: number) => formatMoney(x, r.currency);
+// `fmt` is how the overview figures are written (the share button passes the card's whole-unit style so the text matches the
+// picture and the card); the settle-up lines are always exact, because someone will pay that amount.
+export function reportText(r: TripReport, fmt: (minor: number, currency: string) => string = formatMoney): string {
+  const m = (x: number) => fmt(x, r.currency);
+  const exact = (x: number) => formatMoney(x, r.currency);
   const lines = [
     r.trip ? `🧳 ${r.name}: the trip in numbers` : `📊 ${r.name}: in numbers`,
     [dateRange(r), r.days > 1 ? `${r.days} days` : "", `${r.count} ${r.count === 1 ? "expense" : "expenses"}`].filter(Boolean).join(" · "),
@@ -123,8 +132,8 @@ export function reportText(r: TripReport): string {
   lines.push("");
   if (r.settle.length) {
     lines.push("To settle up:");
-    for (const s of r.settle) lines.push(`• ${s.from} pays ${s.to} ${m(s.amount)}`);
-  } else lines.push("All settled ✅");
+    for (const s of r.settle) lines.push(`• ${s.from} pays ${s.to} ${exact(s.amount)}`);
+  } else lines.push(r.viewerLeft ? "Settled up on my side ✅" : "All settled ✅");
   lines.push("", "Split with Loopin");
   return lines.join("\n");
 }

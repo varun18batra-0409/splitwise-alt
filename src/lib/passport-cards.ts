@@ -1,6 +1,13 @@
 import { countryOf } from "./geo";
 import { passportCounts, tripDays, type PassportTrip, type Stamp } from "./passport";
 import { cardPhoto } from "./country-photos";
+import { addDays } from "./local-time";
+
+// A trip is over from the day after its last day. A trip without dates (its "start" is its latest spending day) is over 3 days after that,
+// the same buffer the friend rule uses (passport-db.ts), so spending today never reads as "relived".
+export function tripIsOver(t: { start: string; end: string; undated?: boolean }, today: string): boolean {
+  return t.undated ? addDays(t.start, 3) < today : (t.end || t.start) < today;
+}
 
 // The "Been" tab of the passport: one card per trip (newest first), then one small card for each
 // country added by hand. Pure: the page draws it, this decides what it says.
@@ -25,7 +32,7 @@ export type BeenCardData = {
   people: number;
   countryName: string; // the stamp always names the country: a trip to Goa is "INDIA / MAR 2026"
   stampWhen: string; // the trip's start day ("" = been there)
-  cta?: { label: "Relive trip" | "View memories"; href: string }; // the one button; none for a country added by hand
+  cta?: { label: "Relive trip" | "Trip so far" | "View memories"; href: string }; // the one button; none for a country added by hand
   photo?: string; // the picture on the left; none = the drawn stamp on cream paper
 };
 
@@ -101,7 +108,10 @@ export function beenCards(
       countryName: country,
       stampWhen: t.start,
       // One button: your moments if there are any to see, otherwise the trip's story.
-      cta: x?.moments ? { label: "View memories", href: `/groups/${t.groupId}/moments` } : { label: "Relive trip", href: `/groups/${t.groupId}/report` },
+      // A trip still going on isn't "relived" yet: it is "Trip so far" (the same report). It is over from the day after its last day.
+      cta: x?.moments
+        ? { label: "View memories", href: `/groups/${t.groupId}/moments` }
+        : { label: tripIsOver(t, today) ? "Relive trip" : "Trip so far", href: `/groups/${t.groupId}/report` },
     };
     card.photo = cardPhoto(card, have);
     cards.push(card);

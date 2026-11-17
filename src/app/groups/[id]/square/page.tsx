@@ -11,6 +11,7 @@ import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 import { squareNumbers, squareTiles } from "@/lib/square";
 import { Confetti } from "@/components/Confetti";
+import { squareWords } from "@/lib/settle-ui";
 
 // "All square": nobody owes anybody. A moment worth sharing, not just a zero.
 export default async function SquarePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ amounts?: string }> }) {
@@ -26,12 +27,13 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   const n = squareNumbers({ expenses, payments, people, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const money = (x: number) => formatMoney(x, group.currency);
   const photo = group.type === "trip" ? placePhoto(group.name)?.src : undefined;
+  const words = squareWords({ leaver: Boolean(data.leaver) });
   const square = transfers.length === 0 && expenses.length > 0;
   const tiles = squareTiles(n, { hide, formatSpent: money });
 
   return (
     <>
-      <PageHeader title={square ? "All square" : "Not square yet"} hideTitle={square} back={`/groups/${group.id}`} />
+      <PageHeader title={square ? words.headline : "Not square yet"} hideTitle={square} back={`/groups/${group.id}`} />
       <section aria-label="All square" className="flex flex-col items-center pb-8">
         {/* The group's polaroid, pinned. */}
         <div className="relative mt-2 w-[78%] max-w-[300px] -rotate-2 bg-[#f4f1e8] p-2.5 pb-0 shadow-[0_30px_50px_-20px_rgba(0,0,0,0.95)]">
@@ -51,9 +53,9 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
           <>
             <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />
             <p className="mt-9 text-center font-display text-[44px] font-semibold leading-none tracking-tight" data-square>
-              All square
+              {words.headline}
             </p>
-            <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">Nobody owes anybody. Nice one.</p>
+            <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">{words.nice}</p>
             <dl className={`mt-8 grid w-full gap-2 text-center ${tiles.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
               {tiles.map(([v, l]) => (
                 <div key={l} className="rounded-2xl border border-line px-2 py-3">
@@ -77,7 +79,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
               </span>
             </a>
             <div className="mt-4 w-full">
-              <ShareSheet image={`/groups/${group.id}/square-image${hide ? "?amounts=0" : ""}`} fileName="all-square.png" title="Share: all square" words={`${group.name}: all square 🎉 Nobody owes anybody.`} label="Share the moment" />
+              <ShareSheet image={`/groups/${group.id}/square-image${hide ? "?amounts=0" : ""}`} fileName={data.leaver ? "youre-square.png" : "all-square.png"} title={data.leaver ? "Share: you’re square" : "Share: all square"} words={words.share(group.name)} label="Share the moment" />
             </div>
           </>
         ) : (

@@ -50,8 +50,9 @@ describe("the group ticket is Settle up is the People tab", () => {
     const words = (b: number) => (b > 0 ? `gets ${formatMoney(b, "INR")}` : b < 0 ? `owes ${formatMoney(-b, "INR")}` : "settled");
     expect([words(net.n), words(net.y), words(net.r)]).toEqual(["gets ₹3,600", "owes ₹1,800", "owes ₹1,800"]);
     const tab = readFileSync("src/app/groups/[id]/_components/BalancesTab.tsx", "utf8");
-    expect(tab).toContain("`gets ${money(b)}`");
-    expect(tab).toContain("`owes ${money(-b)}`");
+    // B4: the same exact figures, with the two decimals kept on every line when any line has paise (listMoney)
+    expect(tab).toContain("`gets ${listFmt(b)}`");
+    expect(tab).toContain("`owes ${listFmt(-b)}`");
   });
   it("Nupur's own ticket: ₹3,600 owed to her by 2 people, codes 2 PPL to YOU", () => {
     const sides = groupTicketSides({ mine: net.n, myId: "n", transfers, nameOf: (id) => ({ y: "Asha", n: "Nupur", r: "Ravi" })[id] ?? "?" });

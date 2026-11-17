@@ -225,7 +225,7 @@ export async function loadGroupSettle(id: string, viewer?: string | null) {
       transfers: full.transfers,
       expenseCount: full.expenses.length,
       paymentCount: full.payments.length,
-      paidSoFar: full.payments.reduce((t, p) => t + p.amount, 0),
+      paidSoFar: full.payments.filter((p) => p.fromId === me.id || p.toId === me.id).reduce((t, p) => t + p.amount, 0), // their own payments only (not other people's in the group)
       before: pairwiseDebtCount(full.expenses, full.payments),
       leaver: full.leaver,
     };

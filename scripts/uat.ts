@@ -1330,7 +1330,7 @@ async function main() {
     await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on ONE slim Net card (about 80px: “Net · you’re owed/you owe” and the net amount once, “Group” and “Non-group” lines only when both exist, or “All square” + “Nobody owes anybody”), the whole card is one link to Settle up with no buttons inside, no photo or tint; nothing under it (what needs you is in Updates behind the bell)", async () => {
+  await step(V, "Home", "Home opens on ONE slim Net card (about 80px: “Net · you’re owed/you owe” and the net amount once, “Group” and “Non-group” lines only when both exist, or “All square” + “You’re all square”), the whole card is one link to Settle up with no buttons inside, no photo or tint; nothing under it (what needs you is in Updates behind the bell)", async () => {
     await go(V, "/");
     const money = V.locator("[data-balance-card]").first();
     await money.waitFor();
@@ -1347,7 +1347,7 @@ async function main() {
     assert(look.bg === "none" && look.border === "0px", `the money card is tinted or outlined (${look.bg}, ${look.border})`);
     const name = (await money.getAttribute("aria-label")) ?? "";
     if (kind === "square") {
-      assert(tone === "square" && text === "All square Nobody owes anybody", `all-square card: ${tone} ${text}`);
+      assert(tone === "square" && text === "All square You’re all square", `all-square card: ${tone} ${text}`);
       assert(/^All square/.test(name), `all-square card's name: ${name}`);
     } else {
       assert(kind === "net", `unknown money card kind ${kind}`);

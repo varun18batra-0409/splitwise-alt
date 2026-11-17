@@ -59,6 +59,12 @@ export async function undatedTripFacts(
   return out;
 }
 
+// The passport as Our passports compares it: everyone, the viewer included, by the friend's rule (a trip still going on is not in it),
+// so the same trip counts the same way for every person in the list.
+export async function loadComparePassport(account: { id: string; homeCountry: string; places: string; timeZone: string }, today: string) {
+  return loadPassport(account, "", today, { forFriend: true });
+}
+
 // Your passport, from every trip group you're in (any phone you signed in on).
 export async function loadPassport(account: { id: string; homeCountry: string; places: string; timeZone: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean; withMoments?: boolean } = {}) {
   const groups = await db.group.findMany({

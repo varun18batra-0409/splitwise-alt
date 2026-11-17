@@ -5,6 +5,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { formatMoney } from "@/lib/money";
 import { photoData } from "@/lib/share-photo";
 import { loadOgFonts } from "@/lib/og-assets";
+import { squareWords } from "@/lib/settle-ui";
 import { isSquare, squareNumbers, squareTiles } from "@/lib/square";
 
 // "All square" as a story-sized picture (1080 × 1920) for WhatsApp status or
@@ -20,6 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { group, expenses, payments, transfers } = data;
   // The picture says "Nobody owes anybody": only made when that is true (settled, with at least one expense).
   if (!isSquare({ transfers, expenses })) return new Response("This group isn’t all square yet.", { status: 409, headers: { "Cache-Control": "private, no-store" } });
+  const words = squareWords({ leaver: Boolean(data.leaver) });
   const people = data.people.filter((m) => !m.leftAt); // the scoped list (as Wrapped does), so a leaver is not shown people from after they left
   const n = squareNumbers({ expenses, payments, people: people.length, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const origin = new URL(req.url).origin;
@@ -36,8 +38,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           </div>
           <div style={{ display: "flex", padding: "18px 6px 30px", fontSize: 56, color: "#26231d" }}>{group.name.slice(0, 28)}</div>
         </div>
-        <div style={{ marginTop: 110, display: "flex", fontSize: 150, fontWeight: 700, letterSpacing: -4 }}>All square</div>
-        <div style={{ marginTop: 22, display: "flex", fontSize: 54, color: "#ffd9a8" }}>Nobody owes anybody.</div>
+        <div style={{ marginTop: 110, display: "flex", fontSize: 150, fontWeight: 700, letterSpacing: -4 }}>{words.headline}</div>
+        <div style={{ marginTop: 22, display: "flex", fontSize: 54, color: "#ffd9a8" }}>{words.picture}</div>
         <div style={{ marginTop: 80, display: "flex", gap: 28 }}>
           {stats.map(([v, l]) => (
             <div key={l} style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "26px 34px", borderRadius: 32, border: "3px solid rgba(244,242,236,0.16)", background: "rgba(244,242,236,0.06)" }}>

@@ -139,9 +139,9 @@ describe("the amount never adds two currencies", () => {
 });
 
 describe("the ticket for each money situation", () => {
-  it("nothing owed: “All square” and “Nobody owes anybody”, no button at all (the “+ New group” tile below is the only one)", () => {
+  it("nothing owed: “All square” and “You’re all square”, no button at all (the “+ New group” tile below is the only one)", () => {
     const t = ticketFor([], {}, "square");
-    expect(t).toMatchObject({ kind: "square", amount: "All square", label: "Nobody owes anybody" });
+    expect(t).toMatchObject({ kind: "square", amount: "All square", label: "You’re all square" });
     expect(t).not.toHaveProperty("action");
     expect(JSON.stringify(t)).not.toContain("New group");
   });

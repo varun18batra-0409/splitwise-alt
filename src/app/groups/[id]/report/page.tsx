@@ -6,6 +6,7 @@ import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
+import { overviewMoney, roundPartsToTotal } from "@/lib/money-display";
 import { Amt } from "@/components/Amt";
 import { dateRange, tripReport } from "@/lib/trip-report";
 import { PageHeader } from "@/components/ui";
@@ -24,9 +25,19 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   if (!data) notFound();
   if (!myId || !data.group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   const { group, expenses, transfers } = data;
-  const r = tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers, tz: await getTimeZone() });
+  const viewerLeft = Boolean(data.leaver);
+  const r = { ...tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers, tz: await getTimeZone() }), viewerLeft };
   const m = (x: number) => <Amt minor={x} currency={group.currency} />; // whole units from 1,000 up; exact in the tooltip / data-exact
   const exact = (x: number) => formatMoney(x, group.currency); // the settle-up lines stay exact
+  // The rows add up to the total shown: the category rows (and "Everything else") and each person's part are rounded together to the rounded
+  // total, the largest leftover fractions going up (display only; the exact amount is in the tooltip).
+  const catShown = roundPartsToTotal(r.categories.map((c) => c.amount), group.currency);
+  const shareShown = roundPartsToTotal(r.shares.map((s) => s.amount), group.currency);
+  const rm = (shown: number, exactMinor: number) => (
+    <span title={formatMoney(exactMinor, group.currency)} data-exact={formatMoney(exactMinor, group.currency)}>
+      {overviewMoney(shown, group.currency)}
+    </span>
+  );
   const title = group.type === "trip" ? "Trip report" : "Group report";
 
   return (
@@ -63,7 +74,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                       {c.label}
                     </span>
                     <span className="tabular-nums text-fg/70">
-                      {m(c.amount)} · {c.pct}%
+                      {rm(catShown[r.categories.indexOf(c)], c.amount)} · {c.pct}%
                     </span>
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-line">
@@ -77,7 +88,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <li className="flex justify-between text-sm text-fg/55">
                   <span>Everything else ({r.categories.length - 4})</span>
                   <span className="tabular-nums">
-                    {m(r.categories.slice(4).reduce((t, c) => t + c.amount, 0))} · {Math.max(0, 100 - r.categories.slice(0, 4).reduce((t, c) => t + c.pct, 0))}%
+                    {rm(catShown.slice(4).reduce((t, x) => t + x, 0), r.categories.slice(4).reduce((t, c) => t + c.amount, 0))} · {r.categories.slice(4).reduce((t, c) => t + c.pct, 0)}%
                   </span>
                 </li>
               )}
@@ -100,23 +111,23 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               <>
                 <h2 className="mt-6 text-sm font-semibold">Each person’s part</h2>
                 <ul className="mt-2 space-y-1 text-sm text-fg/70">
-                  {r.shares.map((s) => (
+                  {r.shares.map((s, si) => (
                     <li key={s.id} className="flex justify-between">
                       <span>{s.id === myId ? "You" : s.name}</span>
-                      <span className="tabular-nums">{m(s.amount)}</span>
+                      <span className="tabular-nums">{rm(shareShown[si], s.amount)}</span>
                     </li>
                   ))}
                 </ul>
               </>
             )}
 
-            <h2 className="mt-6 text-sm font-semibold">{r.settle.length ? "To settle up" : "All settled ✅"}</h2>
+            <h2 className="mt-6 text-sm font-semibold">{r.settle.length ? "To settle up" : viewerLeft ? "You’re settled ✅" : "All settled ✅"}</h2>
             {r.settle.length > 0 && (
               <ul className="mt-2 space-y-1 text-sm text-fg/70">
                 {r.settle.map((s, i) => (
                   <li key={i} className="flex justify-between gap-3">
                     <span>
-                      {s.from} → {s.to}
+                      {s.fromId === myId ? "You" : s.from} → {s.toId === myId ? "You" : s.to}
                     </span>
                     {/* The colour rule: orange only when it is money you pay, green when it is coming to you, plain when it is between two others. */}
                     <span className={`tabular-nums ${s.fromId === myId ? "text-owe" : s.toId === myId ? "text-owed" : "text-fg/80"}`}>{exact(s.amount)}</span>
@@ -137,7 +148,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               <p className="mb-4 mt-1 text-sm text-gray-500">
                 {transfers.length
                   ? "Settle up, then close the group. It stays in your history, and this report stays here."
-                  : "Everyone’s square. Close the group; it stays in your history, and this report stays here."}
+                  : `${viewerLeft ? "You’re square." : "Everyone’s square."} Close the group; it stays in your history, and this report stays here.`}
               </p>
               <Link href={`/groups/${group.id}/settle#close`} className="block border border-line px-4 py-3 text-center text-sm font-semibold text-fg active:bg-mist rounded-full">
                 {transfers.length ? "Settle up & close" : "Close the group"}

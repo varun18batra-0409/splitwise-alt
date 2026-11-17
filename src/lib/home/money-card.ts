@@ -33,11 +33,11 @@ export function moneyLead(mode: MoneyMode, acrossCurrencies = false): string {
   return mode === "owed" ? "Coming back to you" : mode === "owe" ? "You owe" : mode === "even" ? "It all evens out" : "All square";
 }
 
-// The label on the slim money card, left of the amount: "Coming back to you", "You owe", "Nobody owes anybody".
+// The label on the slim money card, left of the amount: "Coming back to you", "You owe", "You’re all square" (only your own side: it says nothing about other people).
 // Who it is with is the people line underneath (moneyPeople), so the label no longer counts people.
 export function moneyLabel(x: { mode: MoneyMode; acrossCurrencies?: boolean; people?: { name: string; net?: number }[] }): string {
   if (x.acrossCurrencies) return "Across currencies";
-  if (x.mode === "square") return "Nobody owes anybody";
+  if (x.mode === "square") return "You’re all square";
   if (x.mode === "owed") return "Coming back to you";
   if (x.mode === "even") return "It all evens out";
   return "You owe";
@@ -237,7 +237,7 @@ export function peopleLine(entries: MoneyPerson[]): PeopleLine {
 
 // "across 3 groups, from 4 people": groups with something open, and who it is with.
 export function moneySub(x: { mode: MoneyMode; groups: number; allGroups: number; people: { name: string; net?: number }[] }): string {
-  if (x.mode === "square") return x.allGroups === 1 ? "Nobody owes anybody in your group" : x.allGroups === 0 ? "Nobody owes anybody" : `Nobody owes anybody in your ${x.allGroups} groups`;
+  if (x.mode === "square") return x.allGroups === 1 ? "You’re square in your group" : x.allGroups === 0 ? "You’re all square" : `You’re square in your ${x.allGroups} groups`;
   const where = x.groups > 1 ? `across ${x.groups} groups` : "in one group";
   const dir = x.mode === "owed" ? "from" : x.mode === "owe" ? "to" : "with";
   // Only people on the matching side: "to N people" counts those you owe, "from N people" those who owe you.
@@ -479,7 +479,7 @@ export function homeTicket(x: {
   hero: { text: string; exact?: string };
   groups: InvolvedGroup[];
 }): Ticket {
-  if (x.mode === "square") return { kind: "square", label: "Nobody owes anybody", amount: "All square" };
+  if (x.mode === "square") return { kind: "square", label: "You’re all square", amount: "All square" };
   const ranked = rankGroups(x.groups);
   const mark = groupMark(ranked[0]?.type ?? "");
   const context = ticketContext(ranked);
@@ -599,7 +599,7 @@ export type NetCard =
 export function homeNetCard(x: { items: NetItem[]; common: string; toCommon: (amount: number, currency: string) => number | null }): NetCard {
   const open = x.items.filter((i) => i.net !== 0);
   if (open.length === 0) {
-    return { kind: "square", label: "All square", text: "Nobody owes anybody", href: "/settle", aria: "All square. Nobody owes anybody. Open Settle up" };
+    return { kind: "square", label: "All square", text: "You’re all square", href: "/settle", aria: "All square. You’re all square. Open Settle up" };
   }
   const sum = { group: 0, direct: 0 };
   const approxKind = { group: false, direct: false };

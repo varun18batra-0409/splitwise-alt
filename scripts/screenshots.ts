@@ -374,7 +374,7 @@ if (!desktop && !hosted) {
   const addExpense = async (groupId: string, by: string, shares: [string, number][], description = "Dinner at Jay Fai") => {
     const amount = shares.reduce((t, [, a]) => t + a, 0);
     const e = await db.expense.create({
-      data: { groupId, description, amount, splitType: "exact", forMode: "selected", paidById: by, createdById: by, shares: { create: shares.map(([memberId, a]) => ({ memberId, amount: a })) } },
+      data: { groupId, description, amount, category: guessCategory(description), splitType: "exact", forMode: "selected", paidById: by, createdById: by, shares: { create: shares.map(([memberId, a]) => ({ memberId, amount: a })) } },
     });
     made.push(e.id);
   };
@@ -396,7 +396,7 @@ if (!desktop && !hosted) {
     // Money both ways, in two groups: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat). The card now NETS them: 2291600 - 420000 = 1871600 paise = ₹18,716 owed to him.
     ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "net", has: /^net \| Net · you’re owed ₹18,716$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| All square Nobody owes anybody$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| All square You’re all square$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -670,7 +670,15 @@ if (!hosted) {
       await p.locator("[data-stories] button").first().click();
       await p.waitForTimeout(700);
     }, false);
-    await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH" }, { c: "IT" }, { c: "AT" }, { c: "HR" }]) } });
+    // Thailand comes from a real trip with dates that this account is in (not a hand-added country), so the passport, the Been tab and
+    // Our passports all count it the same way.
+    await db.group.create({
+      data: {
+        name: "Thailand trip", type: "trip", currency: "THB", inviteCode: `shotsth${now.toString(36)}`, tripStart: "2026-03-10", tripEnd: "2026-03-16", tripPlace: "Phuket", tripCountry: "TH",
+        members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }] },
+      },
+    });
+    await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "IT" }, { c: "AT" }, { c: "HR" }]) } });
     await shot("108-passport", "/passport", undefined, false);
     // 108 shows the one-time question; from here Varun has said Show.
     await db.account.update({ where: { id: acc.id }, data: { passportChoiceAt: new Date() } });
@@ -1006,20 +1014,23 @@ if (!hosted) {
   const photos = realPhotos("thailand");
   let turn = 0;
   const nextPhoto = () => photos[turn++ % photos.length];
-  const trip = async (name: string, riyaLeft?: Date, place = "Phuket") =>
-    db.group.create({
+  // The members join well before Riya leaves (someone who "joined" after the day they left would be dropped as a later joiner).
+  const trip = async (name: string, riyaLeft?: Date, place = "Phuket") => {
+    const joinedAt = (ms: number) => new Date((riyaLeft ? riyaLeft.getTime() - 3 * 3_600_000 : Date.now()) - ms);
+    return db.group.create({
       data: {
         name, type: "trip", currency: "THB", inviteCode: `shotsmo${tag}${Math.random().toString(36).slice(2, 6)}`, tripStart: "2026-11-10", tripEnd: "2026-11-14", tripPlace: place, tripCountry: "TH",
         members: {
           create: [
-            { name: "Varu", accountId: varu.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 5000) },
-            { name: "Nupur", accountId: nupur.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 4000) },
-            { name: "Riya", accountId: riya.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 3000), ...(riyaLeft ? { leftAt: riyaLeft } : {}) },
+            { name: "Varu", accountId: varu.id, claimedAt: new Date(), createdAt: joinedAt(5000) },
+            { name: "Nupur", accountId: nupur.id, claimedAt: new Date(), createdAt: joinedAt(4000) },
+            { name: "Riya", accountId: riya.id, claimedAt: new Date(), createdAt: joinedAt(3000), ...(riyaLeft ? { leftAt: riyaLeft } : {}) },
           ],
         },
       },
       include: { members: true },
     });
+  };
   const mins = (m: number) => new Date(Date.now() - m * 60_000);
   const uploaders = new Map<string, Page>();
   const uploader = async (acc: { id: string }) => {

@@ -2,16 +2,32 @@ import { decimalsOf, formatMoney } from "../money";
 
 // Display-only helpers for Home. Nothing here changes a stored value or any other screen's numbers.
 
-// Big amounts on Home show whole rupees/dollars (₹68,263, not ₹68,263.10). Under 1,000 whole units, and in currencies
-// without decimals, the exact amount is shown. `minor` is in the currency's smallest unit; the exact amount is
+// Overview amounts show whole rupees/dollars (₹68,263, not ₹68,263.10; ₹393, not ₹393.34), at every size (founder's choice, 17 Nov).
+// Currencies without decimals are already whole. `minor` is in the currency's smallest unit; the exact amount is
 // still what is stored, and callers put it in a tooltip / spoken label.
+// The whole-unit value an overview shows for an amount (display arithmetic only: ₹393.34 -> 39300).
+export function roundedMinor(minor: number, currency = "INR"): number {
+  const d = decimalsOf(currency);
+  if (d === 0) return minor;
+  const unit = 10 ** d;
+  return (Math.sign(minor) * Math.round(Math.abs(minor) / unit) * unit) || 0;
+}
+
+// The recap's third number, from what the screen shows for the other two: rounded(paid) − rounded(share), so the three agree.
+// If that comes out as 0 or the other way round while the real difference is not 0, the exact difference is shown (never a false "even").
+export function recapShownDiff(paid: number, share: number, currency = "INR"): number {
+  const net = paid - share;
+  const diff = roundedMinor(paid, currency) - roundedMinor(share, currency);
+  return net !== 0 && Math.sign(diff) !== Math.sign(net) ? net : diff;
+}
+
 export function homeMoney(minor: number, currency = "INR"): string {
   const d = decimalsOf(currency);
   if (d === 0) return formatMoney(minor, currency);
   const unit = 10 ** d;
-  if (Math.abs(minor) < 1000 * unit) return formatMoney(minor, currency);
-  const whole = Math.sign(minor) * Math.round(Math.abs(minor) / unit) * unit;
-  return formatMoney(whole, currency);
+  const whole = roundedMinor(minor, currency); // never "-₹0"
+  // The one exception to "round everything": a real amount that would round to nothing (₹0.40) is shown exactly, so it never reads as a misleading ₹0.
+  return formatMoney(whole === 0 && minor !== 0 ? minor : whole, currency);
 }
 
 // A collection's money goes to its UPI ID (INR) or pay link, and the organiser may have put someone else's there

@@ -121,3 +121,31 @@ describe("Insights: the numbers", () => {
     expect(r.me).toEqual({ share: 1900000, paid: 1100000, net: -800000 });
   });
 });
+
+// Batch B4 (Recap): every category is listed, the rows add up to the header, and the third number is not called "owed".
+import { recapDiffLabel } from "@/lib/insights";
+import { percentsTo100, roundPartsToTotal } from "@/lib/money-display";
+
+describe("Recap: where it went adds up (B4)", () => {
+  it("seven categories: all returned, rounded rows equal the rounded header, percentages add to 100", () => {
+    // ₹20,132.00 + 12,298.00 + 7,952.00 + 5,957.00 + 2,725.00 + 2,004.48 + 579.00 = ₹51,647.48 (header shows ₹51,647).
+    const amounts: [string, number][] = [["accommodation", 2013200], ["food", 1229800], ["transport", 795200], ["activities", 595700], ["shopping", 272500], ["groceries", 200448], ["bills", 57900]];
+    const g: InsightGroup = { currency: "INR", myId: "m1", expenses: amounts.map(([cat, a], i) => exp(`c${i}`, a, { m1: a }, "2026-10-05", cat)) };
+    const r = computeInsights([g], { ...base, view: "share", grain: "m" });
+    expect(r.categories.map((c) => c.amount)).toEqual(amounts.map(([, a]) => a)); // all 7 (the screen used to cut to the top 5: 49,064 and 95%)
+    const total = r.categories.reduce((s, c) => s + c.amount, 0);
+    expect(total).toBe(5164748);
+    const rows = roundPartsToTotal(r.categories.map((c) => c.amount), "INR");
+    expect(rows.map((x) => x / 100)).toEqual([20132, 12298, 7952, 5957, 2725, 2004, 579]);
+    expect(rows.reduce((s, x) => s + x, 0)).toBe(5164700); // ₹51,647 = the header
+    const pcts = percentsTo100(r.categories.map((c) => c.amount));
+    expect(pcts).toEqual([39, 24, 15, 12, 5, 4, 1]);
+    expect(pcts.reduce((s, x) => s + x, 0)).toBe(100);
+  });
+  it("the third number is worded as what it is: paid minus your share, never 'owed'", () => {
+    expect(recapDiffLabel(7326300)).toBe("More than your share");
+    expect(recapDiffLabel(-420000)).toBe("Less than your share");
+    expect(recapDiffLabel(0)).toBe("Exactly your share");
+    for (const n of [7326300, -420000, 0]) expect(recapDiffLabel(n)).not.toMatch(/owed|owe/i);
+  });
+});

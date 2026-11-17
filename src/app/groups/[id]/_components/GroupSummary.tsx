@@ -3,6 +3,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { setGroupClosed } from "@/app/actions";
 import { exactMoney } from "@/lib/money-display";
+import { leaverMoneyLine, squareWords } from "@/lib/settle-ui";
 import type { GroupFacts } from "@/lib/home/money-card";
 import type { GroupView } from "./view";
 
@@ -80,7 +81,9 @@ function summaryLine(v: GroupView): string {
   const list = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
   const toMe = transfers.filter((t) => t.to === myId).map((t) => first(t.from));
   const fromMe = transfers.filter((t) => t.from === myId).map((t) => first(t.to));
-  const clear = transfers.length === 0 ? "Nobody owes anybody." : `${transfers.length === 1 ? "1 payment clears" : `${transfers.length} payments clear`} everything.`;
+  // Someone who left hears only about their own side (never "N payments clear everything").
+  if (v.leaver) return leaverMoneyLine(transfers, myId, first, v.money);
+  const clear = transfers.length === 0 ? (v.leaver ? squareWords({ leaver: true }).line : "Nobody owes anybody.") : `${transfers.length === 1 ? "1 payment clears" : `${transfers.length} payments clear`} everything.`;
   if (toMe.length) return `${list(toMe)} ${toMe.length === 1 ? "owes" : "owe"} you. ${clear}`;
   if (fromMe.length) return `You pay ${list(fromMe)}. ${clear}`;
   return clear;

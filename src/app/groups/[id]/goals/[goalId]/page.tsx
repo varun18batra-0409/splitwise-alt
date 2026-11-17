@@ -72,6 +72,7 @@ export default async function GoalPage({
   const saved = goal.entries.reduce((s, e) => s + e.amount, 0);
   const active = group.members.filter((m) => !m.leftAt);
   const plan = goalPlan({
+    currency: group.currency,
     target: goal.target,
     saved,
     today: dayKey(new Date(), tz),
@@ -103,7 +104,7 @@ export default async function GoalPage({
         </div>
         <p className="mt-3 text-center text-sm leading-relaxed">
           {goal.reachedAt ? (
-            <>Reached 🎉 Well done, both of you.</>
+            <>Reached 🎉 {active.length === 2 ? "Well done, both of you." : active.length > 2 ? "Well done, all of you." : "Well done."}</>
           ) : plan.months ? (
             <>
               {plan.onTrack ? "On track." : "A bit behind."} {money(plan.perMonth)} a month gets you there.

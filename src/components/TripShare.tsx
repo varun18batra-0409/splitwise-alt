@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatMoney } from "@/lib/money";
+import { overviewMoney } from "@/lib/money-display";
 import { dateRange, reportText, type TripReport } from "@/lib/trip-report";
 import { primaryButtonClass, secondaryButtonClass } from "./ui";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -27,12 +28,14 @@ function box(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: 
   ctx.fill();
 }
 
-export function drawReport(canvas: HTMLCanvasElement, r: TripReport) {
+// `fmt` writes the overview figures (the share button passes the card's whole-unit style); settle-up lines stay exact.
+export function drawReport(canvas: HTMLCanvasElement, r: TripReport, fmt: (minor: number, currency: string) => string = formatMoney) {
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const m = (x: number) => formatMoney(x, r.currency);
+  const m = (x: number) => fmt(x, r.currency);
+  const exact = (x: number) => formatMoney(x, r.currency);
   const sans = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   const serif = "Georgia, ui-serif, serif";
   ctx.fillStyle = "#0d0d0f";
@@ -91,7 +94,7 @@ export function drawReport(canvas: HTMLCanvasElement, r: TripReport) {
   y += 30;
   ctx.fillStyle = "#f4f2ec";
   ctx.font = `600 38px ${sans}`;
-  if (!r.settle.length) ctx.fillText("All settled ✅", x, y);
+  if (!r.settle.length) ctx.fillText(r.viewerLeft ? "Settled up on my side ✅" : "All settled ✅", x, y);
   else {
     ctx.fillText("To settle up", x, y);
     ctx.font = `400 34px ${sans}`;
@@ -102,7 +105,7 @@ export function drawReport(canvas: HTMLCanvasElement, r: TripReport) {
       ctx.fillText(wrap(ctx, `${s.from} → ${s.to}`, right - x - 260), x, y);
       ctx.textAlign = "right";
       ctx.fillStyle = "#ffab6b";
-      ctx.fillText(m(s.amount), right, y);
+      ctx.fillText(exact(s.amount), right, y);
       ctx.textAlign = "left";
     }
     if (shown.length < r.settle.length) {
@@ -117,18 +120,18 @@ export function drawReport(canvas: HTMLCanvasElement, r: TripReport) {
   ctx.fillText("loopin", x, H - 110);
   ctx.font = `400 28px ${sans}`;
   ctx.textAlign = "right";
-  ctx.fillText("Everyone’s in. Everything adds up.", right, H - 110);
+  ctx.fillText(r.viewerLeft ? "Everything adds up." : "Everyone’s in. Everything adds up.", right, H - 110);
   ctx.textAlign = "left";
 }
 
 export function TripShare({ report }: { report: TripReport }) {
   const [note, setNote] = useState("");
-  const text = reportText(report);
+  const text = reportText(report, overviewMoney);
   const fileName = `${report.name.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "trip"}-report.png`;
 
   async function picture(): Promise<File | null> {
     const canvas = document.createElement("canvas");
-    drawReport(canvas, report);
+    drawReport(canvas, report, overviewMoney);
     const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/png"));
     return blob ? new File([blob], fileName, { type: "image/png" }) : null;
   }

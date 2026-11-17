@@ -65,7 +65,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums"><Amt minor={s.total} currency={group.currency} /></p>
             {s.lastTotal > 0 && (
               <p className="mt-1.5 text-sm text-gray-500">
-                {change <= 0 ? <><Amt minor={-change} currency={group.currency} /> less than last month</> : <><Amt minor={change} currency={group.currency} /> more than last month</>}
+                {change === 0 ? <>Same as last month</> : change < 0 ? <><Amt minor={-change} currency={group.currency} /> less than last month</> : <><Amt minor={change} currency={group.currency} /> more than last month</>}
               </p>
             )}
             <div className="my-4 h-px bg-line" />

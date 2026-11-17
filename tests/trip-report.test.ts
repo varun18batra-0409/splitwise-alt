@@ -120,3 +120,43 @@ describe("download all my data", () => {
     expect(pay).toContain(",500.00,INR,,-500.00,");
   });
 });
+
+// Batch B4: the report's categories add up to 100, and the share text matches the card (whole units) with exact settle lines.
+import { overviewMoney } from "@/lib/money-display";
+import type { TripReport } from "@/lib/trip-report";
+
+describe("trip report: B4 rounding and wording", () => {
+  it("percentages add to 100: 46.5 / 29.5 / 10.5 / 9.5 / 4 become 47 / 30 / 10 / 9 / 4", () => {
+    const e = [
+      ex("1", "Hotel", 4650000, "accommodation", "a", "2026-10-10", [["a", 4650000]]),
+      ex("2", "Food", 2950000, "food", "a", "2026-10-10", [["a", 2950000]]),
+      ex("3", "Taxi", 1050000, "transport", "a", "2026-10-10", [["a", 1050000]]),
+      ex("4", "Trek", 950000, "activities", "a", "2026-10-10", [["a", 950000]]),
+      ex("5", "Gifts", 400000, "shopping", "a", "2026-10-10", [["a", 400000]]),
+    ];
+    const rep = tripReport({ name: "T", currency: "INR", members, expenses: e, transfers: [], tz: "Asia/Kolkata" });
+    expect(rep.categories.map((c) => c.pct)).toEqual([47, 30, 10, 9, 4]);
+    // The page's "Everything else" is the sum of the rest: 9 + 4 = 13 (it used to be 100 - 98 = 2).
+    expect(rep.categories.slice(4).reduce((t, c) => t + c.pct, 0) + rep.categories.slice(0, 4).reduce((t, c) => t + c.pct, 0)).toBe(100);
+  });
+
+  const base: TripReport = {
+    name: "Goa", trip: true, currency: "INR", total: 10458262, count: 3, from: "2026-10-10", to: "2026-10-10", days: 1, perDay: 0, people: 3, perPerson: 3486087,
+    categories: [], biggest: null, topPayer: { id: "m", name: "Meera", amount: 5237349 }, busiestDay: null, shares: [],
+    settle: [{ from: "Meera", to: "Varun", fromId: "m", toId: "v", amount: 1761819 }],
+  };
+  it("reportText with the card's style: ₹1,04,583 total and (₹52,373), but the settle line stays exact", () => {
+    const t = reportText(base, overviewMoney);
+    expect(t).toContain("Total ₹1,04,583");
+    expect(t).toContain("(₹52,373)");
+    expect(t).toContain("• Meera pays Varun ₹17,618.19");
+    // The default stays exact.
+    expect(reportText(base)).toContain("Total ₹1,04,582.62");
+  });
+  it("someone who has left is never told 'All settled ✅'", () => {
+    const left = reportText({ ...base, settle: [], viewerLeft: true });
+    expect(left).not.toContain("All settled ✅");
+    expect(left).toContain("Settled up on my side ✅");
+    expect(reportText({ ...base, settle: [] })).toContain("All settled ✅");
+  });
+});

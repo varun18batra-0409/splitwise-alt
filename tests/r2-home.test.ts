@@ -119,7 +119,7 @@ describe("both ways: two passes, the larger first", () => {
 });
 
 describe("all square and the neutral card", () => {
-  it("square is the slim card: 'All square' and 'Nobody owes anybody', still one link to Settle up, no stamp and no button", () => {
+  it("square is the slim card: 'All square' and 'You’re all square', still one link to Settle up, no stamp and no button", () => {
     const hm = src("src/components/HomeMoney.tsx");
     const money = hm.slice(hm.indexOf("export function MoneyCard"), hm.indexOf('// "Coming up": the trips that are next'));
     expect(money).toContain('data-money-mode="square"');

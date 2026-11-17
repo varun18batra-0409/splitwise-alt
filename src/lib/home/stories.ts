@@ -2,6 +2,7 @@ import type { TripPhase } from "../countdown";
 import { placeSlot } from "../places";
 import { storyLines } from "./story-lines";
 import { lineForPhoto } from "./photo-tags";
+import { countsLine } from "../collect-rules";
 
 // Home's stories: the moments in your groups, not the numbers. A trip coming
 // up (or happening now), last night's card game, a group that just got all
@@ -42,7 +43,7 @@ export type StoryInput = {
   trips: ({ id: string; name: string; phase: TripPhase; people: number; month?: number; stop?: { city?: string; country?: string; countryName?: string; flag?: string }; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
   games: { id: string; groupId: string; name: string; winner: string; won: string; youWon?: string; finishedAt: Date; table?: { name: string; net: string; up: boolean; even: boolean; share: number }[]; pays?: string[]; toSettle?: string; photos?: string[] }[];
   squared: ({ id: string; name: string; at: Date; spent?: string; payments?: number; people?: number } & Pic)[];
-  collections: { id: string; code: string; title: string; paid: number; people: number; in?: string; reported?: string; target?: string; paidNames?: string[]; reportedNames?: string[]; dueNames?: string[] }[];
+  collections: { id: string; code: string; title: string; paid: number; checked?: number; people: number; in?: string; reported?: string; target?: string; paidNames?: string[]; reportedNames?: string[]; dueNames?: string[] }[];
   memories: ({ id: string; name: string; years: number; people: number; days: number; spent?: string; crew?: string[] } & Pic)[];
   wrapped: ({ id: string; name: string; endedDaysAgo: number; spent?: string; topCategory?: string } & Pic)[];
   // New moments in a trip group (the last 3 days, only ones this person may see: src/lib/moments-db.ts loadMomentStoryGroups).
@@ -200,26 +201,29 @@ export function buildStories(i: StoryInput): Story[] {
   }
   for (const c of i.collections) {
     if (c.people === 0) continue;
-    const all = c.paid === c.people;
+    // "Everyone's in" only once the organiser has checked every payment; people saying they paid is not the same thing.
+    const checked = c.checked ?? 0;
+    const all = checked === c.people;
+    const counts = countsLine({ paidCount: c.paid, people: c.people, checked });
     const frames: Frame[] = [
-      { kind: "art", art: "collect", kicker: c.title, head: all ? "Everyone’s in" : `${c.paid} of ${c.people} paid`, line: all ? "Time to close it" : c.paid === 0 ? "Who’s going first?" : "The jar is filling up" },
+      { kind: "art", art: "collect", kicker: c.title, head: all ? "Everyone’s in" : c.paid === 0 ? "No one yet" : `${c.paid} of ${c.people} say they’ve paid`, line: all ? "Time to close it" : c.paid === 0 ? "Who’s going first?" : "The jar is filling up" },
       ...(c.in && c.target ? [{ kind: "poster", tone: "coral", kicker: "Confirmed", big: c.in, line: `of ${c.target}${c.reported ? ` · ${c.reported} reported, awaiting check` : ""}` } as Frame] : []),
       ...((c.paidNames?.length || c.reportedNames?.length || c.dueNames?.length)
         ? [{ kind: "list", tone: "mint", kicker: "Roll call", rows: [...(c.paidNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Checked ✓", good: true })), ...(c.reportedNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Says paid", good: false })), ...(c.dueNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Not yet", bad: true }))], line: (c.dueNames?.length ?? 0) > 0 ? "A gentle nudge might help" : "Legends, all of them" } as Frame]
         : []),
     ];
     out.push({
-      id: `collect-${c.id}-${c.paid}`,
+      id: `collect-${c.id}-${c.paid}-${checked}`,
       kind: "collect",
       short: "Collection",
       label: c.title.length > 14 ? `${c.title.slice(0, 13)}…` : c.title,
-      headline: all ? `${c.title}: everyone’s in` : `${c.title}: ${c.paid} of ${c.people} paid`,
+      headline: all ? `${c.title}: everyone’s in` : `${c.title}: ${counts}`,
       line: all ? "Time to close it" : c.paid === 0 ? "Share the link to get it going" : "Nearly there. A nudge might help",
       cta: "Open the collection",
       href: `/c/${c.code}`,
       art: "collect",
       emoji: "🪙",
-      big: `${c.paid}/${c.people}`,
+      big: `${checked}/${c.people}`,
       frames,
       at: now - 2 * 86_400_000,
     });

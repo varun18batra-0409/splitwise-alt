@@ -136,6 +136,7 @@ export function wrapSlides(g: {
   tripEnd?: string;
   stillToSettle: number;
   myId: string;
+  leaver?: boolean; // the viewer has left: they only know their own side, so "You’re square"
 }): { slides: Slide[]; awards: Award[]; total: number; spentCount: number } {
   const expenses = g.expenses.filter((e) => !e.deletedAt && e.kind !== "pot");
   const money = (n: number) => formatMoney(n, g.currency);
@@ -221,7 +222,7 @@ export function wrapSlides(g: {
   slides.push(
     g.stillToSettle > 0
       ? { kind: "outro", headline: `${money(g.stillToSettle)} still to settle`, line: "Close it out and make it official", emoji: "🤝" }
-      : { kind: "outro", headline: "All square", line: "Same time next year?", emoji: "🎉" },
+      : { kind: "outro", headline: g.leaver ? "You’re square" : "All square", line: "Same time next year?", emoji: "🎉" },
   );
   return { slides, awards, total, spentCount: spentOnes.length };
 }
