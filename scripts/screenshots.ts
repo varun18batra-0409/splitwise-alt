@@ -30,6 +30,22 @@ async function fullShot(p: Page, path: string, fullPage: boolean) {
   }
 }
 
+// The test database file is shared with the running app, and a write can land at the very moment the app is writing: the database then
+// answers at once with "busy", which Prisma reports as P2010 / "SocketTimeout" (seen in the merged release run, and on several
+// branches in one night). Nothing is wrong with the data: wait a moment and try the same write again. Local copy only.
+async function dbRetry<T>(what: string, run: () => Promise<T>, tries = 6): Promise<T> {
+  for (let n = 1; ; n++) {
+    try {
+      return await run();
+    } catch (e) {
+      const text = String(e);
+      if (n >= tries || !/P2010|SocketTimeout|SQLITE_BUSY|database is locked|busy/i.test(text)) throw e;
+      console.log(`  (${what}: the database was busy, trying again ${n}/${tries - 1})`);
+      await new Promise((r) => setTimeout(r, 750 * n));
+    }
+  }
+}
+
 async function main() {
 const browser = withBypass(await (ios ? webkit : chromium).launch());
 const context = await browser.newContext({
@@ -1570,10 +1586,10 @@ if (!desktop) {
     const held: Record<string, string> = {};
     try {
       for (const [name, type, others] of [["Flat 402", "home", 2], ["Thailand trip", "trip", 3], ["Us", "couple", 1]] as const) {
-        const g = await db.group.create({
-          data: { name, type, inviteCode: `so-${stamp}-${made.length}`, members: { create: [{ name: "Dev" }, ...Array.from({ length: others }, (_, i) => ({ name: `Friend ${i + 1}` }))] } },
+        const g = await dbRetry("AS3 group", () => db.group.create({
+          data: { name, type, inviteCode: `so-${stamp}-${made.length}-${Math.random().toString(36).slice(2, 7)}`, members: { create: [{ name: "Dev" }, ...Array.from({ length: others }, (_, i) => ({ name: `Friend ${i + 1}` }))] } },
           include: { members: true },
-        });
+        }));
         made.push(g.id);
         held[g.id] = `${g.members.find((m) => m.name === "Dev")!.id}~0`;
       }
@@ -1588,7 +1604,7 @@ if (!desktop) {
       await snapAt(c, "AS3-email-link", "/signin/verify?e=dev@example.test&c=123456", undefined, false);
       await c.close();
       // Signed in, with the groups still only on this phone: the quiet notice on Home, and the sign-out page that lists them first.
-      const acc = await db.account.create({ data: { email: `as3-notice-${stamp}@uat.loopin.test`, name: "Asha" } });
+      const acc = await dbRetry("AS3 account", () => db.account.create({ data: { email: `as3-notice-${stamp}@uat.loopin.test`, name: "Asha" } }));
       try {
         const c2 = await fresh({ locale: "en-IN", cookies: [{ name: SESSION_COOKIE, value: await encodeSession({ m: held, a: acc.id, v: 0 }) }, { name: "lp_tour", value: "1" }] });
         await snapAt(c2, "AS3-only-here-home", "/", undefined, false);
@@ -1600,10 +1616,10 @@ if (!desktop) {
         }, false);
         await c2.close();
       } finally {
-        await db.account.delete({ where: { id: acc.id } }).catch(() => undefined);
+        await dbRetry("AS3 clean-up", () => db.account.delete({ where: { id: acc.id } })).catch(() => undefined);
       }
     } catch (e) {
-      console.log("✗ AS3-guest-sheet (set-up failed)", String(e).split("\n")[0]);
+      console.log("✗ AS3-guest-sheet (set-up failed)", String(e).split("\n").filter((l) => l.trim()).slice(-2).join(" | ").slice(0, 300));
     } finally {
       if (made.length) await db.group.deleteMany({ where: { id: { in: made } } }).catch(() => undefined);
     }
@@ -1623,9 +1639,9 @@ if (!desktop) {
 if (!hosted) {
   const { db } = await import("@/lib/db");
   const email = "shots-us@example.com";
-  const old = await db.account.findUnique({ where: { email } });
-  if (old) await db.member.updateMany({ where: { accountId: old.id }, data: { accountId: null } });
-  const acc = await db.account.upsert({ where: { email }, update: { name: "Varu" }, create: { email, name: "Varu" } });
+  const old = await dbRetry("US account", () => db.account.findUnique({ where: { email } }));
+  if (old) await dbRetry("US account", () => db.member.updateMany({ where: { accountId: old.id }, data: { accountId: null } }));
+  const acc = await dbRetry("US account", () => db.account.upsert({ where: { email }, update: { name: "Varu" }, create: { email, name: "Varu" } }));
   const us = await browser.newContext({
     viewport: screen,
     deviceScaleFactor: desktop ? 1 : 2,
@@ -1646,7 +1662,9 @@ if (!hosted) {
       await run();
       await snap(name, fullPage);
     } catch (e) {
-      console.log("✗", name, String(e).split("\n")[0]);
+      // Say what the page was showing, so a failed step explains itself (signed-out gate, error page, or a changed label).
+      const seen = await p.locator("h1, h2").first().innerText({ timeout: 2000 }).catch(() => "(no heading)");
+      console.log("✗", name, String(e).split("\n")[0], `[at ${p.url().replace(base, "") || "/"}, heading: ${seen.replace(/\s+/g, " ").slice(0, 80)}]`);
     }
   };
   await step("80-us-tour-2", async () => {
@@ -1668,7 +1686,14 @@ if (!hosted) {
   });
   let groupPath = "";
   await step("83-us-new-group", async () => {
-    await p.goto(base + "/groups/new", { waitUntil: "networkidle" });
+    // New group needs a signed-in account (signed out it shows "First, a quick sign-in"). If the account was not seen yet (the database
+    // was busy a moment ago), open the page again a few times before giving up.
+    for (let n = 0; n < 4; n++) {
+      await p.goto(base + "/groups/new", { waitUntil: "networkidle" });
+      if (await p.getByRole("button", { name: /^Trip/ }).first().isVisible().catch(() => false)) break;
+      if (n === 3) throw new Error("New group did not show its choices: the US account is not signed in on this page");
+      await p.waitForTimeout(1500);
+    }
     await p.getByRole("button", { name: /^Trip/ }).click();
     await p.locator('input[name="groupName"]').fill("NYC weekend");
   });
@@ -1713,17 +1738,17 @@ if (!hosted && !desktop && !ios) {
     const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
     // Four friends with their own accounts, so Friends' passports has people in it. The viewer is Aarav.
     const mk = (n: string, places: string[]) =>
-      db.account.create({ data: { email: `shots-gd-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n, passportChoiceAt: new Date(), places: JSON.stringify(places.map((c) => ({ c }))) } });
+      dbRetry("GD account", () => db.account.create({ data: { email: `shots-gd-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n, passportChoiceAt: new Date(), places: JSON.stringify(places.map((c) => ({ c }))) } }));
     const aarav = await mk("Aarav", ["JP", "TH", "AE"]);
     const friends = [await mk("Meera", ["JP", "FR", "GR"]), await mk("Kabir", ["JP", "ID", "TH"]), await mk("Isha", ["JP", "IT", "SG"])];
     // The trip ended 5 days ago, so Wrapped and the recap are ready. (Dates are set again for the "coming up" story below.)
-    const tokyo = await db.group.create({
+    const tokyo = await dbRetry("GD group", () => db.group.create({
       data: {
         name: "Tokyo trip", type: "trip", currency: "INR", inviteCode: `shotsgd${tag}`, tripStart: ist(-9), tripEnd: ist(-5), tripPlace: "Tokyo", tripCountry: "JP",
         members: { create: [{ name: "Aarav", accountId: aarav.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 5000) }, ...friends.map((a, i) => ({ name: a.name!, accountId: a.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 4000 + i * 500) }))] },
       },
       include: { members: true },
-    });
+    }));
     const ids = tokyo.members.map((m) => m.id);
     const who = (n: string) => tokyo.members.find((m) => m.name === n)!.id;
     // Same expense shape as the Pune shots above: equal split among all four, amounts in paise that divide by 4 so shares add up exactly.
@@ -1848,7 +1873,7 @@ if (!hosted && !desktop && !ios) {
       ["GD-couple-month", `/groups/${demo.couple.id}`],
     ]);
   } catch (e) {
-    console.log("✗ GD- shots (set-up failed)", String(e).split("\n")[0]);
+    console.log("✗ GD- shots (set-up failed)", String(e).split("\n").filter((l) => l.trim()).slice(-2).join(" | ").slice(0, 300));
   }
 }
 // This batch's screens (phones only), at 390 and 320: Settle with someone you are even with across two groups ("Clear both"), the People tab in
@@ -1857,24 +1882,24 @@ if (!hosted && !desktop && !ios) {
 if (!desktop && !hosted) {
   const { db } = await import("../src/lib/db");
   const stamp = Date.now();
-  const me = await db.account.create({ data: { email: `shots-b11b-${stamp}@uat.loopin.test`, name: "Varun" } });
-  const asha = await db.account.create({ data: { email: `shots-b11b-asha-${stamp}@uat.loopin.test`, name: "Asha" } });
+  const me = await dbRetry("b11b account", () => db.account.create({ data: { email: `shots-b11b-${stamp}@uat.loopin.test`, name: "Varun" } }));
+  const asha = await dbRetry("b11b account", () => db.account.create({ data: { email: `shots-b11b-asha-${stamp}@uat.loopin.test`, name: "Asha" } }));
   const mk = async (name: string, type: string, currency: string, others: string[]) =>
-    db.group.create({
+    dbRetry("b11b group", () => db.group.create({
       data: {
         name, type, currency, cardMarkupBp: 300, inviteCode: `b11b${name.replace(/\W/g, "").toLowerCase()}${stamp.toString(36)}`,
         members: { create: [{ name: "Varun", accountId: me.id, claimedAt: new Date() }, { name: "Asha", accountId: asha.id, claimedAt: new Date() }, ...others.map((n) => ({ name: n })), ...(type === "home" ? [{ name: "Dev", leftAt: new Date() }] : [])] },
       },
       include: { members: true },
-    });
+    }));
   const flat = await mk("Flat 402", "home", "INR", ["Kabir"]);
   const trip = await mk("Thailand trip", "trip", "INR", ["Ravi"]);
   const id = (g: typeof flat, n: string) => g.members.find((m) => m.name === n)!.id;
   const spend = (g: typeof flat, description: string, amount: number, paid: string, who: string[], extra: Record<string, unknown> = {}) =>
-    db.expense.create({
+    dbRetry("b11b expense", () => db.expense.create({
       data: { groupId: g.id, description, splitType: "equal", amount, originalAmount: amount, convertedAmount: amount, originalCurrency: g.currency, baseCurrency: g.currency, paidById: id(g, paid), createdById: id(g, paid), ...extra,
         shares: { create: who.map((n) => ({ memberId: id(g, n), amount: amount / who.length })) } },
-    });
+    }));
   // Asha owes Varun 4200 in the flat; Varun owes Asha 4200 on the trip: even across groups.
   await spend(flat, "Groceries", 840000, "Varun", ["Varun", "Asha"]);
   await spend(trip, "Hotel", 840000, "Asha", ["Varun", "Asha"]);
