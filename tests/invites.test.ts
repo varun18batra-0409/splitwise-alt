@@ -209,7 +209,9 @@ describe("inviting someone who was added by name only", () => {
     const sent = await db.outbox.findFirstOrThrow({ where: { to: mail("rohit") }, orderBy: { createdAt: "desc" } });
     expect(sent.text).toContain(`/join/claim-${stamp}?e=`);
     expect(sent.text).toContain(`as=${rohit.id}`);
-    expect(sent.subject).toContain("Old flat");
+    // The subject is fixed (a group name never goes in it, Safety part A / AS-13); the group name is in the body.
+    expect(sent.subject).toBe("You've been added to a group on Loopin");
+    expect(sent.text).toContain("Old flat");
     expect(await inviteToClaim(g.id, me.id, me.id, mail("x"), "https://loopinapps.com")).toEqual({ ok: false, error: "That person is already on Loopin." });
     expect((await inviteToClaim(g.id, me.id, rohit.id, "not-an-email", "https://loopinapps.com")).ok).toBe(false);
     await db.group.delete({ where: { id: g.id } });

@@ -57,6 +57,11 @@ afterAll(async () => {
   await db.account.deleteMany({ where: { id: { in: accounts } } }).catch(() => undefined);
 });
 
+// Run the push jobs a request would run after it answers, and any they start in turn, until none are left.
+async function drain() {
+  for (let i = 0; i < 20 && state.tasks.length; i++) await Promise.all(state.tasks.splice(0));
+}
+
 const sum = (n: Record<string, number>) => Object.values(n).reduce((x, y) => x + y, 0);
 async function net(gid: string) {
   const members = await db.member.findMany({ where: { groupId: gid }, select: { id: true } });
@@ -354,14 +359,19 @@ describe("Redo of “settle everything” tells the payer and the person paid (r
     const ids = (await db.payment.findMany({ where: { groupId: w.gid, deletedAt: null }, select: { id: true } })).map((x) => x.id);
     expect(ids.length).toBe(2);
     expect((await applySettleAll(w.gid, w.a, ids, false, { recorderOk: true })).ok).toBe(true);
-    await Promise.all(state.tasks.splice(0));
+    await drain();
     state.pushes.length = 0;
     expect((await applySettleAll(w.gid, w.a, ids, true, { recorderOk: true })).ok).toBe(true);
-    await Promise.all(state.tasks.splice(0));
+    await drain();
     const told = state.pushes.filter((x) => x.p.url.includes("open=")).flatMap((x) => x.ids);
     // Ravi (payer of both) and Meera (paid in one) each get their own message again; Asha, who redid it, gets none.
-    expect(told.filter((id) => id === w.r).length).toBeGreaterThanOrEqual(1);
-    expect(told.filter((id) => id === w.m).length).toBeGreaterThanOrEqual(1);
+    // Hand-worked: payment 1 (Ravi → Asha, redone by Asha) tells Ravi; payment 2 (Ravi → Meera, redone by Asha, who is in neither) tells Ravi and Meera.
+    // So Ravi 2, Meera 1, three messages in all, one per person per payment, and each payment's own link.
+    expect(told.filter((id) => id === w.r).length).toBe(2);
+    expect(told.filter((id) => id === w.m).length).toBe(1);
+    expect(told.length).toBe(3);
+    const links = state.pushes.filter((x) => x.p.url.includes("open=")).map((x) => new URL(x.p.url, "http://x").searchParams.get("open"));
+    expect(new Set(links)).toEqual(new Set(ids));
     expect(told.includes(w.a)).toBe(false); // the one who redid it isn't told about her own action
     expect(await net(w.gid)).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
     expect((await db.group.findUnique({ where: { id: w.gid } }))!.closed).toBe(true);
