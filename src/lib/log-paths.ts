@@ -4,9 +4,15 @@
 const SECRET_FIRST = new Set(["join", "c", "p"]);
 
 export function hideSecrets(path: string): string {
-  const parts = path.split("?")[0].split("#")[0].split("/");
+  // "//join/CODE" and "/join//CODE" are the same page to the server: look at the pieces, not the slashes.
+  const parts = path.split("?")[0].split("#")[0].replace(/^\/{2,}/, "/").replace(/\/{2,}/g, "/").split("/");
   // parts[0] is "" for a path that starts with "/".
   const at = parts[0] === "" ? 1 : 0;
   if (SECRET_FIRST.has((parts[at] ?? "").toLowerCase()) && parts[at + 1]) parts[at + 1] = ":code";
   return parts.join("/");
+}
+
+// The same for free text (an error message can repeat the address it came from): any /join/, /c/ or /p/ code anywhere in it.
+export function hideSecretsIn(text: string): string {
+  return String(text).replace(/\/+(join|c|p)\/+[^\s/?#"'<>)]+/gi, "/$1/:code");
 }

@@ -37,14 +37,20 @@ describe("small items", () => {
 
   it("AS-13: invite emails have a fixed subject, and names carry no links or addresses", async () => {
     const { mailSafe } = await import("@/lib/mail-safe");
-    const out = mailSafe("Refund pending – claim at evil.example");
-    expect(out).not.toContain("evil.example");
-    expect(out).toBe("Refund pending – claim at");
+    // Ordinary names that merely contain a dot or an @ survive.
+    for (const n of ["K.Srinivas", "Dr.Rao", "Mary.Ann", "Bills@Home", "Goa trip 2026", "St.Kitts trip", "Tom dot Hanks"]) expect(mailSafe(n), n).toBe(n);
+    // Links, addresses and web addresses go.
+    expect(mailSafe("Refund pending – claim at evil.com")).toBe("Refund pending – claim at");
     expect(mailSafe("Win now https://evil.example/x?a=1 today")).toBe("Win now today");
+    expect(mailSafe("hxxp://evil.example/x")).toBe("Someone");
     expect(mailSafe("www.evil.example")).toBe("Someone");
-    expect(mailSafe("pay evil@ybl now")).toBe("pay now");
-    expect(mailSafe("Goa trip 2026")).toBe("Goa trip 2026");
+    expect(mailSafe("pay evil@ybl.com now")).toBe("pay now");
+    expect(mailSafe("asha.k@gmail.com")).toBe("Someone");
     expect(mailSafe("  ", "a group")).toBe("a group");
+    // Common web endings, and the ways of writing the dot to get past a filter.
+    for (const t of ["com", "in", "net", "org", "io", "co", "app", "xyz", "me", "info", "biz", "ly", "gg", "link", "site", "online", "shop", "store"]) expect(mailSafe(`pay evil.${t} now`), t).toBe("pay now");
+    for (const w of ["pay evil[.]com now", "pay evil(.)com now", "pay evil dot com now", "pay evil。com now", "pay evil．com now", "pay EVIL.COM now"]) expect(mailSafe(w), w).toBe("pay now");
+    expect(mailSafe("www[.]evil[.]example")).toBe("Someone");
     const invites = readFileSync("src/lib/invites.ts", "utf8");
     expect(invites.match(/"You've been added to a group on Loopin"/g)).toHaveLength(2);
     expect(invites).not.toContain("`${actor.name} added you to ${group.name} on Loopin`");

@@ -40,7 +40,7 @@ export default async function PeoplePage({
   const { id } = await params;
   const sp = await searchParams;
   const notes = await readNotes(sp, `/groups/${id}/people`);
-  await bounceIfDirect(id, sp); // a pair of two people has no group screens: its person page instead (messages travel with it)
+  await bounceIfDirect(id, sp, `/groups/${id}/people`); // a pair of two people has no group screens: its person page instead (messages travel with it)
   const data = await loadGroup(id, { viewer: await getMyMemberId(id) });
   if (!data) notFound();
   const { group, net } = data;

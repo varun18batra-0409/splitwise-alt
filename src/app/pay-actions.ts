@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getAccount, getMyMemberId } from "@/lib/identity";
 import { cleanPayWays } from "@/lib/pay-links";
 import { confirmPayment, rejectPayment } from "@/lib/payment-ok";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 
 const field = (f: FormData, k: string) => String(f.get(k) ?? "");
 
@@ -14,7 +14,7 @@ export async function savePayWays(f: FormData) {
   const account = await getAccount();
   if (!account) redirect("/signin?back=/account");
   const r = cleanPayWays({ upiId: field(f, "upiId").slice(0, 120), payLink: field(f, "payLink").slice(0, 300) });
-  if (!r.ok) redirect(await flashUrl(`/account/pay?${new URLSearchParams({ pay: "error", payError: r.error })}`));
+  if (!r.ok) redirect(await flashTo("/account/pay", { payError: r.error }, { pay: "error" }));
   await db.account.update({ where: { id: account.id }, data: { upiId: r.ways.upiId, payLink: r.ways.payLink } });
   redirect("/account/pay?pay=saved");
 }
@@ -30,14 +30,14 @@ export async function confirmPaymentAction(f: FormData) {
   const paymentId = field(f, "paymentId");
   const groupId = await paymentGroup(paymentId);
   const r = await confirmPayment(paymentId, await getMyMemberId(groupId));
-  redirect(await flashUrl(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { ok: "1" } : { error: r.error })}`));
+  redirect(await flashTo(["groups", groupId, "settle"], r.ok ? {} : { error: r.error }, r.ok ? { ok: "1" } : {}));
 }
 
 export async function rejectPaymentAction(f: FormData) {
   const paymentId = field(f, "paymentId");
   const groupId = await paymentGroup(paymentId);
   const r = await rejectPayment(paymentId, await getMyMemberId(groupId));
-  redirect(await flashUrl(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { notgot: "1", ...(r.eventId ? { did: r.eventId } : {}), ...(r.back.length ? { back: r.back.map((b) => b.id).join(",") } : {}) } : { error: r.error })}`));
+  redirect(await flashTo(["groups", groupId, "settle"], r.ok ? {} : { error: r.error }, r.ok ? { notgot: "1", ...(r.eventId ? { did: r.eventId } : {}), ...(r.back.length ? { back: r.back.map((b) => b.id).join(",") } : {}) } : {}));
 }
 
 // Settle up → "Mark all N paid": every payment shown that someone else makes, recorded at once; the group stays open.
@@ -50,11 +50,11 @@ export async function markAllPaidAction(f: FormData) {
   const { markAllPaid, planKey } = await import("@/lib/settle-all");
   const data = await loadGroup(groupId, { events: false });
   if (!data) redirect("/");
-  if (planKey(data.transfers) !== field(f, "plan")) redirect(await flashUrl(`/groups/${groupId}/settle?${new URLSearchParams({ error: "Balances changed since you opened this. Check the updated list and try again." })}`));
+  if (planKey(data.transfers) !== field(f, "plan")) redirect(await flashTo(["groups", groupId, "settle"], { error: "Balances changed since you opened this. Check the updated list and try again." }));
   const { shown } = applySettleMin(data.transfers, data.group.settleMin);
   const { cleanKey } = await import("@/lib/once");
   // Only other people's payments: the ones I make myself go through "I've paid" (which records it at once).
   const mineToMark = shown.filter((t) => t.from !== myId);
   const r = await markAllPaid(groupId, myId, mineToMark.map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "", true, cleanKey(f.get("rid")));
-  redirect(await flashUrl(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { paid: "all", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error })}`));
+  redirect(await flashTo(["groups", groupId, "settle"], r.ok ? {} : { error: r.error }, r.ok ? { paid: "all", ...(r.eventId ? { did: r.eventId } : {}) } : {}));
 }

@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "@/lib/fresh-redirect";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { readPayLink, recordLinkPayment } from "@/lib/pay-link";
@@ -15,7 +15,10 @@ const tokenOf = (f: FormData) => {
   const t = String(f.get("token") ?? "");
   return /^[A-Za-z0-9_-]{20,40}$/.test(t) ? t : "";
 };
-const back = async (token: string, q: Record<string, string>): Promise<never> => redirect(await flashUrl(`/p/${token}?${new URLSearchParams(q)}`));
+const back = async (token: string, q: Record<string, string>): Promise<never> => {
+  const { error, ...rest } = q;
+  return redirect(await flashTo(["p", token], error !== undefined ? { error } : {}, rest));
+};
 
 async function slowDown(token: string) {
   const ip = clientIp(await headers());

@@ -18,11 +18,11 @@ export async function onRequestError(
     const { db } = await import("./lib/db");
     const e = err as { message?: string; digest?: string };
     const { scrubPersonal: scrub } = await import("./lib/scrub");
-    const { hideSecrets } = await import("./lib/log-paths"); // invite, Collect and pay-link codes are never logged
+    const { hideSecrets, hideSecretsIn } = await import("./lib/log-paths"); // invite, Collect and pay-link codes are never logged
     await db.errorLog.create({
       data: {
         path: scrub(`${request.method} ${hideSecrets(request.path)}`).slice(0, 200),
-        message: scrub(String(e?.message ?? err)).slice(0, 500),
+        message: scrub(hideSecretsIn(String(e?.message ?? err))).slice(0, 500),
         digest: String(e?.digest ?? "").slice(0, 100),
       },
     });

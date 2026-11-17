@@ -24,7 +24,7 @@ import { TripDates } from "@/components/TripDates";
 import { WhereTo } from "@/components/WhereTo";
 import { coverFor, coverOf } from "@/lib/covers";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 import { readNotes } from "@/lib/flash";
 
 const PRESETS = [0, 200, 300, 400];
@@ -66,7 +66,7 @@ export default async function GroupSettings({
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left can still read the group, but not change it.
-  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(await flashUrl(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to change its settings.")}`));
+  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(await flashTo(["groups", group.id, "people"], { error: "You left this group. Rejoin it to change its settings." }));
 
   const isPreset = PRESETS.includes(group.cardMarkupBp);
   // Deleting the group and changing its currency are for the person who started it.

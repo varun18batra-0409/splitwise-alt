@@ -1,4 +1,5 @@
 import { decimalsOf, formatMoney, isSupportedCurrency, MAX_MINOR } from "./money";
+import { unsupportedCurrencyError } from "./import-errors";
 import { CATEGORIES, OLD_LABELS, guessCategory } from "./categories";
 
 // Moving a group over from Splitwise.
@@ -117,7 +118,7 @@ export function parseSplitwiseCsv(text: string): SwParsed {
   const ranked = [...count.entries()].sort((a, b) => b[1] - a[1]);
   const currency = ranked[0]?.[0] ?? (totals[0]?.cells[4] ?? "").trim().toUpperCase();
   if (!currency) return { ok: false, error: "There are no expenses in this file." };
-  if (!isSupportedCurrency(currency)) return { ok: false, error: `Loopin doesn’t support ${currency} yet.` };
+  if (!isSupportedCurrency(currency)) return { ok: false, error: unsupportedCurrencyError(currency) };
   const otherCurrencies = ranked.slice(1).map(([c]) => c);
 
   const rows: SwRow[] = [];

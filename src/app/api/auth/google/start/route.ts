@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { GOOGLE_COOKIE, googleAuthUrl, googleConfigured, newGoogleRequest, packAttempt } from "@/lib/google";
 import { safePath } from "@/lib/paths";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 import { allow, clientIp } from "@/lib/rate-limit";
 
 // "Continue with Google": off to Google's account picker.
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const back = safePath(req.nextUrl.searchParams.get("back"));
   if (!googleConfigured()) return NextResponse.redirect(new URL(`/signin?back=${encodeURIComponent(back)}`, req.url), 303);
   if (!(await allow(`google-start:${clientIp(req.headers)}`, 60, 3600))) {
-    return NextResponse.redirect(new URL(await flashUrl(`/signin?${new URLSearchParams({ back, error: "Too many tries. Wait a few minutes." })}`), req.url), 303);
+    return NextResponse.redirect(new URL(await flashTo("/signin", { error: "Too many tries. Wait a few minutes." }, { back }), req.url), 303);
   }
   const { state, verifier, challenge } = newGoogleRequest();
   const redirectUri = new URL("/api/auth/google/callback", req.url).toString();

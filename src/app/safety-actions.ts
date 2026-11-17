@@ -10,7 +10,7 @@ import { blockAccount, sharesGroup, unblockAccount } from "@/lib/blocks";
 import { isOwner } from "@/lib/owner";
 import { appUrl, mailOperator } from "@/lib/ops-mail";
 import { REPORT_KINDS, REPORT_REASONS, resolveReportTarget, saveSupportMessage } from "@/lib/reports";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 
 const field = (f: FormData, k: string, max = 200) => String(f.get(k) ?? "").replace(/\r/g, "").slice(0, max);
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
@@ -24,7 +24,7 @@ export async function reportAction(f: FormData) {
   const here = `/report?${new URLSearchParams({ kind, id, back })}`;
   const me = await getAccount();
   if (!me) redirect(`/signin?back=${encodeURIComponent(here)}`);
-  const fail = async (error: string): Promise<never> => redirect(await flashUrl(`${here}&${new URLSearchParams({ error })}`));
+  const fail = async (error: string): Promise<never> => redirect(await flashTo("/report", { error }, { kind, id, back }));
   const reason = field(f, "reason", 10);
   if (!(REPORT_KINDS as readonly string[]).includes(kind) || !ID.test(id)) await fail("We couldn’t find that to report.");
   if (!(REPORT_REASONS as readonly string[]).includes(reason)) await fail("Pick what’s wrong.");
@@ -76,7 +76,7 @@ export async function contactSupportAction(f: FormData) {
   const me = await getAccount();
   const message = field(f, "message", 1500).trim();
   const reply = field(f, "reply", 120).trim();
-  const fail = async (error: string): Promise<never> => redirect(await flashUrl(`/support?${new URLSearchParams({ error })}`));
+  const fail = async (error: string): Promise<never> => redirect(await flashTo("/support", { error }));
   if (message.length < 5) await fail("Write a few words so we know how to help.");
   if (reply && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reply)) await fail("That email doesn’t look right. Check it, or leave it empty.");
   if (!(await allow(`support:${me?.id ?? clientIp(await headers())}`, 5, 3600))) await fail("You’ve sent a few already. We’ll get back to you.");

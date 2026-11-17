@@ -23,8 +23,10 @@ export default async function SignIn({
   const notes = await readNotes(sp, "/signin");
   const back = safePath(sp.back);
   if (await getAccount()) redirect("/account");
-  const email = (sp.e ?? "").slice(0, 254);
-  const sent = sp.sent === "1" && email;
+  // The address typed into the link is shown only if it looks like an email address (one @, no spaces, 254 characters at most).
+  const typed = sp.e ?? "";
+  const email = typed.length <= 254 && /^[^\s@]+@[^\s@]+$/.test(typed) ? typed : "";
+  const sent = sp.sent === "1" && typed;
   const error = notes.error?.slice(0, 200);
   const name = (sp.n ?? "").slice(0, 40);
 
@@ -119,7 +121,7 @@ export default async function SignIn({
       ) : (
         <>
           <p className="mb-6 text-gray-600">
-            We sent a 6-digit code to <span className="text-fg">{email}</span>. It works for 15 minutes. Not there? Check spam.
+            We sent a 6-digit code to {email ? <span className="text-fg">{email}</span> : "your email"}. It works for 15 minutes. Not there? Check spam.
           </p>
           <form action={verifyCode} className="space-y-4">
             <input type="hidden" name="back" value={back} />

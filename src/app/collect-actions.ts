@@ -11,7 +11,7 @@ import { allow, clientIp } from "@/lib/rate-limit";
 import { formatMoney } from "@/lib/money";
 import { cleanNames } from "@/lib/names";
 import { createCollection, loadCollection, markPaid, organiserAction, undoPaid } from "@/lib/collect";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 
 // Collect: making a collection (signed in), ticking "I've paid" (anyone with
 // the link, no sign-up), and the organiser's controls.
@@ -70,12 +70,12 @@ export async function markPaidAction(f: FormData) {
   const code = cleanCode(field(f, "code"));
   if (!code) redirect("/");
   const back = (q: Record<string, string>) => `/c/${code}?${new URLSearchParams(q)}`;
-  if (!(await allow(`collect-pay:${clientIp(await headers())}`, 150, 3600))) redirect(await flashUrl(back({ error: "Lots of ticks from here in the last hour. Wait a bit and try again." })));
+  if (!(await allow(`collect-pay:${clientIp(await headers())}`, 150, 3600))) redirect(await flashTo(["c", code], { error: "Lots of ticks from here in the last hour. Wait a bit and try again." }));
   const key = await payerKey(true);
   const entryId = field(f, "entryId");
   const viewer = await getAccount();
   const r = await markPaid(code, { entryId: entryId && entryId !== "new" ? entryId : undefined, name: field(f, "name"), amount: field(f, "amount"), viewerAccountId: viewer?.id }, key);
-  if (!r.ok) redirect(await flashUrl(back({ error: r.error })));
+  if (!r.ok) redirect(await flashTo(["c", code], { error: r.error }));
   after(() => tellOrganiser(code, r.entryId, viewer?.id));
   redirect(back({ ticked: "1" }));
 }
@@ -84,7 +84,7 @@ export async function undoPaidAction(f: FormData) {
   const code = cleanCode(field(f, "code"));
   if (!code) redirect("/");
   const r = await undoPaid(code, field(f, "entryId"), await payerKey(false));
-  redirect(await flashUrl(`/c/${code}?${new URLSearchParams(r.ok ? { undone: "1" } : { error: r.error })}`));
+  redirect(await flashTo(["c", code], r.ok ? {} : { error: r.error }, r.ok ? { undone: "1" } : {}));
 }
 
 const KINDS = ["confirm", "unconfirm", "remove", "cash", "add", "nudge", "close", "reopen", "delete"] as const;
@@ -99,10 +99,10 @@ export async function organiserActionForm(f: FormData) {
   if (!KINDS.includes(kind)) redirect(`/c/${code}`);
   const entryId = field(f, "entryId") || undefined;
   const r = await organiserAction(code, account.id, { kind, entryId, names: field(f, "names"), contacts: field(f, "contacts").slice(0, 60_000), friends: f.getAll("friends").map(String).slice(0, 300) });
-  if (!r.ok) redirect(await flashUrl(`/c/${code}?${new URLSearchParams({ error: r.error })}`));
+  if (!r.ok) redirect(await flashTo(["c", code], { error: r.error }));
   // A reminder inside Loopin: at most one per person every 6 hours. Counted only
   // once we know it's the organiser (entry ids are on the public page).
-  if (kind === "nudge" && !(await allow(`collect-nudge:${entryId}`, 1, 6 * 3600))) redirect(await flashUrl(`/c/${code}?${new URLSearchParams({ error: "You reminded them in the last few hours. Give it a little time." })}`));
+  if (kind === "nudge" && !(await allow(`collect-nudge:${entryId}`, 1, 6 * 3600))) redirect(await flashTo(["c", code], { error: "You reminded them in the last few hours. Give it a little time." }));
   const notes = r.notify ?? [];
   if (notes.length) after(() => deliverNotes(notes));
   if (kind === "delete") redirect("/?collection=deleted");

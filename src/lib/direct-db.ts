@@ -13,7 +13,7 @@ import { copyPushTo, freeName, inviteMailOk, INVITE_EMAILS_PER_DAY, newInviteTok
 import { changeGroupCurrency } from "./group-changes";
 import { accountPairKey, DIRECT, localPairKey, NOT_DIRECT, isDirect, pairName, redirectTarget } from "./direct";
 import { redirect as redirectTo } from "next/navigation";
-import { NOTE_KEYS, NOTE_SIGNATURE_PARAMS, readNotes, signedQuery } from "./flash";
+import { NOTE_KEYS, NOTE_SIGNATURE_PARAMS, flashToAt, readSignedNotes } from "./flash";
 
 // The database side of expenses with one person (see direct.ts). A pair is a hidden two-member Group of type "direct".
 // Nothing here writes money: expenses and payments go through the ordinary group code.
@@ -165,11 +165,14 @@ export async function prepareDirectSave(groupId: string, myId: string, currency:
 export async function bounceIfDirect(groupId: string, query: Record<string, string | string[] | undefined> = {}, fromPath = `/groups/${groupId}`): Promise<void> {
   const g = await db.group.findUnique({ where: { id: groupId }, select: { id: true, type: true } });
   if (!g || !isDirect(g)) return;
-  const notes = await readNotes(query, fromPath);
-  const rest = { ...query };
-  for (const k of [...NOTE_KEYS, ...NOTE_SIGNATURE_PARAMS]) delete rest[k];
-  const to = redirectTarget(g, rest);
-  redirectTo(Object.keys(notes).length ? await signedQuery(to, notes) : to);
+  const signed = await readSignedNotes(query, fromPath);
+  const rest: Record<string, string> = {};
+  for (const [k, v] of Object.entries(query)) {
+    if ((NOTE_KEYS as readonly string[]).includes(k) || (NOTE_SIGNATURE_PARAMS as readonly string[]).includes(k)) continue;
+    for (const one of Array.isArray(v) ? v : v === undefined ? [] : [v]) rest[k] = one;
+  }
+  // The message keeps the minute it was signed: moving it to the person's page does not give it more time.
+  redirectTo(signed ? await flashToAt(["people", g.id], signed.notes, signed.et, rest) : redirectTarget(g, rest));
 }
 
 // For image routes: a pair has none (404).

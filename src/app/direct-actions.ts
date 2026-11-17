@@ -14,7 +14,7 @@ import { isSupportedCurrency } from "@/lib/money";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { DIRECT, directEntryOn, NOT_DIRECT } from "@/lib/direct";
 import { ensureAccountPair, ensureLocalPair, inviteDirectPerson, inviteGate, type PairResult } from "@/lib/direct-db";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 
 // "With a person": picking someone starts (or finds) the pair, then goes straight to Add expense with them.
 // Nothing is written to the pair's history until an expense is saved, and nobody is told before then.
@@ -45,7 +45,7 @@ async function myNameFor(accountId: string, accountName: string): Promise<string
 }
 
 const refuse = async (error: string, keep?: { name: string; email: string }): Promise<never> =>
-  redirect(await flashUrl(`/add/person?${new URLSearchParams({ error, ...(keep ? { name: keep.name.slice(0, 80), email: keep.email.slice(0, 200) } : {}) })}`));
+  redirect(await flashTo("/add/person", { error }, keep ? { name: keep.name.slice(0, 80), email: keep.email.slice(0, 200) } : {}));
 
 export async function startDirectWith(formData: FormData) {
   if (!directEntryOn()) redirect("/add");
@@ -114,9 +114,9 @@ export async function inviteDirect(formData: FormData) {
   const myId = await getMyMemberId(groupId);
   if (!myId) redirect("/private");
   const { origin, ip } = await originOf();
-  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(await flashUrl(`/people/${groupId}?${new URLSearchParams({ error: "Too many invites from here. Wait a bit." })}`));
+  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(await flashTo(["people", groupId], { error: "Too many invites from here. Wait a bit." }));
   const typed = field(formData, "email");
   const r = await inviteDirectPerson(groupId, myId, typed, origin, (job) => after(job));
   // A refusal shows under the email field (with what was typed still in it), not as a banner.
-  redirect(await flashUrl(`/people/${groupId}?${new URLSearchParams(r.ok ? { invited: "1" } : { inviteError: r.error, email: typed.trim().slice(0, 200) })}`));
+  redirect(await flashTo(["people", groupId], r.ok ? { invited: "1" } : { inviteError: r.error }, r.ok ? {} : { email: typed.trim().slice(0, 200) }));
 }

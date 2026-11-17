@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { hideSecrets } from "@/lib/log-paths";
+import { hideSecrets, hideSecretsIn } from "@/lib/log-paths";
 import { routeShape } from "@/lib/speed";
 
 // Invite, Collect and "I've paid" codes are the secret in those addresses: never logged (OA-4, AS-11).
@@ -11,6 +11,20 @@ describe("codes in addresses are never logged", () => {
     expect(hideSecrets("/p/abcdefghij_klmnopqrstu")).toBe("/p/:code");
     expect(hideSecrets("/join/AbCdEfGh?e=asha@example.com&as=1")).toBe("/join/:code");
     expect(hideSecrets("/join/AbCdEfGh/extra")).toBe("/join/:code/extra");
+  });
+  it("a doubled slash does not hide a code", () => {
+    expect(hideSecrets("//join/AbCdEfGh")).toBe("/join/:code");
+    expect(hideSecrets("/join//AbCdEfGh")).toBe("/join/:code");
+    expect(routeShape("//c/AbCdEfGhIjK")).toBe("/c/:code");
+  });
+  it("hideSecretsIn hides a code anywhere in an error message", () => {
+    expect(hideSecretsIn("Failed to load /join/AbCdEfGh?x=1")).toBe("Failed to load /join/:code?x=1");
+    expect(hideSecretsIn("GET https://loopin.app/c/AbCdEfGhIjK failed, then //p/abcdefghij_klmnopqrstu")).toBe("GET https://loopin.app/c/:code failed, then /p/:code");
+    expect(hideSecretsIn("Unique constraint on Member.groupId")).toBe("Unique constraint on Member.groupId");
+    expect(hideSecretsIn("fetch /groups/g1/people failed")).toBe("fetch /groups/g1/people failed");
+  });
+  it("the error log runs the message through it as well as the path", () => {
+    expect(readFileSync("src/instrumentation.ts", "utf8")).toContain("scrub(hideSecretsIn(String(e?.message ?? err)))");
   });
   it("leaves other addresses alone", () => {
     expect(hideSecrets("/groups/abc/people")).toBe("/groups/abc/people");

@@ -17,7 +17,7 @@ import { ownsPostcardPhoto } from "@/lib/postcards/uploads";
 import { myMomentForPostcard } from "@/lib/moments-db";
 import { deliverNotes } from "@/lib/account-notes";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { flashUrl } from "@/lib/flash";
+import { flashTo } from "@/lib/flash";
 
 const field = (f: FormData, k: string, max = 200) => String(f.get(k) ?? "").replace(/\r/g, "").slice(0, max);
 
@@ -27,7 +27,7 @@ export async function sendPostcardAction(f: FormData) {
   const me = await getAccount();
   const back = `/postcards/new?${new URLSearchParams({ ...(field(f, "groupId") ? { group: field(f, "groupId") } : {}) })}`;
   if (!me) redirect(`/signin?back=${encodeURIComponent(back)}`);
-  const fail = async (error: string): Promise<never> => redirect(await flashUrl(`${back}${back.includes("?") ? "&" : "?"}${new URLSearchParams({ error })}`));
+  const fail = async (error: string): Promise<never> => redirect(await flashTo("/postcards/new", { error }, field(f, "groupId") ? { group: field(f, "groupId") } : {}));
 
   const to = await canSendTo(me.id, [...new Set(f.getAll("to").map(String))].slice(0, 60));
   if (!to.size) await fail("Pick who it’s for.");

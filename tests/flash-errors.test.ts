@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { flashUrl, readNotes, signedQuery } from "@/lib/flash";
+import { flashTo, flashToAt, isPlainPath, readNotes, readSignedNotes } from "@/lib/flash";
 
 // Messages in a page address are shown only if Loopin signed them for that page in the last 15 minutes (CB-2, OP-2, GP-11, SA-10, AS-12).
 
@@ -16,14 +16,14 @@ describe("signed messages in addresses", () => {
   });
 
   it("a message Loopin signed shows, word for word, on that page", async () => {
-    const url = await signedQuery("/c/ABC123", { error: "Priya has closed this collection." }, T0);
+    const url = await flashTo("/c/ABC123", { error: "Priya has closed this collection." }, undefined, "", T0);
     expect(await readNotes(paramsOf(url), "/c/ABC123", T0)).toEqual({ error: "Priya has closed this collection." });
     // up to the end of the 15 minutes
     expect(await readNotes(paramsOf(url), "/c/ABC123", T0 + 15 * MIN)).toEqual({ error: "Priya has closed this collection." });
   });
 
   it("the same message on another page, or after 16 minutes, or changed by one letter, or with the signature missing, is not shown", async () => {
-    const url = await signedQuery("/c/ABC123", { error: "Priya has closed this collection." }, T0);
+    const url = await flashTo("/c/ABC123", { error: "Priya has closed this collection." }, undefined, "", T0);
     const sp = paramsOf(url);
     expect(await readNotes(sp, "/c/XYZ789", T0)).toEqual({});
     expect(await readNotes(sp, "/c/ABC123", T0 + 16 * MIN)).toEqual({});
@@ -35,7 +35,7 @@ describe("signed messages in addresses", () => {
   });
 
   it("a signed link can't be topped up with extra messages, repeated keys or a time from the future", async () => {
-    const sp = paramsOf(await signedQuery("/p/tok", { error: "That didn’t go through." }, T0));
+    const sp = paramsOf(await flashTo("/p/tok", { error: "That didn’t go through." }, undefined, "", T0));
     expect(await readNotes({ ...sp, skipped: "evil" }, "/p/tok", T0)).toEqual({});
     expect(await readNotes({ ...sp, error: [sp.error, "evil"] }, "/p/tok", T0)).toEqual({});
     expect(await readNotes({ ...sp, es: [sp.es, sp.es] }, "/p/tok", T0)).toEqual({});
@@ -43,29 +43,83 @@ describe("signed messages in addresses", () => {
     expect(await readNotes(sp, "/p/tok", T0 - 1 * MIN)).toEqual({ error: "That didn’t go through." });
   });
 
-  it("each of the five keys is signed and read back; values are cut at 300 characters (2000 for the invited list)", async () => {
+  it("each of the five keys is signed and read back; values are cut at 300 characters (the invited list is kept whole up to 8000, or not shown)", async () => {
     const long = "x".repeat(500);
-    const url = await signedQuery("/groups/g1/people", { error: long, skipped: "Ben", invited: "[[\"Ravi\",\"\"]]", payError: "p", inviteError: "i" }, T0);
+    const url = await flashTo("/groups/g1/people", { error: long, skipped: "Ben", invited: "[[\"Ravi\",\"\"]]", payError: "p", inviteError: "i" }, undefined, "", T0);
     const got = await readNotes(paramsOf(url), "/groups/g1/people", T0);
     expect(got.error).toHaveLength(300);
     expect(got).toMatchObject({ skipped: "Ben", invited: "[[\"Ravi\",\"\"]]", payError: "p", inviteError: "i" });
     const names = JSON.stringify(Array.from({ length: 20 }, (_, i) => [`Person number ${i}`, `person${i}@example.com`]));
     expect(names.length).toBeGreaterThan(300);
-    const many = await signedQuery("/groups/g1/invite", { invited: names }, T0);
+    const many = await flashTo("/groups/g1/invite", { invited: names }, undefined, "", T0);
     expect((await readNotes(paramsOf(many), "/groups/g1/invite", T0)).invited).toBe(names);
   });
 
-  it("flashUrl signs what a redirect already carries, keeps the rest of the address, and leaves other links alone", async () => {
-    const url = await flashUrl("/groups/g1?tab=activity&error=Only%20the%20admin%20can%20do%20that.#top", T0);
+  it("flashTo puts the message on the page it names, keeps the plain extras and the #part, and gives plain links when there is no message", async () => {
+    const url = await flashTo(["groups", "g1"], { error: "Only the admin can do that." }, { tab: "activity" }, "top", T0);
     expect(url.endsWith("#top")).toBe(true);
     const sp = paramsOf(url);
     expect(sp.tab).toBe("activity");
     expect(await readNotes(sp, "/groups/g1", T0)).toEqual({ error: "Only the admin can do that." });
     expect(await readNotes(sp, "/groups/g2", T0)).toEqual({});
-    expect(await flashUrl("/groups/g1?tab=activity&did=e1", T0)).toBe("/groups/g1?tab=activity&did=e1");
-    expect(await flashUrl("/join/CODE?error=busy", T0)).toContain("error=busy"); // fixed short codes still read as before
+    expect(await flashTo(["groups", "g1"], {}, { tab: "activity", did: "e1" })).toBe("/groups/g1?tab=activity&did=e1");
+    expect(await flashTo("/join/CODE", {}, { error: "busy" })).toBe("/join/CODE"); // extras can't carry a message key; fixed codes are written by hand
     // a trailing slash and a plain query name the same page
-    expect(await readNotes(paramsOf(await flashUrl("/c/AB/?error=Nope", T0)), "/c/AB", T0)).toEqual({ error: "Nope" });
+    expect(await readNotes(paramsOf(await flashTo("/c/AB/", { error: "Nope" }, undefined, "", T0)), "/c/AB", T0)).toEqual({ error: "Nope" });
+  });
+
+  it("an id typed by someone can't make Loopin sign text for another page (the ../signin?error= attack)", async () => {
+    const evil = "../signin?error=Pay ₹500 to x@ybl&z=";
+    for (const url of [
+      await flashTo(["groups", evil, "people"], { error: "You left this group." }, undefined, "", T0),
+      await flashTo(["groups", evil], { error: "x" }, { tab: "activity" }, "", T0),
+      await flashTo("/groups/" + evil + "/people", { error: "x" }, undefined, "", T0),
+      await flashTo(["groups", "..", "signin"], { error: "x" }, undefined, "", T0),
+      await flashTo(["groups", "%2e%2e", "signin"], { error: "x" }, undefined, "", T0),
+      await flashTo(["groups", "a/b"], { error: "x" }, undefined, "", T0),
+    ]) {
+      // refused (plain "/"), or kept inside one /groups/… piece (an encoded slash or percent sign): never the /signin page
+      expect(url === "/" || url.startsWith("/groups/")).toBe(true);
+      expect(new URL(url, "http://x").pathname).not.toBe("/signin");
+      expect(await readNotes(paramsOf(url), "/signin", T0)).toEqual({});
+      if (url === "/") expect(url).not.toContain("es=");
+    }
+    // nothing the attacker typed is read back as a message: the text in "evil" is never signed
+    const sp = paramsOf(await flashTo(["groups", "g1"], { error: "real" }, { note: evil }, "", T0));
+    expect(sp.error).toBe("real");
+    expect(await readNotes({ ...sp, error: "Pay ₹500 to x@ybl" }, "/groups/g1", T0)).toEqual({});
+    // valid ids still work, including ones that need encoding
+    expect(await readNotes(paramsOf(await flashTo(["groups", "cm1abcDEF_-9", "people"], { error: "ok" }, undefined, "", T0)), "/groups/cm1abcDEF_-9/people", T0)).toEqual({ error: "ok" });
+    expect(await readNotes(paramsOf(await flashTo(["c", "AbC123"], { error: "ok" }, undefined, "", T0)), "/c/AbC123", T0)).toEqual({ error: "ok" });
+  });
+
+  it("isPlainPath refuses anything that is not one plain page", () => {
+    for (const ok of ["/", "/signin", "/groups/g1/people", "/c/AbC123", "/groups/a%20b"]) expect(isPlainPath(ok), ok).toBe(true);
+    for (const bad of ["signin", "//evil.com", "/a/../b", "/a/..", "/a?x=1", "/a#b", "/a/%2e%2e/b", "/a/%2E/b", "/a%2fb", "/a%5cb", "/a b", "/a\\b", "/a//b", "/a/./b", "/%zz"]) expect(isPlainPath(bad), bad).toBe(false);
+  });
+
+  it("the signed text is unambiguous: one message can't pass for two", async () => {
+    const one = paramsOf(await flashTo("/groups/g1", { error: "a|skipped=b" }, undefined, "", T0));
+    expect(await readNotes({ error: "a", skipped: "b", et: one.et, es: one.es }, "/groups/g1", T0)).toEqual({});
+    const two = paramsOf(await flashTo("/groups/g1", { error: "a", skipped: "b" }, undefined, "", T0));
+    expect(await readNotes({ error: "a|skipped=b", et: two.et, es: two.es }, "/groups/g1", T0)).toEqual({});
+    expect(await readNotes({ skipped: "a", et: one.et, es: one.es }, "/groups/g1", T0)).toEqual({});
+  });
+
+  it("carrying a message to another page keeps its original minute: it does not get more time", async () => {
+    const signed = await readSignedNotes(paramsOf(await flashTo("/groups/g1/settle", { error: "Nope" }, undefined, "", T0)), "/groups/g1/settle", T0 + 10 * MIN);
+    expect(signed).not.toBeNull();
+    const moved = paramsOf(await flashToAt(["people", "p1"], signed!.notes, signed!.et, { did: "e1" }));
+    expect(await readNotes(moved, "/people/p1", T0 + 14 * MIN)).toEqual({ error: "Nope" });
+    expect(await readNotes(moved, "/people/p1", T0 + 16 * MIN)).toEqual({});
+    expect(await readNotes(moved, "/groups/g1/settle", T0 + 1 * MIN)).toEqual({});
+  });
+
+  it("an invited list longer than 8000 characters is not shown (a cut-off list can't be read)", async () => {
+    const big = "x".repeat(8001);
+    expect((await readNotes(paramsOf(await flashTo("/groups/g1/invite", { invited: big, error: "e" }, undefined, "", T0)), "/groups/g1/invite", T0))).toEqual({ error: "e" });
+    const ok = "y".repeat(8000);
+    expect((await readNotes(paramsOf(await flashTo("/groups/g1/invite", { invited: ok }, undefined, "", T0)), "/groups/g1/invite", T0)).invited).toBe(ok);
   });
 });
 
@@ -101,19 +155,19 @@ describe("no free text from the address is shown unsigned", () => {
     }
   });
 
-  it("every redirect that carries a message goes through flashUrl (fixed short codes excepted)", () => {
+  it("every redirect that carries a message goes through flashTo (fixed short codes excepted)", () => {
     const FIXED = /error=(busy|name|claimed|removed|private|none|limit|markup|admin|currency|missing|left)\b/;
     const KEY = /\b(error|skipped|invited|payError|inviteError)\b\s*[=:,}]/;
     for (const f of [...files, ...walk("src/lib")]) {
       const src = readFileSync(f, "utf8");
       src.split("\n").forEach((line, i) => {
-        if (!/(^|[^\w.])redirect\(/.test(line) || /flashUrl/.test(line) || !KEY.test(line)) return;
-        expect(FIXED.test(line), `${f}:${i + 1} sends a message without flashUrl: ${line.trim()}`).toBe(true);
+        if (!/(^|[^\w.])redirect\(/.test(line) || /flashTo|flashBack/.test(line) || !KEY.test(line)) return;
+        expect(FIXED.test(line), `${f}:${i + 1} sends a message without flashTo: ${line.trim()}`).toBe(true);
       });
     }
   });
 
-  it("the places that build a link with a message use flashUrl too", () => {
+  it("the places that build a link with a message use flashTo too", () => {
     for (const f of [
       "src/app/postcard-actions.ts",
       "src/app/safety-actions.ts",
@@ -121,7 +175,15 @@ describe("no free text from the address is shown unsigned", () => {
       "src/app/pay-link-actions.ts",
       "src/app/api/auth/google/start/route.ts",
       "src/app/api/auth/google/callback/route.ts",
-    ]) expect(readFileSync(f, "utf8"), f).toContain("flashUrl(");
+    ]) expect(readFileSync(f, "utf8"), f).toContain("flashTo(");
+  });
+
+  it("no link is built by hand with a message in it, and flashUrl is gone", () => {
+    for (const f of [...files, ...walk("src/lib")]) {
+      const src = readFileSync(f, "utf8");
+      expect(src.includes("flashUrl"), `${f} still uses flashUrl`).toBe(false);
+      expect(/flashTo\(\s*`[^`]*[?#]/.test(src), `${f} builds a path with ? or # inside`).toBe(false);
+    }
   });
 
   it("closing a message strips the signature as well", () => {
