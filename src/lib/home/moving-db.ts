@@ -468,9 +468,14 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
   await opts.afterRead?.(); // tests only: runs after the reads, before the write begins
   try {
     await db.$transaction(async (tx) => {
-      // Checked again inside the write: someone may have moved out since the form was read.
-      if (rows.length && (await tx.member.count({ where: { groupId, id: { in: rows.map((r) => r.memberId) }, leftAt: { not: null } } })) > 0) throw new Error("DEPOSIT_LEAVER");
+      // The first statement is a write (see money-guard.ts), so the checks below read current rows.
       const dep = await tx.deposit.upsert({ where: { groupId }, create: { groupId, heldBy }, update: { heldBy } });
+      // Checked again inside the write: someone may have moved out, or been removed, since the form was read.
+      if (rows.length) {
+        const ids = [...new Set(rows.map((r) => r.memberId))];
+        if ((await tx.member.count({ where: { groupId, id: { in: ids }, leftAt: { not: null } } })) > 0) throw new Error("DEPOSIT_LEAVER");
+        if ((await tx.member.count({ where: { groupId, id: { in: ids }, leftAt: null } })) !== ids.length) throw new Error("DEPOSIT_GONE");
+      }
       // Only the shares still held can be edited; returned/transferred ones are history. A form opened before a
       // deposit was returned or handed on must not bring it back to life: it is refused instead.
       for (const r of rows) {
@@ -504,6 +509,7 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
     });
   } catch (err) {
     if (String((err as Error)?.message ?? err).includes("DEPOSIT_LEAVER")) return { ok: false, error: LEAVER_DEPOSIT_ERROR };
+    if (String((err as Error)?.message ?? err).includes("DEPOSIT_GONE")) return { ok: false, error: "Someone on this deposit was just removed from the flat. Open Deposit again to see who’s in." };
     if (String((err as Error)?.message ?? err).includes("DEPOSIT_CHANGED")) return { ok: false, error: "That deposit was already returned or handed on, so it can’t be changed here. Open Deposit again to see where it stands." };
     throw err;
   }

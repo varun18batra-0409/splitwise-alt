@@ -224,6 +224,31 @@ describe("review 3: the re-checks inside the write are really tested", () => {
     expect(await held(f.id)).toBe(10800000);
   });
 
+  it("C4: C moves out between the read and the save while C's box still has 36000: refused, nothing changes (10800000 held)", async () => {
+    const f = await flat(["A", "B", "C"]);
+    await saveDepositFor(f.id, f.ids.A, { heldBy: "Landlord", amounts: { [f.ids.A]: "36000", [f.ids.B]: "36000", [f.ids.C]: "36000" } });
+    const r = await saveDepositFor(f.id, f.ids.B, { heldBy: "Landlord", amounts: { [f.ids.A]: "30000", [f.ids.B]: "42000", [f.ids.C]: "36000" } }, {
+      afterRead: async () => {
+        await db.member.update({ where: { id: f.ids.C }, data: { leftAt: new Date() } });
+      },
+    });
+    expect(r).toEqual({ ok: false, error: LEAVER_DEPOSIT_ERROR });
+    expect((await shares(f.id))[f.ids.A]).toEqual({ amount: 3600000, status: "held" });
+    expect(await held(f.id)).toBe(10800000);
+  });
+
+  it("C4: Kiran is removed (deleted) between the read and the save: refused, no share for a person who no longer exists", async () => {
+    const f = await flat(["Asha", "Kiran"]);
+    const r = await saveDepositFor(f.id, f.ids.Asha, { heldBy: "Landlord", amounts: { [f.ids.Asha]: "10000", [f.ids.Kiran]: "10000" } }, {
+      afterRead: async () => {
+        await db.member.delete({ where: { id: f.ids.Kiran } });
+      },
+    });
+    expect(r.ok).toBe(false);
+    expect(await shares(f.id)).toEqual({});
+    expect(await held(f.id)).toBe(0);
+  });
+
   it("C4 control: nobody moves out, so a cleared box does remove C's held share (7200000 left)", async () => {
     const f = await flat(["A", "B", "C"]);
     await saveDepositFor(f.id, f.ids.A, { heldBy: "Landlord", amounts: { [f.ids.A]: "36000", [f.ids.B]: "36000", [f.ids.C]: "36000" } });
