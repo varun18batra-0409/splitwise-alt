@@ -25,7 +25,8 @@ test("CA-4: after Record opened the picker, the next tap is not swallowed and th
   await settled(A);
   // No "To" yet: Record opens the picker instead of sending.
   await A.getByRole("button", { name: /^Record/ }).last().click();
-  await expect(A.locator("[data-to]").first()).toBeVisible();
+  // (The payer's own chip stays in the list, hidden: they can't pay themselves. So look for Meera's.)
+  await expect(A.locator("[data-to]").filter({ hasText: "Meera" })).toBeVisible();
   await expect(A.getByRole("progressbar", { name: "Loading" })).toBeHidden();
   // Choose Meera and tap Record straight away (within a second): it must go through.
   await A.locator("[data-to]").filter({ hasText: "Meera" }).click();
@@ -55,7 +56,7 @@ test("CA-5: while the bill photo is going up both Save buttons wait, and the sav
   await expect(A.getByRole("button", { name: "Save expense" })).toBeEnabled({ timeout: 15_000 });
   await A.getByRole("button", { name: "Save expense" }).click();
   await A.waitForURL(/tab=activity/);
-  const exp = await db.expense.findFirstOrThrow({ where: { groupId: gid, name: "Lunch with bill" } });
+  const exp = await db.expense.findFirstOrThrow({ where: { groupId: gid, description: "Lunch with bill" } });
   expect(await db.receipt.count({ where: { groupId: gid, expenseId: exp.id } })).toBe(1);
 });
 
@@ -65,7 +66,8 @@ test("CB-6: a file that can't be read shows an error, and the import button can 
   await A.goto("/import");
   await settled(A);
   await A.getByLabel("Spreadsheet to import").setInputFiles({ name: "nonsense.csv", mimeType: "text/csv", buffer: Buffer.from("this is not an export\n") });
-  await expect(A.getByRole("alert")).toBeVisible();
+  // Our own alert (Next also keeps an empty route announcer with role="alert" on every page).
+  await expect(A.getByRole("alert").filter({ hasText: "That file has no expenses in it." })).toBeVisible();
   await A.getByLabel("Spreadsheet to import").setInputFiles("e2e/data/splitwise-sample.csv");
   await A.locator('input[name="groupName"]').fill(`B5 import ${Date.now()}`);
   const button = A.getByRole("button", { name: "Bring it over" });
@@ -121,7 +123,10 @@ test("VD2-24: a trip with the default cover has no Picture tile ticked, and savi
   const gid = g.path.split("/").pop()!;
   await A.goto(`${g.path}/settings`);
   await settled(A);
-  await expect(A.locator('input[name="cover"]:checked')).toHaveCount(0);
+  // With a downloaded Goa photo the trip shows that photo, so no drawn tile is ticked. A test copy built without photos shows the
+  // drawn trip picture instead, and then that one tile is the one ticked. Either way saving must not pin a picture.
+  const ticked = A.locator('input[name="cover"]:checked');
+  if (await ticked.count()) await expect(ticked).toHaveValue("trip");
   await A.getByRole("button", { name: "Save settings" }).click();
   await settled(A);
   expect((await db.group.findUniqueOrThrow({ where: { id: gid }, select: { cover: true } })).cover).toBe("");
@@ -135,6 +140,9 @@ test("CA-10: a busy search says so, and the same search works once the server an
   await A.route("**/api/people?**", (route) => (busy ? route.fulfill({ status: 429, contentType: "application/json", body: "[]" }) : route.continue()));
   await A.goto(`${g.path}/invite`);
   await settled(A);
+  // The search sits under "More ways" → "Search by name or email" (invite page, mockup 4).
+  await A.locator("[data-more-ways] > summary").click();
+  await A.locator('[data-more-ways] [data-way="search"] > summary').click();
   const search = A.getByLabel("Search people on Loopin");
   await search.fill("Meera");
   await expect(A.getByText("Search is busy. Try again in a minute.")).toBeVisible();

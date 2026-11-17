@@ -40,7 +40,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   const ravisPassport = (await link.getAttribute("href"))!;
   await link.click();
   await page.waitForURL(/\/passport\/friends\/[^/?]+\?from=/);
-  await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Ravi’s passport" })).toBeVisible(); // a friend's book names whose it is (B9)
   await R.goto("/passport?open=who");
   await settled(R);
   await R.getByRole("button", { name: "Only me" }).click();
@@ -65,7 +65,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await page.getByRole("link", { name: /Ravi/ }).click();
   await page.waitForURL(/\/passport\/friends\/[^/]+$/);
   const ravisPage = new URL(page.url()).pathname;
-  await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Ravi’s passport" })).toBeVisible(); // a friend's book names whose it is (B9)
   // His trip with Asha is still going, so friends don't see it yet: the passport is empty → nudge him (Alerts only).
   await page.getByRole("button", { name: "Nudge Ravi" }).click();
   await page.waitForURL(/nudged=1/);

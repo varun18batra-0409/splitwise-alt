@@ -149,7 +149,9 @@ test("Want to go fits 320×640, 360×740 and 390×844 with a match on the page",
     await page.goto("/passport?tab=want");
     await settled(page);
     await expect(page.locator("[data-match-card]")).toBeVisible();
-    await expect(page.locator("[data-wish-card='JP']")).toBeVisible();
+    // A place in a match shows once, in the match (mockup 4, founder approved 16 Nov), not again in the list below it.
+    await expect(page.locator("[data-wish-card='JP']")).toHaveCount(0);
+    await expect(page.getByText("Everything on your list is in a match above.")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${w}px: no sideways scroll`).toBeLessThanOrEqual(1);
     const btn = page.getByRole("button", { name: "Plan together" });
     expect((await btn.boundingBox())!.height, `${w}px: Plan together is a 44 px target`).toBeGreaterThanOrEqual(44);

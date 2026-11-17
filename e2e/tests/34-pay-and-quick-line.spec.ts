@@ -72,7 +72,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await payBox.click();
   await R.keyboard.press("ControlOrMeta+A");
   await R.keyboard.type("1082.50");
-  await expect(payBox).toHaveValue("1082.50");
+  await expect(payBox).toHaveValue("1,082.50"); // amounts are grouped as you type (mockup 3, founder approved 16 Nov)
   await expect(R.locator("[data-record-live]")).toHaveText("Will record ₹1,082.50 from you");
   await expect(R.getByRole("button", { name: "Record ₹1,082.50", exact: true })).toBeVisible(); // the amount rides on the button as a last check
   await R.getByLabel("Amount (INR)").fill("3000");

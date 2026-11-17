@@ -4,12 +4,22 @@ import { allowTestCopy, settled } from "../helpers/app";
 // 1. A first-time visitor: the tour, the start screen, and the main links.
 test.beforeEach(async ({ context }) => allowTestCopy(context));
 
+// Skip remembers the tour was seen and opens "create a group"; Home then shows the start screen.
+async function skipTour(page: import("@playwright/test").Page) {
+  await page.getByRole("link", { name: "Skip" }).click();
+  await page.waitForURL(/\/groups\/new/);
+  await page.goto("/");
+  await settled(page);
+}
+
 test("first visit shows the tour, then a start screen with the main ways in", async ({ page }) => {
   await page.goto("/");
   await settled(page);
-  await expect(page.getByText("Create your first group").first()).toBeVisible();
-  // The tour's Home button (src/components/IntroTour.tsx, aria-label "Home").
-  await page.getByRole("link", { name: "Home", exact: true }).first().click();
+  // The tour (mockup 4, founder approved 16 Nov): Next through the slides, Skip is the only way out before the end, and the last
+  // slide's main button is "Create your first group".
+  await expect(page.locator("[data-tour-next]")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Skip" })).toBeVisible();
+  await skipTour(page);
   await expect(page.getByRole("heading", { name: "Good times. Shared fairly." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Create a group" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Join with a link" })).toBeVisible();
@@ -19,7 +29,7 @@ test("first visit shows the tour, then a start screen with the main ways in", as
 test("key pages open from Home: guide, sign in, moving over from another app, privacy, terms", async ({ page }) => {
   await page.goto("/");
   await settled(page);
-  await page.getByRole("link", { name: "Home", exact: true }).first().click();
+  await skipTour(page);
   await expect(page.getByRole("heading", { name: "Good times. Shared fairly." })).toBeVisible();
 
   await page.getByRole("link", { name: "How Loopin works" }).first().click();
