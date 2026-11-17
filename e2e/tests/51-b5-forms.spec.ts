@@ -45,7 +45,7 @@ test("CA-4: after Record opened the picker, the next tap is not swallowed and th
 test("CA-5: while the bill photo is going up both Save buttons wait, and the saved expense has the photo", async ({ browser }) => {
   test.setTimeout(120_000);
   const asha = await signUp("Asha", testEmail("b5-scan-asha"));
-  const A = await (await contextFor(browser, asha)).newPage();
+  const A = await (await contextFor(browser, asha, { noWorker: true })).newPage(); // so the slowed upload really is slow on iPhone
   const g = await createGroup(A, groupName("B5 scan"), "Trip");
   const gid = g.path.split("/").pop()!;
   await A.route("**/api/receipt?**", async (route) => {
@@ -163,7 +163,7 @@ test("VD2-24: a trip with the default cover has no Picture tile ticked, and savi
 
 test("CA-10: a busy search says so, and the same search works once the server answers again", async ({ browser }) => {
   const asha = await signUp("Asha", testEmail("b5-busy-asha"));
-  const A = await (await contextFor(browser, asha)).newPage();
+  const A = await (await contextFor(browser, asha, { noWorker: true })).newPage(); // so the faked "busy" answer is the only answer on iPhone
   const g = await createGroup(A, groupName("B5 busy"), "Trip");
   let busy = true;
   const seen: string[] = [];

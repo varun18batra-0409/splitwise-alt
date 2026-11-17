@@ -6,8 +6,10 @@ import type { TestUser } from "./auth";
 import { watchConsole } from "../fixtures";
 
 // A browser profile for a signed-in test user (traced by Playwright as usual).
-export async function contextFor(browser: Browser, user: TestUser): Promise<BrowserContext> {
-  const ctx = await browser.newContext({ storageState: user.storageState });
+// noWorker: the app's service worker stays off. On the iPhone engine, page.route() fakes (a slow upload, a "busy" answer) don't
+// reliably reach a page the worker controls: the same request also went to the real server (17 Nov: a faked 429 and a real 200).
+export async function contextFor(browser: Browser, user: TestUser, opts: { noWorker?: boolean } = {}): Promise<BrowserContext> {
+  const ctx = await browser.newContext({ storageState: user.storageState, ...(opts.noWorker ? { serviceWorkers: "block" as const } : {}) });
   await allowTestCopy(ctx);
   return ctx;
 }
