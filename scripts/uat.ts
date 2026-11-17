@@ -544,7 +544,13 @@ async function main() {
   // ===== 1. First visit, signing up, creating a group, adding people =====
   await step(V, "Start", "First visit shows the intro tour with “Create your first group”", async () => {
     await go(V, "/");
-    await V.getByText("Create your first group").first().waitFor();
+    // "Next" is the main button on the early steps; "Create your first group" becomes the main button on the last step.
+    await V.locator("[data-tour-next]").first().waitFor();
+    for (let i = 0; i < 6; i++) {
+      await V.locator("[data-tour-next]").click();
+      await V.waitForTimeout(300);
+    }
+    await V.getByRole("link", { name: "Create your first group" }).waitFor();
   });
   await step(V, "Start", "Creating a group asks you to sign up first (verified email)", async () => {
     await go(V, "/groups/new");
@@ -680,6 +686,7 @@ async function main() {
   });
   await step(V, "Joining", "Contacts option is there (share sheet when the phone can't pick contacts)", async () => {
     await go(V, `${g}/invite`);
+    await openWay(V, "contacts"); // now one of the rows under “More ways to add people”
     await V.getByRole("button", { name: /from contacts/ }).waitFor();
   });
 
@@ -918,6 +925,8 @@ async function main() {
     await V.locator("[data-filter-open]").click();
     // A bottom sheet: "Show results" is fixed at its bottom, inside the screen (never under the bar).
     await V.locator("[data-filter-sheet]").waitFor();
+    // The sheet slides up when it opens: measure once it has settled (up to 3 s), not mid-slide.
+    await V.waitForFunction(() => { const r = document.querySelector("[data-filter-submit]")?.getBoundingClientRect(); return !!r && r.bottom <= window.innerHeight; }, undefined, { timeout: 3_000 }).catch(() => undefined);
     const sr = (await V.locator("[data-filter-submit]").boundingBox())!;
     assert(sr.y + sr.height <= (V.viewportSize()?.height ?? 844), "Show results is below the screen");
     await V.getByLabel("Category").selectOption("food");
@@ -1207,14 +1216,16 @@ async function main() {
     const b3 = await shownBalances(V, g3);
     assert(Object.values(b2).every((x) => x === 0) && Object.values(b3).every((x) => x === 0), `not square: ${JSON.stringify({ b2, b3 })}`);
   });
-  await step(V, "Across groups", "All square page: a “Hide amounts” switch swaps the money tile for counts, and the shared picture follows", async () => {
+  await step(V, "Across groups", "All square page: a “Hide amounts” switch blanks the money tile (₹ ••••), and the shared picture follows", async () => {
     await go(V, `${g2}/square`);
     await V.locator("[data-square]").waitFor();
     assert(/₹/.test(await V.locator("main").innerText()), "the square page shows no amount to hide");
     await V.locator("[data-hide-amounts]").click();
     await V.waitForURL(/amounts=0/);
     const t = await V.locator("main").innerText();
-    assert(!/₹/.test(t), `amounts still shown: ${t.replace(/\s+/g, " ").slice(0, 200)}`);
+    // Hidden now means "₹ ••••" (the sign stays, the figure is blanked) on the same "spent together" tile.
+    assert(!/₹\s*\d/.test(t), `amounts still shown: ${t.replace(/\s+/g, " ").slice(0, 200)}`);
+    assert(/₹\s*••••/.test(t) && /spent together/.test(t), `the money tile isn't blanked as “₹ ••••”: ${t.replace(/\s+/g, " ").slice(0, 200)}`);
     assert((await V.locator("[data-hide-amounts]").getAttribute("aria-checked")) === "true", "the switch doesn't say it's on");
     for (const q of ["", "?amounts=0"]) {
       const r = await V.request.get(`${base}${g2}/square-image${q}`, { headers: bypass });
@@ -2030,11 +2041,14 @@ async function main() {
     const ok = await V.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration("/")));
     assert(ok, "no service worker registered");
   });
-  await step(null, "Get the app", "First-time tour (iPhone) has the “App” button on every slide", async () => {
+  await step(null, "Get the app", "First-time tour (iPhone) has no “App” button (the tour keeps only Skip); “Get it” on the guide shows how to add it to the Home Screen", async () => {
     const { ctx, page } = await phone("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1");
     await go(page, "/");
-    await page.getByText("Create your first group").first().waitFor();
-    await page.getByRole("button", { name: "Get the app" }).click();
+    await page.locator("[data-tour-next]").first().waitFor();
+    assert((await page.getByRole("button", { name: "Get the app" }).count()) === 0, "the tour still has an App button in its header");
+    // The app card now lives on You and on the guide; on an iPhone it shows the Add to Home Screen steps.
+    await go(page, "/how-it-works");
+    await page.getByRole("button", { name: /^(Get it|Install)$/ }).click();
     await page.getByText("Add to Home Screen").first().waitFor();
     await ctx.close();
   });
@@ -2046,7 +2060,10 @@ async function main() {
   await step(null, "Start screen", "Tour → Home shows a start screen: create, join with a link, quick start, sign up / sign in", async () => {
     const { ctx, page } = await phone("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36");
     await go(page, "/");
-    await page.getByRole("link", { name: "Home", exact: true }).first().click();
+    // Skip is the way out of the tour (it also remembers the tour was seen); Home then shows the start screen.
+    await page.locator("[data-tour-skip]").click();
+    await page.waitForURL(/\/groups\/new/);
+    await go(page, "/");
     await page.getByRole("heading", { name: "Good times. Shared fairly." }).waitFor();
     await page.getByRole("link", { name: /Already here\? Sign in/ }).first().waitFor();
     // Join with a pasted link
@@ -2113,10 +2130,16 @@ async function main() {
     assert(!/Flat\b|Card night|The Pot/.test(all.replace(/Flat expenses/g, "")), "the tour still says Flat / Card night / The Pot");
     assert(!/Get the Loopin app/.test(all), "the tour has a “Get the Loopin app” card");
     assert((await page.locator("[data-story-lines] li").allTextContents()).length === 3, "the story poster doesn't show its three Wrapped lines");
-    // "Next" is the main button on the early steps and "Skip" the only way out; "Create your first group" is the main button only on the last step.
-    assert(await page.locator("[data-tour-next]").first().isVisible(), "no “Next” main button");
-    assert((await page.getByText("Create your first group").count()) === 0 || !(await page.getByRole("link", { name: "Create your first group" }).isVisible()), "“Create your first group” shows before the last step");
+    // We are on the last step now: "Create your first group" is the main button and "See it again" is small; "Next" is gone.
+    assert(await page.getByRole("link", { name: "Create your first group" }).isVisible(), "no “Create your first group” on the last step");
+    assert((await page.locator("[data-tour-next]").count()) === 0, "“Next” still shows on the last step");
+    assert(await page.locator("[data-tour-again]").isVisible(), "no “See it again” on the last step");
     assert(await page.getByRole("link", { name: "Skip" }).first().isVisible(), "no Skip");
+    // Back at the first step: "Next" is the main button, and “Create your first group” isn't offered yet.
+    await page.locator("[data-tour-again]").click();
+    await page.waitForTimeout(700);
+    assert(await page.locator("[data-tour-next]").first().isVisible(), "no “Next” main button");
+    assert(!(await page.getByRole("link", { name: "Create your first group" }).isVisible()), "“Create your first group” shows before the last step");
     await ctx.close();
   });
   await step(null, "Help", "The tour moves like stories: tap the right side for next, the left side to go back, and Back / Next buttons at the bottom", async () => {
@@ -4188,7 +4211,8 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     momentOne = (await db.moment.findFirstOrThrow({ where: { groupId: grp.id, caption: "The boat we almost missed 😂" } })).id;
     const row = await db.moment.findUniqueOrThrow({ where: { id: momentOne } });
     assert(row.takenOn === "2026-11-12", `the day saved is ${row.takenOn}, not Day 3 (2026-11-12)`);
-    const page = await V.locator("main").innerText();
+    // The closing emoji is glued to the word before it (a non-breaking space), so it never sits alone on a line: read that space as a plain one.
+    const page = (await V.locator("main").innerText()).replace(/\u00a0/g, " ");
     assert(page.includes("The boat we almost missed 😂") && page.includes("Day 3"), "Our moments doesn't show the caption and Day 3");
     assert((await V.getByText("Saved with this trip").count()) === 1, "no “Saved with this trip”");
     assert((await assertMomentPhotosDecoded(V, "Our moments")) >= 1, "Our moments shows no moment photo");
