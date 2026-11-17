@@ -7,6 +7,7 @@ import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
 import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
+import { receiptsFor } from "@/lib/receipts-db";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { canUndo, originAtDb, ownMoveOut } from "@/lib/undo";
 import { passportZone } from "@/lib/passport";
@@ -148,7 +149,7 @@ export default async function GroupPage({
   // Results of finished games: they change through the game (other card-game rows, e.g. imported ones, are ordinary).
   // Loaded whatever the group type now is: a card-night group can later become a trip and keep its games.
   const gameResultIds = tab === "activity" ? (await db.potGame.findMany({ where: { groupId: group.id, resultId: { not: "" } }, select: { resultId: true } })).map((g) => g.resultId) : [];
-  const receipts = tab === "activity" && group.expenses.length ? await db.receipt.findMany({ where: { groupId: group.id, expenseId: { not: "" } }, select: { id: true, expenseId: true } }) : [];
+  const receipts = tab === "activity" && group.expenses.length ? await receiptsFor(group.id, leaver?.leftAt ?? null) : [];
   const today = dayKey(new Date(), v.tz);
   const comingUp = bills
     .filter((b) => b.status === "waiting" || b.status === "upcoming")

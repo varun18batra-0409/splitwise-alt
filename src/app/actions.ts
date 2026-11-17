@@ -37,7 +37,7 @@ import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
-import { hasLeft, LEFT_ERROR } from "@/lib/active";
+import { CLOSED_PAY_ERROR, hasLeft, LEFT_ERROR } from "@/lib/active";
 import { parseWas, saveAllSettings } from "@/lib/settings-save";
 import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
@@ -552,7 +552,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
-  if (group.closed) redirect(`/groups/${group.id}`);
+  if (group.closed) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(CLOSED_PAY_ERROR)}`);
   if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(LEFT_ERROR)}`);
 
   const back = (error: string) =>

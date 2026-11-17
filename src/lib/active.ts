@@ -4,6 +4,10 @@ import { db } from "./db";
 // change it: no edits, deletes, undos, payments or settings, until they rejoin.
 export const LEFT_ERROR = "You left this group. Rejoin it to make changes.";
 
+// Closed groups: the same wording Settle uses.
+export const CLOSED_PAY_ERROR = "This group is closed. Reopen it to record payments.";
+export const CLOSED_LIST_ERROR = "This group is closed. Reopen it to use the list.";
+
 export async function hasLeft(groupId: string, memberId: string | undefined, client: Pick<typeof db, "member"> = db): Promise<boolean> {
   if (!memberId) return false;
   const m = await client.member.findFirst({ where: { id: memberId, groupId }, select: { leftAt: true } });

@@ -737,22 +737,15 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     // Someone with their own account who has left or been removed is never taken out (or put back) by somebody else's undo:
     // their row, and the removal record on it, stay exactly as they are.
     if (m.accountId && (m.leftAt || m.removedAt)) return { ok: false, error: `${m.name} has left or been removed, so this can’t be undone.` };
-    const used =
-      (await db.expenseShare.count({ where: { memberId: m.id } })) +
-      (await db.expense.count({ where: { groupId, OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
-      (await db.payment.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
-      // An "I've paid" claim (waiting or answered) counts as being part of a payment too.
-      (await db.paymentClaim.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
-      // A moment they added, or a reaction they left, counts too: taking the person out would leave photos with no author (and their files behind).
-      (await db.moment.count({ where: { groupId, authorId: m.id } })) +
-      (await db.momentReaction.count({ where: { memberId: m.id } }));
-    if (used > 0) return { ok: false, error: `${m.name} is already part of expenses, payments or moments, so they can’t be removed.` };
+    if (await memberInUse(db, groupId, m.id)) return { ok: false, error: memberInUseText(m.name) };
   }
   if (members.length === 0) return { ok: true };
   let eventId: string;
   try {
   eventId = await db.$transaction(async (tx) => {
     await markUndone(tx, mark);
+    // The "is this person used anywhere" check again, inside the write: a deposit, goal entry, game or bill added since must not be orphaned.
+    for (const m of members) if (await memberInUse(tx, groupId, m.id)) throw new MemberInUse(m.name);
     // The "account holder who left or was removed" check again, inside the write: a leave racing this undo can't get the row deleted.
     const del = await tx.member.deleteMany({ where: { id: { in: members.map((m) => m.id) }, groupId, OR: [{ accountId: null }, { leftAt: null, removedAt: null }] } });
     if (del.count !== members.length) throw new MembersMoved();
@@ -788,6 +781,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     });
   });
   } catch (err) {
+    if (err instanceof MemberInUse) return { ok: false, error: memberInUseText(err.message) };
     if (err instanceof MembersMoved) return { ok: false, error: "Someone changed these people a moment ago, so this wasn’t undone. Look again." };
     throw err;
   }
@@ -795,6 +789,34 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
 }
 
 class MembersMoved extends Error {}
+class MemberInUse extends Error {}
+
+export const memberInUseText = (name: string) => `${name} is already part of expenses, payments, the deposit, a goal or a game, so they can’t be removed.`;
+
+type UseClient = Pick<typeof db, "expenseShare" | "expense" | "payment" | "paymentClaim" | "moment" | "momentReaction" | "depositShare" | "goalEntry" | "potMove" | "potGame" | "bill">;
+
+// Is this person named anywhere that taking them out would leave behind? These columns hold the id as plain text
+// (no foreign key), so a delete would not complain: the money would just point at nobody.
+export async function memberInUse(client: UseClient, groupId: string, id: string): Promise<boolean> {
+  // One after another (this also runs inside a transaction).
+  for (const q of [
+    () => client.expenseShare.count({ where: { memberId: id } }),
+    () => client.expense.count({ where: { groupId, OR: [{ paidById: id }, { createdById: id }, { payers: { contains: id } }] } }),
+    () => client.payment.count({ where: { OR: [{ fromId: id }, { toId: id }] } }),
+    // An "I've paid" claim (waiting or answered) counts as being part of a payment too.
+    () => client.paymentClaim.count({ where: { OR: [{ fromId: id }, { toId: id }] } }),
+    // A moment they added, or a reaction they left: taking the person out would leave photos with no author (and their files behind).
+    () => client.moment.count({ where: { groupId, authorId: id } }),
+    () => client.momentReaction.count({ where: { memberId: id } }),
+    // The deposit (either side of a hand-over), goal money, card-game money and games, bills they pay or take turns on.
+    () => client.depositShare.count({ where: { deposit: { groupId }, OR: [{ memberId: id }, { toMemberId: id }] } }),
+    () => client.goalEntry.count({ where: { goal: { groupId }, memberId: id } }),
+    () => client.potMove.count({ where: { game: { groupId }, memberId: id } }),
+    () => client.potGame.count({ where: { groupId, OR: [{ hostId: id }, { players: { contains: id } }] } }),
+    () => client.bill.count({ where: { groupId, OR: [{ payer: id }, { rotation: { contains: id } }] } }),
+  ]) if ((await q()) > 0) return true;
+  return false;
+}
 
 async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"], mark?: UndoMark): Promise<UndoResult> {
   if (await isPairGroup(groupId)) return { ok: false, error: PAIR_NO_PEOPLE };

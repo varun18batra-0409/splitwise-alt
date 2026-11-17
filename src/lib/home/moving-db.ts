@@ -445,6 +445,8 @@ export async function moveOut(
   return { ok: true, payments: p.payments, eventId };
 }
 
+export const LEAVER_DEPOSIT_ERROR = "That person has moved out, so their deposit can’t be changed here.";
+
 // The deposit: who put in what. Never part of balances.
 export async function saveDepositFor(groupId: string, actorId: string, input: { heldBy: string; amounts: Record<string, string> }): Promise<{ ok: true } | Fail> {
   const flat = await loadFlat(groupId);
@@ -453,8 +455,11 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const rows: { memberId: string; amount: number }[] = [];
   for (const [memberId, raw] of Object.entries(input.amounts)) {
-    if (!flat.members.some((m) => m.id === memberId)) continue;
+    const who = flat.members.find((m) => m.id === memberId);
+    if (!who) continue;
     if (!raw.trim()) continue;
+    // Someone who moved out keeps their deposit on record, but nobody can change it from here.
+    if (who.leftAt) return { ok: false, error: LEAVER_DEPOSIT_ERROR };
     const amount = parseAmount(raw, flat.currency);
     if (amount === null || amount < 0) return { ok: false, error: "Enter each amount as a number, like 36000." };
     if (amount > 0) rows.push({ memberId, amount });
@@ -462,6 +467,8 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
   const heldBy = input.heldBy.trim().slice(0, 40) || "Landlord";
   try {
     await db.$transaction(async (tx) => {
+      // Checked again inside the write: someone may have moved out since the form was read.
+      if (rows.length && (await tx.member.count({ where: { groupId, id: { in: rows.map((r) => r.memberId) }, leftAt: { not: null } } })) > 0) throw new Error("DEPOSIT_LEAVER");
       const dep = await tx.deposit.upsert({ where: { groupId }, create: { groupId, heldBy }, update: { heldBy } });
       // Only the shares still held can be edited; returned/transferred ones are history. A form opened before a
       // deposit was returned or handed on must not bring it back to life: it is refused instead.
@@ -493,6 +500,7 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
       });
     });
   } catch (err) {
+    if (String((err as Error)?.message ?? err).includes("DEPOSIT_LEAVER")) return { ok: false, error: LEAVER_DEPOSIT_ERROR };
     if (String((err as Error)?.message ?? err).includes("DEPOSIT_CHANGED")) return { ok: false, error: "That deposit was already returned or handed on, so it can’t be changed here. Open Deposit again to see where it stands." };
     throw err;
   }
