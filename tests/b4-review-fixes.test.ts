@@ -97,10 +97,10 @@ describe("L3: an undated trip is 'Trip so far' for 3 days after its last spendin
 });
 
 describe("L5, L6 and the Home card", () => {
-  it("a leaver's share picture is titled and named as theirs, and carries no 'Everyone’s in'", () => {
+  it("a leaver gets no 'all square' share picture at all (b3c: they see only their own part, so it is not theirs to say or share)", () => {
     const sq = readFileSync("src/app/groups/[id]/square/page.tsx", "utf8");
-    expect(sq).toContain('"youre-square.png"');
-    expect(sq).toContain("Share: you’re square");
+    expect(sq).toContain("{w.share && (");
+    expect(readFileSync("src/app/groups/[id]/square-image/route.tsx", "utf8")).toContain("if (data.leaver) return new Response(");
     expect(readFileSync("src/components/TripShare.tsx", "utf8")).toContain('r.viewerLeft ? "Everything adds up."');
   });
   it("the group Settle page lists its payments with listMoney", () => {

@@ -57,8 +57,8 @@ describe("3. Card fee, People colours, Y", () => {
   });
   it("People: amounts coloured, words stay grey; own avatar is Y", () => {
     const people = src("src/app/groups/[id]/people/page.tsx");
-    expect(people).toContain('<span className="text-owed">{money(bal)}</span>');
-    expect(people).toContain('<span className="text-owe">{money(-bal)}</span>');
+    expect(people).toContain('<span className="text-owed">{listFmt(bal)}</span>');
+    expect(people).toContain('<span className="text-owe">{listFmt(-bal)}</span>');
     expect(people).toContain("<Avatar name={m.name} you={me} />");
     expect(src("src/components/ui.tsx")).toContain('you ? "Y"');
   });
@@ -146,7 +146,7 @@ describe("Review fixes: even needs one currency", () => {
     const page = src("src/app/settle/page.tsx");
     expect(page).toContain("settleItems.filter((it) => it.net <= 0 && !isEvenItem(it))");
     expect(page).toContain("settleItems.filter((it) => it.net > 0)");
-    expect(page).toContain('it.net === 0 ? "Even" : amt(it, it.net)');
+    expect(page).toContain('it.net === 0 ? "Even" : amt(it, it.net, listFmt)');
   });
   it("all square is not shown while there are even people", () => {
     const page = src("src/app/settle/page.tsx");

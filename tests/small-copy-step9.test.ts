@@ -32,7 +32,7 @@ describe("small items", () => {
     expect(wholeListNote(["Nupur", "Ravi", "Meera", "Zoe"])).toBe("Nupur, Ravi and 2 others see your whole list, so they see it too.");
     const sheet = readFileSync("src/components/want/WishShareSheet.tsx", "utf8");
     expect(sheet).toContain("Friends you tick can see ${one?.name ?? \"this place\"} on your list.");
-    expect(sheet).toContain("wholeListNote(wholeList)");
+    expect(sheet).toContain("wholeListNote(wholeListNames)");
   });
 
   it("AS-13: invite emails have a fixed subject, and names carry no links or addresses", async () => {

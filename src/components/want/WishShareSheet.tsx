@@ -62,7 +62,7 @@ export function WishShareSheet({
   const toggle = (id: string) => setTicked((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
   const one = places.find((p) => p.code === scope);
   // Friends who already see the whole list also see a single place: the sheet says so instead of leaving them unticked without a word.
-  const wholeList = friends.filter((f) => shares.some((r) => r.friendId === f.id && r.country === SHARE_ALL)).map((f) => f.name);
+  const wholeListNames = friends.filter((f) => shares.some((r) => r.friendId === f.id && r.country === SHARE_ALL)).map((f) => f.name);
   const choices = useMemo(() => [{ value: SHARE_ALL, label: "Whole list" }, ...places.map((p) => ({ value: p.code, label: `Just ${p.name}` }))], [places]);
   const disabled = places.length === 0;
 
@@ -96,7 +96,7 @@ export function WishShareSheet({
                   </select>
                 </label>
                 <p className="mt-2 text-sm text-fg/65">
-                  {scope === SHARE_ALL ? "The whole list includes places you add later." : `Friends you tick can see ${one?.name ?? "this place"} on your list.${wholeList.length ? ` ${wholeListNote(wholeList)}` : ""}`} Only people in a group with you right now can see it.
+                  {scope === SHARE_ALL ? "The whole list includes places you add later." : `Friends you tick can see ${one?.name ?? "this place"} on your list.${wholeListNames.length ? ` ${wholeListNote(wholeListNames)}` : ""}`} Only people in a group with you right now can see it.
                 </p>
                 {friends.length === 0 ? (
                   <p className="mt-4 text-sm text-fg/75">Share places with friends once you are in a group together.</p>

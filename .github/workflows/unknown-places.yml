@@ -25,23 +25,24 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READ_TOKEN || secrets.TURSO_AUTH_TOKEN }}
       REPORTS_REPO: ${{ vars.REPORTS_REPO }}
       REPORTS_TOKEN: ${{ secrets.REPORTS_TOKEN }}
     steps:
       - name: Check the secrets are set
         id: ready
+        env:
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READ_TOKEN || secrets.TURSO_AUTH_TOKEN }}
         run: |
           if [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ]; then
             echo "ok=1" >> "$GITHUB_OUTPUT"
           else
             echo "::warning title=Unknown places skipped::Add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Settings → Secrets → Actions."
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.ready.outputs.ok == '1'
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.ready.outputs.ok == '1'
         with:
           node-version: 22
@@ -49,6 +50,8 @@ jobs:
         if: steps.ready.outputs.ok == '1'
       - name: Count the places (names are never printed)
         if: steps.ready.outputs.ok == '1'
+        env:
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READ_TOKEN || secrets.TURSO_AUTH_TOKEN }}
         run: node scripts/unknown-places.mjs && cat unknown-places.md >> "$GITHUB_STEP_SUMMARY"
       - name: Save the list to the PRIVATE reports repository
         if: steps.ready.outputs.ok == '1' && env.REPORTS_REPO != '' && env.REPORTS_TOKEN != ''

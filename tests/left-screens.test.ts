@@ -113,8 +113,8 @@ describe("Closed group: the payment page and the shopping list", () => {
     expect(pay.indexOf("data-pay-blocked")).toBeLessThan(pay.indexOf("<RecordPaymentForm"));
     expect(pay).toContain("Back to {group.name}");
   });
-  it("recordCustomPayment's closed redirect carries an error= message", () => {
-    expect(src("app/actions.ts")).toMatch(/if \(group\.closed\) redirect\(`\/groups\/\$\{group\.id\}\?error=/);
+  it("recordCustomPayment's closed redirect carries a (signed) error message", () => {
+    expect(src("app/actions.ts")).toContain('if (group.closed) redirect(await flashTo(["groups", group.id], { error: CLOSED_PAY_ERROR }, { tab: "balances" }));');
   });
   it("the closed list: a note, and no add box, ticks, × or Going shopping", () => {
     const list = src(`${G}/_components/ListTab.tsx`);
@@ -128,11 +128,12 @@ describe("Closed group: the payment page and the shopping list", () => {
     expect(ro).not.toContain("<form");
     expect(ro).not.toContain("button");
   });
-  it("toggle, remove and going-shopping pass their errors back as error=", () => {
+  it("toggle, remove and going-shopping pass their errors back as signed messages", () => {
     const a = src("app/bill-actions.ts");
     for (const fn of ["listToggle", "listRemove", "listGoingShopping"]) {
       const body = a.slice(a.indexOf(`export async function ${fn}`), a.indexOf("export async function", a.indexOf(`export async function ${fn}`) + 10));
-      expect(body).toContain("error=");
+      expect(body).toContain("flashTo(");
+      expect(body).toContain("error: r.error");
     }
   });
 });
