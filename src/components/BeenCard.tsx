@@ -62,7 +62,8 @@ function Title({ text }: { text: string }) {
   return (
     <div className={`@container min-w-[9ch] ${longWord ? "max-w-full flex-auto" : "flex-1"}`}>
       <h3 className="font-display font-semibold leading-tight tracking-tight [overflow-wrap:normal] [word-break:normal]" style={{ fontSize: titleFit(text, 22) }}>
-        {text}
+        {/* The dot stays on the line of the place before it, so a wrapped title never starts its next line with "·". */}
+        {text.replace(/ · /g, "\u00a0· ")}
       </h3>
     </div>
   );
