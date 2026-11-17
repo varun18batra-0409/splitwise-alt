@@ -12,8 +12,26 @@ function create() {
   // checker share it, so wait for each other's writes instead of timing out,
   // and let reads carry on during a write. Never used for the live database.
   if (url.startsWith("file:")) {
-    void client.$queryRawUnsafe("PRAGMA busy_timeout = 20000").catch(() => undefined);
     void client.$queryRawUnsafe("PRAGMA journal_mode = WAL").catch(() => undefined);
+    // The wait has to be set again and again: the local-file client hands its connection to every transaction (a write with
+    // nested rows, or db.$transaction) and opens a fresh one for the next call, and a fresh connection doesn't wait at all.
+    // A write that met another write then failed at once with "busy" (P2010 / SocketTimeout), which stopped the iPhone
+    // screenshot run of 17 Nov. Setting it before and after every call means the connection the next call (or transaction)
+    // picks up is always one that waits.
+    const wait = () => client.$queryRawUnsafe("PRAGMA busy_timeout = 20000").catch(() => undefined);
+    void wait();
+    return client.$extends({
+      query: {
+        async $allOperations({ args, query }) {
+          await wait();
+          try {
+            return await query(args);
+          } finally {
+            await wait();
+          }
+        },
+      },
+    }) as unknown as PrismaClient;
   }
   return client;
 }

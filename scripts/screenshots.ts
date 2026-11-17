@@ -112,7 +112,12 @@ async function gotoQuiet(p: Page, url: string, quick = false) {
   } catch (e) {
     if (quick || !/networkidle/i.test(String(e))) throw e;
     console.log("  (note:", url.replace(base, ""), "never went network-quiet; carrying on once it has loaded)");
-    await p.waitForLoadState("load", { timeout: 10_000 });
+    // On the iPhone engine one stuck picture can also hold back "load" (17 Nov, Home at 390px). The page itself is there once its
+    // HTML is read; each screen's own check (prepare, or the picture itself) still decides whether it is right.
+    await p.waitForLoadState("load", { timeout: 20_000 }).catch(async () => {
+      console.log("  (note:", url.replace(base, ""), "never finished loading every picture; carrying on with the page as it is)");
+      await p.waitForLoadState("domcontentloaded", { timeout: 10_000 });
+    });
   }
 }
 

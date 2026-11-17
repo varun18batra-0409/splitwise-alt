@@ -123,7 +123,7 @@ jobs:
           code=${PIPESTATUS[0]}
           taken=$(grep -c '^✓' shots-ios.log || true); failed=$(grep -c '^✗' shots-ios.log || true)
           echo "::notice title=iPhone screens::$taken taken, $failed failed $(grep '^✗' shots-ios.log | head -5 | tr '\n' ' ')"
-          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ] || [ "${code:-0}" -ne 0 ]; then echo "::error title=iPhone screenshots failed::$taken taken, $failed failed, the script exited with code ${code:-0}. $(grep '^✗' shots-ios.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
+          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ] || [ "${code:-0}" -ne 0 ]; then echo "::error title=iPhone screenshots failed::$taken taken, $failed failed, the script exited with code ${code:-0}. $(grep '^✗' shots-ios.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; echo "::warning title=App errors during the iPhone screens::$(grep -iE 'error|⨯|busy|SocketTimeout|timed? ?out' server.log | grep -v 'ExperimentalWarning' | tail -20 | cut -c1-300 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
       - name: Screenshots on a desktop (1440×900)
         id: shots_desktop
         continue-on-error: true
@@ -133,7 +133,7 @@ jobs:
           code=${PIPESTATUS[0]}
           taken=$(grep -c '^✓' shots-desktop.log || true); failed=$(grep -c '^✗' shots-desktop.log || true)
           echo "::notice title=Desktop screens::$taken taken, $failed failed $(grep '^✗' shots-desktop.log | head -5 | tr '\n' ' ')"
-          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ] || [ "${code:-0}" -ne 0 ]; then echo "::error title=Desktop screenshots failed::$taken taken, $failed failed, the script exited with code ${code:-0}. $(grep '^✗' shots-desktop.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
+          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ] || [ "${code:-0}" -ne 0 ]; then echo "::error title=Desktop screenshots failed::$taken taken, $failed failed, the script exited with code ${code:-0}. $(grep '^✗' shots-desktop.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; echo "::warning title=App errors during the Desktop screens::$(grep -iE 'error|⨯|busy|SocketTimeout|timed? ?out' server.log | grep -v 'ExperimentalWarning' | tail -20 | cut -c1-300 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
       - name: UAT (a person tapping through every feature)
         id: uat
         continue-on-error: true
