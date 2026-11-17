@@ -11,29 +11,50 @@ function create() {
   // A local database file (the automated browser tests): the app and the test
   // checker share it, so wait for each other's writes instead of timing out,
   // and let reads carry on during a write. Never used for the live database.
-  if (url.startsWith("file:")) {
-    void client.$queryRawUnsafe("PRAGMA journal_mode = WAL").catch(() => undefined);
-    // The wait has to be set again and again: the local-file client hands its connection to every transaction (a write with
-    // nested rows, or db.$transaction) and opens a fresh one for the next call, and a fresh connection doesn't wait at all.
-    // A write that met another write then failed at once with "busy" (P2010 / SocketTimeout), which stopped the iPhone
-    // screenshot run of 17 Nov. Setting it before and after every call means the connection the next call (or transaction)
-    // picks up is always one that waits.
-    const wait = () => client.$queryRawUnsafe("PRAGMA busy_timeout = 20000").catch(() => undefined);
-    void wait();
-    return client.$extends({
-      query: {
-        async $allOperations({ args, query }) {
-          await wait();
-          try {
-            return await query(args);
-          } finally {
-            await wait();
-          }
-        },
-      },
-    }) as unknown as PrismaClient;
-  }
+  if (url.startsWith("file:")) void client.$queryRawUnsafe("PRAGMA journal_mode = WAL").catch(() => undefined);
   return client;
+}
+
+// A local database file only (never the live one). The wait for another write has to be set again and again: the local-file
+// client hands its connection to every transaction (a write with nested rows, or db.$transaction) and opens a fresh one for the
+// next call, and a fresh connection doesn't wait at all. A write that met another write then failed at once with "busy"
+// (P2010 / SocketTimeout), which stopped the iPhone screenshot run of 17 Nov. So the wait is set on the connection before and after
+// every call, and before and after every db.$transaction, so the connection the next call or transaction picks up always waits.
+// Never from inside an open db.$transaction: the adapter runs one thing at a time while a transaction is open, so a call from
+// inside it would wait for the transaction to end, for ever.
+function waitingLocally(base: PrismaClient, client: PrismaClient): PrismaClient {
+  let open = 0;
+  const wait = () => base.$queryRawUnsafe("PRAGMA busy_timeout = 20000").then(() => undefined, () => undefined);
+  void wait();
+  const waiting = client.$extends({
+    query: {
+      async $allOperations({ args, query }) {
+        if (open) return query(args);
+        await wait();
+        try {
+          return await query(args);
+        } finally {
+          if (!open) await wait();
+        }
+      },
+    },
+  }) as unknown as PrismaClient;
+  const transaction = waiting.$transaction.bind(waiting) as (...a: unknown[]) => Promise<unknown>;
+  return new Proxy(waiting, {
+    get(target, key, recv) {
+      if (key !== "$transaction") return Reflect.get(target, key, recv);
+      return async (...a: unknown[]) => {
+        if (!open) await wait();
+        open++;
+        try {
+          return await transaction(...a);
+        } finally {
+          open--;
+          if (!open) await wait();
+        }
+      };
+    },
+  });
 }
 
 // Speed measurement, only when LOOPIN_PERF=1 (the load-test server in CI; never set on the live app):
@@ -61,6 +82,12 @@ function withPerf(client: PrismaClient): PrismaClient {
 // Reuse one database connection while the dev server reloads.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const db = globalForPrisma.prisma ?? (process.env.LOOPIN_PERF === "1" ? withPerf(create()) : create());
+function build(): PrismaClient {
+  const base = create();
+  const client = process.env.LOOPIN_PERF === "1" ? withPerf(base) : base;
+  return process.env.TURSO_DATABASE_URL?.startsWith("file:") ? waitingLocally(base, client) : client;
+}
+
+export const db = globalForPrisma.prisma ?? build();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

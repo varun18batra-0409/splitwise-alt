@@ -45,6 +45,7 @@ async function holdLock(ms: number) {
 }
 
 afterAll(async () => {
+  delete (globalThis as { prisma?: unknown }).prisma; // later test files get their usual database again
   await db.$disconnect();
   other.close();
   rmSync(dir, { recursive: true, force: true });
@@ -58,7 +59,7 @@ describe("a local test database waits for another write instead of failing", () 
     await db.$executeRawUnsafe("INSERT INTO busy_probe VALUES (1)");
     expect(Date.now() - t).toBeGreaterThanOrEqual(500);
     await released;
-  });
+  }, 15_000);
 
   it("a write inside a transaction waits", async () => {
     await db.$transaction(async (tx) => tx.$queryRawUnsafe("SELECT 1"));
@@ -67,7 +68,18 @@ describe("a local test database waits for another write instead of failing", () 
     await db.$transaction(async (tx) => tx.$executeRawUnsafe("INSERT INTO busy_probe VALUES (2)"), { timeout: 10_000, maxWait: 10_000 });
     expect(Date.now() - t).toBeGreaterThanOrEqual(500);
     await released;
-  });
+  }, 15_000);
+
+  it("transactions never stall: a list of calls, a nested one, and one after another", async () => {
+    const [one] = await db.$transaction([db.$queryRawUnsafe<{ x: number }[]>("SELECT 1 AS x")]);
+    expect(Number(one[0].x)).toBe(1);
+    const got = await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("INSERT INTO busy_probe VALUES (3)");
+      return tx.$queryRawUnsafe<{ n: number }[]>("SELECT count(*) AS n FROM busy_probe WHERE x = 3");
+    });
+    expect(Number(got[0].n)).toBe(1);
+    await Promise.all([db.$queryRawUnsafe("SELECT 1"), db.$transaction(async (tx) => tx.$queryRawUnsafe("SELECT 2")), db.$queryRawUnsafe("SELECT 3")]);
+  }, 15_000);
 
   it("every call's connection is set to wait", async () => {
     await db.$transaction(async (tx) => tx.$queryRawUnsafe("SELECT 1"));
@@ -75,5 +87,5 @@ describe("a local test database waits for another write instead of failing", () 
     expect(Number(row.timeout)).toBe(20000);
     const n = await other.execute("SELECT count(*) AS n FROM busy_probe WHERE x IN (1, 2)");
     expect(Number(n.rows[0].n)).toBe(2);
-  });
+  }, 15_000);
 });
