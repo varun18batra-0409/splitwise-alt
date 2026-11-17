@@ -78,11 +78,10 @@ describe("erasing one group at a time", () => {
     const r = await eraseExpiredGroups(now, 1000, () => ++asked > 1);
     expect(r.failed).toBe(0);
     expect(r.stopped).toBe(true); // reported, so the daily email lists it
-    expect((await eraseExpiredGroups(now, 1000)).stopped).toBe(false);
     // At most one of the two went (an older leftover group from another test may have used the one start).
     const gone = (await Promise.all([a, b].map((id) => db.group.findUnique({ where: { id } })))).filter((g) => g === null).length;
     expect(gone).toBeLessThanOrEqual(1);
-    await eraseExpiredGroups(now, 1000);
+    expect((await eraseExpiredGroups(now, 1000)).stopped).toBe(false);
     expect(await db.group.findUnique({ where: { id: a } })).toBeNull();
     expect(await db.group.findUnique({ where: { id: b } })).toBeNull();
   });
