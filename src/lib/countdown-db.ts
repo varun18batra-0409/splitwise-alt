@@ -106,7 +106,9 @@ export async function sendDayPulse(now = new Date(), stop: () => boolean = () =>
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   // A day ahead of India's, so people in zones further east are found too; the trip's own days are checked per person.
   const trips = await db.group.findMany({
-    where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: addDays(today, 1), not: "" } },
+    // Trips already over are left out by the database too (the check below stays, and says the same thing): the last day (the end day, or the
+    // start day when there is no end) is no more than two days back. The window is wide because each person's own zone decides their day.
+    where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: addDays(today, 1), not: "" }, OR: [{ tripEnd: { gte: addDays(today, -2) } }, { tripEnd: "", tripStart: { gte: addDays(today, -2) } }] },
     select: { id: true, name: true, currency: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true, name: true } } },
   });
   const zones = await zonesOf(trips.flatMap((g) => g.members.map((m) => m.id)), now);

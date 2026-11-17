@@ -3,14 +3,14 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { PushEndpointField } from "@/components/PushEndpointField";
 import { deleteMyAccount } from "@/app/actions";
 import { getAccount, getMemberships } from "@/lib/identity";
-import { loadMyGroups } from "@/lib/group-data";
+import { countMyGroups } from "@/lib/group-data";
 
 export const metadata = { title: "Your data", robots: { index: false } };
 
 // You, Export your data: one spreadsheet of everything, and (signed in) deleting your sign-in.
 export default async function YourDataPage() {
   const account = await getAccount();
-  const groups = await loadMyGroups(await getMemberships(), { includeDirect: true });
+  const groupCount = await countMyGroups(await getMemberships(), { includeDirect: true });
   return (
     <>
       <PageHeader title="Your data" back="/account" />
@@ -19,7 +19,7 @@ export default async function YourDataPage() {
           One spreadsheet with every expense and payment in all your groups, your share of each, your account details, your postcards, passport,
           collections and notification settings. To remove a whole group for everyone, use “Delete group” in its settings.
         </p>
-        {(account || groups.length > 0) && (
+        {(account || groupCount > 0) && (
           <a href="/api/my-data" download className={`mb-4 ${secondaryButtonClass}`}>
             Download all my data
           </a>

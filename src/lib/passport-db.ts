@@ -40,25 +40,90 @@ export function undatedSpendingWhere(groupId: string, me: { id: string; leftAt: 
   };
 }
 
-// For each undated trip: how many rows of spending this person may see and the day of the latest (null = none, so no stamp).
-// Home and the passport both read this, so they always agree. (The pure twin is undatedFacts in passport.ts.)
-export async function undatedTripFacts(
-  rows: { groupId: string; me: { id: string; leftAt: Date | null; removedAt?: Date | null } }[],
-  tz: string,
-): Promise<Map<string, { count: number; day: string } | null>> {
-  const out = new Map<string, { count: number; day: string } | null>();
+type SpendingMe = { id: string; leftAt: Date | null; removedAt?: Date | null };
+type RawFact = { count: number; latest: { spentAt: Date | null; createdAt: Date } | null };
+const UNDATED_BATCH = 40; // trips asked about in one query (keeps the number of values in one query small)
+
+// Rows with the same filter share one answer. (A leaver's filter depends on who they are and when they left.)
+const undatedKey = (groupId: string, me: SpendingMe) => {
+  const cut = leaverCut(me);
+  return cut ? `${groupId}|${me.id}|${cut.leftAt.getTime()}` : groupId;
+};
+
+// The counts and latest rows for many undated trips at once: one grouped count and one read of the latest rows per batch, instead of
+// two queries per trip. Each trip keeps its OWN filter (a leaver's cut is per group and per person): the filters are joined with OR, and
+// a batch never holds two filters for the same group, so the grouping by group can't mix them up.
+async function undatedRaw(rows: { groupId: string; me: SpendingMe }[]): Promise<Map<string, RawFact>> {
+  const out = new Map<string, RawFact>();
+  const todo = new Map<string, { groupId: string; where: Prisma.ExpenseWhereInput }>();
   for (const r of rows) {
-    const where = undatedSpendingWhere(r.groupId, r.me);
-    const count = await db.expense.count({ where });
-    if (!count) {
-      out.set(r.groupId, null);
-      continue;
+    const key = undatedKey(r.groupId, r.me);
+    if (!todo.has(key)) todo.set(key, { groupId: r.groupId, where: undatedSpendingWhere(r.groupId, r.me) });
+  }
+  const left = [...todo.entries()];
+  while (left.length) {
+    const batch: [string, { groupId: string; where: Prisma.ExpenseWhereInput }][] = [];
+    const used = new Set<string>();
+    for (let i = 0; i < left.length && batch.length < UNDATED_BATCH; ) {
+      if (used.has(left[i][1].groupId)) i++;
+      else {
+        used.add(left[i][1].groupId);
+        batch.push(left[i]);
+        left.splice(i, 1);
+      }
     }
-    const latest = await db.expense.findFirst({ where, select: { spentAt: true, createdAt: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
-    out.set(r.groupId, latest ? { count, day: undatedTripDay(latest, tz) } : null);
+    const counts = await db.expense.groupBy({ by: ["groupId"], where: { OR: batch.map(([, e]) => e.where) }, _count: { _all: true }, _max: { createdAt: true } });
+    const byGroup = new Map(counts.map((c) => [c.groupId, c]));
+    const withRows = batch.filter(([, e]) => (byGroup.get(e.groupId)?._count._all ?? 0) > 0);
+    for (const [key, e] of batch) if (!withRows.some(([k]) => k === key)) out.set(key, { count: 0, latest: null });
+    if (!withRows.length) continue;
+    // The latest row of each trip: the newest createdAt, and among those the highest id (as the one-trip read ordered them).
+    const latestRows = await db.expense.findMany({
+      where: { OR: withRows.map(([, e]) => ({ AND: [e.where, { createdAt: byGroup.get(e.groupId)!._max.createdAt! }] })) },
+      select: { groupId: true, id: true, spentAt: true, createdAt: true },
+    });
+    const best = new Map<string, (typeof latestRows)[number]>();
+    for (const r of latestRows) {
+      const cur = best.get(r.groupId);
+      if (!cur || r.id > cur.id) best.set(r.groupId, r);
+    }
+    for (const [key, e] of withRows) {
+      const b = best.get(e.groupId);
+      out.set(key, { count: byGroup.get(e.groupId)!._count._all, latest: b ? { spentAt: b.spentAt, createdAt: b.createdAt } : null });
+    }
   }
   return out;
 }
+
+function undatedFactsFrom(raw: Map<string, RawFact>, rows: { groupId: string; me: SpendingMe }[], tz: string): Map<string, { count: number; day: string } | null> {
+  const out = new Map<string, { count: number; day: string } | null>();
+  for (const r of rows) {
+    const f = raw.get(undatedKey(r.groupId, r.me));
+    out.set(r.groupId, f && f.count && f.latest ? { count: f.count, day: undatedTripDay(f.latest, tz) } : null);
+  }
+  return out;
+}
+
+// For each undated trip: how many rows of spending this person may see and the day of the latest (null = none, so no stamp).
+// Home and the passport both read this, so they always agree. (The pure twin is undatedFacts in passport.ts.)
+export async function undatedTripFacts(rows: { groupId: string; me: SpendingMe }[], tz: string): Promise<Map<string, { count: number; day: string } | null>> {
+  return undatedFactsFrom(await undatedRaw(rows), rows, tz);
+}
+
+type PassportAccount = { id: string; homeCountry: string; places: string; timeZone: string };
+type PassportGroup = {
+  id: string; name: string; tripStart: string; tripEnd: string; tripPlace: string; tripCountry: string; createdAt: Date;
+  _count: { members: number };
+  members: { id: string; leftAt: Date | null; removedAt: Date | null; createdAt: Date; claimedAt: Date | null; seenAt: Date | null; seenEventsAt: Date | null }[]; // this account's own rows (the dates say when they were in the group)
+};
+// A trip whose stamp rests on its spending, and the row to judge it by: the account's still-in row if any, else its first row.
+// (A dated trip with no end day is also read for a friend: it is over 3 days after its latest spending, not the day after it starts.)
+const undatedRowsOf = (groups: PassportGroup[], forFriend: boolean) =>
+  groups.filter((g) => !g.tripStart || (forFriend && !g.tripEnd)).map((g) => ({ groupId: g.id, me: g.members.find((m) => !m.leftAt && !m.removedAt) ?? g.members[0] })).filter((x) => x.me);
+
+const PASSPORT_ORDER: Prisma.GroupOrderByWithRelationInput[] = [{ tripStart: "desc" }, { createdAt: "desc" }, { id: "asc" }];
+const PASSPORT_SELECT = { id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true, _count: { select: { members: true } } } satisfies Prisma.GroupSelect;
+const PASSPORT_MAX = 300;
 
 // The passport as Our passports compares it: everyone, the viewer included, by the friend's rule (a trip still going on is not in it),
 // so the same trip counts the same way for every person in the list.
@@ -67,27 +132,62 @@ export async function loadComparePassport(account: { id: string; homeCountry: st
 }
 
 // Your passport, from every trip group you're in (any phone you signed in on).
-export async function loadPassport(account: { id: string; homeCountry: string; places: string; timeZone: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean; withMoments?: boolean } = {}) {
-  const groups = await db.group.findMany({
-    where: { type: "trip", deletedAt: null, members: { some: { accountId: account.id, ...JOINED } } }, // added-but-never-opened trips don't count; people who left still do
-    select: {
-      id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true,
-      _count: { select: { members: true } },
-      // Your own row (did you leave before the trip? when were you in it?).
-      members: { where: { accountId: account.id }, select: { id: true, leftAt: true, removedAt: true, createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true } },
-    },
-    orderBy: [{ tripStart: "desc" }, { createdAt: "desc" }],
-    take: 300,
+export async function loadPassport(account: PassportAccount, fallbackHome: string, today: string, opts: { forFriend?: boolean; withMoments?: boolean } = {}) {
+  return passportFrom(account, fallbackHome, today, opts);
+}
+
+// The passports of several people at once, as seen by a friend (what loadPassport(a, "", today, { forFriend: true }) gives for each,
+// in the same order). One read of all their trips and one batched read of the undated trips' spending, instead of that per person.
+// Everything after the reads is the same code as loadPassport, so the numbers and what is hidden (a leaver's own cut, trips
+// still going on) can't differ.
+export async function passportsForFriends(accounts: PassportAccount[], today: string) {
+  if (!accounts.length) return [];
+  const ids = accounts.map((a) => a.id);
+  const all = await db.group.findMany({
+    where: { type: "trip", deletedAt: null, members: { some: { accountId: { in: ids }, ...JOINED } } },
+    select: { ...PASSPORT_SELECT, members: { where: { accountId: { in: ids } }, select: { id: true, leftAt: true, removedAt: true, createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, accountId: true, addedBy: true } } },
+    orderBy: PASSPORT_ORDER,
   });
+  const per = accounts.map((a) => {
+    const groups: PassportGroup[] = [];
+    for (const g of all) {
+      const mine = g.members.filter((m) => m.accountId === a.id);
+      if (!mine.some((m) => !isPending(m))) continue; // (JOINED, as the database filter says it)
+      groups.push({ ...g, members: mine.map((m) => ({ id: m.id, leftAt: m.leftAt, removedAt: m.removedAt, createdAt: m.createdAt, claimedAt: m.claimedAt, seenAt: m.seenAt, seenEventsAt: m.seenEventsAt })) });
+      if (groups.length >= PASSPORT_MAX) break;
+    }
+    return groups;
+  });
+  const rowsPer = per.map((g) => undatedRowsOf(g, true));
+  const raw = await undatedRaw(rowsPer.flat());
+  return Promise.all(accounts.map((a, i) => passportFrom(a, "", today, { forFriend: true }, { groups: per[i], facts: undatedFactsFrom(raw, rowsPer[i], passportZone(a)) })));
+}
+
+async function passportFrom(
+  account: PassportAccount,
+  fallbackHome: string,
+  today: string,
+  opts: { forFriend?: boolean; withMoments?: boolean },
+  pre?: { groups: PassportGroup[]; facts: Map<string, { count: number; day: string } | null> },
+) {
+  const groups: PassportGroup[] =
+    pre?.groups ??
+    (await db.group.findMany({
+      where: { type: "trip", deletedAt: null, members: { some: { accountId: account.id, ...JOINED } } }, // added-but-never-opened trips don't count; people who left still do
+      select: {
+        ...PASSPORT_SELECT,
+        // Your own row (did you leave before the trip? when were you in it?).
+        members: { where: { accountId: account.id }, select: { id: true, leftAt: true, removedAt: true, createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true } },
+      },
+      orderBy: PASSPORT_ORDER,
+      take: PASSPORT_MAX,
+    }));
   const tz = passportZone(account);
   // A trip without dates counts once something was spent that you may see, from its latest spending (not the group's creation: a
   // flight booked early isn't a stamp yet). Game results and deleted rows don't count; someone who left sees only what was added
   // up to the day they left, or what has them in it.
   // (A dated trip with no end day is also read for a friend: it is over 3 days after its latest spending, not the day after it starts.)
-  const facts = await undatedTripFacts(
-    groups.filter((g) => !g.tripStart || (opts.forFriend && !g.tripEnd)).map((g) => ({ groupId: g.id, me: g.members.find((m) => !m.leftAt && !m.removedAt) ?? g.members[0] })).filter((x) => x.me),
-    tz,
-  );
+  const facts = pre?.facts ?? (await undatedTripFacts(undatedRowsOf(groups, Boolean(opts.forFriend)), tz));
   // Seen by a friend: only trips that are over (a trip happening now would say where you are today).
   // (A trip without an end day counts as over once nothing has been spent for 3 days: spending today would otherwise tell a friend
   // where you are now. See tripOver.)

@@ -55,8 +55,23 @@ type TrashWriter = Pick<Prisma.TransactionClient, "blobTrash">;
 const keysOf = (keys: (string | null | undefined)[]) => [...new Set(keys.filter((k): k is string => Boolean(k)))];
 
 // Write keys to the to-delete list inside the caller's transaction (a key already there is left alone).
+// In chunks of 200 (a group with hundreds of moments has hundreds of keys): read which keys are already there, add only the
+// missing ones in one write. Rows already there are not touched, so their tries and timing stay, as with the old `update: {}`.
+export const TRASH_CHUNK = 200;
 export async function queuePhotoDeletes(tx: TrashWriter, keys: (string | null | undefined)[]): Promise<void> {
-  for (const key of keysOf(keys)) await tx.blobTrash.upsert({ where: { key }, create: { key }, update: {} });
+  const all = keysOf(keys);
+  for (let i = 0; i < all.length; i += TRASH_CHUNK) {
+    const chunk = all.slice(i, i + TRASH_CHUNK);
+    const have = new Set((await tx.blobTrash.findMany({ where: { key: { in: chunk } }, select: { key: true } })).map((r) => r.key));
+    const missing = chunk.filter((k) => !have.has(k));
+    if (!missing.length) continue;
+    try {
+      await tx.blobTrash.createMany({ data: missing.map((key) => ({ key })) });
+    } catch {
+      // Someone else queued one of these between the read and the write: add this chunk one by one, leaving existing rows alone.
+      for (const key of missing) await tx.blobTrash.upsert({ where: { key }, create: { key }, update: {} });
+    }
+  }
 }
 
 // The same, for callers that use the list form of db.$transaction([...]): add these to the list.

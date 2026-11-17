@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { loadComparePassport, passportRoster } from "@/lib/passport-db";
+import { passportRoster, passportsForFriends } from "@/lib/passport-db";
 import { blockedEitherWay } from "@/lib/blocks";
 import { leaverCut, membersAsOf, membershipSpan, overlapped } from "@/lib/left-view";
 import { memberHistory } from "@/lib/left-view-db";
@@ -47,18 +47,25 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   const roster = everyone.filter((m) => m.id === myId || !m.accountId || !hidden.has(m.accountId));
   const today = todayKey(new Date(), await getTimeZone());
   type Person = { m: { id: string; name: string; accountId: string | null; claimedAt: Date | null; leftAt: Date | null; addedBy: string; seenAt: Date | null; removedAt: Date | null }; mine: boolean; state: "notOnLoopin" | "private" | "unshared" | "open" | "empty"; codes: string[]; cities: number };
-  const people: Person[] = await Promise.all(
-    roster.map(async (m): Promise<Person> => {
-      const mine = m.id === myId;
-      if (!m.accountId) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, timeZone: true, passportShare: true, passportChoiceAt: true } });
-      if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      if (!mine && !passportShared(a)) return { m, mine, state: a.passportShare === "private" ? "private" : "unshared", codes: [], cities: 0 };
-      const p = await loadComparePassport(a, today);
-      const codes = p.index.map((r) => r.code);
-      return { m, mine, state: codes.length ? "open" : "empty", codes, cities: p.stats.cities };
-    }),
-  );
+  // The accounts in one read; the other people's passports in one batch (yours is read by itself, as before).
+  const accountIds = [...new Set(roster.flatMap((m) => (m.accountId ? [m.accountId] : [])))];
+  const accounts = await db.account.findMany({ where: { id: { in: accountIds } }, select: { id: true, homeCountry: true, places: true, timeZone: true, passportShare: true, passportChoiceAt: true } });
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
+  // Everybody, the viewer included, is read by the same rule (as a friend sees it: a trip still going on is not in it), so the same
+  // trip counts the same way for every person in the list.
+  const listed = accounts.filter((a) => a.id === myAccountId || passportShared(a));
+  const passportOf = new Map((await passportsForFriends(listed, today)).map((p, i) => [listed[i].id, p]));
+  const people: Person[] = roster.map((m): Person => {
+    const mine = m.id === myId;
+    if (!m.accountId) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
+    const a = accountById.get(m.accountId);
+    if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
+    if (!mine && !passportShared(a)) return { m, mine, state: a.passportShare === "private" ? "private" : "unshared", codes: [], cities: 0 };
+    const p = passportOf.get(a.id);
+    if (!p) return { m, mine, state: "empty", codes: [], cities: 0 };
+    const codes = p.index.map((r) => r.code);
+    return { m, mine, state: codes.length ? "open" : "empty", codes, cities: p.stats.cities };
+  });
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
   const visible = people.filter((p) => p.state === "open");
   const together = [...new Set(visible.flatMap((p) => p.codes))].sort((a, b) => (countryOf(a)?.name ?? a).localeCompare(countryOf(b)?.name ?? b, "en"));

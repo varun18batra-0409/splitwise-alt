@@ -127,6 +127,19 @@ export async function eventsFrom(groupId: string, eventId: string, take = 500) {
   return db.groupEvent.findMany({ where: { groupId, createdAt: { gte: ev.createdAt } }, orderBy: { createdAt: "desc" }, take });
 }
 
+// How many groups this phone belongs to, counted the same way loadMyGroups lists them (not deleted, pairs left out unless `includeDirect`,
+// and the person on this phone is really a member of it; someone who left still counts), but reading only the member rows,
+// not every group's whole history.
+export async function countMyGroups(memberships: Record<string, string>, opts: { includeDirect?: boolean } = {}): Promise<number> {
+  const memberIds = Object.values(memberships);
+  if (!memberIds.length) return 0;
+  const rows = await db.member.findMany({
+    where: { id: { in: memberIds }, group: { deletedAt: null, ...(opts.includeDirect ? {} : NOT_DIRECT) } },
+    select: { id: true, groupId: true },
+  });
+  return rows.filter((r) => memberships[r.groupId] === r.id).length;
+}
+
 // For the home screen: every group this phone belongs to, with my balance in each.
 // Pairs (type "direct") are left out unless `includeDirect` (only "My data", so it stays complete).
 export async function loadMyGroups(memberships: Record<string, string>, opts: { includeDirect?: boolean } = {}) {

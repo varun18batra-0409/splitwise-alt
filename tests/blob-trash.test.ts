@@ -148,6 +148,34 @@ describe("erasing a group", () => {
   });
 });
 
+describe("queueing many keys", () => {
+  it("a group with 300 moments queues exactly 600 keys when erased (200 at a time)", async () => {
+    const g = await makeGroup("many");
+    const ann = (await db.member.findFirst({ where: { groupId: g.id } }))!;
+    await db.moment.createMany({
+      data: Array.from({ length: 300 }, (_, i) => ({ groupId: g.id, authorId: ann.id, authorAccountId: "acc", blobKey: `moment/m${i}-${stamp}`, thumbKey: `moment/t${i}-${stamp}`, data: new Uint8Array(), thumbData: new Uint8Array() })),
+    });
+    mocks.del.mockRejectedValue(new Error("storage is down")); // so the keys stay on the list to be counted
+    await eraseGroups([g.id]);
+    expect(await db.moment.count({ where: { groupId: g.id } })).toBe(0);
+    // 300 moments x (photo + small copy) = 600 different keys.
+    expect(await db.blobTrash.count()).toBe(600);
+  });
+
+  it("a key already on the list keeps its tries and waiting time when queued again", async () => {
+    const key = `receipt/again-${stamp}`;
+    const nextAt = new Date(Date.now() + 5 * HOUR);
+    await db.blobTrash.create({ data: { key, tries: 2, lastError: "was down", nextAt } });
+    const fresh = Array.from({ length: 450 }, (_, i) => `group/bulk${i}-${stamp}`); // 451 keys in all: three chunks (200, 200, 51)
+    await queuePhotoDeletes(db, [key, ...fresh]);
+    expect(await db.blobTrash.count()).toBe(451);
+    const row = (await db.blobTrash.findUnique({ where: { key } }))!;
+    expect(row.tries).toBe(2);
+    expect(row.lastError).toBe("was down");
+    expect(row.nextAt.getTime()).toBe(nextAt.getTime());
+  });
+});
+
 describe("moving an old photo to file storage", () => {
   // The photo's bytes are unique to each test, so the fake `put` can tell which one it is copying.
   const same = (body: unknown, bytes: Uint8Array) => Buffer.isBuffer(body) && body.equals(Buffer.from(bytes));

@@ -10,7 +10,7 @@ import { saveMyName } from "@/app/actions";
 import { db } from "@/lib/db";
 import { sameName } from "@/lib/names";
 import { getAccount, getMemberships } from "@/lib/identity";
-import { loadDeletedGroups, loadMyGroups } from "@/lib/group-data";
+import { countMyGroups, loadDeletedGroups } from "@/lib/group-data";
 import { PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
 // You: who you are, then one row per thing. Each row opens its own page (pay details, privacy, sign-in, your data, notifications, support);
@@ -20,7 +20,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const account = await getAccount();
   const postcardsNew = account ? await unreadPostcards(account.id) : 0;
   const memberships = await getMemberships();
-  const groups = await loadMyGroups(memberships);
+  const groupCount = await countMyGroups(memberships); // (only the number is shown here)
   const deletedCount = (await loadDeletedGroups(memberships)).length;
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
   const isAdmin = Boolean(account && admins.includes(account.email));
@@ -85,14 +85,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </form>
           </details>
           <p className="mt-4 text-sm text-fg/55">
-            Your {groups.length} {groups.length === 1 ? "group is" : "groups are"} saved to this email. Sign in on any phone to get them back.
+            Your {groupCount} {groupCount === 1 ? "group is" : "groups are"} saved to this email. Sign in on any phone to get them back.
           </p>
         </section>
       ) : (
         <section className="rounded-[20px] border border-line bg-white px-5 py-5 text-fg">
           <p className="font-display text-xl font-semibold">Not signed in</p>
           <p className="mt-2 text-sm text-fg/60">
-            {groups.length
+            {groupCount
               ? "These groups are only on this phone. Save them to your email before you switch phones, so a new phone or the installed app can get them back."
               : "Sign in to see your groups on any phone, or to start one."}
           </p>

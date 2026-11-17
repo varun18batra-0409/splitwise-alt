@@ -56,6 +56,40 @@ const MONEY_KINDS = new Set([
 const settingFamily = (kind: string) =>
   kind === "group_closed" || kind === "group_reopened" || kind === "group_settled_closed" ? "open-state" : kind === "members_added" || kind === "members_removed" ? "members" : kind;
 
+// Parsing an event's undo text is the costly part of the checks below, and a screen asks about every row against the same
+// history. So the result is kept per event object (and re-read if that event's text ever changes). `all` arrays are treated as
+// read-only: they are never changed while the screen is asked about them.
+const parseCache = new WeakMap<object, { json: string; payload: UndoPayload | null }>();
+function parsed(ev: { undo: string }): UndoPayload | null {
+  const hit = parseCache.get(ev);
+  if (hit && hit.json === ev.undo) return hit.payload;
+  const payload = parseUndo(ev.undo);
+  parseCache.set(ev, { json: ev.undo, payload });
+  return payload;
+}
+
+// Per history array: for each line a move-out took part in (its bill changes, daily charge, square-up payments), the move-outs
+// that list it, in history order. Built once per array, so the check is a lookup, not a pass over the whole history per row.
+// (Still-undone state is looked at when asked, not when built; an array that gets longer is read again.)
+const moveOutIndex = new WeakMap<EventLike[], { length: number; byLine: Map<string, EventLike[]> }>();
+function moveOutsOf(all: EventLike[]): Map<string, EventLike[]> {
+  const hit = moveOutIndex.get(all);
+  if (hit && hit.length === all.length) return hit.byLine;
+  const byLine = new Map<string, EventLike[]>();
+  for (const x of all) {
+    const q = parsed(x);
+    if (q?.type === "member_set" && q.data.leftAt === null) {
+      for (const id of new Set(q.moveOut?.money?.eventIds ?? [])) {
+        const list = byLine.get(id);
+        if (list) list.push(x);
+        else byLine.set(id, [x]);
+      }
+    }
+  }
+  moveOutIndex.set(all, { length: all.length, byLine });
+  return byLine;
+}
+
 const later = (a: EventLike, b: EventLike) =>
   a.createdAt.getTime() > b.createdAt.getTime() || (a.createdAt.getTime() === b.createdAt.getTime() && a.id > b.id);
 
@@ -79,7 +113,7 @@ export type UndoViewer = {
 export function viewerRefusal(ev: EventLike, viewer: UndoViewer): string | null {
   const me = viewer.members.find((m) => m.id === viewer.id);
   if (!me) return "Only people in this group can undo its changes.";
-  const early = parseUndo(ev.undo);
+  const early = parsed(ev);
   const ownLeave = early?.type === "member_set" && early.data.leftAt === null && !("removedAt" in early.data) && ev.kind === "member_left" && early.memberId === viewer.id;
   if (me.leftAt && (!ownLeave || me.removedAt)) return me.removedAt && isPaymentUndo(early) ? removedText() : LEFT_ERROR;
   return null;
@@ -100,10 +134,10 @@ function payKey(p: UndoPayload | null): string | null {
 // When the payments this line is about were FIRST recorded: the oldest line of the same payments. The recorder's 10-minute Undo counts from
 // then, so Undo and Redo (which write new lines) can never stretch it. Pure: `all` is whatever history the caller has.
 export function originAtOf(ev: { undo: string; createdAt: Date }, all: { undo: string; createdAt: Date }[]): Date {
-  const key = payKey(parseUndo(ev.undo));
+  const key = payKey(parsed(ev));
   if (!key) return ev.createdAt;
   let at = ev.createdAt;
-  for (const x of all) if (payKey(parseUndo(x.undo)) === key && x.createdAt.getTime() < at.getTime()) at = x.createdAt;
+  for (const x of all) if (payKey(parsed(x)) === key && x.createdAt.getTime() < at.getTime()) at = x.createdAt;
   return at;
 }
 
@@ -123,19 +157,19 @@ const legacyMovedMoney = (lines: string[]) => lines.some((l) => !/, charged now$
 
 // Is the change itself still undoable: not undone, and nothing newer stands in its way.
 export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId: string) => string | undefined): CanUndo {
-  const payload = parseUndo(ev.undo);
+  const payload = parsed(ev);
   if (!payload) return { ok: false, reason: "This change can’t be undone." };
   if (ev.undoneAt) return { ok: false, reason: "This change was already undone." };
   // One of a move-out's own lines (a bill change, the daily charge, a square-up payment) is undone with the move-out, never on its own.
   // (Those lines are saved just before the move-out's line, so the move-out may be "same moment": it is looked for in all of `all`.)
-  for (const x of all) {
-    if (x.id === ev.id || x.undoneAt) continue;
-    const q = parseUndo(x.undo);
-    if (q?.type === "member_set" && q.data.leftAt === null && q.moveOut?.money?.eventIds.includes(ev.id)) {
+  const owner = moveOutsOf(all).get(ev.id)?.find((m) => m.id !== ev.id && !m.undoneAt);
+  if (owner) {
+    const q = parsed(owner);
+    if (q?.type === "member_set") {
       const who = nameOf?.(q.memberId);
       const of = `${who ? `${who}’s` : "a"} move-out`;
       // "Undo the move-out instead" only while the move-out itself can still be undone (not after a rejoin, an accepted invitation or a removal).
-      return { ok: false, reason: historyCheck(x, all, nameOf).ok ? `This was part of ${of}. Undo the move-out instead.` : `This was part of ${of}, so it can’t be undone on its own.` };
+      return { ok: false, reason: historyCheck(owner, all, nameOf).ok ? `This was part of ${of}. Undo the move-out instead.` : `This was part of ${of}, so it can’t be undone on its own.` };
     }
   }
   const moveOut = payload.type === "member_set" && payload.data.leftAt === null ? payload.moveOut : undefined;
@@ -170,7 +204,7 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
       : null,
     payload.type === "member_set"
       ? block("This person was changed again since. Undo the newer change first.", (x) => {
-          const q = parseUndo(x.undo);
+          const q = parsed(x);
           return q?.type === "member_set" && q.memberId === payload.memberId && ("name" in q.data) === ("name" in payload.data);
         })
       : null,
@@ -200,7 +234,7 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
 // put them back in. The only undo of that kind allowed to someone else is the admin's own removal action (the event is the admin's).
 // The person who took someone with an account out can undo that, but only for 10 minutes (put-back.ts); after that the person is invited back.
 export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, originAt?: Date): string | null {
-  const payload = parseUndo(ev.undo);
+  const payload = parsed(ev);
   if (!payload) return null;
   const actorId = viewer.id;
   const find = (id: string) => viewer.members.find((m) => m.id === id);

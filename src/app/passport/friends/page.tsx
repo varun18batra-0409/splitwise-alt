@@ -4,7 +4,7 @@ import { LockIcon } from "@/components/PassportIcons";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { loadPassport, passportFriends } from "@/lib/passport-db";
+import { passportFriends, passportsForFriends } from "@/lib/passport-db";
 import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader, primaryButtonClass } from "@/components/ui";
@@ -30,15 +30,18 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
     );
   const today = todayKey(new Date(), await getTimeZone());
   const { shown: friends, matched, total } = pickFriends(await passportFriends(account.id), q.slice(0, 60), 80);
-  const owners = await Promise.all(
-    friends.map(async (f) => {
-      const { db } = await import("@/lib/db");
-      const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, timeZone: true, passportShare: true, passportChoiceAt: true } });
-      if (!a || !passportShared(a)) return { ...f, private: true, unshared: Boolean(a) && a!.passportShare !== "private", countries: [] as string[], stats: null };
-      const p = await loadPassport(a, "", today, { forFriend: true });
-      return { ...f, private: false, unshared: false, countries: p.index.map((r) => r.code), stats: p.stats };
-    }),
-  );
+  // All the friends' accounts in one read, and the passports of those who share theirs in one batch (same numbers as one by one).
+  const { db } = await import("@/lib/db");
+  const accounts = await db.account.findMany({ where: { id: { in: friends.map((f) => f.accountId) } }, select: { id: true, homeCountry: true, places: true, timeZone: true, passportShare: true, passportChoiceAt: true } });
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const shared = accounts.filter((a) => passportShared(a));
+  const passports = new Map((await passportsForFriends(shared, today)).map((p, i) => [shared[i].id, p]));
+  const owners = friends.map((f) => {
+    const a = byId.get(f.accountId);
+    if (!a || !passportShared(a)) return { ...f, private: true, unshared: Boolean(a) && a!.passportShare !== "private", countries: [] as string[], stats: null };
+    const p = passports.get(a.id)!;
+    return { ...f, private: false, unshared: false, countries: p.index.map((r) => r.code), stats: p.stats };
+  });
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
   return (
     <>

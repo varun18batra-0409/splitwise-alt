@@ -7,12 +7,37 @@ import type { Db } from "./events";
 // the group, its people, expenses, payments, history, bills, list, budgets,
 // goals, deposit, photos, receipts and moments (with their photo files). Groups that were only closed are never touched.
 
-export async function eraseExpiredGroups(now = new Date(), limit = 100): Promise<number> {
+// One group at a time, oldest first: each group is its own transaction, so one big or failing group can't stop the others, and
+// nothing is rolled back for the groups already erased. A group that fails is counted and tried again tomorrow. `stop` (the
+// daily job's time budget) is asked before each group. The photo-file deletes are flushed once at the end.
+// `afterRead` is for tests only: it runs before each group's transaction and may throw.
+export async function eraseExpiredGroups(
+  now = new Date(),
+  limit = 100,
+  stop: () => boolean = () => false,
+  afterRead?: (groupId: string) => Promise<void>,
+): Promise<{ erased: number; failed: number; stopped: boolean }> {
   const before = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
-  const due = await db.group.findMany({ where: { deletedAt: { not: null, lt: before } }, select: { id: true }, take: limit });
-  if (!due.length) return 0;
-  // Re-checked inside the erase itself: a group restored a moment ago (after the list above was read) is left alone.
-  return eraseGroups(due.map((g) => g.id), { onlyDeletedBefore: before });
+  const due = await db.group.findMany({ where: { deletedAt: { not: null, lt: before } }, select: { id: true }, orderBy: [{ deletedAt: "asc" }, { id: "asc" }], take: limit });
+  let erased = 0;
+  let failed = 0;
+  let stopped = false;
+  for (const g of due) {
+    // Out of time: the rest wait for the next run, and the daily email says so (see the daily route).
+    if (stop()) { stopped = true; break; }
+    try {
+      // Re-checked inside the erase itself: a group restored a moment ago (after the list above was read) is left alone.
+      erased += await eraseGroups([g.id], { onlyDeletedBefore: before, flush: false, afterRead: afterRead ? () => afterRead(g.id) : undefined });
+    } catch (err) {
+      failed++;
+      console.error("erase group failed", String(err).slice(0, 200));
+    }
+  }
+  if (erased) {
+    const { flushPhotoDeletes } = await import("./photo-store");
+    await flushPhotoDeletes();
+  }
+  return { erased, failed, stopped };
 }
 
 // Bringing a deleted group back, only while it is still inside the 30 days. One conditional write, so it either wins against the
@@ -30,7 +55,7 @@ export async function restoreIfInWindow(tx: Db, groupId: string, now = new Date(
 // not missed. `afterRead` is for tests only: it runs before the transaction begins.
 // `onlyDeletedBefore` (the daily erase): the first write is conditional, limited to groups that are STILL deleted before that
 // moment, and only those groups are erased. A group restored in between is not touched. Returns how many groups were erased.
-export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Promise<void>; onlyDeletedBefore?: Date } = {}): Promise<number> {
+export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Promise<void>; onlyDeletedBefore?: Date; flush?: boolean } = {}): Promise<number> {
   let ids = allIds;
   const inG = () => ({ groupId: { in: ids } });
   let erased = 0;
@@ -87,6 +112,6 @@ export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Pr
     },
     { timeout: 30000 },
   );
-  await flushPhotoDeletes();
+  if (opts.flush !== false) await flushPhotoDeletes();
   return erased;
 }
