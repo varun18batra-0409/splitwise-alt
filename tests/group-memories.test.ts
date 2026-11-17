@@ -157,8 +157,8 @@ describe("a group's postcards (database)", () => {
   });
 
   it("someone who left on their own still sees their own postcards", async () => {
-    const [A, B] = [await mk("A5"), await mk("B5")];
-    const g = await mkGroup("left", [{ name: "A5", accountId: A.id }, { name: "B5", accountId: B.id }]);
+    const [A, B] = [await mk("A6"), await mk("B6")];
+    const g = await mkGroup("left", [{ name: "A6", accountId: A.id }, { name: "B6", accountId: B.id }]);
     await send(A.id, B.id, g.id);
     await db.member.update({ where: { id: g.members.find((m) => m.accountId === B.id)!.id }, data: { leftAt: new Date() } });
     expect((await loadGroupPostcards(B.id, g.id)).length).toBe(1);
