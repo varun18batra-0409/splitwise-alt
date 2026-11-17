@@ -283,7 +283,7 @@ describe("second review: rejoining by the join link, move-out undo, marks", () =
   });
   it("the join link writes the line in the same transaction as clearing leftAt (checked in the source)", () => {
     const src = readFileSync("src/lib/join.ts", "utf8");
-    expect(src).toMatch(/\$transaction\(async \(tx\) => \{\s*if \(\(await tx\.member\.updateMany\(\{ where: \{ id: mine\.id, removedAt: null \}, data: \{ leftAt: null \}[\s\S]*?logEvent\(tx, \{[^}]*kind: "member_rejoined"/);
+    expect(src).toMatch(/\$transaction\(async \(tx\) => \{\s*if \(\(await tx\.member\.updateMany\(\{ where: \{ id: mine\.id, removedAt: null, leftAt \}, data: \{ leftAt: null \}[\s\S]*?logEvent\(tx, \{[^}]*kind: "member_rejoined"/);
   });
   it("a changed reaction emoji takes a new time, so a leaver never sees a change made after they left (checked in the source)", () => {
     const src = readFileSync("src/app/moment-actions.ts", "utf8");
@@ -294,6 +294,10 @@ describe("second review: rejoining by the join link, move-out undo, marks", () =
     expect(readFileSync("src/app/groups/[id]/square-image/route.tsx", "utf8")).toMatch(/if \(data\.leaver\) return new Response\([^)]*409/);
     const page = readFileSync("src/app/groups/[id]/square/page.tsx", "utf8");
     expect(page).toContain("You're settled up here");
+    // Safety part C review: a leaver gets the neutral line in the heading's place, no confetti, no "All square" heading, and never "Add an expense first."
+    expect(page).toContain("{!leaver && <Confetti");
+    expect(page).toContain('{leaver ? neutral : "All square"}');
+    expect(page).toContain('leaver ? "Nothing to settle for you here." : "Add an expense first."');
     expect(page).toMatch(/\{!leaver && \(\s*<div className="mt-4 w-full">\s*<ShareSheet/);
   });
   it("Home works out each left group's as-of changes once per request, in parallel, and Your month uses them (checked in the source)", () => {

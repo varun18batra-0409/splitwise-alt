@@ -11,19 +11,21 @@ import { loadMyGroups } from "@/lib/group-data";
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const groupIds: string[] = [];
 const accountIds: string[] = [];
+let counter = 0; // every trip gets its own people and invite code, so tests don't collide
 const day = (s: string) => new Date(`${s}T10:00:00Z`);
 
-async function account(name: string) {
-  const a = await db.account.create({ data: { email: `ls-${name}-${stamp}@example.test`, name, passportChoiceAt: new Date(), passportShare: "groups" } });
+async function account(name: string, n: number) {
+  const a = await db.account.create({ data: { email: `ls-${name}-${n}-${stamp}@example.test`, name, passportChoiceAt: new Date(), passportShare: "groups" } });
   accountIds.push(a.id);
   return a;
 }
 
 async function goa() {
-  const [meera, asha, ravi] = await Promise.all([account("Meera"), account("Asha"), account("Ravi")]);
+  const n = ++counter;
+  const [meera, asha, ravi] = await Promise.all([account("Meera", n), account("Asha", n), account("Ravi", n)]);
   const g = await db.group.create({
     data: {
-      name: `Goa ${stamp}`, inviteCode: `ls-${stamp}`, currency: "INR", type: "trip", cover: "own", coverAt: day("2026-03-02"),
+      name: `Goa ${n} ${stamp}`, inviteCode: `ls-${n}-${stamp}`, currency: "INR", type: "trip", cover: "own", coverAt: day("2026-03-02"),
       members: {
         create: [
           { name: "Meera", accountId: meera.id, createdAt: day("2026-01-01") },

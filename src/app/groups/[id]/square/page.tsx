@@ -31,11 +31,13 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   // Someone who left only sees their own part of the ledger, so "nobody owes anybody" is not theirs to say (and not theirs to share).
   const leaver = Boolean(data.leaver);
   const tiles = squareTiles(n, { hide, formatSpent: money });
+  // A leaver is told only what is true for them: no "All square" (that is a word about the whole group) and no confetti.
+  const neutral = "You're settled up here.";
 
   return (
     <>
-      <PageHeader title={square ? "All square" : "Not square yet"} hideTitle={square} back={`/groups/${group.id}`} />
-      <section aria-label="All square" className="flex flex-col items-center pb-8">
+      <PageHeader title={square ? (leaver ? neutral : "All square") : "Not square yet"} hideTitle={square} back={`/groups/${group.id}`} />
+      <section aria-label={leaver ? neutral : "All square"} className="flex flex-col items-center pb-8">
         {/* The group's polaroid, pinned. */}
         <div className="relative mt-2 w-[78%] max-w-[300px] -rotate-2 bg-[#f4f1e8] p-2.5 pb-0 shadow-[0_30px_50px_-20px_rgba(0,0,0,0.95)]">
           <span aria-hidden className="absolute -top-3 left-1/2 z-10 h-6 w-16 -translate-x-1/2 rotate-2 bg-[linear-gradient(180deg,rgba(236,226,196,0.85),rgba(214,201,164,0.8))] shadow-sm [mask-image:linear-gradient(90deg,transparent_0,#000_4%,#000_96%,transparent_100%)] after:absolute after:inset-0 after:bg-[repeating-linear-gradient(115deg,rgba(0,0,0,0.045)_0_2px,transparent_2px_5px)] after:content-['']" />
@@ -52,11 +54,11 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
 
         {square ? (
           <>
-            <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />
+            {!leaver && <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />}
             <p className="mt-9 text-center font-display text-[44px] font-semibold leading-none tracking-tight" data-square>
-              All square
+              {leaver ? neutral : "All square"}
             </p>
-            <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">{leaver ? "You're settled up here. Nice one." : "Nobody owes anybody. Nice one."}</p>
+            {!leaver && <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">Nobody owes anybody. Nice one.</p>}
             <dl className={`mt-8 grid w-full gap-2 text-center ${tiles.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
               {tiles.map(([v, l]) => (
                 <div key={l} className="rounded-2xl border border-line px-2 py-3">
@@ -89,7 +91,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
           <>
             <p className="mt-9 text-center font-display text-3xl font-semibold">Almost there</p>
             <p className="mt-2 text-center text-sm text-gray-500">
-              {transfers.length === 0 ? "Add an expense first." : `${transfers.length} ${transfers.length === 1 ? "payment" : "payments"} to go.`}
+              {transfers.length === 0 ? (leaver ? "Nothing to settle for you here." : "Add an expense first.") : `${transfers.length} ${transfers.length === 1 ? "payment" : "payments"} to go.`}
             </p>
             {transfers.length > 0 && (
               <Link href={`/groups/${group.id}/settle`} className={`mt-6 w-full ${secondaryButtonClass}`}>

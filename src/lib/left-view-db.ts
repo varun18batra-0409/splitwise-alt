@@ -121,6 +121,23 @@ export async function memberHistory(groupIds: string[]): Promise<Map<string, Mem
     const id = memberOfChange(r.undo, r.details);
     if (id) (out.get(id) ?? out.set(id, []).get(id)!).push({ kind: r.kind, createdAt: r.createdAt });
   }
+  // Someone in the group now whose last line says they left, with no line saying they came back (a way back from before those lines
+  // were written): the first line they wrote themselves after leaving shows when they were really back (membershipPeriods uses it).
+  const stuck = [...out].filter(([, lines]) => lines[lines.length - 1]?.kind === "member_left");
+  if (stuck.length) {
+    const rows = await db.member.findMany({ where: { id: { in: stuck.map(([id]) => id) }, groupId: { in: groupIds }, leftAt: null, removedAt: null }, select: { id: true, groupId: true } });
+    await Promise.all(
+      rows.map(async (m) => {
+        const left = out.get(m.id)![out.get(m.id)!.length - 1].createdAt;
+        const first = await db.groupEvent.findFirst({
+          where: { groupId: m.groupId, actorId: m.id, createdAt: { gt: left }, kind: { notIn: ["member_left", "member_rejoined"] } },
+          orderBy: { createdAt: "asc" },
+          select: { createdAt: true },
+        });
+        if (first) out.get(m.id)!.push({ kind: "own_line", createdAt: first.createdAt });
+      }),
+    );
+  }
   return out;
 }
 

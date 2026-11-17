@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("review follow-ups", () => {
   it("N10: the square picture counts people from the scoped list, as Wrapped does", () => {
     const src = readFileSync("src/app/groups/[id]/square-image/route.tsx", "utf8");
-    expect(src).toContain("const people = data.people.filter((m) => !m.leftAt)");
+    expect(src).toContain("const people = data.people.filter((m) => m.id === myId || !m.leftAt)"); // a leaver counts themselves (Safety part C, GP-7)
     expect(src).not.toContain("const people = group.members.filter");
   });
 

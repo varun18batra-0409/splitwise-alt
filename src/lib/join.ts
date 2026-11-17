@@ -109,8 +109,12 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
     // fails, leftAt is not cleared (a stay with no line would otherwise be counted as starting later than it did).
     if (mine.leftAt) {
       const leftAt = mine.leftAt;
+      // The write only matches the row as it was read (still left on that same day): a second tap, or another phone, finds it already back
+      // and writes no second line. Back already (and not removed) is the answer they wanted; anything else is "try again".
       const back = await db.$transaction(async (tx) => {
-        if ((await tx.member.updateMany({ where: { id: mine.id, removedAt: null }, data: { leftAt: null } })).count !== 1) return false;
+        if ((await tx.member.updateMany({ where: { id: mine.id, removedAt: null, leftAt }, data: { leftAt: null } })).count !== 1) {
+          return (await tx.member.count({ where: { id: mine.id, removedAt: null, leftAt: null } })) === 1;
+        }
         await logEvent(tx, { groupId: group.id, actorId: mine.id, kind: "member_rejoined", text: "rejoined the group", undo: { type: "member_set", memberId: mine.id, data: { leftAt: leftAt.toISOString() } } });
         return true;
       });

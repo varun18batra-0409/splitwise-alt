@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { membersAsOf, membershipSpan, overlapped, peopleShown, sharedGroupRow } from "@/lib/left-view";
+import { membersAsOf, membershipPeriods, membershipSpan, overlapped, peopleShown, sharedGroupRow } from "@/lib/left-view";
 import { tripOver } from "@/lib/passport";
 import { coverFor, coverSeenBy, photoAfterCut } from "@/lib/covers";
 import { tagMatches } from "@/lib/http-cache";
@@ -178,5 +178,32 @@ describe("a trip with no end day (SB-14)", () => {
     expect(tripOver(undated, undefined, "2026-11-16")).toBe(true);
     expect(tripOver(undated, "2026-11-14", "2026-11-17")).toBe(false);
     expect(tripOver(undated, "2026-11-14", "2026-11-18")).toBe(true);
+  });
+});
+
+// Someone back in the group with no "came back" line (a way back from before those lines were written): the new stay starts at the first
+// line they wrote themselves after their last "left" line, and only if there is none, now. Hand-worked below.
+describe("a stay with no 'came back' line", () => {
+  const now = day("2026-05-05");
+  const back = row("asha", "goa", "2026-01-05"); // in the group now (leftAt cleared)
+  const left = { kind: "member_left", createdAt: day("2026-01-20") };
+  const ravi30 = row("ravi", "goa", "2026-03-01", "2026-03-30");
+  it("starts at her first own line after leaving (10 Mar), so she was there with Ravi (1-30 Mar); the January stay stays as it was", () => {
+    const history = [left, { kind: "own_line", createdAt: day("2026-03-10") }, { kind: "own_line", createdAt: day("2026-04-01") }];
+    const periods = membershipPeriods(back, history, now);
+    expect(periods).toEqual([{ from: day("2026-01-05"), to: day("2026-01-20") }, { from: day("2026-03-10"), to: null }]);
+    expect(overlapped(membershipSpan(back, history, now), membershipSpan(ravi30))).toBe(true);
+  });
+  it("with no line of her own after leaving it starts now (5 May), so no overlap with Ravi is invented", () => {
+    const periods = membershipPeriods(back, [left], now);
+    expect(periods[1]).toEqual({ from: now, to: null });
+    expect(overlapped(membershipSpan(back, [left], now), membershipSpan(ravi30))).toBe(false);
+  });
+  it("a line of hers from before she left (10 Jan) doesn't count; a real 'came back' line still wins", () => {
+    expect(membershipPeriods(back, [{ kind: "own_line", createdAt: day("2026-01-10") }, left], now)[1]).toEqual({ from: now, to: null });
+    expect(membershipPeriods(back, [left, { kind: "member_rejoined", createdAt: day("2026-02-01") }, { kind: "own_line", createdAt: day("2026-03-10") }], now)).toEqual([
+      { from: day("2026-01-05"), to: day("2026-01-20") },
+      { from: day("2026-02-01"), to: null },
+    ]);
   });
 });

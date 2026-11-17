@@ -169,6 +169,8 @@ export type MembershipPeriod = { from: Date; to: Date | null };
 export type MembershipSpan = { from: Date; to: Date | null; periods?: MembershipPeriod[] };
 // A line from the group's history about one person going out or coming back (kind "member_left" / "member_rejoined"; removals and
 // move-outs are "member_left" too, and a rejoin, an accepted invitation, an Undo or an automatic bring-back are "member_rejoined").
+// kind "own_line": a line this person wrote themselves (they were the one who did it), whatever it was about. Only used to tell when a
+// person who came back without a "came back" line was really back (see membershipPeriods); memberHistory adds the first one.
 export type MemberChange = { kind: string; createdAt: Date };
 
 // Structured marks in a history line's `details` (a line that starts with "@mark:"). They are for the code, not for people:
@@ -232,7 +234,13 @@ export function membershipPeriods(m: SpanRow, history: MemberChange[] = [], now:
     // written). The old stay is NOT reopened: the gap stays a gap. The new stay starts now, the one point we can stand behind.
     // (Not seenEventsAt: the notifications stamp is also written for groups someone has left, so it can fall in the time they were
     // away and would connect them to people they were never there with. Every current way back writes a line.)
-    out.push({ from: now, to: null });
+    // The new stay starts at the first line THIS person wrote after their last "left" line (they can only have done something in the
+    // group once they were back in it), and only if there is none, now. Never earlier than the leave, so no overlap is invented; and
+    // not later than it has to be, so a real return is not cut short.
+    const own = history
+      .filter((c) => c.kind === "own_line" && c.createdAt.getTime() >= last.to!.getTime())
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+    out.push({ from: own && own.createdAt.getTime() < now.getTime() ? own.createdAt : now, to: null });
   }
   return out;
 }
