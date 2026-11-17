@@ -78,6 +78,6 @@ describe("download my data: the extra parts", () => {
 
   it("the Your data page (a row on You) shows the download to any signed-in user", () => {
     const page = readFileSync("src/app/account/data/page.tsx", "utf8");
-    expect(page).toMatch(/\(account \|\| groups\.length > 0\) && \(\s*<a href="\/api\/my-data"/);
+    expect(page).toMatch(/\(account \|\| groupCount > 0\) && \(\s*<a href="\/api\/my-data"/);
   });
 });

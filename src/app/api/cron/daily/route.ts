@@ -88,6 +88,8 @@ export async function GET(req: Request) {
   const erasedRun = await part("erase-deleted-groups", async () => {
     const r = await eraseExpiredGroups(now, 100, stop);
     if (r.failed > 0) failed.push("erase-deleted-groups");
+    // Stopped for time with groups still due: listed as deferred and in the daily email, so the 30-day promise can't slip unseen.
+    else if (r.stopped) { deferred.push("erase-deleted-groups"); failed.push("erase-deleted-groups (stopped early)"); }
     return r;
   });
   const groupsErased = "erased" in erasedRun ? erasedRun.erased : erasedRun;

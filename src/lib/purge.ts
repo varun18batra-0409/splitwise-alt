@@ -16,13 +16,15 @@ export async function eraseExpiredGroups(
   limit = 100,
   stop: () => boolean = () => false,
   afterRead?: (groupId: string) => Promise<void>,
-): Promise<{ erased: number; failed: number }> {
+): Promise<{ erased: number; failed: number; stopped: boolean }> {
   const before = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
   const due = await db.group.findMany({ where: { deletedAt: { not: null, lt: before } }, select: { id: true }, orderBy: [{ deletedAt: "asc" }, { id: "asc" }], take: limit });
   let erased = 0;
   let failed = 0;
+  let stopped = false;
   for (const g of due) {
-    if (stop()) break;
+    // Out of time: the rest wait for the next run, and the daily email says so (see the daily route).
+    if (stop()) { stopped = true; break; }
     try {
       // Re-checked inside the erase itself: a group restored a moment ago (after the list above was read) is left alone.
       erased += await eraseGroups([g.id], { onlyDeletedBefore: before, flush: false, afterRead: afterRead ? () => afterRead(g.id) : undefined });
@@ -35,7 +37,7 @@ export async function eraseExpiredGroups(
     const { flushPhotoDeletes } = await import("./photo-store");
     await flushPhotoDeletes();
   }
-  return { erased, failed };
+  return { erased, failed, stopped };
 }
 
 // Bringing a deleted group back, only while it is still inside the 30 days. One conditional write, so it either wins against the
