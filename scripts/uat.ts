@@ -455,18 +455,16 @@ async function fillExpense(page: Page, o: AddOpts) {
     await page.getByRole("button", { name: "Only some" }).click();
     for (const p of s.who) await page.getByRole("button", { name: new RegExp(`^(✓ )?${label(p)}$`) }).last().click();
   } else if (s.kind === "one") {
-    await page.getByRole("button", { name: /Custom/ }).click();
-    await page.getByRole("button", { name: "One person", exact: true }).click();
-    await page.getByRole("button", { name: new RegExp(`^${label(s.who)}$`) }).last().click();
+    // One person is "Only some" with just them tapped (the one row of split choices, 16 Nov).
+    await page.getByRole("button", { name: "Only some" }).click();
+    await page.getByRole("button", { name: new RegExp(`^(✓ )?${label(s.who)}$`) }).last().click();
   } else if (s.kind === "amounts" || s.kind === "percent") {
-    await page.getByRole("button", { name: /Custom/ }).click();
     await page.getByRole("button", { name: s.kind === "amounts" ? "Amounts" : "%", exact: true }).click();
     for (const [p, v] of Object.entries(s.values)) {
       await page.getByLabel(`${label(p)} ${s.kind === "amounts" ? "amount" : "percentage"}`).fill(v!);
     }
   }
   if (s.kind === "shares") {
-    await page.getByRole("button", { name: /Custom/ }).click();
     await page.getByRole("button", { name: "Shares", exact: true }).click();
     for (const [p, v] of Object.entries(s.values)) await page.getByLabel(`${label(p)} shares`).fill(v!);
   }
@@ -2839,7 +2837,6 @@ async function main() {
     const o = { me: "Varun" as Person, name: "Bar bill", amount: "1180" };
     await go(V, `${g}/add`);
     await fillExpense(V, o);
-    await V.getByRole("button", { name: /Custom/ }).click();
     await V.getByRole("button", { name: "Items", exact: true }).click();
     const box = V.locator("[data-item-split]");
     await box.getByLabel("Item 1", { exact: true }).fill("Pizza");

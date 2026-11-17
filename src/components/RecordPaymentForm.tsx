@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { recordCustomPayment } from "@/app/actions";
 import { currencySign } from "@/lib/add-expense-sentence";
 import { releaseSubmit } from "@/components/DoubleTapGuard";
+import { amountSizeClass, regroupAmount } from "@/lib/amount-input";
+import { AmountInput } from "./AmountInput";
 import { recordButtonLabel, recordButtonText } from "@/lib/pay-words";
 
 // Record a payment, drawn as a ticket being filled in: From (avatar, name) ┄ ✈ To, the amount, a perforation, then what Smart Settle suggests.
@@ -47,9 +49,10 @@ export function RecordPaymentForm({
 }) {
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
-  const [amount, setAmount] = useState(defaultAmount);
-  // The amount box always holds the plain typed amount ("1082.50"): its text never changes format on focus or blur,
-  // so the browser never rewrites the value under the cursor.
+  const [amount, setAmount] = useState(regroupAmount(defaultAmount, currency));
+  // The amount box shows grouped digits as you type ("17,618.19"; rupees the Indian way). The founder chose this on 16 Nov, reversing
+  // the earlier "plain digits only" rule. AmountInput keeps the caret after the same digit; the text sent is this same text (parseAmount
+  // ignores the commas), so what is saved is unchanged. The text size steps down as the number grows, so it always fits on one line.
   // Folded away until tapped; From and To open independently. With nobody picked to be paid yet, the To list starts open.
   // (A submit with To empty opens it and says so, since a folded-away choice can't be focused.)
   const [open, setOpen] = useState<"from" | "to" | null>(defaultTo ? null : "to");
@@ -175,7 +178,7 @@ export function RecordPaymentForm({
         )}
 
         <div className="flex flex-col items-center pb-5 pt-5 text-center">
-          <div className="flex w-full items-baseline justify-center gap-1.5 text-[clamp(34px,10vw,40px)] leading-[1.05]">
+          <div className={`flex w-full items-baseline justify-center gap-1.5 leading-[1.05] ${amountSizeClass(amount, "pay")}`}>
             <span aria-hidden className="font-display text-[0.55em] font-semibold text-fg/55">
               {currencySign(currency)}
             </span>
@@ -184,15 +187,15 @@ export function RecordPaymentForm({
               <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center font-display font-semibold tracking-[-0.02em]">
                 {amount || "0"}
               </span>
-              <input
+              <AmountInput
                 name="amount"
                 required
-                inputMode="decimal"
+                currency={currency}
                 placeholder="0"
                 autoComplete="off"
                 aria-label={`Amount (${currency})`}
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValueChange={setAmount}
                 className="col-start-1 row-start-1 w-full min-w-0 bg-transparent px-0.5 text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
               />
             </span>

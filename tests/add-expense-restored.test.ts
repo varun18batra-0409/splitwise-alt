@@ -21,7 +21,10 @@ describe("Add expense: the earlier layout is back", () => {
     expect(form).toContain('placeholder="e.g. Beach dinner"');
   });
   it("Who paid? and How to split? are chip rows again (no two-row sentence card)", () => {
-    for (const s of ["data-payer-row", "data-split-row", "Everyone equally", "Only some", ">\n            Custom\n"]) expect(form).toContain(s);
+    // 16 Nov (founder): one row of split choices, no "Custom" and no second "Who was it for?" question.
+    for (const s of ["data-payer-row", "data-split-row", "Everyone equally", "Only some", "Amounts", "Shares", "Items"]) expect(form).toContain(s);
+    expect(form).not.toContain(">\n            Custom\n");
+    expect(form).not.toContain("Who was it for?");
     for (const s of ["data-sentence-card", "data-row-paid", "data-row-split", "data-split-panel", "closePanel"]) expect(form).not.toContain(s);
   });
   it("Faster entry is three labelled buttons", () => {
@@ -39,7 +42,9 @@ describe("Add expense: the later fixes are kept", () => {
     expect(form).toContain("invisible col-start-1 row-start-1");
     expect(form).not.toMatch(/size=\{Math\.max\(2/);
     expect(form).not.toContain("groupDigits");
-    for (const s of ["clamp(52px,17vw,72px)", "clamp(40px,13vw,56px)", "clamp(30px,9.5vw,42px)"]) expect(form).toContain(s);
+    // The steps live in amountSizeClass (16 Nov: with commas shown, they step down by the length of the shown text).
+    expect(form).toContain('amountSizeClass(amount, "hero")');
+    for (const s of ["clamp(52px,17vw,72px)", "clamp(40px,13vw,56px)", "clamp(30px,9.5vw,42px)"]) expect(src("src/lib/amount-input.ts")).toContain(s);
   });
   it("the result line, the read-back, the foreign currency card and the 44px tap targets are still there", () => {
     for (const s of ["The result shows once it adds up", "data-expense-result", "data-amount-echo", "data-fx-card", "data-fx-maths", "min-h-11", "data-multi-pay-row"]) expect(form).toContain(s);

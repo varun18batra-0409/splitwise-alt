@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { db } from "@/lib/db";
+import { AmountInput } from "@/components/AmountInput";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
@@ -74,7 +75,7 @@ export default async function DepositPage({
                     <span className="flex-1">{name(m.id)}</span>
                     <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
                       <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
-                      <input name={`d_${m.id}`} inputMode="decimal" defaultValue={amountOf(m.id)} placeholder="0" aria-label={`${m.name}’s deposit`} className="w-full bg-transparent py-2 text-right outline-none" />
+                      <AmountInput name={`d_${m.id}`} currency={group.currency} defaultValue={amountOf(m.id)} placeholder="0" aria-label={`${m.name}’s deposit`} className="w-full bg-transparent py-2 text-right outline-none" />
                     </span>
                   </label>
                 </li>

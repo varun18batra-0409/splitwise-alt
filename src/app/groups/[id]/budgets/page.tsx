@@ -1,3 +1,4 @@
+import { AmountInput } from "@/components/AmountInput";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { notFound, redirect } from "next/navigation";
@@ -44,7 +45,7 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
                   <span className="flex-1">{cat.label}</span>
                   <span className="flex w-32 items-center rounded-xl border border-line px-3 focus-within:border-accent">
                     <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
-                    <input name={`b_${c}`} inputMode="decimal" defaultValue={amountOf(c)} placeholder="—" aria-label={`${cat.label} budget`} className="w-full bg-transparent py-2 text-right outline-none" />
+                    <AmountInput name={`b_${c}`} currency={group.currency} defaultValue={amountOf(c)} placeholder="—" aria-label={`${cat.label} budget`} className="w-full bg-transparent py-2 text-right outline-none" />
                   </span>
                 </label>
               </li>

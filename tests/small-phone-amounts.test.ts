@@ -19,13 +19,25 @@ describe("big amounts on small phones", () => {
     expect(home).toContain("whitespace-nowrap font-display");
   });
 
-  it("both amount boxes hold the plain typed amount: no grouping swap, no select-on-focus", () => {
-    for (const f of ["src/components/AddExpenseForm.tsx", "src/components/RecordPaymentForm.tsx"]) {
+  // CHANGED on 16 Nov by the founder (Option A): the amount boxes now show grouped digits AS YOU TYPE (1,23,456.50), reversing the
+  // earlier "plain digits only" rule. The safety the old rule gave now comes from AmountInput (caret kept by counting digits;
+  // tests/amount-input.test.ts) and from the text sent to the server parsing to the same amount. There is still no select-on-focus
+  // and no swap of the text on focus or blur.
+  it("the amount boxes use the grouped-as-you-type box, with no select-on-focus and no swap on focus or blur", () => {
+    for (const f of ["src/components/AddExpenseForm.tsx", "src/components/RecordPaymentForm.tsx", "src/components/BillForm.tsx"]) {
       const form = src(f);
-      expect(form, f).not.toContain("groupDigits");
-      expect(form, f).not.toMatch(/amountFocused|setFocused|selectWholeAmount|select-amount/);
+      expect(form, f).toContain("<AmountInput");
       expect(form, f).toContain("value={amount}");
-      expect(form, f).toContain('inputMode="decimal"');
+      expect(form, f).not.toMatch(/amountFocused|setFocused|selectWholeAmount|select-amount/);
     }
+    const box = src("src/components/AmountInput.tsx");
+    expect(box).toContain('inputMode="decimal"');
+    expect(box).toContain("editAmountInput(");
+    expect(box).not.toMatch(/onFocus|onBlur|\.select\(\)/);
+    for (const f of ["src/app/groups/[id]/budgets/page.tsx", "src/app/groups/[id]/deposit/page.tsx"]) expect(src(f), f).toContain("<AmountInput");
+  });
+  it("the big payment amount and the Add expense amount shrink by length so a huge number stays on one line", () => {
+    expect(src("src/components/RecordPaymentForm.tsx")).toContain('amountSizeClass(amount, "pay")');
+    expect(src("src/components/AddExpenseForm.tsx")).toContain('amountSizeClass(amount, "hero")');
   });
 });
