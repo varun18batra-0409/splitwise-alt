@@ -4,11 +4,12 @@
 // correct spelling. Runs inside the app — no paid AI service.
 // To teach it more, add words to the lists below.
 
-export type Category = { id: string; label: string; short: string; emoji: string; words: string[] };
+// `plain`: a plain word for the playful name, shown small under it (Bites & Sips / Food) for readers who may not guess it.
+export type Category = { id: string; label: string; short: string; plain: string; emoji: string; words: string[] };
 
 export const CATEGORIES: Category[] = [
   {
-    id: "food", label: "Bites & Sips", short: "Bites & Sips", emoji: "🍽️",
+    id: "food", label: "Bites & Sips", short: "Bites & Sips", plain: "Food", emoji: "🍽️",
     words: ["food", "dinner", "lunch", "breakfast", "brunch", "meal", "restaurant", "dhaba", "cafe", "coffee",
       "tea", "chai", "snack", "pizza", "burger", "biryani", "dosa", "idli", "momo", "thali", "paratha", "maggi",
       "noodle", "sandwich", "dessert", "cake", "pastry", "bakery", "sweet", "ice cream", "icecream", "swiggy",
@@ -20,7 +21,7 @@ export const CATEGORIES: Category[] = [
       "supper", "bite", "bites", "room service", "mess", "happy hour", "crab", "prawn", "prawns", "lobster", "oyster", "oysters", "in-n-out", "five guys", "wagamama", "tim hortons", "mcd", "behrouz", "bikanervala", "mithai", "falooda", "tapas", "pint", "pints", "old monk", "hawker", "hawker centre", "frappe", "energy drink", "monster energy", "red bull", "eatery", "canteen", "bistro", "diner", "brasserie", "trattoria", "taco", "burrito", "kebab", "kabab", "shawarma", "falafel", "pasta", "salad", "soup", "curry", "chaat", "pani puri", "golgappa", "vada pav", "pav bhaji", "samosa", "pakora", "bhel", "kulfi", "gelato", "waffle", "pancake", "bagel", "croissant", "doughnut", "donut", "fries", "nachos", "steak", "dim sum", "dumpling", "hot pot", "naan", "roti", "tandoori", "subway", "burger king", "taco bell", "chipotle", "dunkin", "costa", "ccd", "cafe coffee day", "chaayos", "third wave", "blue tokai", "barista", "domino", "papa johns", "nandos", "pret", "greggs", "deliveroo", "doordash", "grubhub", "foodpanda", "talabat", "just eat", "drinks", "mocktail", "champagne", "prosecco", "sake", "soju", "toddy", "feni", "hookah", "sheesha", "shisha", "water bottle", "mineral water", "coke", "pepsi", "red bull", "energy drink", "milkshake", "shake", "bubble tea", "boba", "beverage", "refreshment", "eat", "eating", "ate", "feast", "treat", "dinner party", "barbecue night", "food court", "chips", "crisps", "popcorn", "water", "drinking water"],
   },
   {
-    id: "transport", label: "Wheels & Wings", short: "Wheels & Wings", emoji: "🚕",
+    id: "transport", label: "Wheels & Wings", short: "Wheels & Wings", plain: "Travel", emoji: "🚕",
     words: ["uber", "ola", "rapido", "grab", "bolt", "gojek", "funicular", "oyster card", "octopus card", "metro card", "driver", "driver bata", "bata", "chauffeur", "tempo traveller", "tempo", "innova", "ertiga", "hotel pickup", "airport pickup", "airport drop", "subway ride", "subway ticket", "jeep", "taxi", "cab", "auto", "rickshaw", "tuk tuk", "tuktuk",
       "metro", "bts", "mrt", "bus", "redbus", "train", "irctc", "petrol", "diesel", "fuel", "cng", "ev charging",
       "parking", "toll", "fastag", "ride", "scooty", "scooter", "bike rental", "car rental", "flight", "airline",
@@ -29,27 +30,27 @@ export const CATEGORIES: Category[] = [
       "fare", "cab fare", "taxi fare", "lyft", "careem", "blablacar", "zoomcar", "revv", "yulu", "bounce", "vogo", "namma yatri", "blusmart", "blu smart", "meru", "savaari", "local train", "sleeper", "tatkal", "vande bharat", "shatabdi", "rajdhani", "volvo", "ksrtc", "msrtc", "apsrtc", "tsrtc", "gsrtc", "hrtc", "greyhound", "flixbus", "megabus", "amtrak", "eurostar", "eurail", "shinkansen", "jr pass", "oyster", "tube", "underground", "tram", "cable car", "ropeway", "gondola", "helicopter", "chopper", "jeep", "car", "bike", "motorbike", "royal enfield", "activa", "gas station", "petrol pump", "charging", "emirates", "qatar airways", "etihad", "lufthansa", "british airways", "american airlines", "southwest", "ryanair", "easyjet", "singapore airlines", "thai airways", "vietjet", "scoot", "jetstar", "baggage", "excess baggage", "car wash", "car service", "puncture", "tyre", "tire", "valet", "commute", "drop", "pickup", "pick up", "airport drop", "airport pickup", "shuttle", "driver fare", "fuel", "gas refill"],
   },
   {
-    id: "accommodation", label: "Beds & Bunks", short: "Beds & Bunks", emoji: "🏨",
+    id: "accommodation", label: "Beds & Bunks", short: "Beds & Bunks", plain: "Stay", emoji: "🏨",
     words: ["hotel", "airbnb", "hostel", "treehouse", "tree house", "extra bed", "ryokan", "service apartment", "serviced apartment", "vivanta", "taj hotel", "itc hotel", "zostel", "resort", "stay", "room", "oyo", "treebo", "fabhotels", "agoda",
       "booking.com", "goibibo", "homestay", "villa", "lodge", "guesthouse", "guest house", "accommodation", "booking",
       "staying", "overnight", "night stay", "check in", "checkin", "check-in", "checkout", "check out", "room charges", "suite", "inn", "motel", "b&b", "bnb", "bed and breakfast", "campsite", "camping", "camp", "tent", "glamping", "cottage", "cabin", "chalet", "bungalow", "farmhouse", "farm stay", "farmstay", "haveli", "dharamshala", "dharmshala", "paying guest", "dorm", "dormitory", "bunk", "houseboat", "vrbo", "expedia", "hotels.com", "makemytrip", "mmt", "cleartrip", "easemytrip", "yatra", "trivago", "hostelworld", "taj hotel", "vivanta", "oberoi", "trident", "itc hotel", "leela", "marriott", "jw marriott", "ritz", "sheraton", "westin", "hyatt", "hilton", "conrad", "holiday inn", "crowne plaza", "radisson", "novotel", "ibis", "sofitel", "lemon tree", "ginger hotel", "fortune hotel", "club mahindra", "mahindra resort", "moustache hostel", "the hosteller", "gostops", "zo rooms", "fab hotel", "fabhotel", "lodging", "accomodation", "rooms", "nights", "night"],
   },
   {
-    id: "shopping", label: "Bags & Bling", short: "Bags & Bling", emoji: "🛍️",
+    id: "shopping", label: "Bags & Bling", short: "Bags & Bling", plain: "Shopping", emoji: "🛍️",
     words: ["shopping", "amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "decathlon", "ikea", "croma",
       "clothes", "shirt", "tshirt", "jeans", "dress", "shoe", "gift", "souvenir", "mall", "market", "electronics",
       "sim card", "sim", "esim", "e-sim", "reliance digital", "keychain", "keychains", "magnet", "magnets", "swimwear", "bedsheet", "bedsheets", "pillow", "pillows", "purifier", "water purifier", "kitchen", "utensils", "mixer", "mixer grinder", "plant", "plants", "pashmina", "night market", "decor", "fridge", "refrigerator", "washing machine", "microwave", "mattress", "appliance", "tv", "television", "furniture", "sofa", "curtains",
       "purchase", "bought", "buy", "store", "shop", "boutique", "outlet", "duty free", "dutyfree", "perfume", "cosmetics", "makeup", "jewellery", "jewelry", "sunglasses", "bag", "backpack", "luggage", "suitcase", "trolley bag", "phone case", "charger", "power bank", "headphones", "earphones", "book", "stationery", "toy", "decor", "furniture", "h&m", "zara", "uniqlo", "westside", "pantaloons", "shoppers stop", "tata cliq", "nike", "adidas", "puma", "apple store", "handicraft", "saree", "sari", "kurta", "lehenga", "jacket", "sweater", "hoodie", "cap", "hat", "slippers", "sandals", "sneakers", "umbrella", "raincoat", "sunscreen", "gadget", "phone", "laptop"],
   },
   {
-    id: "groceries", label: "Pantry Run", short: "Pantry Run", emoji: "🛒",
+    id: "groceries", label: "Pantry Run", short: "Pantry Run", plain: "Groceries", emoji: "🛒",
     words: ["grocery", "groceries", "nature's basket", "natures basket", "familymart", "family mart", "lawson", "meat", "toiletries", "vegetable", "veggies", "sabzi", "fruit", "milk", "egg", "bread", "atta", "rice",
       "dal", "kirana", "supermarket", "blinkit", "zepto", "bigbasket", "big basket", "jiomart", "amazon fresh",
       "instamart", "dmart", "reliance fresh", "7-eleven", "7 eleven", "seven eleven",
       "vegetables", "veg", "onion", "tomato", "potato", "aloo", "pyaz", "flour", "oil", "ghee", "sugar", "salt", "masala", "spices", "curd", "dahi", "butter", "cheese", "eggs", "household", "cleaning supplies", "detergent", "soap", "shampoo", "toothpaste", "tissue", "toilet paper", "dishwash", "harpic", "natures basket", "more supermarket", "spencers", "star bazaar", "ratnadeep", "walmart", "costco", "tesco", "sainsbury", "aldi", "lidl", "whole foods", "trader joe", "kroger", "safeway", "coles", "woolworths", "fairprice", "lulu", "carrefour", "provisions", "ration", "general store", "swiggy instamart", "dunzo", "bb daily", "milkbasket", "country delight", "water can", "bisleri", "grocery run"],
   },
   {
-    id: "activities", label: "Thrills & Tickets", short: "Thrills & Tickets", emoji: "🎟️",
+    id: "activities", label: "Thrills & Tickets", short: "Thrills & Tickets", plain: "Activities", emoji: "🎟️",
     words: ["ticket", "entry", "entrance", "museum", "temple", "palace", "fort", "park", "zoo", "beach", "tour",
       "trip", "sightseeing", "boat", "cruise", "trek", "snorkel", "snorkeling", "diving", "scuba", "rafting",
       "paragliding", "go karting", "gokarting", "adventure", "spa", "massage", "show", "movie", "cinema", "film",
@@ -58,7 +59,7 @@ export const CATEGORIES: Category[] = [
       "entry fee", "entry ticket", "admission", "day pass", "theme park", "water park", "amusement park", "wonderla", "imagica", "disney", "universal studios", "legoland", "aquarium", "gallery", "exhibition", "monument", "taj mahal", "heritage", "tour guide", "boat ride", "jet ski", "banana ride", "parasailing", "bungee", "zipline", "zip line", "skydiving", "hot air balloon", "camel ride", "elephant ride", "horse ride", "ski", "skiing", "snowboard", "surfing", "kayak", "kayaking", "canoe", "hiking", "hike", "climbing", "yoga class", "workshop", "lesson", "match", "stadium", "ipl", "cricket", "football", "golf", "casino", "karaoke", "escape room", "arcade", "laser tag", "paintball", "nightclub", "festival", "fest", "gig", "standup", "stand-up", "comedy", "theatre", "theater", "opera", "photoshoot", "sauna", "sightseeing tour", "city tour", "safari jeep"],
   },
   {
-    id: "bills", label: "Bills & Bits", short: "Bills & Bits", emoji: "💡",
+    id: "bills", label: "Bills & Bits", short: "Bills & Bits", plain: "Bills", emoji: "💡",
     words: ["rent", "room rent", "house rent", "flat rent", "electricity", "electric", "light bill", "water bill", "driver salary", "apple music", "icloud", "google one", "ac service", "forex", "forex charges", "bank charges", "cable tv", "garbage", "newspaper", "newspaper bill", "tanker", "water tanker", "water can", "travel insurance", "plumber", "electrician", "carpenter", "repair",
       "gas bill", "gas", "lpg", "cylinder", "wifi", "internet", "broadband", "recharge", "jio", "airtel", "dth",
       "phone bill", "mobile bill", "maintenance", "society", "maid", "cook", "laundry", "dry clean", "ironing",
@@ -66,7 +67,7 @@ export const CATEGORIES: Category[] = [
       "utilities", "visa",
       "electricity bill", "power bill", "bescom", "msedcl", "tata power", "adani electricity", "torrent power", "bses", "piped gas", "mgl", "igl", "postpaid", "prepaid", "mobile recharge", "data pack", "vodafone", "bsnl", "act fibernet", "hathway", "excitel", "tata play", "dish tv", "deposit", "security deposit", "brokerage", "society maintenance", "property tax", "municipal", "water tax", "house help", "driver salary", "nanny", "cleaner", "cleaning service", "urban company", "urbanclap", "plumber", "electrician", "carpenter", "repair", "servicing", "pest control", "dry cleaning", "laundromat", "gym", "membership", "fees", "school fees", "tuition", "doctor", "medicine", "medicines", "pharmacy", "chemist", "hospital", "clinic", "medical", "apollo", "1mg", "pharmeasy", "dentist", "health insurance", "premium", "loan", "credit card bill", "tax", "gst", "challan", "penalty", "bank charges", "convenience fee", "visa fee", "passport fee", "courier", "postage", "water bill"],
   },
-  { id: "other", label: "Odds & Ends", short: "Odds & Ends", emoji: "📦", words: [] },
+  { id: "other", label: "Odds & Ends", short: "Odds & Ends", plain: "Other", emoji: "📦", words: [] },
 ];
 
 // Categories used before this list existed, mapped to their new home.

@@ -6,7 +6,7 @@ import { RedirectType } from "next/navigation";
 import { cleanCover } from "@/lib/covers";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
-import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
+import { clearMoveConfirmation, forgetThisPhone, getAccount, getMemberships, getMyMemberId, confirmedGuestIds, keepGroupsDropAccount, moveGuestsToAccount, parseConfirmed, setMoveConfirmation, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { PAY_CHANGE_LIMIT_TEXT, isPaymentChangeEvent, payChangeOk } from "@/lib/pay-limit";
@@ -722,6 +722,27 @@ export async function requestCode(formData: FormData) {
   redirect(await flashTo("/signin", r.ok ? {} : { error: r.error }, q));
 }
 
+// "Move them and continue" before Google: leave a signed, 2-minute note of which of this phone's guest groups the person agreed to
+// move. Only groups this phone really holds as guests are kept, whatever the screen sent. (/api/auth/google/start picks it up.)
+export async function confirmGuestMove(ids: string[]): Promise<{ ok: boolean }> {
+  await setMoveConfirmation(await confirmedGuestIds(ids));
+  return { ok: true };
+}
+
+// Cancel on that sheet: the note is thrown away at once.
+export async function cancelGuestMove(): Promise<{ ok: boolean }> {
+  await clearMoveConfirmation();
+  return { ok: true };
+}
+
+// Already signed in, with guest groups still only on this phone ("N groups are only on this phone"): move exactly the ones
+// the person confirmed (and that this phone still holds) into the account.
+export async function moveGuestGroups(ids: string[]): Promise<{ ok: boolean; moved: number }> {
+  if (!(await getAccount())) return { ok: false, moved: 0 };
+  const moved = await moveGuestsToAccount(await confirmedGuestIds(ids));
+  return { ok: true, moved };
+}
+
 export async function verifyCode(formData: FormData) {
   const email = String(formData.get("email") ?? "");
   const back = safeBack(String(formData.get("back") ?? "/"));
@@ -734,7 +755,8 @@ export async function verifyCode(formData: FormData) {
   if (!r.ok) redirect(await flashTo("/signin", { error: r.error }, { e: email, back, sent: "1", n: String(formData.get("name") ?? "") }));
   const name = cleanNames([String(formData.get("name") ?? "")])[0];
   if (name) await db.account.updateMany({ where: { id: r.accountId, name: "" }, data: { name } });
-  await signInAs(r.accountId);
+  // Only the groups the person agreed to move (the "move" field the sign-in screen sends); no field, nothing moves.
+  await signInAs(r.accountId, { confirmed: parseConfirmed(formData.get("move")) });
   redirect(`${back}${back.includes("?") ? "&" : "?"}signedin=1`);
 }
 

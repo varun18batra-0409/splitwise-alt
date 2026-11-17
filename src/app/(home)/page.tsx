@@ -9,7 +9,8 @@ import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
-import { getAccount, getMemberships } from "@/lib/identity";
+import { getAccount, getMemberships, guestGroupsOnPhone } from "@/lib/identity";
+import { GuestMoveNotice } from "@/components/GuestMoveSheet";
 import { PasskeyOffer } from "@/components/Passkeys";
 
 import { loadDeletedGroups } from "@/lib/group-data";
@@ -94,7 +95,7 @@ export default async function Home({
   const { error } = await readNotes(sp, "/");
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew] = await Promise.all([
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, postcardsNew, guestGroups] = await Promise.all([
     loadOverview(memberships, visitorRegion(await headers()).currency),
     loadDeletedGroups(memberships),
     getAccount(),
@@ -104,6 +105,8 @@ export default async function Home({
     getAccount().then((a) => loadInvitations(a)),
     // Postcards that arrived and are unread (none from people you blocked, none still sealed).
     getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
+    // Signed in, but some groups are still only a guest name on this phone (the sign-in check was skipped, or they came later).
+    getAccount().then((a) => (a ? guestGroupsOnPhone() : [])),
   ]);
   const { all, direct, open, closed, common, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
@@ -522,6 +525,9 @@ export default async function Home({
         <BellButton className="glass border border-fg/10" />
       </header>
 
+      {/* Signed in, with groups that are only on this phone: a quiet offer to move them (opens the same check as sign-in). */}
+      <GuestMoveNotice groups={guestGroups} />
+
       {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
       {!hasAny && invitationsBlock}
 
@@ -529,7 +535,7 @@ export default async function Home({
         <>
           {/* Start screen: nothing here yet. Two photos and a receipt, the promise, then the ways in. */}
           <section aria-label="Start" className="text-fg" data-start-card>
-            <StartHero />
+            <StartHero currency={region.currency} />
             <h1 className="font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-tight">
               Good times. <span className="block">Shared fairly.</span>
             </h1>
@@ -547,15 +553,6 @@ export default async function Home({
                 </Link>
               </p>
             )}
-            <p className="mt-1 text-center text-xs text-fg/55">
-              <Link href="/terms" className="inline-flex min-h-11 items-center px-2">
-                Terms
-              </Link>
-              <span aria-hidden>·</span>
-              <Link href="/privacy" className="inline-flex min-h-11 items-center px-2">
-                Privacy
-              </Link>
-            </p>
           </section>
 
           <div className="mt-6 grid grid-cols-2 gap-3">

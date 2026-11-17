@@ -3,10 +3,11 @@ import Link from "@/components/Link";
 import { safePath } from "@/lib/paths";
 import { redirect } from "next/navigation";
 import { requestCode, verifyCode } from "@/app/actions";
-import { getAccount } from "@/lib/identity";
+import { getAccount, guestGroupsOnPhone } from "@/lib/identity";
 import { mailConfigured } from "@/lib/mail";
 import { googleConfigured } from "@/lib/google";
 import { PasskeySignIn } from "@/components/Passkeys";
+import { GoogleSignInLink, GuardedCodeForm } from "@/components/GuestMoveSheet";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { BackIcon, iconButtonClass } from "@/components/icons";
 import { GoogleG } from "@/components/GoogleG";
@@ -30,6 +31,9 @@ export default async function SignIn({
   const sent = sp.sent === "1" && typed;
   const error = notes.error?.slice(0, 200);
   const name = (sp.n ?? "").slice(0, 40);
+  const signup = sp.mode === "signup";
+  // Guest groups this phone holds: every way of signing in lists them first, then moves only those (see GuestMoveSheet).
+  const guestGroups = await guestGroupsOnPhone();
 
   return (
     <>
@@ -64,7 +68,11 @@ export default async function SignIn({
             Keep the story.
           </p>
           <p className="mt-3 text-[16px] leading-relaxed text-fg/65 tight:hidden">Split costs for trips, flats and couples, see who owes what, and record payments as you settle. Loopin keeps track; it never moves money.</p>
-          <h1 className="mb-3 mt-7 text-[15px] font-semibold text-fg/80 tight:mb-2 tight:mt-3">Continue to Loopin</h1>
+          {signup ? (
+            <h1 className="mb-4 mt-7 font-display text-[26px] font-semibold leading-tight tracking-tight tight:mb-2 tight:mt-3 tight:text-[22px]">Create your account</h1>
+          ) : (
+            <h1 className="mb-3 mt-7 text-[15px] font-semibold text-fg/80 tight:mb-2 tight:mt-3">Continue to Loopin</h1>
+          )}
         </>
       )}
       {error && <ErrorNote>{error}</ErrorNote>}
@@ -74,10 +82,10 @@ export default async function SignIn({
           {googleConfigured() && (
             <>
               {/* A plain link: it leaves the app for Google's account picker. */}
-              <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop mb-3 flex h-14 tight:mb-1 tight:h-12 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
+              <GoogleSignInLink href={`/api/auth/google/start?${new URLSearchParams({ back })}`} groups={guestGroups} className="pop mb-3 flex h-14 tight:mb-1 tight:h-12 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
                 <GoogleG />
                 Continue with Google
-              </a>
+              </GoogleSignInLink>
             </>
           )}
           <div className="my-6 flex items-center gap-3 text-xs text-gray-400 tight:my-3" aria-hidden>
@@ -90,6 +98,7 @@ export default async function SignIn({
           )}
           <form action={requestCode} className="space-y-4 tight:space-y-3">
             <input type="hidden" name="back" value={back} />
+            {signup && <input type="hidden" name="mode" value="signup" />}
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-600">Your email</span>
               <input
@@ -116,15 +125,23 @@ export default async function SignIn({
           </form>
           {/* A text link (or a quiet button once you have used it): it must never push Google and the email box down. */}
           <div className="mt-3">
-            <PasskeySignIn back={back} className="flex h-12 w-full items-center justify-center rounded-full border border-fg/25 bg-transparent text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
+            <PasskeySignIn back={back} groups={guestGroups} className="flex h-12 w-full items-center justify-center rounded-full border border-fg/25 bg-transparent text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
           </div>
+          {!signup && (
+            <p className="mt-2 text-center text-sm text-gray-500 tight:mt-0">
+              New here?{" "}
+              <Link href={`/signin?${new URLSearchParams({ mode: "signup", back })}`} className="inline-flex min-h-11 items-center font-semibold text-fg underline underline-offset-4">
+                Create an account
+              </Link>
+            </p>
+          )}
         </>
       ) : (
         <>
           <p className="mb-6 text-gray-600">
             We sent a 6-digit code to {email ? <span className="text-fg">{email}</span> : "your email"}. It works for 15 minutes. Not there? Check spam.
           </p>
-          <form action={verifyCode} className="space-y-4">
+          <GuardedCodeForm action={verifyCode} groups={guestGroups} className="space-y-4">
             <input type="hidden" name="back" value={back} />
             <input type="hidden" name="name" value={name} />
             <input type="hidden" name="email" value={typed.slice(0, 254)} />
@@ -145,7 +162,7 @@ export default async function SignIn({
             <button type="submit" className={primaryButtonClass}>
               Sign in
             </button>
-          </form>
+          </GuardedCodeForm>
           <p className="mt-6 text-center text-sm text-gray-500">
             <Link href={`/signin?${new URLSearchParams({ e: typed.slice(0, 254), back })}`} className="underline underline-offset-4">
               Use a different email or send a new code

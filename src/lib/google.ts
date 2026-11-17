@@ -38,15 +38,19 @@ export function googleAuthUrl(clientId: string, redirectUri: string, state: stri
   return `${AUTH_URL}?${q}`;
 }
 
-// The cookie that remembers this sign-in attempt: "state.verifier.back".
-export function packAttempt(state: string, verifier: string, back: string): string {
-  return `${state}.${verifier}.${b64url(Buffer.from(back))}`;
+// The cookie that remembers this sign-in attempt: "state.verifier.back", and when the person confirmed moving guest groups
+// before leaving, a fourth part: the signed confirmation for this state (see identity.ts, sealMoveForAttempt).
+export function packAttempt(state: string, verifier: string, back: string, move?: string): string {
+  const base = `${state}.${verifier}.${b64url(Buffer.from(back))}`;
+  return move ? `${base}.${b64url(Buffer.from(move))}` : base;
 }
-export function unpackAttempt(raw: string | undefined): { state: string; verifier: string; back: string } | null {
+export function unpackAttempt(raw: string | undefined): { state: string; verifier: string; back: string; move?: string } | null {
   const parts = String(raw ?? "").split(".");
-  if (parts.length !== 3 || !parts[0] || !parts[1]) return null;
+  if ((parts.length !== 3 && parts.length !== 4) || !parts[0] || !parts[1]) return null;
   try {
-    return { state: parts[0], verifier: parts[1], back: Buffer.from(parts[2], "base64url").toString() };
+    const out: { state: string; verifier: string; back: string; move?: string } = { state: parts[0], verifier: parts[1], back: Buffer.from(parts[2], "base64url").toString() };
+    if (parts[3]) out.move = Buffer.from(parts[3], "base64url").toString();
+    return out;
   } catch {
     return null;
   }

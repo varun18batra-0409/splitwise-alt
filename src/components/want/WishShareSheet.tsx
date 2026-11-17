@@ -54,6 +54,11 @@ export function WishShareSheet({
     setScope(s);
     setTicked(tickedFor(s));
   };
+  // A friend given the whole list already sees every place, so on a single-place sheet they show ticked and locked:
+  // unticking would not hide the place (the server only removes the one-place row), and the sheet must not say it does.
+  const wholeList = useMemo(() => new Set(shares.filter((r) => r.country === SHARE_ALL).map((r) => r.friendId)), [shares]);
+  const lockedFor = (id: string) => scope !== SHARE_ALL && wholeList.has(id);
+  const anyLocked = scope !== SHARE_ALL && friends.some((f) => wholeList.has(f.id));
   const toggle = (id: string) => setTicked((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
   const one = places.find((p) => p.code === scope);
   // Friends who already see the whole list also see a single place: the sheet says so instead of leaving them unticked without a word.
@@ -77,7 +82,7 @@ export function WishShareSheet({
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-2">
-                {ticked.map((id) => (
+                {ticked.filter((id) => !lockedFor(id)).map((id) => (
                   <input key={id} type="hidden" name="friend" value={id} />
                 ))}
                 <label className="block">
@@ -99,14 +104,31 @@ export function WishShareSheet({
                   <ul className="mt-3" aria-label="Friends">
                     {friends.map((f) => (
                       <li key={f.id}>
-                        <label className="flex min-h-12 items-center gap-3 rounded-xl px-1 active:bg-mist">
-                          <input type="checkbox" checked={ticked.includes(f.id)} onChange={() => toggle(f.id)} className="h-5 w-5 shrink-0" aria-label={f.name} />
-                          <span className="min-w-0 flex-1">{f.name}</span>
-                        </label>
+                        {lockedFor(f.id) ? (
+                          <div className="flex min-h-12 items-center gap-3 rounded-xl px-1 py-1" data-wish-locked>
+                            <input type="checkbox" checked disabled readOnly className="h-5 w-5 shrink-0 opacity-60" aria-label={`${f.name}, sees your whole list`} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block break-words">{f.name}</span>
+                              <span className="flex items-center gap-1 text-sm text-fg/65">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
+                                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                                </svg>
+                                Sees your whole list
+                              </span>
+                            </span>
+                          </div>
+                        ) : (
+                          <label className="flex min-h-12 items-center gap-3 rounded-xl px-1 active:bg-mist">
+                            <input type="checkbox" checked={ticked.includes(f.id)} onChange={() => toggle(f.id)} className="h-5 w-5 shrink-0" aria-label={f.name} />
+                            <span className="min-w-0 flex-1 break-words">{f.name}</span>
+                          </label>
+                        )}
                       </li>
                     ))}
                   </ul>
                 )}
+                {anyLocked && <p className="mt-3 text-sm text-fg/65">A locked tick means this friend was given your whole list, so {one?.name ?? "this place"} can’t be hidden from them here. To change that, pick “Whole list” above.</p>}
               </div>
               <div className="border-t border-line px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-3">
                 <SaveButton none={friends.length === 0} />

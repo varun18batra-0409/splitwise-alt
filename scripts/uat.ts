@@ -1643,7 +1643,8 @@ async function main() {
     await msg.getByRole("button", { name: "Close message" }).click();
     await msg.waitFor({ state: "detached" });
     assert(!/signedin=1/.test(V.url()), `address still has the marker: ${V.url()}`);
-    await V.reload({ waitUntil: "networkidle" });
+    await V.reload({ waitUntil: "load" }); // (the message is drawn by the server; no need to wait for every small picture to finish)
+    await V.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
     assert((await V.getByRole("status").filter({ hasText: /Signed in/ }).count()) === 0, "the message came back after a refresh");
   });
   await step(V, "Home", "Bottom bar is hidden while adding an expense", async () => {
@@ -2090,7 +2091,7 @@ async function main() {
     assert(decodeURIComponent(decodeURIComponent(href)).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
     // One screen for signing up and signing in
     await go(page, "/signin?mode=signup");
-    await page.getByRole("heading", { name: "Continue to Loopin" }).waitFor();
+    await page.getByRole("heading", { name: "Create your account" }).waitFor();
     await ctx.close();
   });
   await step(V, "Help", "The “How Loopin works” row on You opens the detailed guide (with photos), which links to the 1-minute tour; Home's header has no “?”", async () => {
@@ -2637,7 +2638,12 @@ async function main() {
       after = await db.member.findUnique({ where: { id: zoe.id } });
     }
     assert(after?.joinedFrom?.toISOString().slice(0, 10) === day, `moved-in date is ${after?.joinedFrom?.toISOString()}`);
-    const ev = await db.groupEvent.findFirst({ where: { groupId: homeId(), text: { contains: "moved in on" } } });
+    // The history line is written by the same save: give it a moment too (a slow server finishes the date first).
+    let ev = await db.groupEvent.findFirst({ where: { groupId: homeId(), text: { contains: "moved in on" } } });
+    for (let i = 0; i < 40 && !ev; i++) {
+      await V.waitForTimeout(250);
+      ev = await db.groupEvent.findFirst({ where: { groupId: homeId(), text: { contains: "moved in on" } } });
+    }
     assert(ev, "no “moved in” line in the history");
   });
   await step(V, "Flat", "Set up Maintenance shared by % (you 70, the other 30); Groceries is one of the tiles", async () => {

@@ -25,7 +25,7 @@ vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), c
 
 const { db } = await import("@/lib/db");
 const { encodeSession, decodeSession, today } = await import("@/lib/session");
-const { getMemberships, getLinkedAwayGroups, signInAs, signOutOtherPhones, setMyMemberId, keepGroupsDropAccount, bumpGrantEpochs } = await import("@/lib/identity");
+const { getMemberships, getLinkedAwayGroups, signInAs, signOutOtherPhones, setMyMemberId, keepGroupsDropAccount, bumpGrantEpochs, parseConfirmed } = await import("@/lib/identity");
 const { deleteAccount } = await import("@/lib/auth");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -72,7 +72,7 @@ describe("linking, sign-out-others and deleting the account, in order (member X)
   it("signing in links X, and the old guest copy stops working with a clear reason", async () => {
     oldGuest = await cookie({ [G]: id.X });
     state.cookie = oldGuest;
-    await signInAs(acc.A);
+    await signInAs(acc.A, { confirmed: parseConfirmed([id.X]) });
     signedIn = state.cookie;
     const linked = await db.member.findUniqueOrThrow({ where: { id: id.X } });
     expect(linked.accountId).toBe(acc.A);
@@ -113,7 +113,7 @@ describe("linking, sign-out-others and deleting the account, in order (member X)
   });
   it("signing in again on phone 1 still works, and the cookie it had before is then dead", async () => {
     const phone1 = state.cookie;
-    await signInAs(acc.B);
+    await signInAs(acc.B, { confirmed: parseConfirmed([id.X]) });
     const again = state.cookie;
     expect((await db.member.findUniqueOrThrow({ where: { id: id.X } })).grantEpoch).toBe(3);
     expect(await as(again)).toEqual({ [G]: id.X });
@@ -128,7 +128,7 @@ describe("the other order, and a name linked to a different account", () => {
     await signOutOtherPhones(); // C's sign-in version is now 1
     const guestY = await cookie({ [G]: id.Y });
     state.cookie = guestY;
-    await signInAs(acc.C);
+    await signInAs(acc.C, { confirmed: parseConfirmed([id.Y]) });
     const now = state.cookie;
     expect((await decodeSession(now))?.v).toBe(1);
     expect(await as(now)).toEqual({ [G]: id.Y });
@@ -144,7 +144,7 @@ describe("the other order, and a name linked to a different account", () => {
   it("a stale guest copy can't be carried into a new sign-in", async () => {
     // Z is a guest name at epoch 0; a copy that says epoch 7 must not link Z to account D.
     state.cookie = await cookie({ [G]: `${id.Z}~7` });
-    await signInAs(acc.D);
+    await signInAs(acc.D, { confirmed: parseConfirmed([id.Z]) });
     const z = await db.member.findUniqueOrThrow({ where: { id: id.Z } });
     expect(z.accountId).toBeNull();
     expect(z.grantEpoch).toBe(0);

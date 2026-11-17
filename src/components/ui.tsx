@@ -68,7 +68,7 @@ export function ErrorNote({ children }: { children: React.ReactNode }) {
 // Your own avatar is "Y" everywhere (`you`), whatever your name is.
 export function Avatar({ name, you }: { name: string; you?: boolean }) {
   return (
-    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${avatarTone(name)}`}>
+    <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${avatarTone(name)}`}>
       {you ? "Y" : name.trim().charAt(0).toUpperCase()}
     </span>
   );

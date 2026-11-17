@@ -1,9 +1,8 @@
 import Link from "@/components/Link";
 import { verifyCode } from "@/app/actions";
-import { PageHeader, primaryButtonClass } from "@/components/ui";
+import { PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { safePath } from "@/lib/paths";
-import { getAccount, getMemberships } from "@/lib/identity";
-import { db } from "@/lib/db";
+import { getAccount, guestGroupsOnPhone } from "@/lib/identity";
 import { shownEmail } from "@/lib/email-clean";
 
 // Where the link in the sign-in email lands. It asks for one tap instead of
@@ -23,11 +22,9 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
   const other = now && now.email && now.email.toLowerCase() !== rawEmail.trim().toLowerCase() ? now.email : "";
   // Groups this phone is in without an account move to the account that signs
   // in, so name them: nobody should hand their groups over without seeing it.
-  const ids = Object.values(await getMemberships());
-  const moving = ids.length
-    ? await db.member.findMany({ where: { id: { in: ids }, accountId: null, group: { deletedAt: null } }, select: { group: { select: { name: true } } }, take: 6 })
-    : [];
-  const names = moving.map((m) => m.group.name);
+  // Only the groups named here are moved (the form sends their ids).
+  const moving = await guestGroupsOnPhone();
+  const names = moving.map((g) => g.name);
 
   return (
     <>
@@ -47,17 +44,41 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
           </p>
           <p className="mb-6 text-sm text-gray-500">Only continue if you asked for this code just now and this is your email.</p>
           {names.length > 0 && (
-            <p className="-mt-3 mb-6 rounded-xl border border-line px-4 py-3 text-sm text-fg/80">
-              {names.length === 1 ? "The group" : "The groups"} on this phone ({names.join(", ")}) will move to this account.
-            </p>
+            <>
+              {/* The account being signed into, big and plain, before the choice about the groups. */}
+              <p className="mb-1 text-sm text-gray-500">You’re signing in as</p>
+              <p className="mb-4 break-all font-display text-[22px] font-semibold leading-tight" data-signin-as>
+                {email}
+              </p>
+              <div className="mb-5 rounded-xl border border-line px-4 py-3 text-sm text-fg/80" data-guest-names>
+                <p>This phone holds {names.length === 1 ? "this group" : "these groups"} as a guest. Move {names.length === 1 ? "it" : "them"} into {email}?</p>
+                <ul className="mt-2 list-inside list-disc break-words">
+                  {names.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
           )}
-          <form action={verifyCode}>
+          <form action={verifyCode} className={names.length > 0 ? "space-y-2" : undefined}>
             <input type="hidden" name="email" value={rawEmail} />
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="back" value={back} />
-            <button type="submit" className={primaryButtonClass}>
-              {other ? "Yes, switch" : "Yes, sign me in"}
-            </button>
+            {names.length > 0 ? (
+              <>
+                {/* Two plain choices, each carrying its own list: the ids shown above, or none. */}
+                <button type="submit" name="move" value={moving.map((g) => g.memberId).join(",")} className={primaryButtonClass} data-signin-move>
+                  Move them and sign in
+                </button>
+                <button type="submit" name="move" value="" className={secondaryButtonClass} data-signin-nomove>
+                  Sign in without moving them
+                </button>
+              </>
+            ) : (
+              <button type="submit" className={primaryButtonClass}>
+                {other ? "Yes, switch" : "Yes, sign me in"}
+              </button>
+            )}
           </form>
           <p className="mt-6 text-sm text-gray-500">
             Using the installed app? Open it and type the code <span className="font-display tracking-widest text-fg">{code}</span> instead.

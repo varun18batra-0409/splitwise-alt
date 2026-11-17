@@ -48,7 +48,7 @@ export function ColumnChart({ title, data, total }: { title: string; data: BarDa
           </div>
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-xs text-gray-400">
+      <div className="mt-1 flex justify-between text-[13px] text-fg/60">
         <span>{data[0]?.label}</span>
         {data.length > 1 && <span>{data[data.length - 1]?.label}</span>}
       </div>
@@ -60,7 +60,7 @@ export function ColumnChart({ title, data, total }: { title: string; data: BarDa
 function TableView({ data }: { data: BarDatum[] }) {
   return (
     <details className="mt-2">
-      <summary className="cursor-pointer list-none py-1 text-xs text-gray-400 [&::-webkit-details-marker]:hidden">Show as table</summary>
+      <summary className="flex min-h-11 cursor-pointer list-none items-center text-sm text-fg/65 [&::-webkit-details-marker]:hidden">Show as table</summary>
       <table className="mt-1 w-full text-sm">
         <tbody>
           {data.map((d) => (

@@ -52,11 +52,11 @@ export function PotBuyIn({
       <input type="hidden" name="rid" value={rid} suppressHydrationWarning />
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">{allTicked ? "Chips in" : "Chips in / top up"}</h2>
-        <span className="flex gap-3 text-xs font-semibold text-accent">
-          <button type="button" onClick={() => tickAll(true)}>
+        <span className="flex gap-1 text-sm font-semibold text-accent">
+          <button type="button" onClick={() => tickAll(true)} className="inline-flex min-h-11 min-w-11 items-center justify-center px-2">
             Everyone
           </button>
-          <button type="button" onClick={() => tickAll(false)}>
+          <button type="button" onClick={() => tickAll(false)} className="inline-flex min-h-11 min-w-11 items-center justify-center px-2">
             Clear
           </button>
         </span>

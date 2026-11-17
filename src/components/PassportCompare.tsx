@@ -15,16 +15,15 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
   if (!set) return null;
   return (
     <div className="mt-4" data-passport-compare>
-      <div role="tablist" aria-label="Who's been where" className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label="Who's been where" className="flex flex-wrap gap-1.5">
         {sets.map((s) => (
           <button
             key={s.key}
             type="button"
-            role="tab"
-            aria-selected={s.key === set.key}
+            aria-pressed={s.key === set.key}
             onClick={() => setOn(s.key)}
             data-compare-tab={s.key}
-            className={`max-w-full shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`}
+            className={`inline-flex min-h-11 max-w-full shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 text-sm ${s.key === set.key ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`}
           >
             {s.label}
             {!s.hideCount && <span className={s.key === set.key ? "text-fg/55" : "text-fg/60"}> {s.countries.length}</span>}
@@ -37,7 +36,7 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
           <WorldMap className="" index={set.countries.map((c) => ({ code: c.code, name: c.name, trips: 1 }))} />
         </div>
       )}
-      <ul role="tabpanel" className="mt-3 grid grid-cols-4 gap-x-2 gap-y-3 min-[400px]:grid-cols-5" data-compare-list={set.key}>
+      <ul aria-label={set.label} className="mt-3 grid grid-cols-4 gap-x-2 gap-y-3 min-[400px]:grid-cols-5" data-compare-list={set.key}>
         {set.countries.map((c) => (
           <li key={c.code} className="flex min-w-0 flex-col items-center" title={c.name}>
             <Flag code={c.code} size={40} />

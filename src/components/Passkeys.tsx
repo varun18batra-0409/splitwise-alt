@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { startAuthentication, startRegistration, browserSupportsWebAuthn } from "@simplewebauthn/browser";
+import { useGuestCheck, type GuestGroupRow } from "@/components/GuestMoveSheet";
 
 // "Sign in with fingerprint or face" and "Turn on fingerprint / face sign-in".
 
@@ -38,8 +39,9 @@ function rememberUsed() {
   }
 }
 
-export function PasskeySignIn({ back, className }: { back: string; className: string }) {
+export function PasskeySignIn({ back, className, groups = [] }: { back: string; className: string; groups?: GuestGroupRow[] }) {
   const supported = usePasskeySupport();
+  const { ask, sheet } = useGuestCheck(groups);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [used, setUsed] = useState(false);
@@ -51,14 +53,15 @@ export function PasskeySignIn({ back, className }: { back: string; className: st
     }
   }, []);
   if (!supported) return null;
-  async function go() {
+  async function go(move: string[]) {
     setBusy(true);
     setError("");
     try {
       const o = await post("/api/passkey/login/options");
       if (!o.ok) throw new Error(o.json.error ?? "Couldn’t start.");
       const response = await startAuthentication({ optionsJSON: o.json });
-      const v = await post("/api/passkey/login/verify", { response });
+      // `move`: the guest groups the person agreed to move (empty when the phone holds none).
+      const v = await post("/api/passkey/login/verify", { response, move });
       if (!v.ok) throw new Error(v.json.error ?? "That didn’t work.");
       rememberUsed();
       window.location.assign(`${back}${back.includes("?") ? "&" : "?"}signedin=1`);
@@ -72,13 +75,18 @@ export function PasskeySignIn({ back, className }: { back: string; className: st
     <div>
       <button
         type="button"
-        onClick={go}
+        onClick={() =>
+          ask((ids) => {
+            void go(ids); // the sheet closes now; the phone's own prompt takes over
+          })
+        }
         disabled={busy}
         className={used ? className : "mx-auto block py-2 text-center text-sm text-gray-500 underline underline-offset-4"}
       >
         {used && <FingerprintIcon />} {busy ? "Waiting for your phone…" : "Sign in with fingerprint or face"}
       </button>
       {error && <p className="mt-2 text-sm text-red-600" role="alert">{error}</p>}
+      {sheet}
     </div>
   );
 }

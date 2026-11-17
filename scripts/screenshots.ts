@@ -48,9 +48,21 @@ else
   ]);
 const page = await context.newPage();
 
+// Open a page and wait until the network is quiet. If one small picture never finishes (a stuck image request keeps the network "busy"
+// for ever), the page itself has loaded: carry on once "load" is reached, instead of losing the screenshot.
+async function gotoQuiet(p: Page, url: string, quick = false) {
+  try {
+    await p.goto(url, { waitUntil: quick ? "load" : "networkidle", timeout: 30_000 });
+  } catch (e) {
+    if (quick || !/networkidle/i.test(String(e))) throw e;
+    console.log("  (note:", url.replace(base, ""), "never went network-quiet; carrying on once it has loaded)");
+    await p.waitForLoadState("load", { timeout: 10_000 });
+  }
+}
+
 async function shot(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
   try {
-    await page.goto(base + path, { waitUntil: hosted ? "load" : "networkidle", timeout: 30_000 });
+    await gotoQuiet(page, base + path, hosted);
     await page.waitForTimeout(900); // let the bar animation finish
     if (prepare) await prepare(page).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
     await fullShot(page, `${out}/${name}.png`, fullPage);
@@ -344,7 +356,7 @@ if (!desktop && !hosted) {
         ["settle", "/settle"],
       ] as const) {
         try {
-          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + path);
           await p.waitForTimeout(500);
           await fullShot(p, `${out}/direct${w}-${n}.png`, true);
           console.log(`  ✓ direct${w}-${n}`);
@@ -373,7 +385,7 @@ if (!desktop && !hosted) {
     for (const w of [390, 320] as const) {
       await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
       try {
-        await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+        await gotoQuiet(p, base + "/");
         await p.waitForTimeout(500);
         await fullShot(p, `${out}/direct${w}-home-both.png`, false);
         console.log(`  ✓ direct${w}-home-both`);
@@ -406,7 +418,7 @@ if (!desktop && !hosted) {
   const card = () => page.locator("[data-balance-card]").first();
   const read = async () => {
     await page.setViewportSize(screen);
-    await page.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+    await gotoQuiet(page, base + "/");
     await card().waitFor();
     return `${await card().getAttribute("data-ticket")} | ${(await card().innerText()).replace(/\s+/g, " ").trim()}`;
   };
@@ -768,6 +780,22 @@ if (!hosted) {
     await shot("108b-want-to-go", "/passport?tab=want", undefined, false);
     await db.wishShare.create({ data: { ownerId: meera.id, friendId: acc.id, country: "*" } });
     await both("108c-want-to-go-match", "/passport?tab=want", undefined, false); // Japan is in the match card only, not again in Your list
+    // CB-3: Varun has also given Meera his whole list, so on the "Just Japan" sheet she shows a locked tick, "Sees your whole list" (390 and 320 wide).
+    await db.wishShare.create({ data: { ownerId: acc.id, friendId: meera.id, country: "*" } });
+    try {
+      const wasSize = page.viewportSize();
+      for (const w of desktop ? [] : ([390, 320] as const)) {
+        await page.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
+        await shot(`CB3-share-locked-${w}`, "/passport?tab=want", async (p) => {
+          await p.locator("[data-wish-share]").first().click();
+          await p.locator('select[name="scope"]').selectOption("JP");
+          await p.waitForTimeout(300);
+        }, false);
+      }
+      if (wasSize) await page.setViewportSize(wasSize);
+    } finally {
+      await db.wishShare.deleteMany({ where: { ownerId: acc.id, friendId: meera.id, country: "*" } });
+    }
     const got = await db.postcard.create({
       data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi forgot the rules of every card game, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
     });
@@ -1166,7 +1194,7 @@ if (!hosted) {
   // Adds one moment the way a person does (the real form), then sets its "when" so the list reads like a real trip.
   const put = async (g: Awaited<ReturnType<typeof trip>>, by: "Varu" | "Nupur" | "Riya", acc: { id: string }, caption: string, takenOn: string, at: Date) => {
     const up = await uploader(acc);
-    await up.goto(`${base}/groups/${g.id}/moments/new`, { waitUntil: "networkidle", timeout: 30_000 });
+    await gotoQuiet(up, `${base}/groups/${g.id}/moments/new`);
     await up.getByLabel("Choose a photo").setInputFiles(nextPhoto());
     await up.locator('img[alt="Your photo"]').waitFor({ timeout: 20_000 });
     if (caption) await up.getByPlaceholder("The boat we almost missed").fill(caption);
@@ -1203,7 +1231,7 @@ if (!hosted) {
       await p.setViewportSize({ width: w, height: 780 });
       for (const [name, path, prepare, full] of list) {
         try {
-          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + path);
           await p.waitForTimeout(700);
           if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
           await assertMomentPhotosDecoded(p, `M1-${name}-${w}`); // fails the screenshot (✗) if any moment picture did not draw
@@ -1322,7 +1350,7 @@ if (!hosted) {
         const name = w === 390 ? s.name : `n${w}-${s.name}`;
         try {
           await p.setViewportSize({ width: w, height: 780 });
-          await p.goto(base + s.path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + s.path);
           await p.waitForTimeout(800);
           if (s.prepare) await s.prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
           await assertMomentPhotosDecoded(p, name);
@@ -1483,6 +1511,113 @@ await context.addCookies([{ name: "lp_tour", value: "1", url: base }]);
 await shot("33-start", "/");
 await shot("34-signup", "/signin?mode=signup", undefined, false);
 
+// ===== Founder sign-off batch (mockups s1 to s6), at 390 and 320 wide: AS-3 sign-in check, sign-up heading, start screen in a visitor's own money,
+// plain category labels, 44 px taps on the collection page. Phones only. =====
+if (!desktop) {
+  const widths = [390, 320] as const;
+  const dims = (w: number) => ({ width: w, height: w === 320 ? 640 : 844 });
+  const fresh = async (opts: { locale: string; cookies?: { name: string; value: string }[] }) => {
+    const c = await browser.newContext({
+      viewport: screen,
+      deviceScaleFactor: 2,
+      ...(ios ? { isMobile: true, hasTouch: true } : {}),
+      colorScheme: "dark",
+      reducedMotion: "reduce",
+      locale: opts.locale,
+      extraHTTPHeaders: { "accept-language": `${opts.locale},en;q=0.9` },
+    });
+    if (opts.cookies?.length) await c.addCookies(opts.cookies.map((k) => ({ ...k, url: base })));
+    return c;
+  };
+  const snapAt = async (c: Awaited<ReturnType<typeof fresh>>, name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) => {
+    const p = await c.newPage();
+    try {
+      for (const w of widths) {
+        await p.setViewportSize(dims(w));
+        await gotoQuiet(p, base + path, hosted);
+        await p.waitForTimeout(700);
+        if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+        await p.screenshot({ path: `${out}/${name}-${w}.png`, fullPage });
+        console.log("✓", `${name}-${w}`);
+      }
+    } catch (e) {
+      console.log("✗", name, String(e).split("\n")[0]);
+    } finally {
+      await p.close();
+    }
+  };
+
+  // VA2-3 / VD2-4 / VI2-36: the start screen in the visitor's own money (dollars here, rupees for India), one footer, a world photo.
+  for (const [tag, locale] of [["us", "en-US"], ["in", "en-IN"]] as const) {
+    const c = await fresh({ locale, cookies: [{ name: "lp_tour", value: "1" }] });
+    await snapAt(c, `SO-start-${tag}`, "/");
+    await c.close();
+  }
+  // VI2-36: sign-in with its new "Create an account" link, and the sign-up page with its own heading.
+  {
+    const c = await fresh({ locale: "en-US", cookies: [{ name: "lp_tour", value: "1" }] });
+    await snapAt(c, "SO-signin", "/signin", undefined, false);
+    await snapAt(c, "SO-signup", "/signin?mode=signup", undefined, false);
+    await c.close();
+  }
+
+  // AS-3: a phone that holds three guest groups. The check shows when the typed code is sent (the same sheet shows before Google and
+  // fingerprint or face). Local copy only: it makes three small groups and removes them again.
+  if (!hosted) {
+    const { db } = await import("../src/lib/db");
+    const stamp = Date.now();
+    const made: string[] = [];
+    const held: Record<string, string> = {};
+    try {
+      for (const [name, type, others] of [["Flat 402", "home", 2], ["Thailand trip", "trip", 3], ["Us", "couple", 1]] as const) {
+        const g = await db.group.create({
+          data: { name, type, inviteCode: `so-${stamp}-${made.length}`, members: { create: [{ name: "Dev" }, ...Array.from({ length: others }, (_, i) => ({ name: `Friend ${i + 1}` }))] } },
+          include: { members: true },
+        });
+        made.push(g.id);
+        held[g.id] = `${g.members.find((m) => m.name === "Dev")!.id}~0`;
+      }
+      const c = await fresh({ locale: "en-IN", cookies: [{ name: SESSION_COOKIE, value: await encodeSession({ m: held }) }] });
+      await snapAt(c, "AS3-guest-sheet", "/signin?e=dev@example.test&sent=1", async (p) => {
+        await p.locator('input[name="code"]').fill("123456");
+        await p.getByRole("button", { name: "Sign in", exact: true }).click();
+        await p.locator("[data-guest-sheet]").waitFor({ timeout: 5000 });
+        await p.waitForTimeout(500);
+      }, false);
+      // The email link page with guest groups: the account named big, then two plain choices.
+      await snapAt(c, "AS3-email-link", "/signin/verify?e=dev@example.test&c=123456", undefined, false);
+      await c.close();
+      // Signed in, with the groups still only on this phone: the quiet notice on Home, and the sign-out page that lists them first.
+      const acc = await db.account.create({ data: { email: `as3-notice-${stamp}@uat.loopin.test`, name: "Asha" } });
+      try {
+        const c2 = await fresh({ locale: "en-IN", cookies: [{ name: SESSION_COOKIE, value: await encodeSession({ m: held, a: acc.id, v: 0 }) }, { name: "lp_tour", value: "1" }] });
+        await snapAt(c2, "AS3-only-here-home", "/", undefined, false);
+        await snapAt(c2, "AS3-only-here-signout", "/account/sign-in#other-phones", undefined, true);
+        await snapAt(c2, "AS3-only-here-sheet", "/", async (p) => {
+          await p.locator("[data-guest-open]").first().click();
+          await p.locator("[data-guest-sheet]").waitFor({ timeout: 5000 });
+          await p.waitForTimeout(400);
+        }, false);
+        await c2.close();
+      } finally {
+        await db.account.delete({ where: { id: acc.id } }).catch(() => undefined);
+      }
+    } catch (e) {
+      console.log("✗ AS3-guest-sheet (set-up failed)", String(e).split("\n")[0]);
+    } finally {
+      if (made.length) await db.group.deleteMany({ where: { id: { in: made } } }).catch(() => undefined);
+    }
+  }
+
+  // VA1-48 and CB-17 / VA2-37: the trip report with its plain labels, and the organiser's collection page with 44 px taps (demo person's phone).
+  for (const w of widths) {
+    await page.setViewportSize(dims(w));
+    await shot(`SO-trip-report-${w}`, `${g}/report`);
+    if (collectCode) await shot(`SO-collect-organiser-${w}`, `/c/${collectCode}`);
+  }
+  await page.setViewportSize(screen);
+}
+
 // A visitor from the US, as a person would: the tour, then signed in, a new
 // group in dollars, an expense, the profile and Home. (Local copy only.)
 if (!hosted) {
@@ -1638,7 +1773,7 @@ if (!hosted && !desktop && !ios) {
       const p = await c.newPage();
       for (const [name, path, prepare] of list) {
         try {
-          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + path);
           await p.waitForTimeout(900);
           if (prepare) await prepare(p); // unlike the numbered shots, a step that fails fails the picture: a wrong screen must not be saved as a guide image
           await fullShot(p, `${out}/${name}.png`, false);

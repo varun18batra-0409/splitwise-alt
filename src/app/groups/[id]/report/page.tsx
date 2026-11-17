@@ -10,6 +10,7 @@ import { overviewMoney, roundPartsToTotal } from "@/lib/money-display";
 import { Amt } from "@/components/Amt";
 import { dateRange, tripReport } from "@/lib/trip-report";
 import { PageHeader } from "@/components/ui";
+import { getCategory } from "@/lib/categories";
 import { TripShare } from "@/components/TripShare";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf } from "@/lib/covers";
@@ -69,11 +70,15 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <li key={c.id}>
                   <Link href={`/search?g=${group.id}&c=${c.id}`} className="block active:opacity-80" data-category-link={c.id}>
                   <div className="flex justify-between text-sm">
-                    <span className="flex items-center gap-2">
-                      <ExpenseGlyph title="" category={c.id} size={20} className="rounded-[6px]!" />
-                      {c.label}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <ExpenseGlyph title="" category={c.id} size={20} className="shrink-0 rounded-[6px]!" />
+                      <span className="min-w-0">
+                        <span className="block break-words">{c.label}</span>
+                        {/* The plain word under the playful name (Beds & Bunks / Stay), for readers who may not guess it. */}
+                        <span className="block text-[13px] leading-tight text-fg/65" data-category-plain>{getCategory(c.id).plain}</span>
+                      </span>
                     </span>
-                    <span className="tabular-nums text-fg/70">
+                    <span className="shrink-0 pl-3 tabular-nums text-fg/70">
                       {rm(catShown[r.categories.indexOf(c)], c.amount)} · {c.pct}%
                     </span>
                   </div>
