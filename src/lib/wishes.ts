@@ -49,3 +49,13 @@ export function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
+
+// In the share sheet for ONE place: friends who already see the whole list (so they see this place too, whatever is ticked here).
+// "" when there are none. Names are the friends' own names, first two shown.
+export function wholeListNote(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return `${names[0]} sees your whole list, so sees it too.`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} see your whole list, so they see it too.`;
+  const more = names.length - 2;
+  return `${names[0]}, ${names[1]} and ${more} ${more === 1 ? "other" : "others"} see your whole list, so they see it too.`;
+}

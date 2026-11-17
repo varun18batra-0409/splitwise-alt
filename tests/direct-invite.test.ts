@@ -58,7 +58,7 @@ describe("inviting and accepting", () => {
     expect(invites[0]).toMatchObject({ email: b.email, memberId: pair.otherId, invitedById: pair.myId });
     expect(await mailTo(b.email)).toBe(1);
     const mailRow = await db.outbox.findFirst({ where: { to: b.email } });
-    expect(mailRow!.subject).toBe("Asha shared expenses with you on Loopin");
+    expect(mailRow!.subject).toBe("Expenses shared with you on Loopin");
     expect(mailRow!.text).toContain("/signin?");
     expect(mailRow!.text).not.toContain("/join"); // there is no join path into a pair
 

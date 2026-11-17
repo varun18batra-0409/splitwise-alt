@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PRIMARY_HOST, shouldMove } from "@/lib/move-rules";
+import { VIEWER_COOKIE, cleanViewer, newViewerId, viewerCookieOptions } from "@/lib/viewer-cookie";
 import { SESSION_COOKIE, SESSION_MAX_AGE, SESSION_RENEW_DAYS, decodeSession, encodeSession, today } from "@/lib/session";
 
 // Old address → loopinapps.com. Signed-in people go through /api/move, which
@@ -47,10 +48,19 @@ async function renew(req: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const csp = pageCsp(nonce);
   const requestHeaders = new Headers(req.headers);
+  // Every browser gets its own random value (lp_v) before a page draws: signed messages are tied to it (see lib/flash.ts). Only for
+  // page loads, not files; put into this request's cookies too, so the first page already sees it.
+  let newViewer = "";
+  if ((req.method === "GET" || req.method === "HEAD") && !/\.[A-Za-z0-9]{1,8}$/.test(req.nextUrl.pathname) && !cleanViewer(req.cookies.get(VIEWER_COOKIE)?.value)) {
+    newViewer = newViewerId();
+    const have = requestHeaders.get("cookie");
+    requestHeaders.set("cookie", `${have ? `${have}; ` : ""}${VIEWER_COOKIE}=${newViewer}`);
+  }
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set("Content-Security-Policy", csp);
+  if (newViewer) res.cookies.set(VIEWER_COOKIE, newViewer, viewerCookieOptions());
   const raw = req.cookies.get(SESSION_COOKIE)?.value;
   if (!raw || req.method !== "GET") return res;
   const s = await decodeSession(raw);

@@ -23,7 +23,7 @@ export default async function SendPassportPage({ searchParams }: { searchParams:
   return (
     <>
       <PageHeader title="Send your passport" back="/passport" />
-      {error && <ErrorNote>{ERRORS[error] ?? ERRORS.none}</ErrorNote>}
+      {error && <ErrorNote>{Object.prototype.hasOwnProperty.call(ERRORS, error) ? ERRORS[error] : ERRORS.none}</ErrorNote>}
       <p className="-mt-4 mb-6 text-sm leading-relaxed text-fg/60">They’ll get an alert in Loopin that opens your passport. Only people you’ve shared a group with show here.</p>
       {groups.length === 0 ? (
         <p className="rounded-[18px] bg-mist px-4 py-6 text-center text-sm text-fg/55">Once friends join one of your groups, you can send it to them here.</p>

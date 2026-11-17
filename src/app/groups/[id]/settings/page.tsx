@@ -24,6 +24,8 @@ import { TripDates } from "@/components/TripDates";
 import { WhereTo } from "@/components/WhereTo";
 import { coverFor, coverOf } from "@/lib/covers";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { flashTo } from "@/lib/flash";
+import { readNotes } from "@/lib/flash";
 
 const PRESETS = [0, 200, 300, 400];
 const sectionTitle = "text-sm font-semibold text-gray-500";
@@ -46,7 +48,12 @@ export default async function GroupSettings({
 }) {
   const { id } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
-  const { error, convert } = await searchParams;
+  const sp = await searchParams;
+  const { convert } = sp;
+  const notes = await readNotes(sp, `/groups/${id}/settings`);
+  // A fixed short code (?error=markup) is read as it always was; any other text only if Loopin signed it.
+  const fixed = sp.error ?? "";
+  const shown = Object.prototype.hasOwnProperty.call(ERRORS, fixed) ? ERRORS[fixed] : notes.error?.slice(0, 200);
   const group = await db.group.findUnique({
     where: { id },
     include: {
@@ -59,7 +66,7 @@ export default async function GroupSettings({
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left can still read the group, but not change it.
-  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to change its settings.")}`);
+  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(await flashTo(["groups", group.id, "people"], { error: "You left this group. Rejoin it to change its settings." }));
 
   const isPreset = PRESETS.includes(group.cardMarkupBp);
   // Deleting the group and changing its currency are for the person who started it.
@@ -77,7 +84,7 @@ export default async function GroupSettings({
     return (
       <>
         <PageHeader title="Change group currency" back={`/groups/${group.id}/settings`} />
-        {error && <ErrorNote>{error}</ErrorNote>}
+        {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
         <p className="mb-6 text-gray-600">
           Switching from <strong>{group.currency}</strong> to{" "}
           <strong>
@@ -127,7 +134,7 @@ export default async function GroupSettings({
   return (
     <>
       <PageHeader title="Group settings" back={`/groups/${group.id}`} />
-      {error && <ErrorNote>{ERRORS[error] ?? error.slice(0, 200)}</ErrorNote>}
+      {shown && <ErrorNote>{shown}</ErrorNote>}
 
       <form action={saveGroupSettings} className="space-y-10" data-settings-form>
         <input type="hidden" name="groupId" value={group.id} />

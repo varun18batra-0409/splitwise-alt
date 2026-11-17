@@ -9,10 +9,8 @@ import { sendMail, mailConfigured } from "./mail";
 const CODE_MINUTES = 15;
 const MAX_TRIES = 5;
 
-export function cleanEmail(raw: string): string | null {
-  const e = raw.trim().toLowerCase();
-  return /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,24}$/.test(e) ? e : null;
-}
+import { cleanEmail } from "./email-clean";
+export { cleanEmail };
 
 function devPepper(): string {
   if (process.env.VERCEL_ENV === "production") throw new Error("Sign-in is not set up: AUTH_SECRET is missing on the live app.");

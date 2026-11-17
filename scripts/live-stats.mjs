@@ -16,6 +16,8 @@ const log = (s = "") => {
 // DateTimes may be stored as ms numbers or ISO text, depending on the driver: match both.
 const after = (col) => `((typeof(${col}) = 'integer' AND ${col} >= ?) OR (typeof(${col}) = 'text' AND ${col} >= ?))`;
 const at = (ms) => [ms, new Date(ms).toISOString()];
+// Invite, Collect and "I've paid" codes are the secret in those addresses: never printed (this output is public).
+const hideCodes = (t) => String(t).replace(/(^|\s)\/(join|c|p)\/[^/\s]+/g, "$1/$2/:code");
 const pct = (arr, p) => (arr.length ? arr[Math.min(arr.length - 1, Math.floor((p / 100) * arr.length))] : 0);
 
 log(`## Speed on phones, last ${hours} h`);
@@ -25,7 +27,7 @@ else {
   const rows = await q(`SELECT kind, route, ms FROM SpeedLog WHERE ${after("at")}`, at(Date.parse(since)));
   const groups = new Map();
   for (const r of rows) {
-    const k = `${r.kind} ${r.route}`;
+    const k = `${r.kind} ${hideCodes(r.route)}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(Number(r.ms));
   }
@@ -59,7 +61,7 @@ log(`- Sign-in codes sent, last ${hours} h: ${await one(`SELECT COUNT(*) FROM Lo
 log("");
 log(`## Errors, last 7 days (where they happened, not the messages)`);
 for (const r of await q(`SELECT path, COUNT(*) n FROM ErrorLog WHERE ${after("createdAt")} GROUP BY path ORDER BY n DESC LIMIT 15`, at(Date.now() - 7 * 86_400_000)))
-  log(`- ${String(r.path).split("?")[0].replace(/[^/]*@[^/]*/g, ":email").replace(/[a-z0-9]{20,}/gi, ":id")}: ${r.n}`);
+  log(`- ${hideCodes(String(r.path).split("?")[0]).replace(/[^/]*@[^/]*/g, ":email").replace(/[a-z0-9]{20,}/gi, ":id")}: ${r.n}`);
 log("");
 log("## Table sizes");
 for (const t of ["Expense", "ExpenseShare", "GroupEvent", "RateLimit", "RequestKey", "NotifyLog", "LoginCode"]) log(`- ${t}: ${await one(`SELECT COUNT(*) FROM "${t}"`)}`);

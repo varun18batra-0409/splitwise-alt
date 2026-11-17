@@ -6,11 +6,13 @@ import { PageHeader } from "@/components/ui";
 import { BillForm } from "@/components/BillForm";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
 import { leaverOf } from "@/lib/left-view-db";
+import { readNotes } from "@/lib/flash";
 
 export default async function NewBillPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
-  const { error } = await searchParams;
+  const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/bills/new`);
   const group = await db.group.findUnique({
     where: { id },
     include: { members: { where: { leftAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, splitWeight: true } } },
@@ -30,7 +32,7 @@ export default async function NewBillPage({ params, searchParams }: { params: Pr
         splitName={splitNameFor(group.type)}
         splitLabel={weightsLabel(group.members.map((m) => m.splitWeight))}
         currency={group.currency}
-        error={error?.slice(0, 160)}
+        error={notes.error?.slice(0, 160)}
       />
     </>
   );

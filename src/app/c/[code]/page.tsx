@@ -19,6 +19,7 @@ import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
 import { whatsappLink } from "@/lib/whatsapp";
 import { CheckIcon, ChevronDown, LinkIcon } from "@/components/icons";
+import { readNotes } from "@/lib/flash";
 
 // One collection's page: the link people open from the WhatsApp group.
 // Anyone with it can pay the organiser directly and tick their name; the
@@ -43,6 +44,7 @@ const PAY_NAMES: Record<string, string> = { "paypal.me": "PayPal", "www.paypal.m
 export default async function CollectionPage({ params, searchParams }: Props) {
   const { code } = await params;
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/c/${code}`);
   const [c, account, jar, tz, h] = await Promise.all([loadCollection(code), getAccount(), cookies(), getTimeZone(), headers()]);
   if (!c) notFound();
   const isOrganiser = account?.id === c.accountId;
@@ -149,7 +151,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         </header>
       )}
 
-      {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
       {sp.undone && (
         <Notice tone="info" params={["undone"]} className="mb-4">
           Done. Your name is back on “still to pay”.

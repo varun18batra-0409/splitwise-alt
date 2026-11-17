@@ -3,6 +3,7 @@ import { JOINED } from "./membership";
 import { logEvent } from "./events";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
+import { mailSafe } from "./mail-safe";
 import { allow } from "./rate-limit";
 import { deliverNotes } from "./account-notes";
 import { blockedEitherWay, hasBlocked } from "./blocks";
@@ -232,11 +233,14 @@ async function inviteOne(
     // counter, without being sent, so from the outside it looks exactly like a real invite.
     const blocked = Boolean(o.account && actor.accountId && (await hasBlocked(o.account.id, actor.accountId).catch(() => true)));
     if (o.mail) {
+      // The subject is fixed and names are cleaned of links and addresses (see mailSafe): chosen text can't dress up an email from Loopin.
+      const by = mailSafe(actor.name, "Someone");
+      const gname = mailSafe(group.name, "a group");
       await sendMail(
         email,
-        `${actor.name} added you to ${group.name} on Loopin`,
-        `${actor.name} added you to “${group.name}” on Loopin.\n\nJoin here: ${link}`,
-        `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
+        "You've been added to a group on Loopin",
+        `${by} added you to “${gname}” on Loopin.\n\nJoin here: ${link}`,
+        `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(by)}</strong> added you to <strong>${esc(gname)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(gname)}</a></p></div>`,
         { optOut: true, item: "groups.added", suppress: blocked },
       );
     }
@@ -473,11 +477,14 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     // counters as a real one but is never handed to the mail service (`suppress`).
     const theirAccount = await db.account.findUnique({ where: { email }, select: { id: true } });
     const blocked = Boolean(theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true)));
+    const by = mailSafe(actor.name, "Someone");
+    const gname = mailSafe(group.name, "a group");
+    const asName = mailSafe(member.name, "Someone");
     await sendMail(
       email,
-      `${actor.name} added you to ${group.name} on Loopin`,
-      `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
-      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
+      "You've been added to a group on Loopin",
+      `${by} added you as “${asName}” in “${gname}” on Loopin. Tap to join and see your share:\n\n${link}`,
+      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(by)}</strong> added you as <strong>${esc(asName)}</strong> in <strong>${esc(gname)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(asName)}</a></p></div>`,
       { optOut: true, item: "groups.added", suppress: blocked },
     ).catch(() => false);
   };

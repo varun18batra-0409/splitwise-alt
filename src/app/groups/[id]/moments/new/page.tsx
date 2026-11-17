@@ -24,7 +24,7 @@ export default async function NewMomentPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <PageHeader title="Add your moment" titleClass="text-[clamp(22px,7vw,28px)]" back={`/groups/${id}/moments`} />
-      <p className="-mt-3 mb-5 text-sm text-fg/55">One photo and a few words. Only people in this group see it.</p>
+      <p className="-mt-3 mb-5 text-sm text-fg/55">One photo and a few words. People in this group see it, and so does anyone who was in the group when you added it.</p>
       <MomentForm groupId={id} days={days} initialKey={newRequestKey()} />
     </>
   );

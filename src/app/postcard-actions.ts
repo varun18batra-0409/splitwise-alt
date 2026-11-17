@@ -17,6 +17,7 @@ import { ownsPostcardPhoto } from "@/lib/postcards/uploads";
 import { myMomentForPostcard } from "@/lib/moments-db";
 import { deliverNotes } from "@/lib/account-notes";
 import { isBlockedEitherWay } from "@/lib/blocks";
+import { flashTo } from "@/lib/flash";
 
 const field = (f: FormData, k: string, max = 200) => String(f.get(k) ?? "").replace(/\r/g, "").slice(0, max);
 
@@ -26,18 +27,18 @@ export async function sendPostcardAction(f: FormData) {
   const me = await getAccount();
   const back = `/postcards/new?${new URLSearchParams({ ...(field(f, "groupId") ? { group: field(f, "groupId") } : {}) })}`;
   if (!me) redirect(`/signin?back=${encodeURIComponent(back)}`);
-  const fail = (error: string) => redirect(`${back}${back.includes("?") ? "&" : "?"}${new URLSearchParams({ error })}`);
+  const fail = async (error: string): Promise<never> => redirect(await flashTo("/postcards/new", { error }, field(f, "groupId") ? { group: field(f, "groupId") } : {}));
 
   const to = await canSendTo(me.id, [...new Set(f.getAll("to").map(String))].slice(0, 60));
-  if (!to.size) fail("Pick who it’s for.");
+  if (!to.size) await fail("Pick who it’s for.");
   const message = field(f, "message", 600).trim();
-  if (!message) fail("Write a few words on the back.");
+  if (!message) await fail("Write a few words on the back.");
   // The shape of the card. Anything unknown is the original (classic, full, small). A one-side card holds up to 160 characters:
   // checked here, before any photo is stored, and never cut silently.
   const format = formatOf(f.get("format"));
   const fit = fitOf(f.get("fit"));
   const photoSize = photoSizeOf(f.get("photoSize"));
-  if (format === "oneside" && oneSideTooLong(message)) fail("A one-side card holds up to 160 characters. Take a few out.");
+  if (format === "oneside" && oneSideTooLong(message)) await fail("A one-side card holds up to 160 characters. Take a few out.");
 
   // The front: a print, one of Loopin's place photos, or your own photo.
   let front = field(f, "front", 120);
@@ -48,21 +49,21 @@ export async function sendPostcardAction(f: FormData) {
   if (front === "own" && !f.get("photo") && momentId) {
     // A photo from one of your own moments: copied onto this card now, so deleting the moment later changes nothing here.
     const m = await myMomentForPostcard(me.id, momentId);
-    if (!m) fail("That photo didn’t work. Try another one.");
+    if (!m) await fail("That photo didn’t work. Try another one.");
     const clean = cleanPhoto(m!.bytes);
-    if (!clean) fail("That photo didn’t work. Try another one.");
+    if (!clean) await fail("That photo didn’t work. Try another one.");
     newPhoto = { bytes: clean!, type: m!.type };
   } else if (front === "own" && reuse && !f.get("photo")) {
     // Your own photo from a card you sent before: only if it really was yours (you sent a card with it, and the photo is yours).
-    if (!(await ownsPostcardPhoto(me.id, reuse))) fail("That photo didn’t work. Try another one.");
+    if (!(await ownsPostcardPhoto(me.id, reuse))) await fail("That photo didn’t work. Try another one.");
     photoId = reuse;
   } else if (front === "own") {
     const b64 = String(f.get("photo") ?? "");
     const bytes = b64 ? new Uint8Array(Buffer.from(b64, "base64")) : new Uint8Array();
     const type = photoType(bytes);
-    if (!type || bytes.length > MAX_PHOTO_BYTES) fail("That photo didn’t work. Try another one.");
+    if (!type || bytes.length > MAX_PHOTO_BYTES) await fail("That photo didn’t work. Try another one.");
     const clean = cleanPhoto(bytes);
-    if (!clean) fail("We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it.");
+    if (!clean) await fail("We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it.");
     // Not stored yet: every other check below runs first, so a refused card leaves no photo behind.
     newPhoto = { bytes: clean!, type: type! };
   } else if (front.startsWith("print:")) {
@@ -71,7 +72,7 @@ export async function sendPostcardAction(f: FormData) {
     front = "print:beach";
   }
 
-  if (!(await allow(`postcard:${me.id}`, 80, 86_400))) fail("That’s a lot of postcards today. Try again tomorrow.");
+  if (!(await allow(`postcard:${me.id}`, 80, 86_400))) await fail("That’s a lot of postcards today. Try again tomorrow.");
 
   let stamp = isStampId(field(f, "stamp", 20)) ? field(f, "stamp", 20) : "t:airmail";
   // A rare stamp only while it's on issue (a card being sent again keeps it if the original had it).
@@ -89,7 +90,7 @@ export async function sendPostcardAction(f: FormData) {
     const offset = new Date(noonUtc.toLocaleString("en-US", { timeZone: tz })).getTime() - new Date(noonUtc.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
     const at = new Date(new Date(`${day}T00:00:00Z`).getTime() - offset);
     const now = Date.now();
-    if (Number.isNaN(at.getTime()) || at.getTime() <= now || at.getTime() > now + 2 * 366 * 86_400_000) fail("Pick a day from tomorrow, up to two years ahead.");
+    if (Number.isNaN(at.getTime()) || at.getTime() <= now || at.getTime() > now + 2 * 366 * 86_400_000) await fail("Pick a day from tomorrow, up to two years ahead.");
     opensAt = at;
   }
   // Every check has passed: only now is a new photo stored.

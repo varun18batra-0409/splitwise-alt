@@ -88,7 +88,7 @@ describe("the page wires it", () => {
     expect(page).toContain("{pot && <MoneyTicket");
   });
   it("notices and the closed banner show on every tab", () => {
-    expect(page).toContain("<GroupNotices sp={sp} />");
+    expect(page).toContain("<GroupNotices sp={sp} notes={notes} />");
     expect(page).toContain("<ClosedBanner v={v} />");
   });
   it("the old links are still made by the app: Expenses, People and Trip recap addresses", () => {

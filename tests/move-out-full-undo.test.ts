@@ -491,7 +491,8 @@ describe("accepting an invitation back (round 2, item 1, and 4b)", () => {
     expect(await db.groupEvent.count({ where: { groupId: f.g.id, kind: "member_rejoined" } })).toBe(0);
     const src = readFileSync("src/app/actions.ts", "utf8");
     expect(src).toContain("r.movedOut");
-    expect(src).toContain("/people?error=");
+    // She is sent to People with the message signed (flashTo), not as plain ?error= text.
+    expect(src).toContain('flashTo(["groups", r.movedOut.groupId, "people"], { error: r.error })');
   });
   it("when the move-out can't be undone any more, the invitation just brings her back", async () => {
     const f = await flat();

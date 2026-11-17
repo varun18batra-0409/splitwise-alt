@@ -8,6 +8,7 @@ import { startDirectWith } from "@/app/direct-actions";
 import { FreshKey } from "@/components/FreshKey";
 import { Initial } from "@/components/SettleUp";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { readNotes } from "@/lib/flash";
 
 // "With a person": pick someone, and go straight to Add expense with them. Only people you already know are listed:
 // your existing pairs, and account holders you share an open group with. Anyone else is added by name (an email is optional).
@@ -15,6 +16,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/compone
 export default async function PickPerson({ searchParams }: { searchParams: Promise<{ q?: string; error?: string; name?: string; email?: string }> }) {
   if (!directEntryOn()) redirect("/add");
   const sp = await searchParams;
+  const notes = await readNotes(sp, "/add/person");
   const account = await getAccount();
   if (!account) redirect("/signin?back=/add/person");
   const memberships = await getMemberships();
@@ -43,7 +45,7 @@ export default async function PickPerson({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="With a person" back="/add" />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 200)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 200)}</ErrorNote>}
 
       <form method="get" role="search" className="mb-1 flex gap-2">
         <input name="q" defaultValue={sp.q?.slice(0, 60) ?? ""} placeholder="Search by name" aria-label="Search by name" autoComplete="off" className={`${inputClass} min-w-0 flex-1`} />

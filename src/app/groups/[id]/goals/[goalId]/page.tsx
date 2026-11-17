@@ -14,6 +14,7 @@ import { FreshKey } from "@/components/FreshKey";
 import { leaverOf } from "@/lib/left-view-db";
 import { DateField } from "@/components/DateField";
 import { ChevronDown } from "@/components/icons";
+import { readNotes } from "@/lib/flash";
 
 // A savings goal ("new" to start one): the ring, what a month gets you there,
 // and "I set money aside". The money stays in people's own accounts.
@@ -27,6 +28,7 @@ export default async function GoalPage({
   const { id, goalId } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/goals/${goalId}`);
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
@@ -40,7 +42,7 @@ export default async function GoalPage({
     return (
       <>
         <PageHeader title="New savings goal" back={`/groups/${group.id}`} />
-        {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+        {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
         <p className="-mt-3 mb-6 text-sm text-gray-500">A holiday, a sofa, a rainy-day fund. Loopin keeps count; it doesn’t hold this money. It stays in your own accounts.</p>
         <form action={saveGoal} className="space-y-6">
           <input type="hidden" name="groupId" value={group.id} />
@@ -88,7 +90,7 @@ export default async function GoalPage({
   return (
     <>
       <PageHeader title={goal.name} back={`/groups/${group.id}`} />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       {goal.byDate && <p className="-mt-4 mb-4 text-sm text-gray-500">Goal · by {niceDate(goal.byDate)}</p>}
 
       <section className="flex flex-col items-center">

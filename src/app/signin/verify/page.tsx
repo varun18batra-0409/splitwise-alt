@@ -4,6 +4,7 @@ import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { safePath } from "@/lib/paths";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { db } from "@/lib/db";
+import { shownEmail } from "@/lib/email-clean";
 
 // Where the link in the sign-in email lands. It asks for one tap instead of
 // signing in straight away, so email scanners that open links can't use up
@@ -11,13 +12,15 @@ import { db } from "@/lib/db";
 export default async function VerifyLink({ searchParams }: { searchParams: Promise<{ e?: string; c?: string; b?: string }> }) {
   const { e = "", c = "", b = "" } = await searchParams;
   const back = safePath(b || "/");
-  const email = e.slice(0, 254);
+  // The address from the link is shown only if it is a real-looking email in plain ASCII; otherwise no address is named.
+  const rawEmail = e.slice(0, 254);
+  const email = shownEmail(rawEmail);
   const code = c.replace(/\D/g, "").slice(0, 6);
   // Someone could send you a link for *their* account. Say plainly whose
   // account this is, and if you're already signed in as someone else, that
   // this switches you.
   const now = await getAccount();
-  const other = now && now.email && now.email.toLowerCase() !== email.toLowerCase() ? now.email : "";
+  const other = now && now.email && now.email.toLowerCase() !== rawEmail.trim().toLowerCase() ? now.email : "";
   // Groups this phone is in without an account move to the account that signs
   // in, so name them: nobody should hand their groups over without seeing it.
   const ids = Object.values(await getMemberships());
@@ -29,16 +32,16 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="Sign in" back="/" />
-      {email && code.length === 6 ? (
+      {rawEmail && code.length === 6 ? (
         <>
           <p className="mb-3 text-gray-600">
             {other ? (
               <>
-                You’re signed in as <span className="text-fg">{other}</span>. Switch to <span className="text-fg">{email}</span> on this phone?
+                You’re signed in as <span className="text-fg">{other}</span>. {email ? <>Switch to <span className="text-fg">{email}</span> on this phone?</> : "Switch accounts on this phone?"}
               </>
             ) : (
               <>
-                Sign in as <span className="text-fg">{email}</span> on this phone?
+                {email ? <>Sign in as <span className="text-fg">{email}</span> on this phone?</> : "Sign in on this phone?"}
               </>
             )}
           </p>
@@ -49,7 +52,7 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
             </p>
           )}
           <form action={verifyCode}>
-            <input type="hidden" name="email" value={email} />
+            <input type="hidden" name="email" value={rawEmail} />
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="back" value={back} />
             <button type="submit" className={primaryButtonClass}>

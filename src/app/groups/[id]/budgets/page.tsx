@@ -9,12 +9,14 @@ import { BUDGET_CATEGORIES } from "@/lib/home/budgets";
 import { getCategory } from "@/lib/categories";
 import { toInputAmount } from "@/lib/money";
 import { leaverOf } from "@/lib/left-view-db";
+import { readNotes } from "@/lib/flash";
 
 // Monthly budgets: an amount per category (blank = no budget).
 export default async function BudgetsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
-  const { error } = await searchParams;
+  const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/budgets`);
   const group = await db.group.findUnique({ where: { id }, include: { budgets: true, members: { select: { id: true } } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
@@ -29,7 +31,7 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
     <>
       <PageHeader title="Monthly budgets" back={`/groups/${group.id}`} />
       <p className="-mt-3 mb-6 text-sm text-gray-500">Set a limit for what matters. Everyone gets a nudge at 80% and if it goes over. Leave blank for no budget.</p>
-      {error && <ErrorNote>{error.slice(0, 160)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       <form action={saveBudgets} className="space-y-6">
         <input type="hidden" name="groupId" value={group.id} />
         <ul className="divide-y divide-line rounded-2xl border border-line">

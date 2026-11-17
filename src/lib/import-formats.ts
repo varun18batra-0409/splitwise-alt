@@ -1,4 +1,5 @@
 import { decimalsOf, isSupportedCurrency, MAX_MINOR } from "./money";
+import { safeSkipReason, unsupportedCurrencyError } from "./import-errors";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, parseSplitwiseCsv, readCsv, type SwParsed, type SwRow } from "./splitwise-csv";
 
 // Bringing a group over from another app's spreadsheet (CSV).
@@ -235,8 +236,8 @@ const SAME_NAMES = "Two people in this file have names that are the same for the
 function finish(people: string[], rows: SwRow[], skipped: { line: number; reason: string }[], currency: string, otherCurrencies: string[] = []): SwParsed {
   if (!people.length) return { ok: false, error: "No people were found in this file." };
   if (people.length > 50) return { ok: false, error: "Loopin groups can have up to 50 people." };
-  if (!rows.length) return { ok: false, error: skipped.length ? `None of the ${skipped.length} lines could be read (${skipped[0].reason}).` : "There are no expenses in this file." };
-  if (!isSupportedCurrency(currency)) return { ok: false, error: `Loopin doesn’t support ${currency} yet.` };
+  if (!rows.length) return { ok: false, error: skipped.length ? `None of the ${skipped.length} lines could be read (${safeSkipReason(skipped[0].reason)}).` : "There are no expenses in this file." };
+  if (!isSupportedCurrency(currency)) return { ok: false, error: unsupportedCurrencyError(currency) };
   return { ok: true, people, currency, rows, skipped, otherCurrencies, expected: null };
 }
 

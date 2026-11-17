@@ -49,13 +49,18 @@ export function pairTitle(group: { members: { id: string; name: string }[] }, my
 // Is the other person someone with a Loopin account? (False: a name only the owner sees.)
 export const isSharedPair = (other: PairMember | undefined): boolean => Boolean(other && (other.accountId || other.claimedAt));
 
-// Group pages a pair must not show go to the person's page instead, keeping the query (tab, did, undone, error...) so messages still arrive.
-export function redirectIfDirect(group: { id: string; type: string }, query: Record<string, string | string[] | undefined> = {}): void {
-  if (!isDirect(group)) return;
+// Where a pair's person page is, keeping the query (tab, did, undone...) so the page still knows what just happened.
+export function redirectTarget(group: { id: string }, query: Record<string, string | string[] | undefined> = {}): string {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(query)) for (const one of Array.isArray(v) ? v : v === undefined ? [] : [v]) q.append(k, one);
   const qs = q.toString();
-  redirect(`/people/${group.id}${qs ? `?${qs}` : ""}`);
+  return `/people/${group.id}${qs ? `?${qs}` : ""}`;
+}
+
+// Group pages a pair must not show go to the person's page instead, keeping the query (tab, did, undone...).
+export function redirectIfDirect(group: { id: string; type: string }, query: Record<string, string | string[] | undefined> = {}): void {
+  if (!isDirect(group)) return;
+  redirect(redirectTarget(group, query));
 }
 
 type LinesLike = { paidById: string; amount: number; payers?: string | null; kind?: string | null; shares: { memberId: string; amount: number }[] };

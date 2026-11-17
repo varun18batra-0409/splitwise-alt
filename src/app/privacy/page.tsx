@@ -87,7 +87,7 @@ export default function Privacy() {
         </li>
         <li>
           <strong>“I’ve paid” links:</strong> a link in a reminder opens without signing in. Whoever has it sees the group’s name, the two people’s
-          names and the amount owed, and can tap “I’ve paid”. It works for that one debt only, and stops after 30 days, once it’s settled, or if the group is closed. Send it only to the person who owes.
+          names, the amount owed and how the person owed asked to be paid (their UPI ID or pay link, with a QR code), and can tap “I’ve paid”. It works for that one debt only, and stops after 30 days, once it’s settled, or if the group is closed. Send it only to the person who owes.
         </li>
         <li>
           <strong>If you leave a group:</strong> you still see it as it was up to the day you left, plus any later change to your own share. Older expenses

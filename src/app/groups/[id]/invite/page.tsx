@@ -21,6 +21,7 @@ import { coverFor } from "@/lib/covers";
 import { inviteMemberId, inviteRowLabel } from "@/lib/invites";
 import { invitedNotice } from "@/lib/invite-label";
 import { SITE_URL } from "@/lib/site";
+import { readNotes } from "@/lib/flash";
 
 // "invited" in the address: who was just added, as [name, email] pairs. The email is only there when the
 // person typed it themselves ("By email"); someone found by search carries their name alone.
@@ -67,6 +68,7 @@ export default async function AddPeoplePage({
   const { id } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/invite`);
   const group = await db.group.findUnique({
     where: { id },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] }, events: { orderBy: { createdAt: "desc" }, take: 50 } },
@@ -127,10 +129,10 @@ export default async function AddPeoplePage({
       {sp.new === "1" && (
         <Notice params={["new"]} className="-mt-2 mb-5">{group.name} is ready. Now bring your people in.</Notice>
       )}
-      {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
       {sp.newlink && <Notice tone="success" params={["newlink"]} className="mb-4">New invite link ready. The old one no longer works.</Notice>}
       {!sp.undone &&
-        justInvited(sp.invited).map(([name, email]) => (
+        justInvited(notes.invited).map(([name, email]) => (
           <Notice key={`${name}-${email}`} tone="success" params={["invited"]} className="mb-4">
             {sp.back === "1" ? (
               <>

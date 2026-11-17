@@ -11,6 +11,7 @@ import { LockIcon } from "@/components/PassportIcons";
 import { PassportBook } from "@/components/PassportBook";
 import { Locked, NudgeBox } from "@/components/PassportFriend";
 import { SafetyLinks } from "@/components/SafetyLinks";
+import { readNotes } from "@/lib/flash";
 
 export const metadata = { title: "Passport", robots: { index: false } };
 
@@ -18,6 +19,7 @@ export const metadata = { title: "Passport", robots: { index: false } };
 export default async function FriendPassportByAccount({ params, searchParams }: { params: Promise<{ accountId: string }>; searchParams: Promise<{ nudged?: string; error?: string; from?: string }> }) {
   const { accountId } = await params;
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/passport/friends/${encodeURIComponent(accountId)}`);
   const me = await getAccount();
   if (!me) redirect(`/signin?back=/passport/friends`);
   if (!/^[A-Za-z0-9_-]{6,40}$/.test(accountId)) return <Locked />;
@@ -50,7 +52,7 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
     <>
       <PageHeader title={`${first}’s passport`} back={back} />
       <PassportBook name={first} stats={p.stats} counts={passportCounts(p, today)} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={withCountryPhotos(p.index)} badges={p.badges} own={false} />
-      {empty && <NudgeBox accountId={accountId} first={first} sent={sp.nudged === "1"} error={sp.error} />}
+      {empty && <NudgeBox accountId={accountId} first={first} sent={sp.nudged === "1"} error={notes.error} />}
       <p className="mt-5 text-center text-sm text-gray-500">
         <Link href="/passport/friends" className="font-semibold text-fg underline underline-offset-4">
           All friends’ passports

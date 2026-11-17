@@ -8,6 +8,7 @@ import { SITE_URL } from "@/lib/site";
 import { cleanKey } from "@/lib/once";
 import { allow } from "@/lib/rate-limit";
 import { cleanCountries, cleanCountry, cleanScope } from "@/lib/wishes";
+import { flashTo } from "@/lib/flash";
 
 // "Want to go". Every action takes only country codes and friend ids; the owner is always the signed-in account (never a form field).
 // Who can see what is decided in src/lib/wishes-db.ts, not here.
@@ -25,8 +26,8 @@ async function me() {
 export async function addWishesAction(f: FormData) {
   const a = await me();
   const picked = cleanCountries(f.getAll("country"));
-  if (!picked.length) redirect(back({ error: "Tick at least one country." }));
-  if (!(await allow(`wish-add:${a.id}`, 30, 3600))) redirect(back({ error: "You’ve added a lot of places just now. Try again in a bit." }));
+  if (!picked.length) redirect(await flashTo("/passport", { error: "Tick at least one country." }, { tab: "want" }));
+  if (!(await allow(`wish-add:${a.id}`, 30, 3600))) redirect(await flashTo("/passport", { error: "You’ve added a lot of places just now. Try again in a bit." }, { tab: "want" }));
   const { addWishes } = await import("@/lib/wishes-db");
   const r = await addWishes(a.id, picked);
   redirect(back({ wished: String(r.added), ...(r.full ? { full: "1" } : {}) }, "#list"));
@@ -42,13 +43,13 @@ export async function removeWishAction(f: FormData) {
 // "Share": one country or the whole list, with exactly the friends ticked (unticked = stop sharing).
 export async function shareWishesAction(f: FormData) {
   const a = await me();
-  if (!(await allow(`wish-share:${a.id}`, 30, 3600))) redirect(back({ error: "You’ve changed sharing a lot just now. Try again in a bit." }));
+  if (!(await allow(`wish-share:${a.id}`, 30, 3600))) redirect(await flashTo("/passport", { error: "You’ve changed sharing a lot just now. Try again in a bit." }, { tab: "want" }));
   const scope = cleanScope(f.get("scope"));
-  if (!scope) redirect(back({ error: "Pick what to share." }));
+  if (!scope) redirect(await flashTo("/passport", { error: "Pick what to share." }, { tab: "want" }));
   const friends = f.getAll("friend").map((v) => String(v).slice(0, 40));
   const { setShares } = await import("@/lib/wishes-db");
   const r = await setShares(a.id, scope, friends);
-  if (!r.ok) redirect(back({ error: r.error ?? "Couldn’t change sharing." }));
+  if (!r.ok) redirect(await flashTo("/passport", { error: r.error ?? "Couldn’t change sharing." }, { tab: "want" }));
   redirect(back({ shared: String(r.shared) }, "#list"));
 }
 
@@ -58,14 +59,14 @@ export async function planTogetherAction(f: FormData) {
   const country = cleanCountry(f.get("country"));
   const friendId = String(f.get("friendId") ?? "").slice(0, 40);
   if (!country || !friendId) redirect(WANT);
-  if (!(await allow(`plan-together:${a.id}`, 5, 86_400))) redirect(back({ error: "You’ve planned a few trips today. Try again tomorrow." }));
+  if (!(await allow(`plan-together:${a.id}`, 5, 86_400))) redirect(await flashTo("/passport", { error: "You’ve planned a few trips today. Try again tomorrow." }, { tab: "want" }));
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = process.env.VERCEL_ENV === "production" ? SITE_URL : `${proto}://${host}`;
   const { planTogether } = await import("@/lib/wishes-db");
   const r = await planTogether(a, friendId, country, { key: cleanKey(f.get("rid")), origin, later: (job) => after(job) });
-  if (!r.ok) redirect(back({ error: r.error }));
+  if (!r.ok) redirect(await flashTo("/passport", { error: r.error }, { tab: "want" }));
   await setMyMemberId(r.groupId, r.memberId);
   redirect(`/groups/${r.groupId}`);
 }

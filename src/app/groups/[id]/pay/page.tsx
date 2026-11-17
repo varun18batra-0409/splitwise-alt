@@ -11,6 +11,7 @@ import { Mark } from "@/components/HomeMoney";
 import { groupMark } from "@/lib/home/money-card";
 import { FreshKey } from "@/components/FreshKey";
 import { ErrorNote, PageHeader } from "@/components/ui";
+import { readNotes } from "@/lib/flash";
 
 // Record that one person paid another back — any amount, full or part.
 // Smart Settle's suggestions are offered as one-tap fill-ins.
@@ -23,6 +24,7 @@ export default async function RecordPayment({
 }) {
   const { id } = await params;
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/pay`);
   const data = await loadGroup(id, { events: false, viewer: await getMyMemberId(id) });
   if (!data) notFound();
   const { group, transfers, net } = data;
@@ -57,7 +59,7 @@ export default async function RecordPayment({
   return (
     <>
       <PageHeader title="Record a payment" back={fromSettle ? `/groups/${group.id}/settle` : `/groups/${group.id}?tab=balances`} />
-      {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
 
       <RecordPaymentForm
         groupId={group.id}

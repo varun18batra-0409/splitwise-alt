@@ -16,6 +16,7 @@ import { getTimeZone } from "@/lib/tz";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { niceDate } from "@/lib/format";
 import { leaverOf } from "@/lib/left-view-db";
+import { readNotes } from "@/lib/flash";
 
 // One bill: its daily calendar (milk), what happened each month, and changes.
 export default async function BillPage({
@@ -28,6 +29,7 @@ export default async function BillPage({
   const { id, billId } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const sp = await searchParams;
+  const notes = await readNotes(sp, `/groups/${id}/bills/${billId}`);
   const group = await db.group.findUnique({
     where: { id },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, splitWeight: true, leftAt: true } } },
@@ -60,7 +62,7 @@ export default async function BillPage({
   return (
     <>
       <PageHeader title={bill.name} back={`/groups/${group.id}?tab=bills`} />
-      {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
+      {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       {sp.saved && <p className="mb-4 text-sm text-owed">Saved.</p>}
       {bill.paused && <p className="mb-5 rounded-xl bg-mist px-4 py-3 text-sm">Paused. It won’t be added until you start it again.</p>}
 

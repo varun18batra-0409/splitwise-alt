@@ -16,6 +16,7 @@ import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
 import { ClosedBanner, MoneyTicket } from "./_components/GroupSummary";
 import { GroupNotices } from "./_components/GroupNotices";
+import { readNotes } from "@/lib/flash";
 import { ActivityTab } from "./_components/ActivityTab";
 import { PeopleTab } from "./_components/PeopleTab";
 import { RecapTab } from "./_components/RecapTab";
@@ -81,6 +82,7 @@ export default async function GroupPage({
   const sp = await searchParams;
   // A pair of two people has no group page: its person page (which also decides who may see it), keeping the same query.
   await bounceIfDirect(id, sp);
+  const notes = await readNotes(sp, `/groups/${id}`);
 
   // Who you are here, then the ledger, the time zone and the switcher list all
   // at once (each is a trip to the database; one after another they add up).
@@ -206,7 +208,7 @@ export default async function GroupPage({
     <>
       <GroupHeader v={v} switchTo={switchTo} />
       <LeftBanner v={v} ownMoveOut={ownMove} />
-      <GroupNotices sp={sp} />
+      <GroupNotices sp={sp} notes={notes} />
       {sp.undone === "1" && !showUndo && (
         <Notice tone="success" params={["undone"]} className="mb-5 text-sm">
           Undone.
