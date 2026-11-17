@@ -7,6 +7,7 @@ import { formatMoney } from "./money";
 import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 import { localPairKey } from "./direct";
+import { openGameFor } from "./pot-db";
 
 // Renaming people and leaving / rejoining a group. Every change is logged,
 // notifies the others, and can be undone.
@@ -112,6 +113,9 @@ export async function setMember(
       if (net !== 0) {
         return { ok: false, error: owesText(net, group.currency, memberId === actorId, m.name) };
       }
+      // Chips in a game that is still open: the result can't be worked out for someone who has gone.
+      const game = await openGameFor(db, groupId, memberId);
+      if (game) return { ok: false, error: inGameText(game, memberId === actorId, m.name) };
     }
     // Someone else taking a person out is a removal (an undo spells it out in its data instead).
     const removing = (leaving && !alreadyLeft && memberId !== actorId && !undoing && data.removedAt === undefined) || promoting;
@@ -140,6 +144,8 @@ export async function setMember(
         await guardGroup(tx, groupId, { currency: group.currency, allowClosed: true });
         const owing = (await ledgerInTx(tx, groupId)).net[memberId] ?? 0;
         if (owing !== 0) throw new StillOwes(owing);
+        const game = await openGameFor(tx, groupId, memberId);
+        if (game) throw new InOpenGame(game);
       }
       // Written only if the person is still exactly as it was read (a removal racing a rejoin can't leave someone removed-but-active).
       const wrote = await tx.member.updateMany({ where: { id: memberId, leftAt: m.leftAt, removedAt: m.removedAt }, data: { leftAt: leftAtNext, ...removal } });
@@ -180,6 +186,7 @@ export async function setMember(
     } catch (err) {
       if (err instanceof MemberMoved) return { ok: false, error: `${m.name} was just changed by someone else. Look again, then try once more.` };
       if (err instanceof StillOwes) return { ok: false, error: owesText(err.net, group.currency, memberId === actorId, m.name) };
+      if (err instanceof InOpenGame) return { ok: false, error: inGameText(err.game, memberId === actorId, m.name) };
       if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
       throw err;
     }
@@ -193,6 +200,16 @@ class StillOwes extends Error {
   constructor(public net: number) {
     super("still owes");
   }
+}
+
+class InOpenGame extends Error {
+  constructor(public game: string) {
+    super("in an open game");
+  }
+}
+
+function inGameText(game: string, self: boolean, name: string): string {
+  return self ? `You’re still in a game that’s open (${game}). Ask the host to finish it, then leave.` : `${name} is still in a game that’s open (${game}). Finish the game first.`;
 }
 
 function owesText(net: number, currency: string, self: boolean, name: string): string {

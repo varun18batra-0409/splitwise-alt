@@ -101,9 +101,11 @@ export async function countOutAction(f: FormData) {
   const { groupId, myId } = await me(await gameGroup(gameId));
   const ids = f.getAll("memberId").map(String).slice(0, 60);
   const entries = ids.map((memberId) => ({ memberId, amount: field(f, `count_${memberId}`) }));
-  const r = await countOut(gameId, myId, entries, field(f, "settle") === "1");
+  const r = await countOut(gameId, myId, entries, field(f, "settle") === "1", {}, { requestKey: cleanKey(f.get("rid")) });
   if (!r.ok) redirect(back(groupId, gameId, { error: r.error }));
-  redirect(back(groupId, gameId, r.finished ? { finished: "1" } : r.gap ? { counted: "1", gap: "1" } : { counted: "1" }));
+  // n: a new number every time, so the screen is built afresh and its count form carries a new one-time key.
+  const n = String(Date.now());
+  redirect(back(groupId, gameId, r.finished ? { finished: "1", n } : r.gap ? { counted: "1", gap: "1", n } : { counted: "1", n }));
 }
 
 // Fix a player's name (a spelling slip): players who are just a name, or yourself.

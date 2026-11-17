@@ -351,7 +351,8 @@ describe("the move-out charge after it was changed, and who is credited for it",
     const now = new Date("2026-11-14T06:00:00Z");
     expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("restore") }, now)).ok).toBe(true);
     const pre = await chargeOf(f.groupId);
-    expect((await setExpenseDeleted(pre.id, f.asha, true)).ok).toBe(true);
+    // Taken off behind the app's back (the app itself now refuses to delete a charge Ravi, who has left, paid for: it would leave him owing it).
+    await db.expense.update({ where: { id: pre.id }, data: { deletedAt: new Date() } });
     // The month is added without it: the whole month, 139200 = 69600 + 69600.
     await runBillsForGroup(f.groupId, monthEnd);
     const milk = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" } });
@@ -361,13 +362,16 @@ describe("the move-out charge after it was changed, and who is credited for it",
     expect((await db.expense.findUniqueOrThrow({ where: { id: pre.id } })).deletedAt).not.toBeNull();
   });
 
-  it("deleted and restored BEFORE the month is added is fine, and counts again: the month-end bill is 118400", async () => {
+  it("D3-1: deleting the charge before the month is added is refused (Ravi would owe it again): not deleted, balances unchanged, month-end bill still 118400", async () => {
     const f = await flat("restore-early", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
     const now = new Date("2026-11-14T06:00:00Z");
     expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("restore-early") }, now)).ok).toBe(true);
     const pre = await chargeOf(f.groupId);
-    expect((await setExpenseDeleted(pre.id, f.asha, true)).ok).toBe(true);
-    expect((await setExpenseDeleted(pre.id, f.asha, false)).ok).toBe(true);
+    // Ravi paid Asha 20800 for his 20800 share and left at 0; taking the charge away would leave him +20800.
+    expect(await setExpenseDeleted(pre.id, f.asha, true)).toEqual({ ok: false, error: "Ravi has left the group, so this can't be deleted. Ask them to rejoin first." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: pre.id } })).deletedAt).toBeNull();
+    const net = (await loadGroup(f.groupId))!.net;
+    expect([net[f.asha], net[f.ravi], net[f.meera]]).toEqual([0, 0, 0]);
     await runBillsForGroup(f.groupId, monthEnd);
     expect((await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" } })).amount).toBe(118400);
   });

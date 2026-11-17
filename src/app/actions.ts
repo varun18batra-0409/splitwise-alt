@@ -24,7 +24,7 @@ import { prepareDirectSave } from "@/lib/direct-db";
 import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
-import { paymentText, recordPaymentCore } from "@/lib/pay-record";
+import { overKey, paymentText, recordPaymentCore } from "@/lib/pay-record";
 import { cleanKey, fingerprintOf, isDuplicateKey, keyState, previousResult, STALE_KEY_ERROR } from "@/lib/once";
 import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, inviteByEmail } from "@/lib/invites";
@@ -576,7 +576,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
 
   // More than they (or the person paid) can owe each other (often a typo with an extra zero): asked once, checked inside the write.
-  const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && formData.get("over") !== "1" });
+  const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && !(formData.get("over") === "1" && formData.get("overFor") === overKey(fromId, toId, amount!)) });
   if (r.kind === "refused") back(r.error);
   if (r.kind === "over") redirect(overpayHref(group.id, { from: fromId, to: toId, amount: amountText, owes: String(r.limit), side: r.side }, fromSettle));
   redirect(r.kind === "done" && r.did ? `${done}&did=${r.did}` : done);

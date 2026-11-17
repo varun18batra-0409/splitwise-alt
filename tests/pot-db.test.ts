@@ -224,14 +224,17 @@ describe("The Pot (real database)", () => {
     exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", category: "", rateMode: "auto", manualRate: "", ...over,
   });
   // Asha takes 1,000 and puts back 1,500; Bina takes 1,000 and puts back 500. Asha +50000, Bina -50000.
+  // hostLeaves: the game is started by Chirag, who isn't playing (players Asha and Bina), and Chirag then leaves. (A host who is IN the
+  // game can't leave while it is open, and a finished result with someone who has left in it can't be written: see b1-leaver-doors 10.)
   async function playedGame(opts: { hostLeaves?: boolean } = {}) {
     const t = await table();
-    const s = await startGame(t.g.id, t.a, { name: "Audit night", game: "poker", players: [t.a, t.b] });
+    const host = opts.hostLeaves ? t.c : t.a;
+    const s = await startGame(t.g.id, host, { name: "Audit night", game: "poker", players: [t.a, t.b] });
     if (!s.ok) throw new Error(s.error);
-    for (const who of [t.a, t.b]) await recordMove(s.id, t.a, { memberId: who, kind: "take", amount: "1000" });
-    await recordMove(s.id, t.a, { memberId: t.a, kind: "return", amount: "1500" });
-    await recordMove(s.id, t.a, { memberId: t.b, kind: "return", amount: "500" });
-    if (opts.hostLeaves) await db.member.update({ where: { id: t.a }, data: { leftAt: new Date() } });
+    for (const who of [t.a, t.b]) await recordMove(s.id, host, { memberId: who, kind: "take", amount: "1000" });
+    await recordMove(s.id, host, { memberId: t.a, kind: "return", amount: "1500" });
+    await recordMove(s.id, host, { memberId: t.b, kind: "return", amount: "500" });
+    if (opts.hostLeaves) await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
     return { ...t, gameId: s.id };
   }
 
@@ -293,10 +296,10 @@ describe("The Pot (real database)", () => {
   });
 
   it("when the host has left, the group admin can finish the game: the result is recorded once; others still can't", async () => {
-    const { g, a, b, c, gameId } = await playedGame({ hostLeaves: true });
+    const { g, a, b, c, d, gameId } = await playedGame({ hostLeaves: true });
     const admin = (await groupAdminId(g.id))!;
-    expect(admin).not.toBe(a);
-    const notAdmin = [b, c].find((x) => x !== admin)!;
+    expect(admin).not.toBe(c); // Chirag started the game and has left
+    const notAdmin = [a, b, d].find((x) => x !== admin)!;
     expect((await finishGame(gameId, notAdmin)).ok).toBe(false);
     expect((await finishGame(gameId, admin)).ok).toBe(true);
     expect((await finishGame(gameId, admin)).ok).toBe(false); // already finished
@@ -307,7 +310,7 @@ describe("The Pot (real database)", () => {
     expect(await db.expense.count({ where: { groupId: g.id, kind: "pot" } })).toBe(0);
   });
 
-  it("the admin can delete a left host's open game, but not while the host is still in", async () => {
+  it("the admin can delete an open game only once the host has left or the game has been quiet for a day; a plain player never can", async () => {
     const t = await table();
     // Who looks after the group, worked out as group-admin.ts does: nobody has claimed a place, so the earliest member (createdAt, then id) who hasn't left.
     const ordered = await db.member.findMany({ where: { groupId: t.g.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true } });
@@ -318,16 +321,23 @@ describe("The Pot (real database)", () => {
     const s = await startGame(t.g.id, host, { name: "Host night", game: "poker", players: [host, other] });
     if (!s.ok) throw new Error(s.error);
     expect((await loadGame(t.g.id, s.id))!.hostId).toBe(host);
-    // The host is still in: the admin may not delete it, another player may not, the host may only when it is theirs to do.
+    // The host is in and the game is new: neither the admin nor another player may delete it.
     expect((await deleteGame(s.id, admin)).ok).toBe(false);
     expect((await deleteGame(s.id, other)).ok).toBe(false);
     expect(await loadGame(t.g.id, s.id)).not.toBeNull();
-    // The host leaves: now the admin can (and a plain player still can't).
-    await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
-    expect(await groupAdminId(t.g.id)).toBe(admin);
+    // Quiet for a day (the game was started 25 hours ago and nothing has happened since): the admin can, a plain player still can't.
+    await db.potGame.update({ where: { id: s.id }, data: { createdAt: new Date(Date.now() - 25 * 3600_000) } });
     expect((await deleteGame(s.id, other)).ok).toBe(false);
     expect((await deleteGame(s.id, admin)).ok).toBe(true);
     expect(await loadGame(t.g.id, s.id)).toBeNull();
+    // A second game whose host has left: the admin can at once, a plain player still can't.
+    const s2 = await startGame(t.g.id, host, { name: "Host night 2", game: "poker", players: [host, other] });
+    if (!s2.ok) throw new Error(s2.error);
+    await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
+    expect(await groupAdminId(t.g.id)).toBe(admin);
+    expect((await deleteGame(s2.id, other)).ok).toBe(false);
+    expect((await deleteGame(s2.id, admin)).ok).toBe(true);
+    expect(await loadGame(t.g.id, s2.id)).toBeNull();
   });
 
   it("an imported card-game row (no game behind it) stays editable and deletable; a game's result does not", async () => {

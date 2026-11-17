@@ -15,7 +15,7 @@ import { isGameResult } from "./pot-result";
 import { findLikelyDuplicate } from "./duplicates";
 import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
-import { chargeLock, chargeLockedText, moveOutLeavers } from "./home/charge-lock";
+import { chargeLock, chargeLockedText } from "./home/charge-lock";
 import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -458,10 +458,12 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     if (locked) throw deleted ? new ChargeLocked(locked.bill, locked.status) : new MonthAdded(locked.bill, locked.status);
     if (deleted) {
       // Deleting takes its amounts out of everyone's balance: a leaver can't end anywhere but where they were, or 0.
-      // A move-out daily charge is exempt only for the leaver it was made for (deleting it is the tested way to take it
-      // back); anyone else on it, such as the payer, is still checked.
-      const exempt = new Set(await moveOutLeavers(tx, expense.groupId, expense.id));
-      const gone = await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: expense.paidById, payers: parsePayers(expense.payers), shares: expense.shares }).filter((id) => !exempt.has(id)), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== expense.id) }));
+      // No exception any more (not even a move-out daily charge, for the leaver it was made for): taking that charge off would leave them owing it.
+      // Who is in it is read again HERE, inside the write: an edit that landed after the first read can have added or removed people.
+      const fresh = await tx.expense.findUnique({ where: { id: expense.id }, include: { shares: true } });
+      const gone = fresh
+        ? await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: fresh.paidById, payers: parsePayers(fresh.payers), shares: fresh.shares }), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== expense.id) }))
+        : [];
       if (gone.length) throw new LeaverBreak(gone[0], "deleted");
     }
     if (!deleted) {

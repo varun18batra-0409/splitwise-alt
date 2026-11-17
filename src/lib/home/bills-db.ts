@@ -144,7 +144,10 @@ export async function prepaidFor(bill: { prepaid: string }, period: string): Pro
 // A short line goes in the history for each charge that changes payer ("Asha now paid Milk · 1–14 Nov"), so nothing moves silently.
 export async function syncChargePayer(tx: Prisma.TransactionClient, groupId: string, entries: Prepaid[], payer: string): Promise<void> {
   if (!payer || !entries.length) return;
-  const rows = await tx.expense.findMany({ where: { id: { in: entries.map((x) => x.e) }, paidById: { not: payer } }, include: { shares: true } });
+  // A charge whose current payer has left stays theirs: moving the credit would move a balance that has to stay exactly 0 (the move-out
+  // hands such a charge on while the person is still here; this is the backstop for anything older).
+  const all = await tx.expense.findMany({ where: { id: { in: entries.map((x) => x.e) }, paidById: { not: payer } }, include: { shares: true, paidBy: { select: { leftAt: true, removedAt: true } } } });
+  const rows = all.filter((x) => !x.paidBy.leftAt && !x.paidBy.removedAt);
   if (!rows.length) return;
   const name = (await tx.member.findUnique({ where: { id: payer }, select: { name: true } }))?.name ?? "Someone";
   for (const x of rows) {

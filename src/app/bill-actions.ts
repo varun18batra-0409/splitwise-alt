@@ -9,11 +9,9 @@ import { addListItem, buyListItems, goingShopping, removeListItem, toggleListIte
 import { cleanKey } from "@/lib/once";
 import { tripFromGoalOnce } from "@/lib/goal-trip";
 import { saveBudgetsFor } from "@/lib/home/budgets-db";
-import { MOVE_OUT_KEY_CHANGED, moveOut, returnDepositFor, saveDepositFor } from "@/lib/home/moving-db";
+import { MOVE_OUT_KEY_CHANGED, moveOut, returnDepositFor, saveDepositFor, setMoveInFor } from "@/lib/home/moving-db";
 import { isPairGroup } from "@/lib/direct-guard";
 import { db } from "@/lib/db";
-import { logEvent } from "@/lib/events";
-import { niceDate } from "@/lib/format";
 import { addGoalEntryFor, deleteGoalFor, saveGoalFor } from "@/lib/home/goals-db";
 import { getAccount, getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { createGroupFor } from "@/lib/group-setup";
@@ -129,17 +127,9 @@ export async function setMoveIn(formData: FormData) {
   if (await isPairGroup(groupId)) redirect(`/people/${groupId}`); // a pair has no moving in
   const memberId = String(formData.get("memberId") ?? "");
   const day = String(formData.get("day") ?? "");
-  const member = await db.member.findFirst({ where: { id: memberId, groupId } });
-  if (!member) redirect(`/groups/${groupId}/people`);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T12:00:00Z`) : null;
-  await db.member.update({ where: { id: member.id }, data: { joinedFrom: date } });
-  await logEvent(db, {
-    groupId,
-    actorId: actor,
-    kind: "bill_changed",
-    text: date ? `noted ${member.name} moved in on ${niceDate(day)}` : `cleared ${member.name}’s moving-in date`,
-    details: date ? ["Bills that month are shared from that day"] : [],
-  });
+  // Everything is checked in setMoveInFor (a flat only, open, a real date, the person still here); a refusal shows on the People page.
+  const r = await setMoveInFor(groupId, actor, memberId, day);
+  if (!r.ok) redirect(`/groups/${groupId}/people?error=${encodeURIComponent(r.error)}`);
   redirect(`/groups/${groupId}/people`);
 }
 

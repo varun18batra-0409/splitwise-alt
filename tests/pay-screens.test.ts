@@ -151,7 +151,7 @@ describe("restyle only: every action, field and hook is still on the pages", () 
     for (const s of ["Settle only in", "data-different-amount", "Payment details", "/settle?pay="]) expect(all).toContain(s);
   });
   it("Record a payment still sends the same fields and keeps its hooks", () => {
-    for (const s of ['name="groupId"', 'name="back" value="settle"', 'name="fromId"', 'name="toId"', 'name="amount"', 'name="over" value="1"', "data-to={m.id}", "data-over-warning", "data-over-record", "recordCustomPayment", "keyField"]) expect(form).toContain(s);
+    for (const s of ['name="groupId"', 'name="back" value="settle"', 'name="fromId"', 'name="toId"', 'name="amount"', 'name="over" value="1"', 'name="overFor"', "data-to={m.id}", "data-over-warning", "data-over-record", "recordCustomPayment", "keyField"]) expect(form).toContain(s);
     expect(pay).toContain("data-over-cancel");
     expect(pay).toContain("<FreshKey");
     expect(pay).toContain('back={fromSettle ? `/groups/${group.id}/settle`');

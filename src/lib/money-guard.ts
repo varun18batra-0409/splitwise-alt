@@ -170,3 +170,15 @@ export async function ledgerInTx(tx: Tx, groupId: string): Promise<{ memberIds: 
 export function peopleInExpense(e: { paidById: string; payers: { memberId: string }[]; shares: { memberId: string }[] }): string[] {
   return [...new Set([e.paidById, ...e.payers.map((p) => p.memberId), ...e.shares.map((s) => s.memberId)].filter(Boolean))];
 }
+
+// The expenses and payments exactly as they are (to tell whether anything moved between two looks): amounts, who paid (payers),
+// deleted or not, each share's row, amount and person, and each payment's two people.
+export function moneySig(
+  expenses: { id: string; amount: number; payers: string; deletedAt: Date | null; shares: { id: string; amount: number; memberId?: string }[] }[],
+  payments: { id: string; amount: number; deletedAt: Date | null; fromId?: string; toId?: string }[],
+): string {
+  return JSON.stringify([
+    [...expenses].sort((a, b) => a.id.localeCompare(b.id)).map((e) => [e.id, e.amount, e.payers, e.deletedAt?.getTime() ?? 0, [...e.shares].sort((a, b) => a.id.localeCompare(b.id)).map((x) => [x.id, x.amount, x.memberId ?? ""])]),
+    [...payments].sort((a, b) => a.id.localeCompare(b.id)).map((x) => [x.id, x.amount, x.deletedAt?.getTime() ?? 0, x.fromId ?? "", x.toId ?? ""]),
+  ]);
+}

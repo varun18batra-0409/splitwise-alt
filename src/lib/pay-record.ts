@@ -27,6 +27,11 @@ export function overpayLimit(net: Record<string, number>, fromId: string, toId: 
   return payeeOwed < payerOwes ? { limit: payeeOwed, side: "to" } : { limit: payerOwes, side: "from" };
 }
 
+// What "Record anyway" was agreed to: this payer, this person paid and this amount (minor units). The warning screen carries it
+// in a hidden field, and the tick only counts when the form still says the same thing: change the amount after the
+// warning and it is asked again. (A convenience for the person typing, not a security check.)
+export const overKey = (fromId: string, toId: string, amount: number): string => `${fromId}>${toId}:${amount}`;
+
 // The question asked before recording more than the limit. Amounts are in minor units.
 export function overpayQuestion(o: { typed: number; limit: number; side: "to" | "from"; currency: string; fromName: string; toName: string }): string | null {
   if (!Number.isSafeInteger(o.typed) || !Number.isSafeInteger(o.limit) || o.typed <= o.limit) return null;

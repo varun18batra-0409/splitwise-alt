@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { logEvent, markUndone, expenseState, touchedByExpense, type MoveOutUndo, type UndoMark } from "../events";
+import { openGameFor } from "../pot-db";
 import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
@@ -25,6 +26,11 @@ export const CURRENCY_SINCE = "The group currency changed after the move-out, so
 export const MOVE_OUT_WAITING_NOTE = "An older “I’ve paid” is still being sorted. Try again in a few minutes.";
 // The payments shown on the page are not what would be recorded now.
 export const MOVE_OUT_KEY_CHANGED = "Balances changed since you opened this. Check the move-out again.";
+// A closed flat takes no changes to its money: reopen it first.
+export const MOVE_OUT_CLOSED = "This flat is closed. Reopen it first, then mark the move-out.";
+// Leaving (or being marked as moved out) while still in a game that is open would leave their chips in it.
+const inOpenGameText = (game: string, who: string | null) => (who === null ? `You’re still in a game that’s open (${game}). Ask the host to finish it, then leave.` : `${who} is still in a game that’s open (${game}). Finish the game first.`);
+class InOpenGame extends Error {}
 
 async function loadFlat(groupId: string) {
   return db.group.findUnique({
@@ -103,6 +109,34 @@ function prechargePayer(bill: DailyOffer["bill"], period: string, leaverId: stri
   return payerFor({ payer, rotation: JSON.stringify(rotation), startMonth: bill.startMonth, every: bill.every }, period, others) ?? heir;
 }
 
+// A move-out charge (an earlier leaver's share of a daily bill's month) that the person now moving out paid, while that month isn't
+// added yet: the month-end bill will be credited to the month's payer, so the charge goes to that person now, instead of being left
+// with someone who has gone. Worked out from the flat as read (preview and move-out read it the same way).
+type Handover = { expenseId: string; to: string; desc: string; amount: number; sharerId: string; billId: string; billName: string; period: string };
+async function pendingHandovers(flat: Flat, leaverId: string, othersIds: string[], heir: string): Promise<Handover[] & { adding?: string }> {
+  const bills = (await db.bill.findMany({ where: { groupId: flat.id, nature: "daily", deletedAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] })).filter((b) => b.prepaid && b.prepaid !== "{}");
+  if (!bills.length) return [];
+  const runs = await db.billRun.findMany({ where: { billId: { in: bills.map((b) => b.id) } }, select: { billId: true, period: true, status: true } });
+  const out: Handover[] & { adding?: string } = [];
+  for (const bill of bills) {
+    for (const [period, list] of Object.entries(parsePrepaid(bill.prepaid)).sort(([a], [b]) => a.localeCompare(b))) {
+      const run = runs.find((r) => r.billId === bill.id && r.period === period);
+      // A month being added right now is counting these charges: a move-out can't hand them on in the middle of it.
+      if (run?.status === "adding" && list.some((x) => flat.expenses.some((y) => y.id === x.e && y.paidById === leaverId && !y.payers))) out.adding ??= `${bill.name} for ${monthName(period)} is being added right now. Try again in a minute.`;
+      if (run && run.status !== "waiting") continue;
+      for (const x of list) {
+        const e = flat.expenses.find((y) => y.id === x.e);
+        // (A charge with several payers written on it is left as it is: handing it on would move the other payers' credit too.)
+        if (!e || e.paidById !== leaverId || e.payers) continue;
+        const to = prechargePayer(bill, period, leaverId, othersIds, heir);
+        if (!to || to === leaverId) continue;
+        out.push({ expenseId: e.id, to, desc: e.description, amount: e.amount, sharerId: x.m, billId: bill.id, billName: bill.name, period });
+      }
+    }
+  }
+  return out;
+}
+
 // "1–14 Nov" (or "5–14 Nov" for someone who moved in on the 5th).
 function stayLabel(lastDay: string, joinedFrom: Date | null): string {
   const from = joinedFrom && joinedFrom.toISOString().slice(0, 7) === lastDay.slice(0, 7) ? Number(joinedFrom.toISOString().slice(8, 10)) : 1;
@@ -128,7 +162,7 @@ async function waitingNotesFor(client: Client, groupId: string, memberId: string
   return client.paymentClaim.findMany({ where: { groupId, status: "waiting", OR: [{ fromId: memberId }, { toId: memberId }] }, select: { id: true, fromId: true, amount: true, currency: true } });
 }
 
-function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[], charges: Charge[] = []) {
+function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[], charges: Charge[] = [], handovers: { expenseId: string; to: string }[] = []) {
   const month = lastDay.slice(0, 7);
   const monthDays = daysInMonth(month);
   const daysStayed = Number(lastDay.slice(8, 10));
@@ -148,9 +182,18 @@ function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[
   const before = netBalances(ids, flat.expenses, flat.payments);
   // The daily-bill shares charged now: the payer is credited, the leaver owes.
   const extra = charges.map((c) => ({ paidById: c.payerId, amount: c.amount, shares: [{ memberId: leaverId, amount: c.amount }] }));
+  // A charge handed on is credited to its new payer (and only to them), so the square-up already includes it.
+  const handTo = new Map(handovers.map((h) => [h.expenseId, h.to]));
   const after = netBalances(
     ids,
-    [...flat.expenses.map((e) => resplit.find((r) => r.e.id === e.id) ? { ...e, shares: resplit.find((r) => r.e.id === e.id)!.shares } : e), ...extra],
+    [
+      ...flat.expenses.map((e) => {
+        const x = resplit.find((r) => r.e.id === e.id) ? { ...e, shares: resplit.find((r) => r.e.id === e.id)!.shares } : e;
+        const to = handTo.get(e.id);
+        return to ? { ...x, paidById: to, payers: "" } : x;
+      }),
+      ...extra,
+    ],
     flat.payments,
   );
   return { resplit, credit, before, after, payments: leaverPayments(after, leaverId), daysStayed, monthDays };
@@ -170,18 +213,22 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT } as Fail;
+  if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
   const bad = checkDay(lastDay, now);
   if (bad) return { ok: false, error: bad } as Fail;
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
-  const p = plan(flat, leaverId, lastDay, bills);
+  const others = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
+  const heir = others.find((m) => m.id === actorId)?.id ?? others[0]?.id ?? "";
+  // Charges the person paid for an earlier leaver's daily share: handed to this month's payer (the same in the move-out itself).
+  const handovers = await pendingHandovers(flat, leaverId, others.map((m) => m.id), heir);
+  if (handovers.adding) return { ok: false, error: handovers.adding } as Fail;
+  const p = plan(flat, leaverId, lastDay, bills, [], handovers);
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
   // Daily bills this month: their share for the days they were there, charged now if they tick "Add it now".
   const offers = await dailyOffers(flat, leaverId, lastDay);
-  const others = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
-  const heir = others.find((m) => m.id === actorId)?.id ?? others[0]?.id ?? "";
   const charges = offers.filter((o) => !o.d.unsupported).map((o) => ({ payerId: prechargePayer(o.bill, o.period, leaverId, others.map((m) => m.id), heir), amount: o.d.amount }));
-  const withDaily = charges.length ? plan(flat, leaverId, lastDay, bills, charges).payments : p.payments;
+  const withDaily = charges.length ? plan(flat, leaverId, lastDay, bills, charges, handovers).payments : p.payments;
   // Which of the final payments ask the person paid to confirm (they can answer, and are not the one confirming this).
   const waitsOf = (ts: Transfer[]) => ts.filter((t) => waitsFor(flat, actorId, t)).map((t) => `${t.from}>${t.to}`);
   return {
@@ -197,6 +244,8 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
       after: r.shares.find((x) => x.memberId === leaverId)?.amount ?? 0,
     })),
     payments: p.payments,
+    // What the person was paid for an earlier leaver's daily share that goes to this month's payer: the confirm question says so.
+    handovers: handovers.map((h) => ({ desc: h.desc, amount: h.amount, to: h.to, sharerId: h.sharerId, billName: h.billName })),
     daily: offers.map((o) => ({ billId: o.bill.id, name: o.bill.name, days: o.d.days, missed: o.d.missed, amount: o.d.amount, unsupported: o.d.unsupported })),
     paymentsWithDaily: withDaily,
     waits: waitsOf(p.payments), // "from>to" of each final payment that waits for the person paid to confirm
@@ -225,6 +274,7 @@ export async function moveOut(
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT };
+  if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const leaver = flat.members.find((m) => m.id === input.leaverId && !m.leftAt);
   if (!leaver) return { ok: false, error: "That person isn’t in the flat." };
@@ -239,7 +289,9 @@ export async function moveOut(
   // Their share of this month's daily bills, charged now (only if asked: "Add it now").
   const offers = input.addDaily ? (await dailyOffers(flat, leaver.id, input.lastDay)).filter((o) => !o.d.unsupported && o.d.amount > 0) : [];
   const charges = offers.map((o) => ({ ...o, payerId: prechargePayer(o.bill, o.period, leaver.id, others.map((m) => m.id), heir) }));
-  const p = plan(flat, leaver.id, input.lastDay, bills, charges.map((c) => ({ payerId: c.payerId, amount: c.d.amount })));
+  const handovers = await pendingHandovers(flat, leaver.id, others.map((m) => m.id), heir);
+  if (handovers.adding) return { ok: false, error: handovers.adding };
+  const p = plan(flat, leaver.id, input.lastDay, bills, charges.map((c) => ({ payerId: c.payerId, amount: c.d.amount })), handovers);
   const name = (id: string) => flat.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, flat.currency);
   if (input.expectKey !== undefined && input.expectKey !== transfersKey(p.payments)) return { ok: false, error: MOVE_OUT_KEY_CHANGED };
@@ -250,7 +302,10 @@ export async function moveOut(
   try {
     eventId = await db.$transaction(async (tx) => {
       // First: the flat must still be in the currency the amounts were worked out in, and the person doing it still in it.
-      await guardGroup(tx, groupId, { currency: flat.currency, actorId, allowClosed: true });
+      await guardGroup(tx, groupId, { currency: flat.currency, actorId });
+      // Someone with money in a game that is still open can't move out: the game's result would be worked out with them gone.
+      const game = await openGameFor(tx, groupId, leaver.id);
+      if (game) throw new InOpenGame(inOpenGameText(game, actorId === leaver.id ? null : leaver.name));
       // The square-up payments were worked out from these balances: if anything moved since (an expense or payment that
       // landed meanwhile), they would be wrong, so nothing is recorded and the person looks again.
       const netNow = (await ledgerInTx(tx, groupId)).net;
@@ -263,7 +318,9 @@ export async function moveOut(
         expenses: [
           ...l.expenses.map((e) => {
             const r = p.resplit.find((x) => x.e.id === e.id);
-            return r ? { ...e, shares: r.shares } : e;
+            const h = handovers.find((x) => x.expenseId === e.id);
+            const z = r ? { ...e, shares: r.shares } : e;
+            return h ? { ...z, paidById: h.to, payers: "" } : z;
           }),
           ...charges.map((c, i) => ({ id: `move-out-charge-${i}`, paidById: c.payerId, amount: c.d.amount, shares: [{ memberId: leaver.id, amount: c.d.amount }] })),
         ],
@@ -317,6 +374,9 @@ export async function moveOut(
       for (const c of charges) {
         const run = await tx.billRun.findUnique({ where: { billId_period: { billId: c.bill.id, period: c.period } }, select: { status: true } });
         if (run && run.status !== "waiting") throw new Error("BILLS_CHANGED");
+        // The share was worked out from the bill's price, days it didn't come, kind and split as read: a change to any of them meanwhile refuses it.
+        const fresh = await tx.bill.findUnique({ where: { id: c.bill.id }, select: { prepaid: true, missed: true, amount: true, split: true, nature: true, deletedAt: true } });
+        if (!fresh || fresh.deletedAt || fresh.missed !== c.bill.missed || fresh.amount !== c.bill.amount || fresh.split !== c.bill.split || fresh.nature !== c.bill.nature) throw new Error("BILLS_CHANGED");
         const label = `${c.bill.name} · ${stayLabel(input.lastDay, leaver.joinedFrom)} (${leaver.name}’s share)`;
         const made = await tx.expense.create({
           data: {
@@ -337,8 +397,7 @@ export async function moveOut(
             shares: { create: [{ memberId: leaver.id, amount: c.d.amount }] },
           },
         });
-        const fresh = await tx.bill.findUnique({ where: { id: c.bill.id }, select: { prepaid: true } });
-        await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(fresh?.prepaid ?? "{}", c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
+        await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(fresh.prepaid, c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
         (undoInfo.prepaid ??= []).push({ billId: c.bill.id, period: c.period, expenseId: made.id });
         const chargeEventId = await logEvent(tx, {
           groupId,
@@ -349,6 +408,26 @@ export async function moveOut(
           expenseId: made.id,
         });
         moneyInfo.eventIds.push(chargeEventId);
+      }
+      // 1c. Charges the leaver paid for an earlier leaver's daily share (month not added yet): handed to this month's payer, so the
+      // month-end bill's credit and the charge's credit land on the same person. Read again here: any change meanwhile refuses it.
+      for (const h of handovers) {
+        const live = await tx.expense.findUnique({ where: { id: h.expenseId }, select: { deletedAt: true, paidById: true, payers: true } });
+        if (!live || live.deletedAt || live.paidById !== leaver.id || live.payers) throw new Error("BILLS_CHANGED");
+        const run = await tx.billRun.findUnique({ where: { billId_period: { billId: h.billId, period: h.period } }, select: { status: true } });
+        if (run && run.status !== "waiting") throw new Error("BILLS_CHANGED");
+        await tx.expense.update({ where: { id: h.expenseId }, data: { paidById: h.to, payers: "" } });
+        (undoInfo.chargePayers ??= []).push({ expenseId: h.expenseId, before: leaver.id, after: h.to, billId: h.billId, period: h.period });
+        const handEventId = await logEvent(tx, {
+          groupId,
+          actorId,
+          kind: "expense_edited",
+          text: `${name(h.to)} now paid ${h.desc}`,
+          details: [`Paid by ${name(h.to)} (was ${leaver.name}, who moved out)`],
+          expenseId: h.expenseId,
+          touches: [leaver.id, h.to],
+        });
+        moneyInfo.eventIds.push(handEventId);
       }
       // 2. Square up: every final payment is recorded as paid now, so they leave at exactly 0. A person paid who can answer (and isn't
       // the one doing this) is also asked "Confirm received / Not received"; "Not received" brings the people who left back (payment-ok.ts).
@@ -436,13 +515,73 @@ export async function moveOut(
     const msg = String((err as Error)?.message ?? err);
     if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
-    if (err instanceof LeaverBreak) return { ok: false, error: err.message };
+    if (err instanceof LeaverBreak || err instanceof InOpenGame) return { ok: false, error: err.message };
     if (msg.includes("BALANCES_CHANGED") || msg.includes("NOT_SQUARE")) return { ok: false, error: "Balances just changed. Check the move-out again." };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     if (msg.includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };
     throw err;
   }
   return { ok: true, payments: p.payments, eventId };
+}
+
+// The moving-in date of someone in a flat (bills that month are shared from that day). "" clears it. Everything is checked here and
+// again inside the write: a flat only, open, the person doing it and the person both still in it, a real date that isn't absurd.
+// `undoing`: the date is put back as it was (the range check is skipped, as the old date was fine when it was saved).
+export async function setMoveInFor(
+  groupId: string,
+  actorId: string,
+  memberId: string,
+  day: string,
+  now = new Date(),
+  opts: { mark?: UndoMark; undoing?: boolean; afterRead?: () => Promise<void> } = {}, // afterRead: tests only
+): Promise<{ ok: true; eventId?: string } | Fail> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type !== "home") return { ok: false, error: "Moving-in dates are only for flats." };
+  if (group.closed) return { ok: false, error: "This group is closed. Reopen it first." };
+  if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
+  const member = group.members.find((m) => m.id === memberId);
+  if (!member) return { ok: false, error: "That person isn’t in the flat." };
+  if (member.leftAt) return { ok: false, error: `${member.name} has left the flat, so their moving-in date can’t change.` };
+  let date: Date | null = null;
+  if (day !== "") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, error: "That date isn’t valid." };
+    const parsed = new Date(`${day}T12:00:00Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day) return { ok: false, error: "That date isn’t valid." };
+    if (!opts.undoing) {
+      const nextMonth = addMonths(dayKey(now, DEFAULT_TIME_ZONE).slice(0, 7), 1);
+      if (day < "2000-01-01") return { ok: false, error: "That date isn’t valid." };
+      if (day > `${nextMonth}-${String(daysInMonth(nextMonth)).padStart(2, "0")}`) return { ok: false, error: "The moving-in date can’t be later than the end of next month." };
+    }
+    date = parsed;
+  }
+  const same = (member.joinedFrom?.getTime() ?? null) === (date?.getTime() ?? null);
+  if (same && !opts.undoing) return { ok: true };
+  await opts.afterRead?.();
+  const tag = opts.undoing ? " (undo)" : "";
+  try {
+    const eventId = await db.$transaction(async (tx) => {
+      await guardGroup(tx, groupId, { currency: group.currency, actorId });
+      await markUndone(tx, opts.mark);
+      // Only if the person is still here with the date as it was read: two people changing it at once change it once.
+      const claimed = await tx.member.updateMany({ where: { id: memberId, groupId, leftAt: null, joinedFrom: member.joinedFrom }, data: { joinedFrom: date } });
+      if (claimed.count !== 1) throw new Error("MEMBER_CHANGED");
+      return logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "bill_changed",
+        text: date ? `noted ${member.name} moved in on ${niceDate(day)}${tag}` : `cleared ${member.name}’s moving-in date${tag}`,
+        details: date ? ["Bills that month are shared from that day"] : [],
+        undo: { type: "move_in_set", memberId, joinedFrom: member.joinedFrom ? member.joinedFrom.toISOString() : null },
+        touches: [],
+      });
+    });
+    return { ok: true, eventId };
+  } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (String((err as Error)?.message ?? err).includes("MEMBER_CHANGED")) return { ok: false, error: `${member.name} changed just now. Look again and try again.` };
+    throw err;
+  }
 }
 
 // The deposit: who put in what. Never part of balances.
@@ -545,10 +684,26 @@ export async function returnDepositFor(groupId: string, actorId: string, deducti
 export type MoveOutBlock = { text: string; leaver: string };
 export const MOVE_OUT_LEAVER_FIXABLE = "Something the move-out changed was changed again since, so it can’t be undone. Ask someone in the flat to undo that change first.";
 export const MOVE_OUT_GONE_FOR_GOOD = "This move-out can’t be undone any more.";
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const monthName = (period: string) => MONTH_NAMES[Number(period.slice(5, 7)) - 1] ?? period;
+// Would a bill with this split have had this person in it? (A "some" list without them, or percentages or amounts with no entry for them, no.)
+// (The flat's own split gives someone with a split weight of 0 no share either.)
+function splitIncludes(splitJson: string, memberId: string, weight = 100): boolean {
+  try {
+    const v = JSON.parse(splitJson) as { mode?: string; ids?: unknown; pct?: Record<string, number>; amt?: Record<string, number> };
+    if (v?.mode === "some") return Array.isArray(v.ids) && v.ids.includes(memberId);
+    if (v?.mode === "percent") return (v.pct?.[memberId] ?? 0) > 0;
+    if (v?.mode === "amounts") return (v.amt?.[memberId] ?? 0) > 0;
+    if (v?.mode === "equal") return true;
+  } catch {
+    /* unreadable: treat as the flat's own split */
+  }
+  return weight > 0;
+}
 
 type Client = Prisma.TransactionClient;
 
-async function checkMoveOut(client: Client, groupId: string, memberId: string, info: MoveOutUndo) {
+async function checkMoveOut(client: Client, groupId: string, memberId: string, info: MoveOutUndo, since?: Date) {
   const touched = new Set<string>();
   const described = new Map<string, string>();
   const kept = new Set<string>(); // square-up payments already confirmed by the person paid: the undo leaves them counting
@@ -583,20 +738,51 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
       return stop("A payment someone said they made (“I’ve paid”) was counted in the move-out’s square-up, so it can’t be undone.", MOVE_OUT_GONE_FOR_GOOD);
     }
   }
-  // The daily charges come off too: the person who paid them, and the leaver, change.
+  // The daily charges come off too: the person who paid them, and the leaver, change. Each must still be exactly what the move-out wrote
+  // (alive, the amount the bill's note holds, and only the leaver's share): an edit, a delete or a swap since means taking it off would move other money.
   const chargeIds = (info.prepaid ?? []).map((x) => x.expenseId);
-  if (chargeIds.length) {
-    for (const c of await client.expense.findMany({ where: { id: { in: chargeIds }, groupId, deletedAt: null }, select: { paidById: true } })) {
-      touched.add(c.paidById);
-      touched.add(memberId);
+  const fixable = (what: string) => stop(`${what} was changed after the move-out, so this can’t be undone. Ask someone in the flat to undo that change first.`);
+  for (const x of info.prepaid ?? []) {
+    const e = await client.expense.findUnique({ where: { id: x.expenseId }, select: { groupId: true, description: true, amount: true, deletedAt: true, paidById: true, shares: { select: { memberId: true, amount: true } } } });
+    const bill = await client.bill.findUnique({ where: { id: x.billId }, select: { prepaid: true } });
+    const entry = bill ? (parsePrepaid(bill.prepaid)[x.period] ?? []).find((y) => y.e === x.expenseId) : undefined;
+    if (!e || e.groupId !== groupId || e.deletedAt) return fixable(e?.description ?? "The daily charge");
+    const a = entry?.a ?? e.amount;
+    if (e.amount !== a || e.shares.length !== 1 || e.shares[0].memberId !== memberId || e.shares[0].amount !== a) return fixable(e.description);
+    touched.add(e.paidById);
+    touched.add(memberId);
+  }
+  // Charges handed to this month's payer at move-out: still alive and still paid by the person they were handed to.
+  const chargePayers = info.chargePayers ?? [];
+  for (const x of chargePayers) {
+    const e = await client.expense.findUnique({ where: { id: x.expenseId }, select: { groupId: true, description: true, deletedAt: true, paidById: true, payers: true } });
+    if (!e || e.groupId !== groupId || e.deletedAt || e.paidById !== x.after || e.payers) return fixable(e?.description ?? "The daily charge");
+    // Once that month's bill was added (or is being added) it took the charge off its total and credited the month's payer:
+    // handing the charge back would put the credit in two places. Lines saved before the month was kept: found from the bill's note.
+    let where: { billId: string; period: string } | null = x.billId && x.period ? { billId: x.billId, period: x.period } : null;
+    if (!where) {
+      for (const b of await client.bill.findMany({ where: { groupId, prepaid: { contains: x.expenseId } }, select: { id: true, prepaid: true } })) {
+        const period = Object.entries(parsePrepaid(b.prepaid)).find(([, list]) => list.some((y) => y.e === x.expenseId))?.[0];
+        if (period) where = { billId: b.id, period };
+      }
     }
+    if (!where) return fixable(e.description);
+    const run = await client.billRun.findUnique({ where: { billId_period: { billId: where.billId, period: where.period } }, select: { status: true } });
+    if (run && run.status !== "waiting") {
+      const billName = (await client.bill.findUnique({ where: { id: where.billId }, select: { name: true } }))?.name ?? "The bill";
+      return stop(`${billName} for ${monthName(where.period)} was added after the move-out, so the move-out can’t be undone.`, MOVE_OUT_GONE_FOR_GOOD);
+    }
+    touched.add(x.before);
+    touched.add(x.after);
   }
   // Someone who has left since must not have their balance moved by this: they left square, and only they can come back to change it.
   if (mo) {
     const gone = await leaverBalanceBreaks(client, groupId, [...touched].filter((id) => id !== memberId), (l) => ({
       expenses: l.expenses.filter((e) => !chargeIds.includes(e.id)).map((e) => {
         const x = mo.shares.find((y) => y.expenseId === e.id);
-        return x ? { ...e, shares: x.before } : e;
+        const z = x ? { ...e, shares: x.before } : e;
+        const h = chargePayers.find((y) => y.expenseId === e.id);
+        return h ? { ...z, paidById: h.before, payers: "" } : z;
       }),
       payments: l.payments.filter((p) => kept.has(p.id) || !mo.payments.some((x) => x.id === p.id)),
     }));
@@ -620,11 +806,43 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
       return { block: { text: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.`, leaver: MOVE_OUT_LEAVER_FIXABLE }, touched, described, kept };
     }
   }
+  // A monthly bill added after the move-out was worked out without them: taking the move-out back would leave that month wrong for them.
+  const later = await billAddedSince(client, groupId, memberId, info, since);
+  if (later) return stop(later.text, later.leaver);
   return { block: null as MoveOutBlock | null, touched, described, kept };
 }
 
-export async function moveOutUndoBlock(client: Client, groupId: string, memberId: string, info: MoveOutUndo): Promise<MoveOutBlock | null> {
-  return (await checkMoveOut(client, groupId, memberId, info)).block;
+// A bill month added (or being added right now) after the move-out that the person would have been in, but isn't (they had left).
+async function billAddedSince(client: Client, groupId: string, memberId: string, info: MoveOutUndo, since?: Date): Promise<MoveOutBlock | null> {
+  const member = await client.member.findUnique({ where: { id: memberId }, select: { leftAt: true, splitWeight: true } });
+  if (!member?.leftAt) return null;
+  const from = since ?? member.leftAt;
+  const runs = await client.billRun.findMany({
+    where: { period: { gte: member.leftAt.toISOString().slice(0, 7) }, status: { in: ["added", "adding"] }, bill: { groupId } },
+    select: { period: true, status: true, expenseId: true, claimedAt: true, bill: { select: { id: true, name: true, split: true } } },
+    orderBy: [{ period: "asc" }, { id: "asc" }],
+  });
+  for (const r of runs) {
+    // The move-out's own re-split of a bill, or a bill the person shares in, is not "added without them".
+    if (r.expenseId && info.money?.shares.some((x) => x.expenseId === r.expenseId)) continue;
+    // Their share was in the bill as it was before the move-out took them off a fixed list.
+    const split = info.bills.find((b) => b.id === r.bill.id)?.before.split ?? r.bill.split;
+    if (!splitIncludes(split, memberId, member.splitWeight)) continue;
+    if (r.status === "added") {
+      if (!r.expenseId) continue;
+      const e = await client.expense.findUnique({ where: { id: r.expenseId }, select: { createdAt: true, deletedAt: true, shares: { select: { memberId: true } } } });
+      if (!e || e.deletedAt || e.shares.some((x) => x.memberId === memberId) || e.createdAt.getTime() < from.getTime()) continue;
+      return { text: `${r.bill.name} for ${monthName(r.period)} was added after the move-out, so the move-out can’t be undone.`, leaver: MOVE_OUT_GONE_FOR_GOOD };
+    }
+    if (r.claimedAt && r.claimedAt.getTime() >= from.getTime()) {
+      return { text: `${r.bill.name} for ${monthName(r.period)} is being added right now. Try again in a minute.`, leaver: MOVE_OUT_GONE_FOR_GOOD };
+    }
+  }
+  return null;
+}
+
+export async function moveOutUndoBlock(client: Client, groupId: string, memberId: string, info: MoveOutUndo, since?: Date): Promise<MoveOutBlock | null> {
+  return (await checkMoveOut(client, groupId, memberId, info, since)).block;
 }
 
 class MoveOutBlocked extends Error {
@@ -667,7 +885,7 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
       const at = new Date();
       const mo = info.money;
       // Everything that could stand in the way, read first (before any write): a refusal throws and rolls the whole undo back.
-      const { block, touched, described, kept } = await checkMoveOut(tx, groupId, memberId, info);
+      const { block, touched, described, kept } = await checkMoveOut(tx, groupId, memberId, info, opts.recordedAt);
       if (block) throw new MoveOutBlocked(block);
       if (info.deposit) {
         const d = info.deposit;
@@ -681,6 +899,11 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
         await tx.expense.updateMany({ where: { id: x.expenseId, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actorId } });
         const fresh = await tx.bill.findUnique({ where: { id: x.billId }, select: { prepaid: true } });
         if (fresh) await tx.bill.update({ where: { id: x.billId }, data: { prepaid: removePrepaid(fresh.prepaid, x.period, x.expenseId) } });
+      }
+      // Charges handed to this month's payer go back to the person who moved out (only while still paid by the one they were handed to).
+      for (const x of info.chargePayers ?? []) {
+        const handedBack = await tx.expense.updateMany({ where: { id: x.expenseId, paidById: x.after, deletedAt: null }, data: { paidById: x.before, payers: "" } });
+        if (handedBack.count !== 1) throw new MoveOutBlocked({ text: "A daily charge changed just now. Look again.", leaver: MOVE_OUT_LEAVER_FIXABLE });
       }
       let billsKept = 0;
       for (const b of info.bills) {

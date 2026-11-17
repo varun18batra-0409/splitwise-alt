@@ -55,6 +55,7 @@ export type EventKind =
   | "pot_finished"
   | "pot_reopened"
   | "pot_deleted"
+  | "pot_line_removed"
   | "bill_added"
   | "bill_changed"
   | "group_imported";
@@ -180,6 +181,7 @@ export type UndoPayload =
       members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null; grantEpoch?: number; leftAt?: string | null; removedAt?: string | null; removedById?: string }[];
     }
   | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string }; moveOut?: MoveOutUndo }
+  | { type: "move_in_set"; memberId: string; joinedFrom: string | null } // a moving-in date set or cleared: `joinedFrom` is what it was (ISO), null = none
   | { type: "settle_all"; paymentIds: string[]; apply: boolean }
   | { type: "payments_set"; paymentIds: string[]; deleted: boolean };
 
@@ -189,6 +191,9 @@ export type UndoPayload =
 export type MoveOutUndo = {
   // Daily-bill shares charged at move-out (one expense each), taken off again by the undo.
   prepaid?: { billId: string; period: string; expenseId: string }[];
+  // Earlier leavers' daily-share charges the person paid, handed to this month's payer at move-out (add-only: missing = none handed).
+  // The undo gives each back (before = the person moving out, after = the new payer), only while it is still paid by `after`.
+  chargePayers?: { expenseId: string; before: string; after: string; billId?: string; period?: string }[]; // billId, period: the bill month it belongs to (missing on lines saved before: looked up)
   bills: { id: string; before: { payer: string; rotation: string; split: string }; after: { payer: string; rotation: string; split: string } }[];
   deposit?: {
     leaverShareId: string;

@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { formatMoney, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
-import { overpayQuestion } from "@/lib/pay-record";
+import { overKey, overpayQuestion } from "@/lib/pay-record";
 import { defaultPayment } from "@/lib/pay-default";
 import { RecordPaymentForm } from "@/components/RecordPaymentForm";
 import { Mark } from "@/components/HomeMoney";
@@ -70,6 +70,7 @@ export default async function RecordPayment({
         keyField={<FreshKey name="rid" />}
         mark={<Mark mark={groupMark(group.type)} />}
         overLine={overLine}
+        overFor={overLine && typed !== null ? overKey(from, sp.to ?? "", typed) : ""}
         cancel={
           <FocusOnShow>
             <Link href={cancelHref} className="pop inline-flex min-h-11 items-center bg-fg px-5 text-sm font-semibold text-canvas" data-over-cancel>

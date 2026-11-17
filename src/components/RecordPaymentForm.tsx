@@ -24,6 +24,7 @@ export function RecordPaymentForm({
   keyField,
   mark,
   overLine,
+  overFor,
   cancel,
   note,
   children,
@@ -38,6 +39,7 @@ export function RecordPaymentForm({
   keyField: React.ReactNode; // the server's <FreshKey name="rid" />
   mark: React.ReactNode; // the drawn mark on the route line
   overLine: string | null;
+  overFor: string; // what "Record anyway" was shown for (pay-record.ts overKey); the action only accepts it for the same payer, person and amount
   cancel: React.ReactNode; // the existing Cancel link (focused first when the amount is more than what is owed)
   note: string;
   children?: React.ReactNode; // Smart Settle's suggestions, drawn by the page (links that fill this form)
@@ -216,6 +218,7 @@ export function RecordPaymentForm({
             </button>
             <div role="alert" className={`${CARD} px-4 py-3 text-sm`} data-over-warning>
               <p>{overLine}</p>
+              <input type="hidden" name="overFor" value={overFor} />
               <div className="mt-3 flex gap-2">
                 {cancel}
                 <button type="submit" name="over" value="1" className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold" data-over-record>

@@ -13,7 +13,7 @@ import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
 import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, markGamePaidAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
 import { isGroupAdmin, pickAdmin } from "@/lib/group-admin";
-import { canRunGame, gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
+import { canRunGame, gameSettlement, inPlay, lastActivity, loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
 import { canUndo, originAtDb, paymentsForUndo } from "@/lib/undo";
@@ -30,7 +30,7 @@ import { SelectField } from "@/components/SelectField";
 const CASHED = TOOK_HOME_NOTES;
 const COUNTED = "counted at the end";
 
-type SP = { did?: string; undone?: string; allpaid?: string; paid?: string; renamed?: string; error?: string; bought?: string; cashed?: string; seat?: string; counted?: string; gap?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
+type SP = { did?: string; undone?: string; allpaid?: string; paid?: string; renamed?: string; error?: string; bought?: string; cashed?: string; seat?: string; counted?: string; gap?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string; n?: string };
 
 export default async function GamePage({ params, searchParams }: { params: Promise<{ id: string; gameId: string }>; searchParams: Promise<SP> }) {
   const { id, gameId } = await params;
@@ -52,7 +52,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const live = game.moves.filter((m) => !m.deletedAt);
   const { lines, totals } = potSummary(players, live);
   const open = game.status === "open";
-  const host = canRunGame(game, group.members, myId); // the host, or the group admin if the host has left
+  const host = canRunGame({ hostId: game.hostId, lastActivityAt: lastActivity(game, game.moves) }, group.members, myId); // the host; whoever looks after the group once the host has left or the game has been quiet a day
   const hostLeft = !group.members.some((m) => m.id === game.hostId && !m.leftAt);
   const adminId = pickAdmin(group.members)?.id;
   const ranked = [...lines].sort((a, b) => b.net - a.net);
@@ -246,7 +246,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {open && (
         <section aria-label="Chips in" className="mt-6 rounded-2xl border border-line p-4">
           <PotBuyIn
-            key={live.length}
+            key={`${live.length}-${sp.n ?? ""}`}
             gameId={game.id}
             players={players.map((p) => {
               const l = lineOf(p);
@@ -343,7 +343,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {open && playing.length > 0 && (
         <section aria-label="Count" className="mt-8 rounded-2xl border border-line p-4">
           <PotCount
-            key={live.length}
+            key={`${live.length}-${sp.n ?? ""}`}
             gameId={game.id}
             rows={playing.map((p) => {
               const l = lineOf(p);
@@ -408,7 +408,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             )
           ) : (
             <p className="text-center text-xs text-gray-500">
-              {hostLeft && adminId ? `${you(adminId)} (looks after the group) settles the game once it adds up.` : `${you(game.hostId)} (the host) settles the game once it adds up.`}
+              {hostLeft && adminId ? `${you(adminId)} (looks after the group) settles the game once it adds up.` : `${you(game.hostId)} (the host) settles the game once it adds up.${adminId ? ` ${you(adminId)} (looks after the group) can too if it has been quiet for a day.` : ""}`}
             </p>
           )}
         </section>
@@ -453,7 +453,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           ) : (
             form(reopenGameAction, "Reopen game", "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist", "Reopen it? Its result comes out of the balances until you finish it again.")
           )}
-          <p className="text-xs text-gray-400">{game.hostId === myId ? "You’re the host." : `${nameOf(game.hostId)} has left, so you can run this game.`}</p>
+          <p className="text-xs text-gray-400">{game.hostId === myId ? "You’re the host." : hostLeft ? `${nameOf(game.hostId)} has left, so you can run this game.` : "The game has been quiet for a day, so you (who look after this group) can run it."}</p>
         </section>
       )}
       {showUndo && justDid && (
