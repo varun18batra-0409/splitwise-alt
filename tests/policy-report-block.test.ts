@@ -825,9 +825,9 @@ describe("blocking works both ways: finding, adding, inviting", () => {
   });
 
   it("Ben invites Asha's email (Asha blocked him): the reply includes her, a plain name row, no email, no alert, no card, and accepting is refused", async () => {
-    const t = await crew("ie");
+    const t = await crew("ie2");
     await blockAccount(t.asha.id, t.ben.id);
-    const room = await twoOf("ie", t.ben, t.cleo);
+    const room = await twoOf("ie2", t.ben, t.cleo);
     const r = await inviteByEmail(room.g.id, room.first.id, t.asha.email, ORIGIN);
     expect(r.bad).toEqual([]);
     expect(r.people.map((p) => p.email)).toEqual([t.asha.email]); // the same reply as for anyone
