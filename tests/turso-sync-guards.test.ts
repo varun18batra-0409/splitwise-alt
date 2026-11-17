@@ -93,7 +93,7 @@ describe("turso-sync guards", () => {
     const r = sync(file, to);
     expect(r.code, r.out).toBe(1);
     expect(r.out).toContain("Thing.at");
-    expect(r.out).toContain("make it optional");
+    expect(r.out).toMatch(/make it optional/i);
     expect(r.out).not.toMatch(/\n\s+at .*\.(m?js|ts):\d+/);
     expect(await columns(file)).toEqual(["id", "name"]);
   });
