@@ -33,7 +33,7 @@ async function fullShot(p: Page, path: string, fullPage: boolean) {
 // The test database file is shared with the running app, and a write can land at the very moment the app is writing: the database then
 // answers at once with "busy", which Prisma reports as P2010 / "SocketTimeout" (seen in the merged release run, and on several
 // branches in one night). Nothing is wrong with the data: wait a moment and try the same write again. Local copy only.
-async function dbRetry<T>(what: string, run: () => Promise<T>, tries = 6): Promise<T> {
+async function dbRetry<T>(what: string, run: () => Promise<T>, tries = 12): Promise<T> {
   for (let n = 1; ; n++) {
     try {
       return await run();
@@ -41,7 +41,7 @@ async function dbRetry<T>(what: string, run: () => Promise<T>, tries = 6): Promi
       const text = String(e);
       if (n >= tries || !/P2010|SocketTimeout|SQLITE_BUSY|database is locked|busy/i.test(text)) throw e;
       console.log(`  (${what}: the database was busy, trying again ${n}/${tries - 1})`);
-      await new Promise((r) => setTimeout(r, 750 * n));
+      await new Promise((r) => setTimeout(r, Math.min(750 * n, 5000)));
     }
   }
 }
@@ -1681,6 +1681,14 @@ if (!hosted) {
     { name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: acc.id }), url: base },
     { name: "lp_tour", value: "1", url: base },
   ]);
+  // Make sure the app sees the US account as signed in before the signed-in shots. A busy test database can make the first look-up
+  // of a brand-new account fail, which shows the signed-out page; wait and look again (this is the shared test file, never live).
+  for (let n = 0; n < 8; n++) {
+    await p.goto(base + "/account", { waitUntil: "load" }).catch(() => undefined);
+    if (!/\/signin/.test(p.url()) && (await p.getByText("Varu").first().isVisible().catch(() => false))) break;
+    if (n === 7) console.log("  (the US account still looks signed out; the next shots will say so)");
+    await p.waitForTimeout(1500 + 500 * n);
+  }
   await step("82-us-home-new", async () => {
     await p.goto(base + "/", { waitUntil: "networkidle" });
   });
