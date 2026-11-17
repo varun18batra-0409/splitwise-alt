@@ -84,14 +84,14 @@ export async function listAdd(formData: FormData) {
 
 export async function listToggle(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  await toggleListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
-  redirect(`/groups/${groupId}?tab=list`);
+  const r = await toggleListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "list" }));
 }
 
 export async function listRemove(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  await removeListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
-  redirect(`/groups/${groupId}?tab=list`);
+  const r = await removeListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "list" }));
 }
 
 export async function listBuy(formData: FormData) {
@@ -104,8 +104,8 @@ export async function listBuy(formData: FormData) {
 
 export async function listGoingShopping(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  await goingShopping(groupId, await me(groupId));
-  redirect(`/groups/${groupId}?tab=list&told=1`);
+  const r = await goingShopping(groupId, await me(groupId));
+  redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "list", ...(r.ok ? { told: "1" } : {}) }));
 }
 
 // ---------- Budgets ----------
@@ -129,7 +129,7 @@ export async function setMoveIn(formData: FormData) {
   const day = String(formData.get("day") ?? "");
   // Everything is checked in setMoveInFor (a flat only, open, a real date, the person still here); a refusal shows on the People page.
   const r = await setMoveInFor(groupId, actor, memberId, day);
-  if (!r.ok) redirect(`/groups/${groupId}/people?error=${encodeURIComponent(r.error)}`);
+  if (!r.ok) redirect(await flashTo(["groups", groupId, "people"], { error: r.error }));
   redirect(`/groups/${groupId}/people`);
 }
 

@@ -351,29 +351,95 @@ describe("N6: Paid a different amount? keeps the way back", () => {
 });
 
 describe("Redo of “settle everything” tells the payer and the person paid (review of the merge, low)", () => {
-  it("after Undo then Redo, Ravi is told about both payments and Meera about hers; the group is square and closed", async () => {
+  // Waits for every push job the code scheduled with `after()`, including jobs scheduled while waiting.
+  const drain = async () => {
+    while (state.tasks.length) await Promise.all(state.tasks.splice(0));
+  };
+
+  it("after Undo then Redo, exactly three messages go out: Ravi twice and Meera once; the group is square and closed", async () => {
     // Auditor's story: Ravi → Asha 30000 and Ravi → Meera 30000 settle everything.
+    //   Before: Asha +30000, Ravi −60000, Meera +30000 (total 0). After both payments: 0, 0, 0 (total 0).
     const w = await auditorWorld();
     const plan = planKey([{ from: w.r, to: w.a, amount: 30000 }, { from: w.r, to: w.m, amount: 30000 }] as Parameters<typeof planKey>[0]);
     expect((await settleAllAndClose(w.gid, w.a, plan)).ok).toBe(true);
-    const ids = (await db.payment.findMany({ where: { groupId: w.gid, deletedAt: null }, select: { id: true } })).map((x) => x.id);
+    const rows = await db.payment.findMany({ where: { groupId: w.gid, deletedAt: null }, select: { id: true, fromId: true, toId: true, amount: true } });
+    const ids = rows.map((x) => x.id);
     expect(ids.length).toBe(2);
+    expect(rows.reduce((s, x) => s + x.amount, 0)).toBe(60000); // 30000 + 30000 = what Ravi owed in all
     expect((await applySettleAll(w.gid, w.a, ids, false, { recorderOk: true })).ok).toBe(true);
     await drain();
     state.pushes.length = 0;
     expect((await applySettleAll(w.gid, w.a, ids, true, { recorderOk: true })).ok).toBe(true);
     await drain();
-    const told = state.pushes.filter((x) => x.p.url.includes("open=")).flatMap((x) => x.ids);
-    // Ravi (payer of both) and Meera (paid in one) each get their own message again; Asha, who redid it, gets none.
-    // Hand-worked: payment 1 (Ravi → Asha, redone by Asha) tells Ravi; payment 2 (Ravi → Meera, redone by Asha, who is in neither) tells Ravi and Meera.
-    // So Ravi 2, Meera 1, three messages in all, one per person per payment, and each payment's own link.
-    expect(told.filter((id) => id === w.r).length).toBe(2);
-    expect(told.filter((id) => id === w.m).length).toBe(1);
-    expect(told.length).toBe(3);
-    const links = state.pushes.filter((x) => x.p.url.includes("open=")).map((x) => new URL(x.p.url, "http://x").searchParams.get("open"));
-    expect(new Set(links)).toEqual(new Set(ids));
-    expect(told.includes(w.a)).toBe(false); // the one who redid it isn't told about her own action
-    expect(await net(w.gid)).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
+
+    // What each person reads (the quotes are the curly ones the app uses).
+    const ravi1 = "Asha recorded getting ₹300 from you. If that’s wrong, open it to delete it."; // Ravi → Asha, Asha did it: Ravi is told
+    const ravi2 = "Asha recorded that you paid Meera ₹300. If that’s wrong, open it to delete it."; // Ravi → Meera: Ravi is told
+    const meera2 = "Asha recorded that Ravi paid you ₹300. If that’s wrong, open it to delete it."; // Ravi → Meera: Meera is told
+    // Diagnosis while CI saw one message: print everything the redo sent (no secrets: test ids, urls and tags only).
+    const got = state.pushes.filter((x) => x.p.url.includes("open=")).flatMap((x) => x.ids.map((id) => ({ id, body: x.p.body, url: x.p.url })));
+    expect(got.map((g) => g.id).sort()).toEqual([w.m, w.r, w.r].sort()); // exactly Meera, Ravi, Ravi: Asha, who redid it, is not told
+    expect(got.map((g) => `${g.id}|${g.body}`).sort()).toEqual([`${w.r}|${ravi1}`, `${w.r}|${ravi2}`, `${w.m}|${meera2}`].sort());
+    // Each message opens its own payment: Ravi → Asha's for the first, Ravi → Meera's for the other two.
+    const toAsha = rows.find((x) => x.toId === w.a)!.id;
+    const toMeera = rows.find((x) => x.toId === w.m)!.id;
+    expect(got.map((g) => `${g.body.slice(0, 20)}|${g.url.split("open=")[1]}`).sort()).toEqual(
+      [`${ravi1.slice(0, 20)}|${toAsha}`, `${ravi2.slice(0, 20)}|${toMeera}`, `${meera2.slice(0, 20)}|${toMeera}`].sort(),
+    );
+
+    const after = await net(w.gid);
+    expect(after).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
+    expect(sum(after)).toBe(0);
     expect((await db.group.findUnique({ where: { id: w.gid } }))!.closed).toBe(true);
+  });
+
+  it("tellAll says what it scheduled: 3 entries for the two payments, never Asha", async () => {
+    // Told apart from the test above: if the list here is right but the messages above were short, the test caught them badly;
+    // if the list were short, the code did not schedule them.
+    const { tellAll } = await import("@/lib/settle-all");
+    const w = await auditorWorld();
+    const made = [
+      { id: "pay-to-asha", fromId: w.r, toId: w.a, amount: 30000 },
+      { id: "pay-to-meera", fromId: w.r, toId: w.m, amount: 30000 },
+    ];
+    const scheduled = await tellAll(w.gid, w.a, made);
+    await drain();
+    expect(scheduled).toEqual([
+      { paymentId: "pay-to-asha", told: [w.r] },
+      { paymentId: "pay-to-meera", told: [w.r, w.m] },
+    ]);
+    expect(scheduled.flatMap((x) => x.told).length).toBe(3);
+    expect(scheduled.flatMap((x) => x.told).includes(w.a)).toBe(false);
+  });
+});
+
+describe("GP-6: recording a payment in a closed group says why it did not save", () => {
+  it("redirects back to the balances with the closed message, records nothing, and leaves the balances as they were", async () => {
+    // Asha +30000, Ravi −60000, Meera +30000 (total 0). The group is closed, then Ravi posts "pays Asha ₹300" (30000).
+    const w = await auditorWorld();
+    await db.group.update({ where: { id: w.gid }, data: { closed: true, closedAt: new Date() } });
+    await as(w, w.r);
+    const url = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: w.r, toId: w.a, amount: "300" })));
+    expect(url.pathname).toBe(`/groups/${w.gid}`);
+    expect(url.searchParams.get("tab")).toBe("balances");
+    expect(url.searchParams.get("error")).toBe("This group is closed. Reopen it to record payments.");
+    expect(url.searchParams.get("es")).toBeTruthy(); // the message is signed (b3), so it can only be one Loopin wrote
+    expect(await payCount(w.gid)).toBe(0);
+    const n = await net(w.gid);
+    expect(n).toEqual({ [w.a]: 30000, [w.r]: -60000, [w.m]: 30000 });
+    expect(sum(n)).toBe(0);
+  });
+
+  it("in an open group the same payments go through, and settling leaves everyone at 0", async () => {
+    const w = await auditorWorld();
+    await as(w, w.r);
+    for (const to of [w.a, w.m]) {
+      const url = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: w.r, toId: to, amount: "300" })));
+      expect(url.searchParams.get("paid")).toBe("1");
+    }
+    expect(await payCount(w.gid)).toBe(2);
+    const n = await net(w.gid);
+    expect(n).toEqual({ [w.a]: 0, [w.r]: 0, [w.m]: 0 });
+    expect(sum(n)).toBe(0);
   });
 });

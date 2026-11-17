@@ -76,7 +76,7 @@ export function changedBody(i: { kind: "deleted" | "restored"; told: string; act
 
 // Tell the other person (or both) about one payment. Call it AFTER the transaction has committed. `direct`: a pair (the title is the other
 // person's name and it opens their page). Never throws.
-export function tellParties(c: {
+type TellInput = {
   event: "recorded" | "deleted" | "restored";
   actorId: string;
   actorName: string;
@@ -90,24 +90,45 @@ export function tellParties(c: {
   paymentId: string;
   eventId?: string;
   direct?: boolean;
-}): void {
-  for (const told of partiesToTell(c.actorId, c.fromId, c.toId)) {
+};
+type PartyMessage = { toId: string; p: { title: string; body: string; url: string; tag: string }; fromId: string };
+
+// The messages for one payment: one per person told (see partiesToTell). Pure, so several payments can be sent as one job.
+export function partyMessages(c: TellInput): PartyMessage[] {
+  return partiesToTell(c.actorId, c.fromId, c.toId).map((told) => {
     const body =
       c.event === "recorded"
         ? recordedBody({ told, actorId: c.actorId, actorName: c.actorName, fromId: c.fromId, toId: c.toId, fromName: c.fromName, toName: c.toName, amountText: c.amountText })
         : changedBody({ kind: c.event === "deleted" ? "deleted" : "restored", told, actorId: c.actorId, actorName: c.actorName, fromId: c.fromId, toId: c.toId, fromName: c.fromName, toName: c.toName, amountText: c.amountText });
-    pushToReceiver(
-      told,
-      {
+    return {
+      toId: told,
+      p: {
         title: c.direct ? `💸 ${c.actorName}` : `💸 ${c.groupName}`,
         body,
         url: c.direct ? `/people/${c.groupId}` : `/groups/${c.groupId}?tab=activity&open=${c.paymentId}`,
         tag: c.eventId ? `ev:${c.eventId}` : `pay-${c.event}-${c.paymentId}-${told}`,
       },
-      "payments.claimed",
-      c.actorId,
-    );
+      fromId: c.actorId,
+    };
+  });
+}
+
+// Several messages in ONE after-the-response job, sent one after another. (Many separate jobs started at once were seen to lose all but
+// the first: settle everything, then Undo, then Redo told only one person in the test run.) Never throws.
+export function pushAllToReceivers(msgs: PartyMessage[], item: "payments.claimed" | "payments.answered" = "payments.claimed") {
+  if (!msgs.length) return;
+  try {
+    after(async () => {
+      const { sendPushTo } = await import("./push");
+      for (const m of msgs) await sendPushTo([m.toId], m.p, item, m.fromId);
+    });
+  } catch {
+    /* not inside a request (tests, scripts): nothing is sent */
   }
+}
+
+export function tellParties(c: TellInput): void {
+  pushAllToReceivers(partyMessages(c));
 }
 
 // One settle-up across several groups: each person is told once, with what it comes to for them in each currency (never added together).

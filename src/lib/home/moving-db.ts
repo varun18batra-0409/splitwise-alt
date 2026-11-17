@@ -525,6 +525,8 @@ export async function moveOut(
   return { ok: true, payments: p.payments, eventId };
 }
 
+export const LEAVER_DEPOSIT_ERROR = "That person has moved out, so their deposit can’t be changed here.";
+
 // The moving-in date of someone in a flat (bills that month are shared from that day). "" clears it. Everything is checked here and
 // again inside the write: a flat only, open, the person doing it and the person both still in it, a real date that isn't absurd.
 // `undoing`: the date is put back as it was (the range check is skipped, as the old date was fine when it was saved).
@@ -586,23 +588,34 @@ export async function setMoveInFor(
 }
 
 // The deposit: who put in what. Never part of balances.
-export async function saveDepositFor(groupId: string, actorId: string, input: { heldBy: string; amounts: Record<string, string> }): Promise<{ ok: true } | Fail> {
+export async function saveDepositFor(groupId: string, actorId: string, input: { heldBy: string; amounts: Record<string, string> }, opts: { afterRead?: () => Promise<void> } = {}): Promise<{ ok: true } | Fail> {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (flat.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const rows: { memberId: string; amount: number }[] = [];
   for (const [memberId, raw] of Object.entries(input.amounts)) {
-    if (!flat.members.some((m) => m.id === memberId)) continue;
+    const who = flat.members.find((m) => m.id === memberId);
+    if (!who) continue;
     if (!raw.trim()) continue;
+    // Someone who moved out keeps their deposit on record, but nobody can change it from here.
+    if (who.leftAt) return { ok: false, error: LEAVER_DEPOSIT_ERROR };
     const amount = parseAmount(raw, flat.currency);
     if (amount === null || amount < 0) return { ok: false, error: "Enter each amount as a number, like 36000." };
     if (amount > 0) rows.push({ memberId, amount });
   }
   const heldBy = input.heldBy.trim().slice(0, 40) || "Landlord";
+  await opts.afterRead?.(); // tests only: runs after the reads, before the write begins
   try {
     await db.$transaction(async (tx) => {
+      // The first statement is a write (see money-guard.ts), so the checks below read current rows.
       const dep = await tx.deposit.upsert({ where: { groupId }, create: { groupId, heldBy }, update: { heldBy } });
+      // Checked again inside the write: someone may have moved out, or been removed, since the form was read.
+      if (rows.length) {
+        const ids = [...new Set(rows.map((r) => r.memberId))];
+        if ((await tx.member.count({ where: { groupId, id: { in: ids }, leftAt: { not: null } } })) > 0) throw new Error("DEPOSIT_LEAVER");
+        if ((await tx.member.count({ where: { groupId, id: { in: ids }, leftAt: null } })) !== ids.length) throw new Error("DEPOSIT_GONE");
+      }
       // Only the shares still held can be edited; returned/transferred ones are history. A form opened before a
       // deposit was returned or handed on must not bring it back to life: it is refused instead.
       for (const r of rows) {
@@ -611,7 +624,9 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
       }
       // A cleared box removes that person's held share, but only for people who are in the flat now (the form only has boxes
       // for them). Someone who moved out and kept their deposit on record has no box: their share is never touched.
-      const inFlat = flat.members.filter((m) => !m.leftAt && !rows.some((r) => r.memberId === m.id)).map((m) => m.id);
+      // Who is still in the flat is read again here (not taken from the earlier read): someone who moved out in between keeps their share.
+      const stillIn = await tx.member.findMany({ where: { groupId, leftAt: null, id: { in: flat.members.map((m) => m.id) } }, select: { id: true } });
+      const inFlat = stillIn.map((m) => m.id).filter((id) => !rows.some((r) => r.memberId === id));
       if (inFlat.length) await tx.depositShare.deleteMany({ where: { depositId: dep.id, status: "held", memberId: { in: inFlat } } });
       for (const r of rows) {
         const cur = await tx.depositShare.findUnique({ where: { depositId_memberId: { depositId: dep.id, memberId: r.memberId } } });
@@ -633,6 +648,8 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
       });
     });
   } catch (err) {
+    if (String((err as Error)?.message ?? err).includes("DEPOSIT_LEAVER")) return { ok: false, error: LEAVER_DEPOSIT_ERROR };
+    if (String((err as Error)?.message ?? err).includes("DEPOSIT_GONE")) return { ok: false, error: "Someone on this deposit was just removed from the flat. Open Deposit again to see who’s in." };
     if (String((err as Error)?.message ?? err).includes("DEPOSIT_CHANGED")) return { ok: false, error: "That deposit was already returned or handed on, so it can’t be changed here. Open Deposit again to see where it stands." };
     throw err;
   }

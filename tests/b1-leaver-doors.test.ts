@@ -632,7 +632,7 @@ describe("10c. undo of 'added Kiran by name' can't delete someone with chips in 
     const idle = await db.member.create({ data: { groupId: w.gid, name: "Idle" } });
     const game = await db.potGame.create({ data: { groupId: w.gid, name: "Friday teen patti", players: JSON.stringify([A, kiran.id]), hostId: A } });
     const mv = await db.potMove.create({ data: { gameId: game.id, memberId: kiran.id, kind: "take", amount: 50000, createdById: A } });
-    const words = "Kiran is already part of expenses, payments or moments, so they can’t be removed.";
+    const words = "Kiran is already part of expenses, payments, moments, the deposit, a goal or a game, so they can’t be removed.";
     expect(await removeMembers(w.gid, A, [kiran.id])).toEqual({ ok: false, error: words });
     await db.potMove.update({ where: { id: mv.id }, data: { deletedAt: new Date() } });
     expect(await removeMembers(w.gid, A, [kiran.id])).toEqual({ ok: false, error: words }); // the line was taken back, but he is still at the table

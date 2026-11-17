@@ -6,7 +6,7 @@ import { logEvent, markUndone, type UndoMark } from "./events";
 import { formatMoney } from "./money";
 import { createPayment, RestoreRefused, restorePayments } from "./payments";
 import { bringBackAfterDelete, NotSquare, paymentsPartyRefusal } from "./payment-change";
-import { tellParties } from "./payment-claims";
+import { partiesToTell, partyMessages, pushAllToReceivers } from "./payment-claims";
 import type { Transfer } from "./settle";
 import type { Prisma } from "@prisma/client";
 import { PAIR_NO_CLOSE } from "./direct-guard";
@@ -20,17 +20,25 @@ import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceB
 type Made = { id: string; fromId: string; toId: string; amount: number };
 
 // Tell the payer and the person paid of every payment just recorded (after the transaction). Never throws.
-async function tellAll(groupId: string, actorId: string, made: Made[]) {
+// Returns who it ASKED to tell, one entry per payment. That is a record of what was scheduled, not proof that anything was
+// delivered (a push can fail, or the person may have switched it off), so a test can tell "nothing was scheduled" from
+// "it was scheduled but the test did not see it".
+export async function tellAll(groupId: string, actorId: string, made: Made[]): Promise<{ paymentId: string; told: string[] }[]> {
+  const scheduled: { paymentId: string; told: string[] }[] = [];
   try {
     const g = await db.group.findUnique({ where: { id: groupId }, select: { name: true, currency: true, type: true, members: { select: { id: true, name: true } } } });
-    if (!g) return;
+    if (!g) return scheduled;
     const nameOf = (id: string) => g.members.find((m) => m.id === id)?.name ?? "Someone";
-    for (const m of made) {
-      tellParties({ event: "recorded", actorId, actorName: nameOf(actorId), fromId: m.fromId, toId: m.toId, fromName: nameOf(m.fromId), toName: nameOf(m.toId), amountText: formatMoney(m.amount, g.currency), groupName: g.name, groupId, paymentId: m.id, direct: g.type === "direct" });
-    }
+    // Every payment's messages go out from one job (see pushAllToReceivers).
+    const msgs = made.flatMap((m) => {
+      scheduled.push({ paymentId: m.id, told: partiesToTell(actorId, m.fromId, m.toId) });
+      return partyMessages({ event: "recorded", actorId, actorName: nameOf(actorId), fromId: m.fromId, toId: m.toId, fromName: nameOf(m.fromId), toName: nameOf(m.toId), amountText: formatMoney(m.amount, g.currency), groupName: g.name, groupId, paymentId: m.id, direct: g.type === "direct" });
+    });
+    pushAllToReceivers(msgs);
   } catch {
     /* a push that could not be sent is never an error for the person who recorded it */
   }
+  return scheduled;
 }
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string };

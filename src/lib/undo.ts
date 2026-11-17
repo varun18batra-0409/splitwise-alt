@@ -9,6 +9,7 @@ import { isGameResult } from "./pot-result";
 import { NOT_RECEIVED_TEXT_START, onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
+import { memberInUse } from "./member-use";
 import { isPairGroup, PAIR_NO_PEOPLE } from "./direct-guard";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
@@ -739,7 +740,7 @@ class CurrencyMoved extends Error {}
 class LeaverCurrencyBreak extends Error {}
 
 // Take back "added people" — only if they haven't been used anywhere yet.
-export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true, mark?: UndoMark): Promise<UndoResult> {
+export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true, mark?: UndoMark, opts: { afterRead?: () => Promise<void> } = {}): Promise<UndoResult> {
   if (memberIds.includes(actorId)) return { ok: false, error: "You can’t remove yourself. Use “Leave group” instead." };
   if (await isPairGroup(groupId)) return { ok: false, error: PAIR_NO_PEOPLE }; // a pair always has exactly its two people
   const members = await db.member.findMany({ where: { id: { in: memberIds }, groupId } });
@@ -747,26 +748,16 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     // Someone with their own account who has left or been removed is never taken out (or put back) by somebody else's undo:
     // their row, and the removal record on it, stay exactly as they are.
     if (m.accountId && (m.leftAt || m.removedAt)) return { ok: false, error: `${m.name} has left or been removed, so this can’t be undone.` };
-    const used =
-      (await db.expenseShare.count({ where: { memberId: m.id } })) +
-      (await db.expense.count({ where: { groupId, OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
-      (await db.payment.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
-      // An "I've paid" claim (waiting or answered) counts as being part of a payment too.
-      (await db.paymentClaim.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
-      // A moment they added, or a reaction they left, counts too: taking the person out would leave photos with no author (and their files behind).
-      (await db.moment.count({ where: { groupId, authorId: m.id } })) +
-      (await db.momentReaction.count({ where: { memberId: m.id } })) +
-      // Chips in a card game (a live line, or one taken back), a game they host or sit at: the game's lines and result would point at nobody.
-      // (A finished game's result is an expense with their share, counted above.)
-      (await db.potMove.count({ where: { memberId: m.id, game: { groupId } } })) +
-      (await db.potGame.count({ where: { groupId, deletedAt: null, OR: [{ hostId: m.id }, { players: { contains: m.id } }] } }));
-    if (used > 0) return { ok: false, error: `${m.name} is already part of expenses, payments or moments, so they can’t be removed.` };
+    if (await memberInUse(db, groupId, m.id)) return { ok: false, error: memberInUseText(m.name) };
   }
   if (members.length === 0) return { ok: true };
+  await opts.afterRead?.(); // tests only: runs after the reads, before the write begins
   let eventId: string;
   try {
   eventId = await db.$transaction(async (tx) => {
     await markUndone(tx, mark);
+    // The "is this person used anywhere" check again, inside the write: a deposit, goal entry, game or bill added since must not be orphaned.
+    for (const m of members) if (await memberInUse(tx, groupId, m.id)) throw new MemberInUse(m.name);
     // The "account holder who left or was removed" check again, inside the write: a leave racing this undo can't get the row deleted.
     const del = await tx.member.deleteMany({ where: { id: { in: members.map((m) => m.id) }, groupId, OR: [{ accountId: null }, { leftAt: null, removedAt: null }] } });
     if (del.count !== members.length) throw new MembersMoved();
@@ -802,6 +793,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     });
   });
   } catch (err) {
+    if (err instanceof MemberInUse) return { ok: false, error: memberInUseText(err.message) };
     if (err instanceof MembersMoved) return { ok: false, error: "Someone changed these people a moment ago, so this wasn’t undone. Look again." };
     throw err;
   }
@@ -809,6 +801,11 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
 }
 
 class MembersMoved extends Error {}
+class MemberInUse extends Error {}
+
+export const memberInUseText = (name: string) => `${name} is already part of expenses, payments, moments, the deposit, a goal or a game, so they can’t be removed.`;
+
+export { memberInUse };
 
 async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"], mark?: UndoMark): Promise<UndoResult> {
   if (await isPairGroup(groupId)) return { ok: false, error: PAIR_NO_PEOPLE };
