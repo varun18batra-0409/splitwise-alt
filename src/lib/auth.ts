@@ -122,7 +122,7 @@ export async function accountForEmail(email: string, name?: string) {
       const made = await tx.account.create({ data: { email, ...(name ? { name } : {}) } });
       await reapplyBlocks(tx, made.id, email);
       return made;
-    });
+    }, { timeout: 30000 }); // the same allowance as deleting an account: someone blocked by many people still gets in
   } catch {
     // Two sign-ups for the same email at the same moment: the second one's insert fails (the email is unique) and it is rolled back
     // whole, so it uses the first one's account, which put the blocks back exactly once in its own step.
