@@ -84,6 +84,9 @@ export async function sendPostcardAction(f: FormData) {
   // Sealed until a day you pick (from tomorrow, up to two years ahead): opens at midnight your time.
   let opensAt: Date | null = null;
   const tz = await getTimeZone(); // the sender's zone: the day is picked, and shown in the push, in it
+  // Known edge (kept on purpose): the opening moment is worked out from this zone, the sender's tz cookie now, but the pages
+  // later read the day in the sender's saved Account.timeZone (see sealedDay in lib/postcards/opens.ts). If those two differ
+  // (the phone has not reported its zone yet, or they have moved), the day shown can be a day off the one picked.
   const day = field(f, "opensOn", 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
     const noonUtc = new Date(`${day}T12:00:00Z`);

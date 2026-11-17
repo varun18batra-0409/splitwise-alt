@@ -66,6 +66,13 @@ describe("AS-10: the collections switch", () => {
   });
 });
 
+// A phone for an account (a subscription hangs on a member, so the person gets one in a group of their own).
+async function phone(accountId: string, tag: string) {
+  const g = await group(`Phone ${tag}`);
+  const m = await db.member.create({ data: { groupId: g.id, name: `Phone ${tag}`, accountId } });
+  await db.pushSubscription.create({ data: { memberId: m.id, endpoint: goodEndpoint(`ph-${tag}-${stamp}`), p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
+}
+
 describe("AS-17: an email invite for an existing name", () => {
   async function setup(key: string) {
     const g = await group(`Claim ${key}`);
@@ -88,6 +95,26 @@ describe("AS-17: an email invite for an existing name", () => {
     await inviteToClaim(s.g.id, s.inviter.id, s.kiran.id, s.kiranAcc.email, "https://loopin.test");
     const again = await db.invite.findUnique({ where: { groupId_email: { groupId: s.g.id, email: s.kiranAcc.email } } });
     expect(again?.token).toBe(inv?.token);
+    // L3: asking again for the same open invitation (same token) sends no second note.
+    expect(await db.accountNote.count({ where: { accountId: s.kiranAcc.id, kind: "group_invite" } })).toBe(1);
+  });
+  it("L3: one push and one note per invitation, however many times it is asked for (1 + 1 + 1 calls = 1)", async () => {
+    const s = await setup("r");
+    await phone(s.kiranAcc.id, "r");
+    for (let i = 0; i < 3; i++) await inviteToClaim(s.g.id, s.inviter.id, s.kiran.id, s.kiranAcc.email, "https://loopin.test");
+    expect(await db.accountNote.count({ where: { accountId: s.kiranAcc.id, kind: "group_invite" } })).toBe(1);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+  });
+  it("L3: someone who left, and someone the admin removed, get no note and no push for an invitation to a different name", async () => {
+    for (const [key, gone] of [["l", { leftAt: new Date() }], ["m", { leftAt: new Date(), removedAt: new Date() }]] as const) {
+      const s = await setup(key);
+      await db.member.create({ data: { groupId: s.g.id, name: "Kiran again", accountId: s.kiranAcc.id, ...gone } });
+      await phone(s.kiranAcc.id, key);
+      const r = await inviteToClaim(s.g.id, s.inviter.id, s.kiran.id, s.kiranAcc.email, "https://loopin.test");
+      expect(r.ok).toBe(true); // the invitation itself is unchanged
+      expect(await db.accountNote.count({ where: { accountId: s.kiranAcc.id, kind: "group_invite" } })).toBe(0);
+    }
+    expect(mocks.send).not.toHaveBeenCalled();
   });
   it("if Kiran blocked the inviter: no note and no Join card", async () => {
     const s = await setup("b");
@@ -101,17 +128,39 @@ describe("AS-17: an email invite for an existing name", () => {
 });
 
 describe("MB-9: postcard people", () => {
-  it("Asha is listed under both shared groups, and is one person to send to", async () => {
+  // Who "Me" may send to: someone with an account who really joined, in a live non-pair group, not removed (either way), not blocked.
+  // The old test only checked a person in two groups is listed once, which no change to the rules above would break.
+  it("lists exactly the right people: Asha twice-shared is one person; a removed person, a blocked person, a name-only member and a deleted group's friend are not offered, and cannot be sent to", async () => {
     const me = await account("me");
     const asha = await account("asha");
+    const rem = await account("removed");
+    const blk = await account("blocked");
+    const old = await account("deleted");
+    const left = await account("left");
     for (const name of ["Goa", "Manali"]) {
       const g = await group(`PC ${name}`);
       await db.member.create({ data: { groupId: g.id, name: "Me", accountId: me.id } });
       await db.member.create({ data: { groupId: g.id, name: "Asha", accountId: asha.id } });
     }
+    const g3 = await group("PC Hampi");
+    await db.member.create({ data: { groupId: g3.id, name: "Me", accountId: me.id } });
+    await db.member.create({ data: { groupId: g3.id, name: "Removed", accountId: rem.id, leftAt: new Date(), removedAt: new Date() } });
+    await db.member.create({ data: { groupId: g3.id, name: "Blocked", accountId: blk.id } });
+    await db.member.create({ data: { groupId: g3.id, name: "Typed only" } }); // a name nobody has an account for
+    await db.member.create({ data: { groupId: g3.id, name: "Left", accountId: left.id, leftAt: new Date() } }); // left on their own: still counts
+    await db.block.create({ data: { blockerId: me.id, blockedId: blk.id } });
+    const g4 = await group("PC Gone");
+    await db.member.create({ data: { groupId: g4.id, name: "Me", accountId: me.id } });
+    await db.member.create({ data: { groupId: g4.id, name: "Deleted", accountId: old.id } });
+    await db.group.update({ where: { id: g4.id }, data: { deletedAt: new Date() } });
+
     const groups = (await postcardPeople(me.id)).filter((g) => g.name.startsWith("PC "));
-    expect(groups).toHaveLength(2);
-    for (const g of groups) expect(g.people.map((p) => p.id)).toEqual([asha.id]);
-    expect((await canSendTo(me.id, [asha.id, asha.id])).size).toBe(1);
+    expect(groups.map((g) => g.name).sort()).toEqual(["PC Goa", "PC Hampi", "PC Manali"]);
+    expect(groups.find((g) => g.name === "PC Goa")!.people.map((p) => p.id)).toEqual([asha.id]);
+    expect(groups.find((g) => g.name === "PC Manali")!.people.map((p) => p.id)).toEqual([asha.id]);
+    expect(groups.find((g) => g.name === "PC Hampi")!.people.map((p) => p.id)).toEqual([left.id]);
+    const sendable = await canSendTo(me.id, [asha.id, asha.id, rem.id, blk.id, old.id, left.id, "no-such-account"]);
+    expect([...sendable].sort()).toEqual([asha.id, left.id].sort());
+    await db.block.deleteMany({ where: { blockerId: me.id } });
   });
 });

@@ -3,7 +3,7 @@ import { claimJob, finishJob, sendPushTo } from "./push";
 import { JOINED } from "./membership";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { addDays } from "./local-time";
-import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "./nudge-zones";
+import { coveredByOldGroupRecord, coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "./nudge-zones";
 import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
 
 // The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
@@ -92,17 +92,17 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
 }
 
 // The day-end pulse: for each trip, one playful line about a day's spending, to everyone in it, once per person per day.
-// Two runs a day (the morning and the evening cron) so that every time zone gets it at a sensible hour:
+// Two runs a day (00:30 and 16:00 UTC) so that every time zone gets it at a sensible hour:
 //  - People with no zone yet (old path) keep the old behaviour: India time, the evening run only, one claim per trip and day.
-//  - People whose phone told us their zone get it in THEIR evening (16:00-21:59 their time: it tells their today), or
-//    the next morning (06:00-13:59 their time: it tells their yesterday), whichever run reaches them first.
-//    Otherwise they are skipped for this run. Each person is sent a day once (key ...:m:<member id>).
-// With the crons at 00:30 and 16:00 UTC these windows reach every zone from UTC-10 to UTC+14.
+//  - People whose phone told us their zone are each given exactly one of the two runs, whichever lands at a better local
+//    time (06:00-21:59, never at night), telling their evening ("today") or the next morning ("yesterday"): see pulseRunFor
+//    in pulse.ts, which lists which offsets get which run. All zones from UTC-12 to UTC+14 are covered.
+//    Each person is sent a day once (key ...:m:<member id>).
 export async function sendDayPulse(now = new Date(), stop: () => boolean = () => false, opts: { run?: "morning" | "evening" } = {}) {
   const run = opts.run ?? "evening";
   const { pulseText, pulseDayFor } = await import("./pulse");
   const { spentAmount, payersOf } = await import("./payers");
-  const { localHour } = await import("./local-time");
+  const { localMinutes } = await import("./local-time");
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   // A day ahead of India's, so people in zones further east are found too; the trip's own days are checked per person.
   const trips = await db.group.findMany({
@@ -120,7 +120,7 @@ export async function sendDayPulse(now = new Date(), stop: () => boolean = () =>
     const wanted = new Map<string, { day: string; when: "today" | "yesterday"; old: boolean; ids: string[] }>();
     if (run === "evening" && legacy.length && today >= g.tripStart && today <= end) wanted.set(`old|${today}`, { day: today, when: "today", old: true, ids: [] });
     for (const p of zoned) {
-      const d = pulseDayFor(localHour(now, p.tz), p.today);
+      const d = pulseDayFor(run, localMinutes(now, p.tz), p.today);
       if (!d || d.day < g.tripStart || d.day > end) continue;
       const k = `${d.when}|${d.day}`;
       const w = wanted.get(k) ?? { day: d.day, when: d.when, old: false, ids: [] };
@@ -170,7 +170,8 @@ export async function sendDayPulse(now = new Date(), stop: () => boolean = () =>
         if (stop()) { deferred = true; break; }
         const oldKey = `pulse:${g.id}:${day}`;
         const key = `${oldKey}:m:${id}`;
-        if (await coveredByOldRecord(oldKey, now, id)) continue;
+        // The old 16:00 run wrote the group's record and sent to everyone, zoned people too: that covers them (see coveredByOldGroupRecord).
+        if (await coveredByOldGroupRecord(oldKey, now, id)) continue;
         if (!(await claimJob(key, now))) continue;
         sent += await push([id], textFor(list));
         await finishJob(key);

@@ -12,6 +12,7 @@ import { dayGroups, type GroupPostcard, type TripStamp } from "@/lib/group-memor
 import type { MomentCard } from "@/lib/moments-db";
 import { placePhoto } from "@/lib/places";
 import { placeOf } from "@/lib/countdown";
+import { sealedDay } from "@/lib/postcards/opens";
 import type { GroupView } from "./view";
 
 const TILT = ["-rotate-[2deg]", "rotate-[1.5deg]", "-rotate-[1deg]", "rotate-[2.5deg]"];
@@ -42,7 +43,6 @@ export function MemoriesTab({
   const trip = group.type === "trip";
   const days = dayGroups(cards, group.tripStart, group.tripEnd, tz, today);
   const over = trip && Boolean(group.tripEnd) && today > group.tripEnd && v.expenses.length >= 3;
-  const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: tz });
   const empty = days.length === 0 && !stamp && postcards.length === 0;
   const hasPostcards = postcards.length > 0;
   return (
@@ -88,10 +88,10 @@ export function MemoriesTab({
             {postcards.map((p, i) => (
               <li key={p.id} data-postcard-item={p.id}>
                 <Link href={`/postcards/${p.id}`} className={`relative block transition-transform active:scale-[0.97] ${TILT[i % TILT.length]}`}>
-                  {p.row ? <PostcardFront {...cardProps(p.row, "", tz).front} /> : <SealedEnvelope from="" opens={p.sealedUntil ? short.format(p.sealedUntil) : ""} small />}
+                  {p.row ? <PostcardFront {...cardProps(p.row, "", tz).front} /> : <SealedEnvelope from="" opens={p.sealedUntil ? sealedDay(p.sealedUntil, p.senderTz, tz, "short") : ""} small />}
                   {p.row?.reaction && p.direction === "sent" && <SealMark id={p.row.reaction} k={`s${p.id}`} className="absolute -bottom-3 -right-2 w-[24%] rotate-[10deg]" />}
                 </Link>
-                <p className="mt-2.5 truncate text-[13px] text-fg/70">{p.sealedUntil ? `Sealed until ${short.format(p.sealedUntil)}` : p.direction === "sent" ? `To ${p.who}` : `From ${p.who}`}</p>
+                <p className="mt-2.5 truncate text-[13px] text-fg/70">{p.sealedUntil ? `Sealed until ${sealedDay(p.sealedUntil, p.senderTz, tz, "short")}` : p.direction === "sent" ? `To ${p.who}` : `From ${p.who}`}</p>
               </li>
             ))}
           </ul>

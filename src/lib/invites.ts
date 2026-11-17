@@ -9,6 +9,7 @@ import { blockedEitherWay, hasBlocked } from "./blocks";
 import { groupAdminId } from "./group-admin";
 import { randomBytes } from "node:crypto";
 import { validSub } from "./push-subs";
+import { claimJob, finishJob } from "./push";
 import { DIRECT, NOT_DIRECT } from "./direct";
 
 // Invite and "added you" emails one person can send in a day. The whole app's
@@ -484,9 +485,16 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
       { optOut: true, item: "groups.added", suppress: blocked },
     ).catch(() => false);
     // Someone with an account also gets the card in their updates (the same words as inviteOne), unless they blocked the inviter
-    // or are already in the group.
-    if (theirAccount && !blocked && !group.members.some((m) => m.accountId === theirAccount.id && !m.leftAt && !m.removedAt)) {
-      await deliverNotes([{ accountIds: [theirAccount.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
+    // or already have a row in this group. That includes someone who left or whom the admin removed: this invitation is for a
+    // different (name-only) row, so it could never bring them back (only the admin's invitation for their own row does that,
+    // see invitations.ts), and a note for it would be a dead end. One note per invitation: asking again for the same open
+    // invitation keeps its token, so the claim below is taken once per token and repeats send nothing.
+    if (theirAccount && !blocked && !group.members.some((m) => m.accountId === theirAccount.id)) {
+      const noteKey = `invite-note:${token}`;
+      if (await claimJob(noteKey)) {
+        await deliverNotes([{ accountIds: [theirAccount.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
+        await finishJob(noteKey);
+      }
     }
   };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });
