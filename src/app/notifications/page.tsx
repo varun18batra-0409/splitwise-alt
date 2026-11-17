@@ -98,7 +98,8 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
   // "Needs you" is the first tab when anything waits on you; "All" is everything, as before.
   const tab: "needs" | "all" = sp.tab === "all" ? "all" : sp.tab === "needs" ? "needs" : needs.total > 0 ? "needs" : "all";
   // Only the "All" tab counts as reading the activity. Answering one thing under "Needs you" leaves the rest unread.
-  if (tab === "all") await Promise.all([markNotificationsSeen(memberships), account ? markNotesSeen(account.id) : null]);
+  // Best effort: a busy database must not turn the page into an error (the items simply stay unread until next time).
+  if (tab === "all") await Promise.all([markNotificationsSeen(memberships), account ? markNotesSeen(account.id) : null]).catch(() => undefined);
 
   // Group changes and personal notes (Collect) together, newest first.
   type Row = { date: Date } & ({ type: "event"; n: (typeof items)[number] } | { type: "note"; note: (typeof notes)[number] });

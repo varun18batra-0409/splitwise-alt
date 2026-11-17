@@ -399,13 +399,29 @@ async function settleTotal(page: Page, groupPath: string): Promise<{ cards: numb
   }
   return { cards: n, total };
 }
+// The shared test database file answers "busy" when the app writes at the same moment (seen as P2010 "SocketTimeout"):
+// try again with a growing pause. Test file only, never live.
+async function dbRetry<T>(what: string, run: () => Promise<T>, tries = 12): Promise<T> {
+  for (let n = 1; ; n++) {
+    try {
+      return await run();
+    } catch (e) {
+      if (n >= tries || !/P2010|SocketTimeout|SQLITE_BUSY|database is locked|busy/i.test(String(e))) throw e;
+      console.log(`  (${what}: the test database was busy, trying again ${n}/${tries - 1})`);
+      await new Promise((r) => setTimeout(r, Math.min(750 * n, 5000)));
+    }
+  }
+}
 // A group the test sets up directly (like the Tokyo step): Varun plus named people who haven't joined.
 async function seedGroup(name: string, others: string[], currency = "INR") {
-  const acc = await db.account.findUniqueOrThrow({ where: { email: email("varun") } });
+  const acc = await dbRetry("seed account", () => db.account.findUniqueOrThrow({ where: { email: email("varun") } }));
   const code = `exa-${Math.random().toString(36).slice(2, 8)}-${stamp}`;
-  const grp = await db.group.create({
-    data: { name, currency, type: "other", inviteCode: code, members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, ...others.map((n) => ({ name: n }))] } },
-  });
+  // A retry after a busy answer can't double the group: the invite code is unique, so look for it first.
+  const grp = await dbRetry("seed group", async () =>
+    (await db.group.findUnique({ where: { inviteCode: code } })) ??
+    db.group.create({
+      data: { name, currency, type: "other", inviteCode: code, members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, ...others.map((n) => ({ name: n }))] } },
+    }));
   return { id: grp.id, path: `/groups/${grp.id}`, code };
 }
 async function until<T>(what: string, look: () => Promise<T | null | undefined | false>, ms = 15_000): Promise<T> {
@@ -533,12 +549,7 @@ async function main() {
   for (const [base, quote, rate] of [["THB", "INR", "2.5734"], ["INR", "THB", "0.3886"], ["INR", "USD", "0.0119"], ["EUR", "INR", "90.12"]] as const) {
     // The hosted test database now and then drops a connection ("SocketTimeout", seen on several branches in one night): try once more.
     // A second identical rate row, if the first write did land, changes nothing.
-    const seed = () => db.exchangeRate.create({ data: { base, quote, rate, date: day } });
-    await seed().catch(async (e) => {
-      console.log(`  (seeding the ${base}→${quote} rate failed once, trying again: ${String(e).split("\n").pop()?.slice(0, 120)})`);
-      await new Promise((r) => setTimeout(r, 2000));
-      await seed();
-    });
+    await dbRetry(`${base}→${quote} rate`, () => db.exchangeRate.create({ data: { base, quote, rate, date: day } }));
   }
   // On the private test copy: start with fresh limits (many sign-ups come from this one machine).
   if (hosted) await db.rateLimit.deleteMany({});
