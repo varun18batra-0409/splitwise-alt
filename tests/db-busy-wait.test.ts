@@ -31,10 +31,10 @@ async function holdLock(ms: number) {
   const code = `const { createClient } = require("@libsql/client");
     const c = createClient({ url: ${JSON.stringify(url)} });
     (async () => {
-      await c.execute("BEGIN IMMEDIATE");
-      await c.execute("INSERT INTO busy_probe VALUES (0)");
+      const tx = await c.transaction("write");
+      await tx.execute("INSERT INTO busy_probe VALUES (0)");
       console.log("locked");
-      setTimeout(async () => { await c.execute("COMMIT"); c.close(); }, ${ms});
+      setTimeout(async () => { await tx.commit(); c.close(); }, ${ms});
     })();`;
   const child = spawn(process.execPath, ["-e", code], { cwd: process.cwd(), stdio: ["ignore", "pipe", "inherit"] });
   await new Promise<void>((ok, fail) => {
@@ -54,7 +54,11 @@ afterAll(async () => {
 describe("a local test database waits for another write instead of failing", () => {
   it("a plain write after a transaction waits", async () => {
     await db.$transaction(async (tx) => tx.$queryRawUnsafe("SELECT 1")); // the client now has a fresh connection
-    const released = holdLock(800);
+    const released = holdLock(1500);
+    // Proof the other write really holds the lock, and of the old fault: a fresh connection that isn't told to wait fails at once.
+    const bare = createClient({ url });
+    await expect(bare.execute("INSERT INTO busy_probe VALUES (9)")).rejects.toThrow(/busy|locked/i);
+    bare.close();
     const t = Date.now();
     await db.$executeRawUnsafe("INSERT INTO busy_probe VALUES (1)");
     expect(Date.now() - t).toBeGreaterThanOrEqual(500);
@@ -63,7 +67,7 @@ describe("a local test database waits for another write instead of failing", () 
 
   it("a write inside a transaction waits", async () => {
     await db.$transaction(async (tx) => tx.$queryRawUnsafe("SELECT 1"));
-    const released = holdLock(800);
+    const released = holdLock(1000);
     const t = Date.now();
     await db.$transaction(async (tx) => tx.$executeRawUnsafe("INSERT INTO busy_probe VALUES (2)"), { timeout: 10_000, maxWait: 10_000 });
     expect(Date.now() - t).toBeGreaterThanOrEqual(500);
