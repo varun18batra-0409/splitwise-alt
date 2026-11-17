@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db } from "./db";
 import { asOfCut, leaverCut, leaverWhere, memberOfChange, type MemberChange } from "./left-view";
 import { spentAmount } from "./payers";
@@ -58,16 +59,27 @@ export async function expenseAccess(groupId: string, memberId: string, expenseId
 }
 
 // THE list of changes after the cut-off that decides how a row looked on the day someone left (MA-3). Every screen that shows a leaver's
-// rows (the group page, Home, Search, the lighter Home loader, the export, "my data") reads it through here, so they all agree: every
-// change about an expense or a payment (including "Mark all paid" lines, which have no single payment) and every currency change, after
-// that day, oldest first, with only the columns the decision needs. `complete` is false only past ROW_EVENT_CAP lines (the same
-// number everywhere); asOfCut then hides rows changed since rather than guess.
+// rows (the group page, Home, Search, the lighter Home loader, the export, "my data") reads it through here, so they all agree.
+// It holds every change about an expense or a payment after that day, plus "Settle everything" lines, payments taken off or put back
+// and currency changes, oldest first. Only the columns the decision needs, and the saved undo text only for the lines that use it
+// (edits, payment lines, "Settle everything"): the others are read without it. The creation lines of expenses and payments
+// ("added X", "recorded a payment") are left out: they are about rows newer than the cut-off, which the view never rolls back.
+// It is read once per request per group (React's cache), however many loaders on one page ask. `complete` is false only past
+// ROW_EVENT_CAP lines (the same number everywhere); asOfCut then shows only the rows that have the leaver in them.
 export const ROW_EVENT_CAP = 20_000;
-export async function laterRowEvents(groupId: string, cut: Date) {
-  const [rows, currency] = await Promise.all([
+const WITH_UNDO = ["expense_edited", "payment_deleted", "payment_restored", "group_reopened", "group_settled_closed"];
+const fetchRowEvents = cache(async (groupId: string, cutMs: number) => {
+  const cut = new Date(cutMs);
+  const [withUndo, plain, currency] = await Promise.all([
     db.groupEvent.findMany({
-      where: { groupId, createdAt: { gt: cut }, kind: { not: "currency_changed" }, OR: [{ expenseId: { not: null } }, { paymentId: { not: null } }, { kind: { in: ["payment_deleted", "payment_restored"] } }] },
-      select: { id: true, createdAt: true, kind: true, touches: true, expenseId: true, paymentId: true, undo: true, text: true },
+      where: { groupId, createdAt: { gt: cut }, kind: { in: WITH_UNDO } },
+      select: { id: true, createdAt: true, kind: true, touches: true, expenseId: true, paymentId: true, undo: true, text: true, details: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: ROW_EVENT_CAP + 1,
+    }),
+    db.groupEvent.findMany({
+      where: { groupId, createdAt: { gt: cut }, kind: { notIn: [...WITH_UNDO, "currency_changed", "expense_added", "payment_recorded"] }, OR: [{ expenseId: { not: null } }, { paymentId: { not: null } }] },
+      select: { id: true, createdAt: true, kind: true, touches: true, expenseId: true, paymentId: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: ROW_EVENT_CAP + 1,
     }),
@@ -78,23 +90,32 @@ export async function laterRowEvents(groupId: string, cut: Date) {
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
   ]);
-  const complete = rows.length <= ROW_EVENT_CAP;
-  return { events: [...rows.slice(0, ROW_EVENT_CAP), ...currency.map((c) => ({ ...c, undo: null as string | null, text: null as string | null }))], complete };
+  const complete = withUndo.length <= ROW_EVENT_CAP && plain.length <= ROW_EVENT_CAP;
+  const events = [
+    ...withUndo.slice(0, ROW_EVENT_CAP),
+    ...plain.slice(0, ROW_EVENT_CAP).map((e) => ({ ...e, undo: null as string | null, text: null as string | null, details: null as string | null })),
+    ...currency.map((c) => ({ ...c, undo: null as string | null, text: null as string | null })),
+  ];
+  return { events, complete };
+});
+export function laterRowEvents(groupId: string, cut: Date) {
+  return fetchRowEvents(groupId, cut.getTime());
 }
 
 // When people in these groups went out or came back (the group's "left" / "came back" lines), by person: what membershipSpan needs to
-// tell a person who left and was brought back from one who was there all along.
+// tell a person who left and was brought back from one who was there all along. Lines that were undone are skipped (the undo is its own
+// line, and a leave that was taken back never happened).
 export async function memberHistory(groupIds: string[]): Promise<Map<string, MemberChange[]>> {
   const out = new Map<string, MemberChange[]>();
   if (!groupIds.length) return out;
   const rows = await db.groupEvent.findMany({
-    where: { groupId: { in: groupIds }, kind: { in: ["member_left", "member_rejoined"] } },
-    select: { kind: true, createdAt: true, undo: true },
+    where: { groupId: { in: groupIds }, kind: { in: ["member_left", "member_rejoined"] }, undoneAt: null },
+    select: { kind: true, createdAt: true, undo: true, details: true },
     orderBy: { createdAt: "asc" },
     take: 50_000,
   });
   for (const r of rows) {
-    const id = memberOfChange(r.undo);
+    const id = memberOfChange(r.undo, r.details);
     if (id) (out.get(id) ?? out.set(id, []).get(id)!).push({ kind: r.kind, createdAt: r.createdAt });
   }
   return out;
@@ -115,23 +136,24 @@ function paymentIdsInUndo(undo: string | null): string[] {
 export async function asOfChanged(groupId: string, member: { id: string; leftAt: Date | null; removedAt?: Date | null }) {
   const cut = leaverCut(member);
   const scope = await readableWhere(groupId, member);
-  if (!cut || !scope) return { expenses: [] as { id: string; now: ExpenseNow; shown: ExpenseNow | null }[], payments: [] as { id: string; now: PaymentNow; shown: PaymentNow }[] };
+  if (!cut || !scope) return { expenses: [] as { id: string; now: ExpenseNow; shown: ExpenseNow | null }[], payments: [] as { id: string; now: PaymentNow; shown: PaymentNow | null }[] };
   const { events: later, complete } = await laterRowEvents(groupId, cut.leftAt);
   const eids = [...new Set(later.map((e) => e.expenseId).filter((x): x is string => Boolean(x)))];
   const pids = [...new Set(later.flatMap((e) => (e.paymentId ? [e.paymentId] : [])).concat(later.flatMap((e) => paymentIdsInUndo(e.undo))))];
   const [rows, pays] = await Promise.all([
     db.expense.findMany({
-      where: { groupId, AND: [scope.expenses, { createdAt: { lte: cut.leftAt } }, { OR: [{ id: { in: eids } }, { editedAt: { gt: cut.leftAt } }, { deletedAt: { gt: cut.leftAt } }] }] },
+      // (Past the cap nothing is known about any of them, and asOfCut shows none that doesn't have the leaver in it: so all are read.)
+      where: { groupId, AND: [scope.expenses, { createdAt: { lte: cut.leftAt } }, ...(complete ? [{ OR: [{ id: { in: eids } }, { editedAt: { gt: cut.leftAt } }, { deletedAt: { gt: cut.leftAt } }] }] : [])] },
       include: { shares: true },
     }),
-    db.payment.findMany({ where: { groupId, AND: [scope.payments, { createdAt: { lte: cut.leftAt } }, { OR: [{ id: { in: pids } }, { deletedAt: { gt: cut.leftAt } }] }] } }),
+    db.payment.findMany({ where: { groupId, AND: [scope.payments, { createdAt: { lte: cut.leftAt } }, ...(complete ? [{ OR: [{ id: { in: pids } }, { deletedAt: { gt: cut.leftAt } }] }] : [])] } }),
   ]);
   const shown = asOfCut({ expenses: rows, payments: pays }, later, member.id, cut.leftAt, { complete });
   const eShown = new Map(shown.expenses.map((e) => [e.id, e]));
   const pShown = new Map(shown.payments.map((p) => [p.id, p]));
   return {
     expenses: rows.map((e) => ({ id: e.id, now: e, shown: eShown.get(e.id) ?? null })),
-    payments: pays.map((p) => ({ id: p.id, now: p, shown: pShown.get(p.id)! })),
+    payments: pays.map((p) => ({ id: p.id, now: p, shown: pShown.get(p.id) ?? null })),
   };
 }
 

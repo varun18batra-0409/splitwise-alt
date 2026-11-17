@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { asOfCut, BILL_PHOTO_EDIT_PREFIX, hideLaterNotes, memberOfChange, membershipPeriods, membershipSpan, overlapped, scopeBalances, sharedGroupRow } from "@/lib/left-view";
+import { asOfCut, BILL_PHOTO_EDIT_PREFIX, hideLaterNotes, isMark, memberMark, memberOfChange, membershipPeriods, membershipSpan, overlapped, PHOTO_ONLY_MARK, scopeBalances, sharedGroupRow } from "@/lib/left-view";
 import { netBalances } from "@/lib/balances";
 import { spentAmount } from "@/lib/payers";
 import { smartSettle } from "@/lib/settle";
@@ -97,9 +97,10 @@ describe("M2: leaving and coming back leaves a gap that is not time together", (
     const jan = { createdAt: d("01-10"), claimedAt: null, seenAt: null, leftAt: d("01-15") as Date | null, removedAt: null };
     expect(overlapped(membershipSpan(ashaRow, ashaHistory), membershipSpan(jan))).toBe(true);
   });
-  it("the row's end state wins: left now with no line saved closes the open stay; back now with no line saved reopens it", () => {
+  it("the row's end state wins: left now with no line saved closes the open stay", () => {
     expect(membershipPeriods({ ...ashaRow, leftAt: d("02-01") }, [])).toEqual([{ from: d("01-05"), to: d("02-01") }]);
-    expect(membershipPeriods(ashaRow, [{ kind: "member_left", createdAt: d("01-20") }])).toEqual([{ from: d("01-05"), to: null }]);
+    // (In the group now, last line says left, no line says came back: the old stay stays closed. See the join-link tests below.)
+    expect(membershipPeriods(ashaRow, [{ kind: "member_left", createdAt: d("01-20") }], d("06-01"))).toEqual([{ from: d("01-05"), to: d("01-20") }, { from: d("06-01"), to: null }]);
   });
   it("a removal is a 'left' line too: removed 15 Feb, brought back 1 Mar, removed again 20 Mar", () => {
     const row = { ...ashaRow, leftAt: d("03-20"), removedAt: d("03-20") };
@@ -225,5 +226,110 @@ describe("M5: reactions on expenses (checked in the page's own query)", () => {
       expect(src, f).toContain("laterRowEvents(");
       expect(src, f).not.toMatch(/asOfCut\([^)]*\bafter\b/);
     }
+  });
+});
+
+
+describe("second review: rejoining by the join link, move-out undo, marks", () => {
+  const ashaRow = { createdAt: d("01-05"), claimedAt: null, seenAt: null, seenEventsAt: null as Date | null, leftAt: null as Date | null, removedAt: null };
+  const raviRow = { createdAt: d("03-01"), claimedAt: null, seenAt: null, leftAt: d("03-30") as Date | null, removedAt: null };
+  const NOW = d("06-01");
+  it("old data: Asha left 20 Jan, came back by the join link with no line saved, Ravi 1-30 Mar: not overlapped (the old stay is not reopened)", () => {
+    const h = [{ kind: "member_left", createdAt: d("01-20") }];
+    const span = membershipSpan(ashaRow, h, NOW);
+    expect(span.periods).toEqual([{ from: d("01-05"), to: d("01-20") }, { from: NOW, to: null }]);
+    expect(overlapped(span, membershipSpan(raviRow))).toBe(false);
+  });
+  it("...and once she is seen using the group, the new stay starts then (the earliest point we can stand behind)", () => {
+    const h = [{ kind: "member_left", createdAt: d("01-20") }];
+    const seen = { ...ashaRow, seenEventsAt: d("03-10") };
+    expect(membershipSpan(seen, h, NOW).periods![1].from).toEqual(d("03-10"));
+    expect(overlapped(membershipSpan(seen, h, NOW), membershipSpan(raviRow))).toBe(true); // she really was there in March
+    // seen only BEFORE she left doesn't count as after:
+    expect(membershipSpan({ ...ashaRow, seenEventsAt: d("01-10") }, h, NOW).periods![1].from).toEqual(NOW);
+  });
+  it("new data: the join link now writes a 'rejoined' line with a member_set undo, so the stay starts the day she came back", () => {
+    const undo = JSON.stringify({ type: "member_set", memberId: "asha", data: { leftAt: d("01-20").toISOString() } });
+    expect(memberOfChange(undo)).toBe("asha");
+    const h = [{ kind: "member_left", createdAt: d("01-20") }, { kind: "member_rejoined", createdAt: d("05-05") }];
+    expect(overlapped(membershipSpan(ashaRow, h, NOW), membershipSpan(raviRow))).toBe(false);
+  });
+  it("move out 20 Jan, undo 21 Jan, Ravi joins 1 Mar, Asha leaves 1 Apr: overlapped", () => {
+    // The Undo of a move-out writes a 'came back' line with a member mark in its details (no undo, so no redo).
+    expect(memberOfChange("", JSON.stringify(["Their deposit is back with them", memberMark("asha")]))).toBe("asha");
+    const asha = { ...ashaRow, leftAt: d("04-01") as Date | null };
+    const both = [{ kind: "member_left", createdAt: d("01-20") }, { kind: "member_rejoined", createdAt: d("01-21") }];
+    expect(membershipPeriods(asha, both, NOW)).toEqual([{ from: d("01-05"), to: d("01-20") }, { from: d("01-21"), to: d("04-01") }]);
+    expect(overlapped(membershipSpan(asha, both, NOW), membershipSpan({ ...raviRow, leftAt: null }))).toBe(true);
+    // The move-out line itself is marked undone, and memberHistory skips undone lines: only the 'came back' line is left, and nothing breaks.
+    expect(overlapped(membershipSpan(asha, [both[1]], NOW), membershipSpan({ ...raviRow, leftAt: null }))).toBe(true);
+  });
+  it("marks are for the code: recognised, and left out of what people read", () => {
+    expect(isMark(PHOTO_ONLY_MARK)).toBe(true);
+    expect(isMark("Amount: ₹900 → ₹1,200")).toBe(false);
+    expect(readFileSync("src/lib/events.ts", "utf8")).toContain("!isMark(x)"); // parseDetails drops them
+  });
+  it("the join link writes the line, and the move-out undo carries the mark (checked in the source)", () => {
+    expect(readFileSync("src/lib/join.ts", "utf8")).toMatch(/kind: "member_rejoined"[\s\S]*type: "member_set"/);
+    expect(readFileSync("src/lib/home/moving-db.ts", "utf8")).toContain("memberMark(memberId)");
+  });
+});
+
+describe("second review: lines, caps and currency", () => {
+  const photoMarked = ev("pm", d("11-05"), "expense_edited", { expenseId: "hotel" }, { text: "", details: JSON.stringify([PHOTO_ONLY_MARK]) });
+  const hotelNow = { ...hotelThen, editedAt: d("11-05") };
+  it("(a) a photo-only line is recognised by its mark, whatever its words", () => {
+    expect(view([hotelNow, snacks, taxi], [photoMarked]).live.length).toBe(3);
+  });
+  it("(b) 'Settle everything' Undo and Redo count as payment toggles", () => {
+    const p1 = { id: "p1", fromId: A, toId: P, amount: 500000, createdAt: d("10-30"), deletedAt: d("11-07") as Date | null, deletedById: P as string | null };
+    const undone = ev("u", d("11-07"), "group_reopened", {}, { undo: JSON.stringify({ type: "settle_all", paymentIds: ["p1"], apply: true }) });
+    expect(asOfCut({ expenses: [], payments: [p1] }, [undone], R, CUT).payments[0].deletedAt).toBeNull();
+    const redone = ev("r", d("11-08"), "group_settled_closed", {}, { undo: JSON.stringify({ type: "settle_all", paymentIds: ["p2"], apply: false }) });
+    const p2 = { ...p1, id: "p2", deletedAt: null as Date | null, deletedById: null as string | null };
+    expect(asOfCut({ expenses: [], payments: [p2] }, [redone], R, CUT).payments[0].deletedAt).toEqual(CUT); // put back after: it was off that day
+  });
+  it("(c) past the cap a row restored after he left is not shown as active: no row without him in it is shown", () => {
+    const restored = { ...snacks }; // active now; it may have been deleted on his last day and brought back after the list was cut
+    expect(view([restored, taxi], [], false).live.map((e) => e.id)).toEqual(["taxi"]);
+    expect(asOfCut({ expenses: [], payments: [{ ...pay, id: "other", fromId: A, toId: P }] }, [], R, CUT, { complete: false }).payments).toEqual([]);
+  });
+  it("(d) a currency switch followed by its undo is no change", () => {
+    const edit = ev("e1", d("11-05"), "expense_edited", { expenseId: "hotel" }, { undo: JSON.stringify({ type: "expense_revert", expenseId: "hotel", before: stateOf(hotelThen) }) });
+    const usd = ev("c1", d("11-08"), "currency_changed", {}, { details: JSON.stringify(["Currency: INR → USD", "Rate used: 1 INR = 0.012 USD"]) });
+    const back = ev("c2", d("11-09"), "currency_changed", {}, { details: JSON.stringify(["Currency: USD → INR", "Every amount is back exactly as it was"]) });
+    const edited = { ...hotelThen, description: "Hotel + flight", amount: 2500000, editedAt: d("11-05"), shares: shares("hotel", { [A]: 1000000, [P]: 1500000 }) };
+    const h = asOfCut({ expenses: [edited], payments: [] }, [edit, usd, back], R, CUT).expenses[0];
+    expect(h.amount).toBe(1200000);
+    expect(h.baseCurrency).toBe("INR");
+    expect(h.shares.map((x) => x.amount)).toEqual([600000, 600000]);
+  });
+  it("(e) the group page takes 'touched' from the uncapped database read (checked in the source)", () => {
+    const src = readFileSync("src/lib/group-data.ts", "utf8");
+    expect(src.match(/touchedAfter\(id, me\.id, cut\.leftAt\)/g)?.length).toBe(2);
+  });
+});
+
+describe("speed: one pass over the lines, not one per row", () => {
+  it("20,000 lines over 2,000 expenses are worked through in under 300 ms", () => {
+    const rows: ReturnType<typeof expense>[] = [];
+    const events: ReturnType<typeof ev>[] = [];
+    for (let i = 0; i < 2000; i++) {
+      const id = `x${i}`;
+      const row = expense(id, `Item ${i}`, 10000 + i, A, { [A]: 5000 + i, [P]: 5000 }, d("10-20"), { editedAt: d("11-05") });
+      rows.push(row);
+      const before = stateOf(expense(id, `Item ${i} (old)`, 10000, A, { [A]: 5000, [P]: 5000 }, d("10-20")));
+      // ten lines each: an edit with a saved "before", deletes and restores, reactions' neighbours (other kinds), payments' lines
+      events.push(ev(`${id}-a`, d("11-05"), "expense_edited", { expenseId: id }, { undo: JSON.stringify({ type: "expense_revert", expenseId: id, before }), text: "", details: "[]" }));
+      for (let k = 0; k < 9; k++) events.push(ev(`${id}-${k}`, new Date(d("11-06").getTime() + k * 1000), k % 2 ? "expense_restored" : "expense_deleted", { expenseId: id }));
+    }
+    const payments = Array.from({ length: 500 }, (_, i) => ({ id: `p${i}`, fromId: A, toId: P, amount: 100, createdAt: d("10-25"), deletedAt: null as Date | null, deletedById: null as string | null }));
+    const t0 = performance.now();
+    const out = asOfCut({ expenses: rows, payments }, events, R, CUT);
+    const ms = performance.now() - t0;
+    expect(events.length).toBe(20000);
+    expect(out.expenses.length).toBe(2000);
+    expect(out.expenses[7].description).toBe("Item 7 (old)");
+    expect(ms).toBeLessThan(300);
   });
 });

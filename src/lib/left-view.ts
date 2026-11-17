@@ -47,11 +47,14 @@ export function scopeForLeaver<E extends ExpenseRow, P extends PaymentRow, V ext
   data: { expenses: E[]; payments: P[]; events: V[] },
   me: string,
   cut: Date,
+  // The rows later changes touched them in, as the database reads them (touchedAfter in left-view-db.ts: no cap), so a long list of
+  // later changes can never leave one out. Added to what the events given here show.
+  touched?: { expenseIds: string[]; paymentIds: string[] },
 ): { expenses: E[]; payments: P[]; events: V[] } {
   const upTo = cut.getTime();
   // Changes after they left that moved their share.
-  const touchedExpense = new Set<string>();
-  const touchedPayment = new Set<string>();
+  const touchedExpense = new Set<string>(touched?.expenseIds);
+  const touchedPayment = new Set<string>(touched?.paymentIds);
   for (const ev of data.events) {
     if (!touchesOf(ev).includes(me)) continue;
     if (ev.expenseId) touchedExpense.add(ev.expenseId);
@@ -160,7 +163,7 @@ export const COPY_DAYS = 30;
 // Who was in the group together (SB-1, SA-1): two people only count as "sharing a group" if their time in it overlapped.
 // Pure, so it can be tested without a database.
 
-type SpanRow = { createdAt: Date; claimedAt?: Date | null; seenAt?: Date | null; leftAt: Date | null; removedAt?: Date | null };
+type SpanRow = { createdAt: Date; claimedAt?: Date | null; seenAt?: Date | null; seenEventsAt?: Date | null; leftAt: Date | null; removedAt?: Date | null };
 export type MembershipPeriod = { from: Date; to: Date | null };
 // `from` / `to` cover the whole stay (first day in, last day out); `periods` lists each stay when someone left and came back.
 export type MembershipSpan = { from: Date; to: Date | null; periods?: MembershipPeriod[] };
@@ -168,11 +171,27 @@ export type MembershipSpan = { from: Date; to: Date | null; periods?: Membership
 // move-outs are "member_left" too, and a rejoin, an accepted invitation, an Undo or an automatic bring-back are "member_rejoined").
 export type MemberChange = { kind: string; createdAt: Date };
 
-// Which person a "member_left" / "member_rejoined" line is about: it is in the saved undo text ({ type: "member_set", memberId }).
-export function memberOfChange(undo: string | null | undefined): string | null {
+// Structured marks in a history line's `details` (a line that starts with "@mark:"). They are for the code, not for people:
+// parseDetails (events.ts) leaves them out of what is shown. One says "only the bill photo changed", another names the person a
+// "came back" line is about when that line has no saved undo (the Undo of a move-out).
+export const MARK = "@mark:";
+export const PHOTO_ONLY_MARK = `${MARK}photo-only`;
+export const memberMark = (memberId: string) => `${MARK}member=${memberId}`;
+export const isMark = (line: string) => line.startsWith(MARK);
+
+// Which person a "member_left" / "member_rejoined" line is about: it is in the saved undo text ({ type: "member_set", memberId }),
+// or, for lines with no undo, in a member mark in the details.
+export function memberOfChange(undo: string | null | undefined, details?: string | null): string | null {
   try {
     const p = JSON.parse(undo ?? "");
-    return p && p.type === "member_set" && typeof p.memberId === "string" ? p.memberId : null;
+    if (p && p.type === "member_set" && typeof p.memberId === "string") return p.memberId;
+  } catch {
+    // no undo text: try the details
+  }
+  try {
+    const lines: unknown = JSON.parse(details ?? "[]");
+    const m = Array.isArray(lines) ? lines.find((l): l is string => typeof l === "string" && l.startsWith(`${MARK}member=`)) : undefined;
+    return m ? m.slice(`${MARK}member=`.length) || null : null;
   } catch {
     return null;
   }
@@ -183,7 +202,7 @@ export function memberOfChange(undo: string | null | undefined): string | null {
 // says they were away in between. Starts when they joined (claimed the name, else first opened the group, else were added).
 // With no history, one stretch from joining to leftAt / removedAt (as before). The last line of the row (leftAt / removedAt) wins
 // for how it ends now. Pure.
-export function membershipPeriods(m: SpanRow, history: MemberChange[] = []): MembershipPeriod[] {
+export function membershipPeriods(m: SpanRow, history: MemberChange[] = [], now: Date = new Date()): MembershipPeriod[] {
   const start = m.claimedAt ?? m.seenAt ?? m.createdAt;
   const end = m.leftAt ?? m.removedAt ?? null;
   const changes = history
@@ -205,14 +224,20 @@ export function membershipPeriods(m: SpanRow, history: MemberChange[] = []): Mem
   const last = out[out.length - 1];
   // How the row stands now has the last word.
   if (end && last && last.to === null) last.to = end.getTime() < last.from.getTime() ? last.from : end;
-  if (!end && last && last.to !== null) last.to = null; // brought back with no line saved: counted as in
+  if (!end && last && last.to !== null) {
+    // In the group now, but the last line says they left and no line says they came back (a rejoin from before those lines were
+    // written). The old stay is NOT reopened: the gap stays a gap. The new stay starts at a point we can stand behind: the last time
+    // they were seen using the group after leaving, else now.
+    const seen = m.seenEventsAt && m.seenEventsAt.getTime() > last.to.getTime() && m.seenEventsAt.getTime() <= now.getTime() ? m.seenEventsAt : now;
+    out.push({ from: seen, to: null });
+  }
   return out;
 }
 
 // When this person was really in the group: from the day they joined to the day they left or were removed (null = still in).
 // Pass the group's history lines for this person (see memberOfChange) to count a leave-and-come-back as two stays.
-export function membershipSpan(m: SpanRow, history?: MemberChange[]): MembershipSpan {
-  const periods = membershipPeriods(m, history);
+export function membershipSpan(m: SpanRow, history?: MemberChange[], now?: Date): MembershipSpan {
+  const periods = membershipPeriods(m, history, now);
   return { from: periods[0].from, to: periods[periods.length - 1].to, periods };
 }
 
@@ -286,16 +311,29 @@ const STATE_KEYS = [
 ] as const;
 
 // The words of the history line for a change to the bill photo only (written by save-expense.ts). Such a change moves no money and
-// changes no word of the expense, so it must neither hide the row from a leaver nor roll it back.
+// changes no word of the expense, so it must neither hide the row from a leaver nor roll it back. New lines carry PHOTO_ONLY_MARK in
+// their details; the wording is kept as the check for lines written before that.
 export const BILL_PHOTO_EDIT_PREFIX = "changed the bill photo on ";
-const isPhotoOnlyEdit = (ev: EventRow) => ev.kind === "expense_edited" && !parseRevert(ev.undo) && Boolean(ev.text?.startsWith(BILL_PHOTO_EDIT_PREFIX));
+function isPhotoOnlyEdit(ev: EventRow): boolean {
+  if (ev.kind !== "expense_edited" || parseRevert(ev.undo)) return false;
+  if (ev.details && ev.details.includes(PHOTO_ONLY_MARK)) {
+    try {
+      const lines: unknown = JSON.parse(ev.details);
+      if (Array.isArray(lines) && lines.includes(PHOTO_ONLY_MARK)) return true;
+    } catch {
+      // not a list: fall back to the words
+    }
+  }
+  return Boolean(ev.text?.startsWith(BILL_PHOTO_EDIT_PREFIX));
+}
 
 // Which payments a change line is about: its own paymentId, or (a "Mark all paid" / "Settle everything" and the Undo or Redo of it, which
 // have no single payment) the ids in its saved undo text.
 function paymentIdsOf(ev: EventRow): string[] {
   const ids = ev.paymentId ? [ev.paymentId] : [];
+  if (!ev.undo) return ids;
   try {
-    const p = JSON.parse(ev.undo ?? "");
+    const p = JSON.parse(ev.undo);
     if (p && (p.type === "payments_set" || p.type === "settle_all") && Array.isArray(p.paymentIds)) for (const x of p.paymentIds) if (typeof x === "string") ids.push(x);
   } catch {
     // no ids to read
@@ -303,24 +341,30 @@ function paymentIdsOf(ev: EventRow): string[] {
   return ids;
 }
 
-const byTime = (a: EventRow, b: EventRow) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-
-// The earliest change of the given kinds for this row after the cut-off.
-function firstToggle(evs: EventRow[], of: (ev: EventRow) => boolean, kinds: string[]): EventRow | undefined {
-  let best: EventRow | undefined;
-  for (const ev of evs) if (ev.kind && kinds.includes(ev.kind) && of(ev) && (!best || byTime(ev, best) < 0)) best = ev;
-  return best;
+// A line that takes payments off or puts them back: "deleted" or "restored" (null for anything else). "Settle everything" and its Undo
+// and Redo are lines of their own kind ("group_settled_closed" / "group_reopened") carrying the payment ids.
+function paymentToggle(ev: EventRow): "deleted" | "restored" | null {
+  if (ev.kind === "payment_deleted" || ev.kind === "group_reopened") return "deleted";
+  if (ev.kind === "payment_restored" || ev.kind === "group_settled_closed") return "restored";
+  return null;
 }
 
-// A group currency change, read from its history line ("Currency: INR → USD", "Rate used: 1 INR = 0.012 USD"). Null if the line
-// doesn't say (a change with no money in the group, or an Undo of one).
-function currencyStep(ev: EventRow): { from: string; to: string; rate: string } | null {
+const byTime = (a: EventRow, b: EventRow) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+// A group currency change, read from its history lines ("Rate used: 1 INR = 0.012 USD"), or an Undo of one ("Every amount is back
+// exactly as it was"). Null if the lines don't say (a change with no money in the group).
+type CurrencyStep = { kind: "rate"; from: string; to: string; rate: string } | { kind: "back"; from: string; to: string };
+function currencyStep(ev: EventRow): CurrencyStep | null {
   try {
     const lines: unknown = JSON.parse(ev.details ?? "[]");
     if (!Array.isArray(lines)) return null;
     for (const l of lines) {
       const m = typeof l === "string" ? /^Rate used: 1 ([A-Z]{3}) = ([0-9.]+) ([A-Z]{3})$/.exec(l) : null;
-      if (m) return { from: m[1], to: m[3], rate: m[2] };
+      if (m) return { kind: "rate", from: m[1], to: m[3], rate: m[2] };
+    }
+    if (lines.includes("Every amount is back exactly as it was")) {
+      const c = lines.map((l) => (typeof l === "string" ? /^Currency: ([A-Z]{3}) → ([A-Z]{3})$/.exec(l) : null)).find(Boolean);
+      if (c) return { kind: "back", from: c[1], to: c[2] };
     }
   } catch {
     // unreadable: no step
@@ -329,14 +373,23 @@ function currencyStep(ev: EventRow): { from: string; to: string; rate: string } 
 }
 
 // An expense's saved "before" state, carried through the group currency changes made AFTER that edit (the state is in the currency the
-// group had then; the row is shown in the currency it has now), at the rate each change used. Null when it can't be done exactly
-// (an unreadable step, a state without its original amount) so the caller never mixes currencies.
+// group had then; the row is shown in the currency it has now), at the rate each change used. A change followed by its Undo is no
+// change: the Undo puts every amount back exactly, so the state before the change is the state again. Null when it can't be done
+// exactly (an unreadable step, a state without its original amount) so the caller never mixes currencies.
 function inCurrentCurrency(before: ExpenseBefore, steps: EventRow[]): ExpenseBefore | null {
   let state = before;
+  const stack: ExpenseBefore[] = [];
   for (const ev of steps) {
     const step = currencyStep(ev);
+    if (!step) return null;
+    if (step.kind === "back") {
+      const was = stack.pop();
+      if (!was || state.baseCurrency !== step.from) return null;
+      state = was;
+      continue;
+    }
     const sh = state.shares ?? [];
-    if (!step || state.baseCurrency !== step.from) return null;
+    if (state.baseCurrency !== step.from) return null;
     if (typeof state.originalAmount !== "number" || typeof state.originalCurrency !== "string" || typeof state.exchangeRate !== "string" || typeof state.markupBp !== "number" || typeof state.markupAmount !== "number") return null;
     const r = rebaseExpense(
       { originalAmount: state.originalAmount, originalCurrency: state.originalCurrency, exchangeRate: state.exchangeRate, markupBp: state.markupBp, markupAmount: state.markupAmount, payers: typeof state.payers === "string" ? state.payers : "", shares: sh.map((x) => ({ id: x.memberId, memberId: x.memberId, amount: x.amount })) },
@@ -345,6 +398,7 @@ function inCurrentCurrency(before: ExpenseBefore, steps: EventRow[]): ExpenseBef
       step.rate,
     );
     if (!r) return null;
+    stack.push(state);
     state = { ...state, baseCurrency: r.baseCurrency, exchangeRate: r.exchangeRate, rateSource: r.rateSource, convertedAmount: r.convertedAmount, markupAmount: r.markupAmount, amount: r.amount, payers: r.payers, shares: r.shares.map((x) => ({ memberId: x.id, amount: x.amount })) };
   }
   return state;
@@ -352,9 +406,10 @@ function inCurrentCurrency(before: ExpenseBefore, steps: EventRow[]): ExpenseBef
 
 // `later`: the group's changes after the cut-off about rows (see laterRowEvents in left-view-db.ts: every one of them, the same for
 // every screen), plus the group's currency changes. Any order. `complete: false` says the list was cut short (it never is in practice):
-// a row changed since they left can then not be told from how it stood, so it is not shown rather than shown with later content.
+// nothing is known about how a row stood, so a row that doesn't have them in it is not shown, rather than shown with later content.
 // Rows are the leaver's rows from scopeForLeaver, deleted ones too. A row that has them in it now, or that a later change touched
 // them in, is left as it is (it is their own money, with or without a complete list).
+// The lines are sorted and indexed by expense and by payment ONCE, so the work grows with the lines and rows, not their product.
 export function asOfCut<E extends AsOfExpense, P extends AsOfPayment>(
   data: { expenses: E[]; payments: P[] },
   later: EventRow[],
@@ -365,13 +420,29 @@ export function asOfCut<E extends AsOfExpense, P extends AsOfPayment>(
   const upTo = cut.getTime();
   const complete = opts.complete !== false;
   const after = later.filter((ev) => ev.createdAt.getTime() > upTo).sort(byTime);
-  const currencySteps = after.filter((ev) => ev.kind === "currency_changed");
+  const currencySteps: EventRow[] = [];
+  const byExpense = new Map<string, EventRow[]>();
+  const byPayment = new Map<string, EventRow[]>();
   const touchedExpense = new Set<string>();
   const touchedPayment = new Set<string>();
+  const push = (m: Map<string, EventRow[]>, id: string, ev: EventRow) => {
+    const list = m.get(id);
+    if (list) list.push(ev);
+    else m.set(id, [ev]);
+  };
   for (const ev of after) {
-    if (!touchesOf(ev).includes(me)) continue;
-    if (ev.expenseId) touchedExpense.add(ev.expenseId);
-    for (const id of paymentIdsOf(ev)) touchedPayment.add(id);
+    if (ev.kind === "currency_changed") currencySteps.push(ev);
+    const mine = ev.touches ? touchesOf(ev).includes(me) : false;
+    if (ev.expenseId) {
+      push(byExpense, ev.expenseId, ev);
+      if (mine) touchedExpense.add(ev.expenseId);
+    }
+    if (paymentToggle(ev) || ev.paymentId) {
+      for (const id of paymentIdsOf(ev)) {
+        push(byPayment, id, ev);
+        if (mine) touchedPayment.add(id);
+      }
+    }
   }
   const expenses: E[] = [];
   for (const e of data.expenses) {
@@ -379,7 +450,8 @@ export function asOfCut<E extends AsOfExpense, P extends AsOfPayment>(
       expenses.push(e);
       continue;
     }
-    const mine = after.filter((ev) => ev.expenseId === e.id);
+    if (!complete) continue; // the list of changes is cut short: how this row stood is not known, so it is not shown
+    const mine = byExpense.get(e.id) ?? [];
     const edits = mine.filter((ev) => ev.kind === "expense_edited");
     const first = edits.find((ev) => parseRevert(ev.undo));
     const editedLater = Boolean(e.editedAt && e.editedAt.getTime() > upTo);
@@ -407,15 +479,13 @@ export function asOfCut<E extends AsOfExpense, P extends AsOfPayment>(
       } as unknown as E;
     } else if (editedLater) {
       // Edited since, with no saved "before". Only a change to the bill photo is known to change nothing else.
-      const last = Math.max(0, ...edits.map((ev) => ev.createdAt.getTime()));
+      const last = edits.length ? edits[edits.length - 1].createdAt.getTime() : 0;
       const onlyPhoto = edits.length > 0 && edits.every(isPhotoOnlyEdit) && e.editedAt!.getTime() <= last + 60_000;
       if (!onlyPhoto) continue; // changed after they left and its earlier state isn't known: not shown
       row = { ...e, editedAt: null };
-    } else if (!complete && e.deletedAt && e.deletedAt.getTime() > upTo) {
-      continue; // deleted since, and the list of changes is cut short: whether it was deleted that day isn't known
     }
     // Deleted or not, on the day they left: the first delete / bring-back after that day says which way it was.
-    const toggle = firstToggle(mine, () => true, ["expense_deleted", "expense_restored"]);
+    const toggle = mine.find((ev) => ev.kind === "expense_deleted" || ev.kind === "expense_restored");
     const wasDeleted = toggle ? toggle.kind === "expense_restored" : Boolean(e.deletedAt && e.deletedAt.getTime() <= upTo);
     row = wasDeleted
       ? ({ ...row, deletedAt: e.deletedAt && e.deletedAt.getTime() <= upTo ? e.deletedAt : cut, ...("deletedById" in e && !(e.deletedAt && e.deletedAt.getTime() <= upTo) ? { deletedById: null } : {}) } as E)
@@ -428,9 +498,9 @@ export function asOfCut<E extends AsOfExpense, P extends AsOfPayment>(
       payments.push(p);
       continue;
     }
-    if (!complete && p.deletedAt && p.deletedAt.getTime() > upTo) continue;
-    const toggle = firstToggle(after, (ev) => paymentIdsOf(ev).includes(p.id), ["payment_deleted", "payment_restored"]);
-    const wasDeleted = toggle ? toggle.kind === "payment_restored" : Boolean(p.deletedAt && p.deletedAt.getTime() <= upTo);
+    if (!complete) continue;
+    const toggle = (byPayment.get(p.id) ?? []).find((ev) => paymentToggle(ev));
+    const wasDeleted = toggle ? paymentToggle(toggle) === "restored" : Boolean(p.deletedAt && p.deletedAt.getTime() <= upTo);
     const was = p.deletedAt && p.deletedAt.getTime() <= upTo;
     payments.push(wasDeleted ? ({ ...p, deletedAt: was ? p.deletedAt : cut, ...("deletedById" in p && !was ? { deletedById: null } : {}) } as P) : ({ ...p, deletedAt: null, ...("deletedById" in p ? { deletedById: null } : {}) } as P));
   }

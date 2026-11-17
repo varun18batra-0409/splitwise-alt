@@ -4,6 +4,7 @@ import { formatMoney, formatPercent } from "./money";
 import { niceDate } from "./format";
 import { moneyLines, parsePayers } from "./payers";
 import { after } from "next/server";
+import { isMark } from "./left-view";
 
 // Phone notifications go out after the response is sent (so after the change
 // is saved). Outside a request — tests, scripts — nothing is sent.
@@ -335,7 +336,8 @@ export async function logEvent(
 export function parseDetails(json: string): string[] {
   try {
     const v = JSON.parse(json);
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    // (Lines that start with "@mark:" are for the code, see left-view.ts: never shown.)
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !isMark(x)) : [];
   } catch {
     return [];
   }

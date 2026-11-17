@@ -39,7 +39,7 @@ export async function loadGroup(id: string, opts: { events?: boolean; viewer?: s
   if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null, people: group.members };
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
-  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
+  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt, await touchedAfter(id, me.id, cut.leftAt));
   // Rows added before they left show as they were that day (MA-3); only what is shown changes, never the balances above.
   const rowEvents = await laterRowEvents(id, cut.leftAt); // the one list every screen uses, so they all agree
   const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete });
@@ -92,7 +92,7 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
   if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null, people: group.members };
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
-  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
+  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt, await touchedAfter(id, me.id, cut.leftAt));
   // Rows added before they left show as they were that day (MA-3); only what is shown changes, never the balances above.
   const rowEvents = await laterRowEvents(id, cut.leftAt); // the one list every screen uses, so they all agree
   const asOf = asOfCut({ expenses: scoped.expenses, payments: scoped.payments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete });

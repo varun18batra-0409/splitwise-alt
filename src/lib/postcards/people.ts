@@ -16,7 +16,7 @@ const COUNTS = { ...JOINED, removedAt: null };
 export type PostcardGroup = { id: string; name: string; type: string; people: { id: string; name: string }[] };
 
 export async function postcardPeople(accountId: string): Promise<PostcardGroup[]> {
-  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true } as const;
+  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true } as const;
   const mineRows = await db.member.findMany({
     where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } },
     select: { id: true, ...SPAN, group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...COUNTS }, select: { id: true, accountId: true, name: true, ...SPAN } } } } },

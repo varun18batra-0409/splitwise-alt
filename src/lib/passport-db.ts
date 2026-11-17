@@ -68,7 +68,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
       id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true,
       _count: { select: { members: true } },
       // Your own row (did you leave before the trip? when were you in it?).
-      members: { where: { accountId: account.id }, select: { id: true, leftAt: true, removedAt: true, createdAt: true, claimedAt: true, seenAt: true } },
+      members: { where: { accountId: account.id }, select: { id: true, leftAt: true, removedAt: true, createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true } },
     },
     orderBy: [{ tripStart: "desc" }, { createdAt: "desc" }],
     take: 300,
@@ -96,7 +96,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
     const [rows, history] = await Promise.all([
       db.member.findMany({
         where: { groupId: { in: groups.map((g) => g.id) }, ...COUNTS },
-        select: { id: true, groupId: true, name: true, accountId: true, createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true },
+        select: { id: true, groupId: true, name: true, accountId: true, createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true },
         orderBy: { createdAt: "asc" },
         take: 6000,
       }),
@@ -172,7 +172,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
 // who's on Loopin: the people whose passports you can open. Deleted groups don't count.
 export async function passportFriends(accountId: string) {
   // (Your own row must be joined too: a group someone added you to but you never opened shows you nobody.)
-  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true } as const;
+  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true } as const;
   const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null } }, select: { id: true, groupId: true, ...SPAN }, take: 500 });
   if (!mine.length) return [];
   const [others, history] = await Promise.all([
@@ -205,7 +205,7 @@ export async function canSeePassport(viewerAccountId: string, ownerAccountId: st
   // A block between the two (either way round) closes the door; it looks the same as not sharing a group.
   if (await isBlockedEitherWay(viewerAccountId, ownerAccountId)) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
   // Both must have been in a shared group AT THE SAME TIME (someone who left before the other joined was never there with them).
-  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, leftAt: true, removedAt: true } as const;
+  const SPAN = { createdAt: true, claimedAt: true, seenAt: true, seenEventsAt: true, leftAt: true, removedAt: true } as const;
   const ownerRows = await db.member.findMany({
     where: { accountId: ownerAccountId, ...COUNTS, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: viewerAccountId, ...COUNTS } } } },
     select: { id: true, name: true, groupId: true, ...SPAN },

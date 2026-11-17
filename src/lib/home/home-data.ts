@@ -128,7 +128,7 @@ export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; 
     const eIds = new Set(expenses.map((x) => x.id));
     const pIds = new Set(payments.map((x) => x.id));
     s.expenses = [...s.expenses.filter((e) => !eIds.has(e.id)), ...expenses.flatMap((x) => (x.shown && !x.shown.deletedAt ? [x.shown as ExpenseRow] : []))].sort(newestFirst);
-    s.payments = [...s.payments.filter((p) => !pIds.has(p.id)), ...payments.flatMap((x) => (x.shown.deletedAt ? [] : [x.shown as PaymentRow]))].sort(newestFirst);
+    s.payments = [...s.payments.filter((p) => !pIds.has(p.id)), ...payments.flatMap((x) => (!x.shown || x.shown.deletedAt ? [] : [x.shown as PaymentRow]))].sort(newestFirst);
   }
 
   // Your month, shaped for monthNumbers (which keeps only what dayKey puts in the month in the viewer's zone).

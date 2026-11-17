@@ -105,6 +105,11 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
     }
     // Only if they are still not removed (a removal landing a moment ago must not be undone by this write).
     if (mine.leftAt && (await db.member.updateMany({ where: { id: mine.id, removedAt: null }, data: { leftAt: null } })).count !== 1) return { ok: false, reason: "retry" };
+    // Coming back through the link is a line in the history like every other way back (people.ts, invitations.ts): it says when the
+    // stay began again, and its undo puts them back as they were.
+    if (mine.leftAt) {
+      await logEvent(db, { groupId: group.id, actorId: mine.id, kind: "member_rejoined", text: "rejoined the group", undo: { type: "member_set", memberId: mine.id, data: { leftAt: mine.leftAt.toISOString() } } });
+    }
     await markSeen(mine.id);
     return { ok: true, memberId: mine.id };
   }
