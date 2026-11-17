@@ -16,6 +16,19 @@ const out = ios ? "screenshots/ios" : desktop ? "screenshots/desktop" : "screens
 const screen = desktop ? { width: 1440, height: 900 } : { width: 390, height: 844 };
 mkdirSync(out, { recursive: true });
 
+// A page screenshot. The browser can't save a picture taller than 32767 device pixels, so a very long page (a phone at 2x, like the guide)
+// is saved in parts of at most 30000 pixels: name.png when it fits, otherwise name-part1.png, name-part2.png, ... Short pages are unchanged.
+const MAX_SHOT_PX = 30000;
+async function fullShot(p: Page, path: string, fullPage: boolean) {
+  if (!fullPage) return void (await p.screenshot({ path, fullPage }));
+  const { w, h, dpr } = await p.evaluate(() => ({ w: Math.max(document.documentElement.scrollWidth, window.innerWidth), h: document.documentElement.scrollHeight, dpr: window.devicePixelRatio || 1 }));
+  const slice = Math.floor(MAX_SHOT_PX / dpr);
+  if (h <= slice) return void (await p.screenshot({ path, fullPage: true }));
+  for (let i = 0, y = 0; y < h; i++, y += slice) {
+    await p.screenshot({ path: path.replace(/\.png$/, `-part${i + 1}.png`), fullPage: true, clip: { x: 0, y, width: w, height: Math.min(slice, h - y) } });
+  }
+}
+
 async function main() {
 const browser = withBypass(await (ios ? webkit : chromium).launch());
 const context = await browser.newContext({
@@ -39,7 +52,7 @@ async function shot(name: string, path: string, prepare?: (p: Page) => Promise<v
     await page.goto(base + path, { waitUntil: hosted ? "load" : "networkidle", timeout: 30_000 });
     await page.waitForTimeout(900); // let the bar animation finish
     if (prepare) await prepare(page).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
-    await page.screenshot({ path: `${out}/${name}.png`, fullPage });
+    await fullShot(page, `${out}/${name}.png`, fullPage);
     console.log("✓", name);
   } catch (e) {
     console.log("✗", name, String(e).split("\n")[0]);
@@ -333,7 +346,7 @@ if (!desktop && !hosted) {
         try {
           await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
           await p.waitForTimeout(500);
-          await p.screenshot({ path: `${out}/direct${w}-${n}.png`, fullPage: true });
+          await fullShot(p, `${out}/direct${w}-${n}.png`, true);
           console.log(`  ✓ direct${w}-${n}`);
         } catch (e) {
           console.log(`  ✗ direct${w}-${n}`, String(e).split("\n")[0]);
@@ -362,7 +375,7 @@ if (!desktop && !hosted) {
       try {
         await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
         await p.waitForTimeout(500);
-        await p.screenshot({ path: `${out}/direct${w}-home-both.png`, fullPage: false });
+        await fullShot(p, `${out}/direct${w}-home-both.png`, false);
         console.log(`  ✓ direct${w}-home-both`);
       } catch (e) {
         console.log(`  ✗ direct${w}-home-both`, String(e).split("\n")[0]);
@@ -544,7 +557,7 @@ if (!hosted) {
     try {
       await page.setContent(`<body style="margin:0;padding:12px;background:#111;display:flex;flex-wrap:wrap;gap:10px;width:780px">${tiles}</body>`, { waitUntil: "load", timeout: 30_000 });
       await page.waitForTimeout(800);
-      await page.screenshot({ path: `${out}/82-place-photos.png`, fullPage: true });
+      await fullShot(page, `${out}/82-place-photos.png`, true);
       console.log("✓ 82-place-photos");
     } catch (e) {
       console.log("✗ 82-place-photos", String(e).split("\n")[0]);
@@ -949,7 +962,7 @@ if (!hosted) {
       await page.goto(base + "/");
       await page.setContent(html, { waitUntil: "load" });
       await page.waitForTimeout(1500);
-      await page.screenshot({ path: `${out}/country-photos-contact-sheet.png`, fullPage: true });
+      await fullShot(page, `${out}/country-photos-contact-sheet.png`, true);
       await page.setViewportSize(screen);
       console.log("✓ country-photos-contact-sheet");
     }
@@ -1108,7 +1121,7 @@ if (!hosted) {
           await p.waitForTimeout(700);
           if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
           await assertMomentPhotosDecoded(p, `M1-${name}-${w}`); // fails the screenshot (✗) if any moment picture did not draw
-          await p.screenshot({ path: `${out}/M1-${name}-${w}.png`, fullPage: full ?? true });
+          await fullShot(p, `${out}/M1-${name}-${w}.png`, full ?? true);
           console.log("✓", `M1-${name}-${w}`);
         } catch (e) {
           console.log("✗", `M1-${name}-${w}`, String(e).split("\n")[0]);
@@ -1221,7 +1234,7 @@ if (!hosted) {
           await p.waitForTimeout(800);
           if (s.prepare) await s.prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
           await assertMomentPhotosDecoded(p, name);
-          await p.screenshot({ path: `${out}/${name}.png`, fullPage: s.full ?? true });
+          await fullShot(p, `${out}/${name}.png`, s.full ?? true);
           console.log("✓", name);
         } catch (e) {
           console.log("✗", name, String(e).split("\n")[0]);
@@ -1351,7 +1364,7 @@ if (!hosted) {
   const p = await us.newPage();
   const snap = async (name: string, fullPage = true) => {
     await p.waitForTimeout(700);
-    await p.screenshot({ path: `${out}/${name}.png`, fullPage });
+    await fullShot(p, `${out}/${name}.png`, fullPage);
     console.log("✓", name);
   };
   const step = async (name: string, run: () => Promise<void>, fullPage = true) => {
@@ -1489,7 +1502,7 @@ if (!hosted && !desktop && !ios) {
           await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
           await p.waitForTimeout(900);
           if (prepare) await prepare(p); // unlike the numbered shots, a step that fails fails the picture: a wrong screen must not be saved as a guide image
-          await p.screenshot({ path: `${out}/${name}.png`, fullPage: false });
+          await fullShot(p, `${out}/${name}.png`, false);
           console.log("✓", name);
         } catch (e) {
           console.log("✗", name, String(e).split("\n")[0]);
@@ -1573,7 +1586,7 @@ if (!hosted) {
     const p = await anon.newPage();
     const snap = async (name: string, fullPage = true) => {
       await p.waitForTimeout(700);
-      await p.screenshot({ path: `${out}/${pre}${name}.png`, fullPage });
+      await fullShot(p, `${out}/${pre}${name}.png`, fullPage);
       console.log("✓", `${pre}${name}`);
     };
     try {

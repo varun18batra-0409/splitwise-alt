@@ -520,7 +520,14 @@ async function main() {
   // purpose: one step checks the live service.)
   const day = new Date().toISOString().slice(0, 10);
   for (const [base, quote, rate] of [["THB", "INR", "2.5734"], ["INR", "THB", "0.3886"], ["INR", "USD", "0.0119"], ["EUR", "INR", "90.12"]] as const) {
-    await db.exchangeRate.create({ data: { base, quote, rate, date: day } });
+    // The hosted test database now and then drops a connection ("SocketTimeout", seen on several branches in one night): try once more.
+    // A second identical rate row, if the first write did land, changes nothing.
+    const seed = () => db.exchangeRate.create({ data: { base, quote, rate, date: day } });
+    await seed().catch(async (e) => {
+      console.log(`  (seeding the ${base}→${quote} rate failed once, trying again: ${String(e).split("\n").pop()?.slice(0, 120)})`);
+      await new Promise((r) => setTimeout(r, 2000));
+      await seed();
+    });
   }
   // On the private test copy: start with fresh limits (many sign-ups come from this one machine).
   if (hosted) await db.rateLimit.deleteMany({});
