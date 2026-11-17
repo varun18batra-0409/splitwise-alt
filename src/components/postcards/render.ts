@@ -1,7 +1,7 @@
 "use client";
 
 import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
-import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, yearOfPostDate, WAVES_SVG } from "@/lib/postcards/catalog";
 import { ONESIDE, ONESIDE_SIGN, ONESIDE_STAMP, ONESIDE_WAVES, fitOf, photoSizeOf } from "@/lib/postcards/format";
 import { oneSideFont } from "@/lib/postcards/fit";
 import type { BackProps, FrontProps } from "./Card";
@@ -236,7 +236,7 @@ export async function drawBack(p: BackProps): Promise<Blob> {
   ctx.drawImage(pm, -w * 0.075, -w * 0.075, w * 0.15, w * 0.15);
   ctx.restore();
   ctx.globalAlpha = 1;
-  const st = await svgImage(stampSvg(p.stamp, "x"));
+  const st = await svgImage(stampSvg(p.stamp, "x", p.stampYear ?? yearOfPostDate(p.date)));
   ctx.save();
   ctx.translate(X(0.8725), Y(0.07) + w * 0.082);
   ctx.rotate((2 * Math.PI) / 180);
@@ -372,7 +372,7 @@ export async function drawOneSide(p: OneSideProps): Promise<Blob> {
   ctx.drawImage(pm, -w * 0.06, -w * 0.06, w * 0.12, w * 0.12);
   ctx.restore();
   ctx.globalAlpha = 1;
-  const st = await svgImage(stampSvg(p.stamp, "x"));
+  const st = await svgImage(stampSvg(p.stamp, "x", p.stampYear ?? yearOfPostDate(p.date)));
   const sw = w * ONESIDE_STAMP.w;
   const sh = sw * (92 / 76);
   ctx.save();

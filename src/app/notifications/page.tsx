@@ -89,13 +89,16 @@ const ICON: Record<string, string> = {
 };
 
 // Everything other people added, changed or deleted in your groups, newest first.
-// Opening this page marks them as read.
+// Opening the "All" tab marks them as read.
 export default async function Notifications({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const sp = await searchParams;
   const [memberships, tz, account] = await Promise.all([getMemberships(), getTimeZone(), getAccount()]);
   const [{ items }, notes, invitations] = await Promise.all([loadNotifications(memberships, 100, account?.id), account ? loadNotes(account.id, 50) : Promise.resolve([]), loadInvitations(account)]);
   const needs = await loadNeedsYou(memberships, account, invitations.length);
-  await Promise.all([markNotificationsSeen(memberships), account ? markNotesSeen(account.id) : null]);
+  // "Needs you" is the first tab when anything waits on you; "All" is everything, as before.
+  const tab: "needs" | "all" = sp.tab === "all" ? "all" : sp.tab === "needs" ? "needs" : needs.total > 0 ? "needs" : "all";
+  // Only the "All" tab counts as reading the activity. Answering one thing under "Needs you" leaves the rest unread.
+  if (tab === "all") await Promise.all([markNotificationsSeen(memberships), account ? markNotesSeen(account.id) : null]);
 
   // Group changes and personal notes (Collect) together, newest first.
   type Row = { date: Date } & ({ type: "event"; n: (typeof items)[number] } | { type: "note"; note: (typeof notes)[number] });
@@ -117,8 +120,6 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
   const rows = all.filter((r) => kept.has(r));
   const time = (d: Date) => d.toLocaleTimeString("en-IN", { timeZone: tz, hour: "numeric", minute: "2-digit" });
 
-  // "Needs you" is the first tab when anything waits on you; "All" is everything, as before.
-  const tab: "needs" | "all" = sp.tab === "all" ? "all" : sp.tab === "needs" ? "needs" : needs.total > 0 ? "needs" : "all";
   const tabClass = (on: boolean) =>
     `flex min-h-10 flex-1 items-center justify-center rounded-full border-[1.5px] text-sm transition-colors ${on ? "border-fg font-semibold text-fg" : "border-transparent text-fg/55"}`;
 

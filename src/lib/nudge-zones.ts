@@ -54,6 +54,17 @@ export async function coveredByOldRecord(oldKey: string, now: Date = new Date(),
   return !!(await db.notifyLog.findUnique({ where: { key: sentMarkKey(oldKey, memberId) }, select: { key: true } }));
 }
 
+// For a message the OLD code sent to the whole group at once (the day-end trip message). If its group record is done and
+// carries no per-person marks at all, the old code wrote it (the new code always marks the people it sent to), and it went
+// to every member, zoned ones included, whenever it was written: before or after the switch-over moment. So the record covers
+// everyone for that day. A record with marks is the new code's own, for people with no zone yet, and covers only them.
+export async function coveredByOldGroupRecord(oldKey: string, now: Date = new Date(), memberId?: string): Promise<boolean> {
+  if (await coveredByOldRecord(oldKey, now, memberId)) return true;
+  const row = await db.notifyLog.findUnique({ where: { key: oldKey }, select: { state: true } });
+  if (row?.state !== "done") return false;
+  return !(await db.notifyLog.findFirst({ where: { key: { startsWith: `${oldKey}:sent:` } }, select: { key: true } }));
+}
+
 // member id -> zone ("" = not known). Never throws (a failure reads as "not known", i.e. today's behaviour).
 export async function zonesOf(memberIds: string[], now: Date = new Date()): Promise<Map<string, string>> {
   const out = new Map<string, string>();

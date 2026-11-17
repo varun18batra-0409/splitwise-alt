@@ -11,6 +11,7 @@ import { getAccount } from "./identity";
 import { groupAdminId } from "./group-admin";
 import { randomBytes } from "node:crypto";
 import { validSub } from "./push-subs";
+import { claimJob, finishJob } from "./push";
 import { DIRECT, NOT_DIRECT } from "./direct";
 
 // Invite and "added you" emails one person can send in a day. The whole app's
@@ -478,12 +479,15 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   // so only the newest email can take it. The same email asked again just refreshes its own invitation (and keeps its sender).
   const older = open.filter((i) => i.email !== email);
   const sender = prior && priorOpen && inviteMemberId(prior) === memberId ? prior.invitedById : actorId;
+  const token = prior && priorOpen && prior.token && inviteMemberId(prior) === memberId ? prior.token : newInviteToken();
   await db.$transaction([
     db.invite.updateMany({ where: { id: { in: older.map((i) => i.id) }, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
     db.invite.upsert({
       where: { groupId_email: { groupId, email } },
-      create: { groupId, email, invitedById: actorId, memberId },
-      update: { invitedById: sender, acceptedAt: null, declinedAt: null, createdAt: new Date(), memberId },
+      // The invitation carries a token, so it shows up as a Join card for an existing account (invitations without one are skipped there).
+      // The same open invitation for this name keeps its token; anything else gets a fresh one.
+      create: { groupId, email, invitedById: actorId, memberId, token },
+      update: { invitedById: sender, acceptedAt: null, declinedAt: null, createdAt: new Date(), memberId, token },
     }),
   ]);
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
@@ -505,6 +509,18 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
       `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(by)}</strong> added you as <strong>${esc(asName)}</strong> in <strong>${esc(gname)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(asName)}</a></p></div>`,
       { optOut: true, item: "groups.added", suppress: blocked },
     ).catch(() => false);
+    // Someone with an account also gets the card in their updates (the same words as inviteOne), unless they blocked the inviter
+    // or already have a row in this group. That includes someone who left or whom the admin removed: this invitation is for a
+    // different (name-only) row, so it could never bring them back (only the admin's invitation for their own row does that,
+    // see invitations.ts), and a note for it would be a dead end. One note per invitation: asking again for the same open
+    // invitation keeps its token, so the claim below is taken once per token and repeats send nothing.
+    if (theirAccount && !blocked && !group.members.some((m) => m.accountId === theirAccount.id)) {
+      const noteKey = `invite-note:${token}`;
+      if (await claimJob(noteKey)) {
+        await deliverNotes([{ accountIds: [theirAccount.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
+        await finishJob(noteKey);
+      }
+    }
   };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });
   if (opts.later) opts.later(job);

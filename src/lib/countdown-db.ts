@@ -3,7 +3,7 @@ import { claimJob, finishJob, sendPushTo } from "./push";
 import { JOINED } from "./membership";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { addDays } from "./local-time";
-import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "./nudge-zones";
+import { coveredByOldGroupRecord, coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "./nudge-zones";
 import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
 
 // The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
@@ -91,43 +91,92 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
   return { trips: trips.length, ended: ended.length, sent, deferred };
 }
 
-// The day-end pulse (evening, India time): for each trip happening today with
-// something spent today, one playful line to everyone in it. Once a day per trip.
-export async function sendDayPulse(now = new Date(), stop: () => boolean = () => false) {
-  const { pulseText } = await import("./pulse");
+// The day-end pulse: for each trip, one playful line about a day's spending, to everyone in it, once per person per day.
+// Two runs a day (00:30 and 16:00 UTC) so that every time zone gets it at a sensible hour:
+//  - People with no zone yet (old path) keep the old behaviour: India time, the evening run only, one claim per trip and day.
+//  - People whose phone told us their zone are each given exactly one of the two runs, whichever lands at a better local
+//    time (06:00-21:59, never at night), telling their evening ("today") or the next morning ("yesterday"): see pulseRunFor
+//    in pulse.ts, which lists which offsets get which run. All zones from UTC-12 to UTC+14 are covered.
+//    Each person is sent a day once (key ...:m:<member id>).
+export async function sendDayPulse(now = new Date(), stop: () => boolean = () => false, opts: { run?: "morning" | "evening" } = {}) {
+  const run = opts.run ?? "evening";
+  const { pulseText, pulseDayFor } = await import("./pulse");
   const { spentAmount, payersOf } = await import("./payers");
+  const { localMinutes } = await import("./local-time");
   const today = dayKey(now, DEFAULT_TIME_ZONE);
+  // A day ahead of India's, so people in zones further east are found too; the trip's own days are checked per person.
   const trips = await db.group.findMany({
-    where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: today, not: "" } },
+    where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: addDays(today, 1), not: "" } },
     select: { id: true, name: true, currency: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true, name: true } } },
   });
+  const zones = await zonesOf(trips.flatMap((g) => g.members.map((m) => m.id)), now);
   let sent = 0;
   let deferred = false;
   for (const g of trips) {
-    if (stop()) { deferred = true; break; }
     const end = g.tripEnd || g.tripStart;
-    if (end < today) continue;
-    const since = new Date(now.getTime() - 20 * 3_600_000);
+    if (end < addDays(today, -2)) continue;
+    const { legacy, zoned } = splitByZone(g.members.map((m) => m.id), zones, now);
+    // Who is told which day (the old path: India's today, evening run only).
+    const wanted = new Map<string, { day: string; when: "today" | "yesterday"; old: boolean; ids: string[] }>();
+    if (run === "evening" && legacy.length && today >= g.tripStart && today <= end) wanted.set(`old|${today}`, { day: today, when: "today", old: true, ids: [] });
+    for (const p of zoned) {
+      const d = pulseDayFor(run, localMinutes(now, p.tz), p.today);
+      if (!d || d.day < g.tripStart || d.day > end) continue;
+      const k = `${d.when}|${d.day}`;
+      const w = wanted.get(k) ?? { day: d.day, when: d.when, old: false, ids: [] };
+      w.ids.push(p.id);
+      wanted.set(k, w);
+    }
+    if (!wanted.size) continue;
+    if (stop()) { deferred = true; break; }
+    const since = new Date(now.getTime() - 48 * 3_600_000);
     const expenses = await db.expense.findMany({ where: { groupId: g.id, deletedAt: null, kind: "expense", createdAt: { gte: since } } });
-    const todays = expenses.filter((e) => dayKey(e.spentAt ?? e.createdAt, DEFAULT_TIME_ZONE) === today);
-    const key = `pulse:${g.id}:${today}`;
-    if (!todays.length || !(await claimJob(key, now))) continue;
-    const spent = todays.reduce((s, e) => s + spentAmount(e), 0);
-    const paid = new Map<string, number>();
-    for (const e of todays) for (const p of payersOf(e)) paid.set(p.memberId, (paid.get(p.memberId) ?? 0) + p.amount);
-    const [topId, topAmt] = [...paid].sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
-    const body = pulseText({
-      place: placeOf(g.name),
-      day: daysBetween(g.tripStart, today) + 1,
-      of: daysBetween(g.tripStart, end) + 1,
-      spent,
-      currency: g.currency,
-      count: todays.length,
-      topPayer: g.members.find((m) => m.id === topId)?.name.split(" ")[0],
-      topShare: spent ? topAmt / spent : 0,
-    });
-    sent += await sendPushTo(g.members.map((m) => m.id), { title: `🌙 ${g.name}`, body, url: `/groups/${g.id}?tab=activity`, tag: `pulse:${g.id}` }, "memories.recaps");
-    await finishJob(key);
+    for (const w of wanted.values()) {
+      const day = w.day;
+      // The day is read in the zone of the person it is told to (India for the old path).
+      const tzOf = (id: string) => zones.get(id) || DEFAULT_TIME_ZONE;
+      const spentOn = (tz: string) => expenses.filter((e) => dayKey(e.spentAt ?? e.createdAt, tz) === day);
+      const textFor = (list: typeof expenses) => {
+        const spent = list.reduce((s, e) => s + spentAmount(e), 0);
+        const paid = new Map<string, number>();
+        for (const e of list) for (const p of payersOf(e)) paid.set(p.memberId, (paid.get(p.memberId) ?? 0) + p.amount);
+        const [topId, topAmt] = [...paid].sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+        return pulseText({
+          place: placeOf(g.name),
+          day: daysBetween(g.tripStart, day) + 1,
+          of: daysBetween(g.tripStart, end) + 1,
+          spent,
+          currency: g.currency,
+          count: list.length,
+          topPayer: g.members.find((m) => m.id === topId)?.name.split(" ")[0],
+          topShare: spent ? topAmt / spent : 0,
+          when: w.when,
+        });
+      };
+      const push = (ids: string[], body: string) =>
+        sendPushTo(ids, { title: `🌙 ${g.name}`, body, url: `/groups/${g.id}?tab=activity`, tag: `pulse:${g.id}` }, "memories.recaps");
+      if (w.old) {
+        const list = spentOn(DEFAULT_TIME_ZONE);
+        const key = `pulse:${g.id}:${day}`;
+        if (list.length && (await claimJob(key, now))) {
+          sent += await push(legacy, textFor(list));
+          await markSentByOldPath(key, legacy, now);
+          await finishJob(key);
+        }
+      }
+      for (const id of w.ids) {
+        const list = spentOn(tzOf(id));
+        if (!list.length) continue;
+        if (stop()) { deferred = true; break; }
+        const oldKey = `pulse:${g.id}:${day}`;
+        const key = `${oldKey}:m:${id}`;
+        // The old 16:00 run wrote the group's record and sent to everyone, zoned people too: that covers them (see coveredByOldGroupRecord).
+        if (await coveredByOldGroupRecord(oldKey, now, id)) continue;
+        if (!(await claimJob(key, now))) continue;
+        sent += await push([id], textFor(list));
+        await finishJob(key);
+      }
+    }
   }
   return { sent, deferred };
 }

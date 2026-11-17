@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
+import { sealedDay } from "@/lib/postcards/opens";
 import { dayGroups, loadGroupPostcards, postcardVisible, tripStampCard } from "@/lib/group-memories";
 
 // R4: a group's Memories tab. Pure checks first (hand-worked dates), then the postcards (throwaway database rows).
@@ -133,6 +134,19 @@ describe("a group's postcards (database)", () => {
     expect(sent.sealedUntil).toBeNull();
   });
 
+  it("L2: a sealed card's day is the sender's: opens 18:30Z on 31 Dec 2099 = midnight 1 Jan in Kolkata (UTC+5:30), though a London reader's clock says 31 Dec", async () => {
+    const A = await db.account.create({ data: { email: `gm-A5-${stamp}@example.test`, name: "A5", timeZone: "Asia/Kolkata" } });
+    accountIds.push(A.id);
+    const B = await mk("B5");
+    const g = await mkGroup("sealed-day", [{ name: "A5", accountId: A.id }, { name: "B5", accountId: B.id }]);
+    const opens = new Date("2099-12-31T18:30:00Z");
+    await send(A.id, B.id, g.id, { opensAt: opens });
+    const [got] = await loadGroupPostcards(B.id, g.id);
+    expect(got.senderTz).toBe("Asia/Kolkata");
+    expect(sealedDay(got.sealedUntil!, got.senderTz, "Europe/London", "short")).toBe("1 Jan"); // what the Memories tab now shows
+    expect(sealedDay(got.sealedUntil!, null, "Europe/London", "short")).toBe("31 Dec"); // the old reading, in the reader's zone
+  });
+
   it("someone removed from the group has no memories at all, postcards included", async () => {
     const [A, B] = [await mk("A4"), await mk("B4")];
     const g = await mkGroup("removed", [{ name: "A4", accountId: A.id }, { name: "B4", accountId: B.id }]);
@@ -143,8 +157,8 @@ describe("a group's postcards (database)", () => {
   });
 
   it("someone who left on their own still sees their own postcards", async () => {
-    const [A, B] = [await mk("A5"), await mk("B5")];
-    const g = await mkGroup("left", [{ name: "A5", accountId: A.id }, { name: "B5", accountId: B.id }]);
+    const [A, B] = [await mk("A6"), await mk("B6")];
+    const g = await mkGroup("left", [{ name: "A6", accountId: A.id }, { name: "B6", accountId: B.id }]);
     await send(A.id, B.id, g.id);
     await db.member.update({ where: { id: g.members.find((m) => m.accountId === B.id)!.id }, data: { leftAt: new Date() } });
     expect((await loadGroupPostcards(B.id, g.id)).length).toBe(1);

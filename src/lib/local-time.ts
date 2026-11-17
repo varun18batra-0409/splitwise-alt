@@ -11,6 +11,12 @@ export function localHour(now: Date, tz: string): number {
   return Number(formatter("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }).format(now));
 }
 
+// Minutes since local midnight (0-1439) in that zone, so half and quarter hour zones (+5:30, +5:45, +12:45 ...) are exact.
+export function localMinutes(now: Date, tz: string): number {
+  const [h, m] = formatter("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now).split(":");
+  return Number(h) * 60 + Number(m);
+}
+
 export function isNudgeHour(now: Date, tz: string): boolean {
   const h = localHour(now, tz);
   return h >= NUDGE_FIRST_HOUR && h < NUDGE_LAST_HOUR;

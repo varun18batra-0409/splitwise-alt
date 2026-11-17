@@ -11,6 +11,7 @@ import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { POSTCARD_FONTS_URL, openRareStamps, stampSvg, withHome } from "@/lib/postcards/catalog";
 import { cardProps } from "@/lib/postcards/view";
+import { sealedDay } from "@/lib/postcards/opens";
 import { trimWindow, windowFor } from "@/lib/paging";
 import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
 
@@ -32,18 +33,19 @@ export default async function PostcardsPage({ searchParams }: { searchParams: Pr
   const { rows: got, more: moreGot } = trimWindow(gotRows, rw);
   const { rows: sent, more: moreSent } = trimWindow(sentRows, sw);
   const ids = [...new Set([...got.map((p) => p.fromId), ...sent.map((p) => p.toId)])];
-  const names = new Map((ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : []).map((a) => [a.id, a.name.trim().split(/\s+/)[0] || "A friend"]));
+  const people = (ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, timeZone: true } }) : []);
+  const names = new Map(people.map((a) => [a.id, a.name.trim().split(/\s+/)[0] || "A friend"]));
+  const zoneOf = new Map(people.map((a) => [a.id, a.timeZone]));
   const now = new Date();
   const home = (me.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
   const onIssue = openRareStamps(now, home);
-  const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: tz });
   const tilt = ["-rotate-[2deg]", "rotate-[1.5deg]", "-rotate-[1deg]", "rotate-[2.5deg]"];
   const shelf = (list: typeof got, who: (p: (typeof got)[number]) => string, label: string) => (
     <ul className="grid grid-cols-2 gap-x-4 gap-y-6" aria-label={label}>
       {list.map((p, i) => (
         <li key={p.id} data-postcard-item={p.id}>
           <Link href={`/postcards/${p.id}`} className={`relative block transition-transform active:scale-[0.97] ${tilt[i % tilt.length]}`}>
-            {label === "Received" && p.opensAt && p.opensAt > now ? <SealedEnvelope from="" opens={short.format(p.opensAt)} small /> : <ShelfCard p={cardProps(p, "", tz)} />}
+            {label === "Received" && p.opensAt && p.opensAt > now ? <SealedEnvelope from="" opens={sealedDay(p.opensAt, zoneOf.get(p.fromId), tz, "short")} small /> : <ShelfCard p={cardProps(p, "", tz)} />}
             {p.reaction && <SealMark id={p.reaction} k={`s${p.id}`} className="absolute -bottom-3 -right-2 w-[24%] rotate-[10deg]" />}
           </Link>
           <p className="mt-2.5 flex items-center gap-1.5 truncate text-[13px] text-fg/70">

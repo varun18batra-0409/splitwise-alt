@@ -1,6 +1,7 @@
 import type { BackProps, FrontProps } from "@/components/postcards/Card";
 import type { OneSideProps } from "@/components/postcards/OneSide";
 import { postDate } from "./catalog";
+import { dayKey } from "@/lib/dates";
 import { fitOf, formatOf, photoSizeOf, type Format } from "./format";
 
 // format, fit and photoSize are missing on rows from before they existed: those read as the original card (classic, full, small).
@@ -18,10 +19,11 @@ export function cardProps(p: Row, fromName: string, tz: string): { format: Forma
   const photo = p.photoId ? `/api/postcard-photo/${p.photoId}` : undefined;
   const from = p.signoff || fromName;
   const date = postDate(p.createdAt, tz);
+  const stampYear = Number(dayKey(p.createdAt, tz).slice(0, 4)); // the year of the postmark, in the same zone
   return {
     format,
     front: { front: p.front, photo, words: p.words, lettering: p.lettering, tone: p.tone, look: p.look, wordsAt: p.wordsAt, wordsSize: p.wordsSize, touches: p.touches, fit: fitOf(p.fit), k: `f${p.id}` },
-    back: { message: p.message, hand: p.hand, stamp: p.stamp, paper: p.paper, ink: p.ink, touches: p.touches, seal: p.seal, address, place: p.place, date, from, k: `b${p.id}` },
-    one: format === "oneside" ? { size: photoSizeOf(p.photoSize), front: p.front, photo, look: p.look, message: p.message, hand: p.hand, stamp: p.stamp, paper: p.paper, ink: p.ink, touches: p.touches, seal: p.seal, place: p.place, date, from, k: `o${p.id}` } : null,
+    back: { message: p.message, hand: p.hand, stamp: p.stamp, paper: p.paper, ink: p.ink, touches: p.touches, seal: p.seal, address, place: p.place, date, stampYear, from, k: `b${p.id}` },
+    one: format === "oneside" ? { size: photoSizeOf(p.photoSize), front: p.front, photo, look: p.look, message: p.message, hand: p.hand, stamp: p.stamp, paper: p.paper, ink: p.ink, touches: p.touches, seal: p.seal, place: p.place, date, stampYear, from, k: `o${p.id}` } : null,
   };
 }

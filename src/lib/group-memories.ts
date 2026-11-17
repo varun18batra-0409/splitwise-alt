@@ -75,6 +75,7 @@ export type GroupPostcard = {
   direction: "sent" | "received";
   who: string; // the other person's first name
   sealedUntil: Date | null; // a received card that is still sealed: nothing else of it is shown
+  senderTz: string | null; // the sender's saved zone: the sealed day is read in it (see sealedDay)
   row: Awaited<ReturnType<typeof db.postcard.findMany>>[number] | null; // null while sealed
 };
 
@@ -89,11 +90,12 @@ export async function loadGroupPostcards(accountId: string, groupId: string, now
   ]);
   const seen = rows.filter((r) => postcardVisible(accountId, r, blocked));
   const otherIds = [...new Set(seen.map((r) => (r.fromId === accountId ? r.toId : r.fromId)))];
-  const people = otherIds.length ? await db.account.findMany({ where: { id: { in: otherIds } }, select: { id: true, name: true } }) : [];
+  const people = otherIds.length ? await db.account.findMany({ where: { id: { in: otherIds } }, select: { id: true, name: true, timeZone: true } }) : [];
+  const zoneOf = new Map(people.map((a) => [a.id, a.timeZone]));
   const first = new Map(people.map((a) => [a.id, a.name.trim().split(/\s+/)[0] || "A friend"]));
   return seen.map((r) => {
     const sent = r.fromId === accountId;
     const sealed = !sent && r.opensAt !== null && r.opensAt > now;
-    return { id: r.id, direction: sent ? "sent" : "received", who: first.get(sent ? r.toId : r.fromId) ?? "A friend", sealedUntil: sealed ? r.opensAt : null, row: sealed ? null : r };
+    return { id: r.id, direction: sent ? "sent" : "received", who: first.get(sent ? r.toId : r.fromId) ?? "A friend", sealedUntil: sealed ? r.opensAt : null, senderTz: zoneOf.get(r.fromId) ?? null, row: sealed ? null : r };
   });
 }

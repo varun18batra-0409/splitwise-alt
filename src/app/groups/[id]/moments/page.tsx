@@ -81,13 +81,13 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
         </div>
       ) : (
         <>
-          <MomentBig card={newest} place={where} {...flags(newest)} guest={guest} back={here} link={`${here}/${newest.id}`} from="list" now={now} />
-          {older.length > 0 && !grouped && <MomentsFeed cards={older} groupId={id} now={now} className="mt-4 space-y-3" />}
+          <MomentBig card={newest} place={where} {...flags(newest)} guest={guest} back={here} link={`${here}/${newest.id}`} from="list" now={now} tz={tz} />
+          {older.length > 0 && !grouped && <MomentsFeed cards={older} groupId={id} now={now} tz={tz} className="mt-4 space-y-3" />}
           {grouped &&
             days.map((d) => (
               <section key={d} className="mt-5">
                 <h2 className="mb-2 text-[13px] font-medium text-fg/55">{niceDate(d)}</h2>
-                <MomentsFeed cards={older.filter((c) => dayKey(c.createdAt, tz) === d)} groupId={id} now={now} />
+                <MomentsFeed cards={older.filter((c) => dayKey(c.createdAt, tz) === d)} groupId={id} now={now} tz={tz} />
               </section>
             ))}
           <p className="mt-6 flex items-center justify-center gap-2 text-[15px] text-fg/75">

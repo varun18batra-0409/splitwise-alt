@@ -1,5 +1,5 @@
 import { lookCss, touchesOn } from "@/lib/postcards/looks";
-import { handOf, inkColor, paperTones, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { handOf, inkColor, paperTones, postmarkSvg, printSvg, stampSvg, yearOfPostDate, WAVES_SVG } from "@/lib/postcards/catalog";
 import { ONESIDE, ONESIDE_SIGN, ONESIDE_STAMP, ONESIDE_WAVES, photoSizeOf, type PhotoSize } from "@/lib/postcards/format";
 import { oneSideFont } from "@/lib/postcards/fit";
 import { Touches } from "./Card";
@@ -25,6 +25,7 @@ export type OneSideProps = {
   seal?: string;
   place: string;
   date: string;
+  stampYear?: number; // the year on the stamp: the year the card was sent (read from `date` when not given)
   from: string;
   k: string;
   className?: string;
@@ -35,7 +36,7 @@ export const PRINT_ASPECT = "27 / 20";
 const PAD = 0.042;
 const PAD_BOTTOM = 0.153;
 
-export function PostcardOneSide({ size: sizeProp, front, photo, look = "", message, hand, stamp, paper, ink = "navy", touches = "", seal = "", place, date, from, k, className = "" }: OneSideProps) {
+export function PostcardOneSide({ size: sizeProp, front, photo, look = "", message, hand, stamp, paper, ink = "navy", touches = "", seal = "", place, date, stampYear, from, k, className = "" }: OneSideProps) {
   const size = photoSizeOf(sizeProp);
   const g = ONESIDE[size];
   const h = handOf(hand);
@@ -74,7 +75,7 @@ export function PostcardOneSide({ size: sizeProp, front, photo, look = "", messa
       {/* Waves, postmark and stamp */}
       <div aria-hidden className="absolute opacity-40 [&>svg]:h-auto [&>svg]:w-full" style={{ right: `${ONESIDE_WAVES.right * 100}%`, top: `${ONESIDE_WAVES.top * 100}%`, width: `${ONESIDE_WAVES.w * 100}%` }} dangerouslySetInnerHTML={{ __html: WAVES_SVG }} />
       <div aria-hidden className="absolute right-[17.5%] top-[3.5%] w-[12%] rotate-[-12deg] opacity-60 [&>svg]:h-auto [&>svg]:w-full" data-postmark dangerouslySetInnerHTML={{ __html: postmarkSvg(place || "Loopin", date, k) }} />
-      <div aria-hidden className="absolute rotate-[2deg] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full" style={{ right: `${ONESIDE_STAMP.right * 100}%`, top: `${ONESIDE_STAMP.top * 100}%`, width: `${ONESIDE_STAMP.w * 100}%` }} data-stamp-svg dangerouslySetInnerHTML={{ __html: stampSvg(stamp, k) }} />
+      <div aria-hidden className="absolute rotate-[2deg] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full" style={{ right: `${ONESIDE_STAMP.right * 100}%`, top: `${ONESIDE_STAMP.top * 100}%`, width: `${ONESIDE_STAMP.w * 100}%` }} data-stamp-svg dangerouslySetInnerHTML={{ __html: stampSvg(stamp, k, stampYear ?? yearOfPostDate(date)) }} />
       {/* The note, centred between its top and bottom, sized to fit */}
       <div className="absolute flex items-center" style={{ left: `${g.note.x * 100}%`, width: `${g.note.w * 100}%`, top: `${g.note.top * 100}%`, height: `${(g.note.bottom - g.note.top) * 100}%` }}>
         <p className="m-0 w-full overflow-hidden whitespace-pre-line break-words" style={{ ...pen, fontSize: `${f * 100}cqw`, lineHeight: 1.12 }} data-back-message>

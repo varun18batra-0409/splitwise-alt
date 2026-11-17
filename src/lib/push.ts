@@ -245,14 +245,18 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
   }
 }
 
-// Send to people by account (Collect), on every phone they use Loopin on —
-// unless they turned off collection notifications. Never throws.
+// The "Collections and passport moments" switch (Account.collectPush) mutes only these two items.
+// "Added you to a group" and postcards are on their own switches and stay on when it is off.
+export const ON_COLLECT_SWITCH: ReadonlySet<string> = new Set(["payments.collect", "memories.passport"]);
+
+// Send to people by account (Collect, postcards, group invites), on every phone they use Loopin on.
+// Never throws.
 export async function sendPushToAccounts(accountIds: string[], p: { title: string; body: string; url: string; tag: string }, item: ItemId): Promise<number> {
   try {
     if (!accountIds.length) return 0;
-    const wanted = await db.account.findMany({ where: { id: { in: accountIds }, collectPush: true }, select: { id: true, notifyPrefs: true } });
-    // Collection alerts stay on their own switch too; the account's choices are on top of it.
-    const ok = wanted.filter((a) => allows(a.notifyPrefs, "push", item));
+    const wanted = await db.account.findMany({ where: { id: { in: accountIds } }, select: { id: true, notifyPrefs: true, collectPush: true } });
+    // The collection switch only mutes collections and passport moments; the account's own choices are on top of it.
+    const ok = wanted.filter((a) => (a.collectPush || !ON_COLLECT_SWITCH.has(item)) && allows(a.notifyPrefs, "push", item));
     if (!ok.length) return 0;
     const subs = await db.pushSubscription.findMany({ where: { member: { accountId: { in: ok.map((a) => a.id) }, leftAt: null, ...JOINED } } });
     if (!subs.length) return 0;
