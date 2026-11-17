@@ -36,7 +36,7 @@ describe("import messages don't echo the file", () => {
 
   it("the sign-in page shows the typed address only if it is a plain email shape", () => {
     const src = readFileSync("src/app/signin/page.tsx", "utf8");
-    expect(src).toContain("typed.length <= 254");
+    expect(src).toContain("shownEmail(typed)");
     expect(src).toContain("We sent a 6-digit code to {email ? <span className=\"text-fg\">{email}</span> : \"your email\"}.");
     const shape = /^[^\s@]+@[^\s@]+$/;
     expect(shape.test("asha@example.com")).toBe(true);

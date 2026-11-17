@@ -38,7 +38,16 @@ describe("small items", () => {
   it("AS-13: invite emails have a fixed subject, and names carry no links or addresses", async () => {
     const { mailSafe } = await import("@/lib/mail-safe");
     // Ordinary names that merely contain a dot or an @ survive.
-    for (const n of ["K.Srinivas", "Dr.Rao", "Mary.Ann", "Bills@Home", "Goa trip 2026", "St.Kitts trip", "Tom dot Hanks"]) expect(mailSafe(n), n).toBe(n);
+    for (const n of ["K.Srinivas", "Dr.Rao", "Mary.Ann", "Bills @ Home", "Goa trip 2026", "St.Kitts trip", "Tom dot Hanks"]) expect(mailSafe(n), n).toBe(n);
+    // Payment handles (UPI) and anything joined with an @ go, even "Bills@Home": safety first.
+    expect(mailSafe("Pay ₹500 to rohan@okaxis")).toBe("Pay ₹500 to");
+    expect(mailSafe("rohan@okaxis")).toBe("Someone");
+    expect(mailSafe("Bills@Home")).toBe("Someone");
+    // Web addresses in a longer list of endings, with hyphens, and with other scripts before the dot.
+    expect(mailSafe("Pay pay-loopin.ru now")).toBe("Pay now");
+    expect(mailSafe("платёж.ru")).toBe("Someone");
+    expect(mailSafe("支付.com 请")).toBe("请");
+    for (const t of ["uk", "dev", "ai", "to", "cc", "top", "ru", "cn", "de", "fr", "us", "ca", "au", "tk", "ml", "ga", "cf", "gq", "pw", "live"]) expect(mailSafe(`pay evil.${t} now`), t).toBe("pay now");
     // Links, addresses and web addresses go.
     expect(mailSafe("Refund pending – claim at evil.com")).toBe("Refund pending – claim at");
     expect(mailSafe("Win now https://evil.example/x?a=1 today")).toBe("Win now today");

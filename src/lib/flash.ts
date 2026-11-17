@@ -1,10 +1,15 @@
 import { signText, verifyText } from "@/lib/session";
+import { VIEWER_COOKIE, cleanViewer, newViewerId, viewerCookieOptions } from "@/lib/viewer-cookie";
+export { VIEWER_COOKIE, cleanViewer, newViewerId, viewerCookieOptions };
 
 // Error and "done" messages that travel in a page address (?error=...).
 // Anyone can type an address, so a message is only shown if Loopin itself
 // signed it, for that exact page, in the last 15 minutes. Forged text is
 // simply not shown. Fixed short codes (?error=busy) are not free text and
 // are still read as before by the pages that use them.
+//
+// A message is also tied to the browser it was made for: a random value kept in a cookie (lp_v) goes into the signature, so a
+// signed link copied to someone else's phone shows nothing there.
 //
 // The page (a path, or its pieces) and the message are always given SEPARATELY. A link is never taken apart to find a
 // message in it: anything typed into an id could otherwise make Loopin sign text for a page of the attacker's choosing.
@@ -49,9 +54,34 @@ function toPath(path: string | string[]): string | null {
   return isPlainPath(path) ? path : null;
 }
 
-// What is signed: the page, the minute, and each message in a fixed order (null when absent). As JSON, so no value can run into another.
-function payload(path: string, et: number, notes: Notes): string {
-  return JSON.stringify(["err", path, et, NOTE_KEYS.map((k) => (typeof notes[k] === "string" ? notes[k] : null))]);
+// The current browser's value, made and stored first if it has none. Works in server actions and route handlers (where a cookie can
+// be set); where it can't be set (while a page is being drawn) there is no value, so no message is attached.
+async function viewerForWrite(): Promise<string> {
+  try {
+    const { cookies } = await import("next/headers");
+    const jar = await cookies();
+    const have = cleanViewer(jar.get(VIEWER_COOKIE)?.value);
+    if (have) return have;
+    const made = newViewerId();
+    jar.set(VIEWER_COOKIE, made, viewerCookieOptions());
+    return made;
+  } catch {
+    return "";
+  }
+}
+// Reading: no cookie means nothing is shown.
+async function viewerForRead(): Promise<string> {
+  try {
+    const { cookies } = await import("next/headers");
+    return cleanViewer((await cookies()).get(VIEWER_COOKIE)?.value);
+  } catch {
+    return "";
+  }
+}
+
+// What is signed: the page, the minute, the browser, and each message in a fixed order (null when absent). As JSON, so no value can run into another.
+function payload(path: string, et: number, viewer: string, notes: Notes): string {
+  return JSON.stringify(["err", path, et, viewer, NOTE_KEYS.map((k) => (typeof notes[k] === "string" ? notes[k] : null))]);
 }
 
 function withQuery(extra: Extra | undefined): URLSearchParams {
@@ -64,21 +94,25 @@ function withQuery(extra: Extra | undefined): URLSearchParams {
 
 // The link to send someone to: `path` (or its pieces) plus the plain extras, and, if there are messages, the signed messages.
 // A path that isn't plain gives "/" and no message.
-export async function flashTo(path: string | string[], notes: Notes, extra?: Extra, hash = "", now = Date.now()): Promise<string> {
-  return flashToAt(path, notes, Math.floor(now / 60000), extra, hash);
+export async function flashTo(path: string | string[], notes: Notes, extra?: Extra, hash = "", now = Date.now(), viewer?: string): Promise<string> {
+  return flashToAt(path, notes, Math.floor(now / 60000), extra, hash, viewer);
 }
 
 // The same with the minute given: used to carry a message to another page without extending its 15 minutes.
-export async function flashToAt(path: string | string[], notes: Notes, et: number, extra?: Extra, hash = ""): Promise<string> {
+export async function flashToAt(path: string | string[], notes: Notes, et: number, extra?: Extra, hash = "", viewer?: string): Promise<string> {
   const p = toPath(path);
   if (p === null) return "/";
   const q = withQuery(extra);
   const clean: Notes = {};
   for (const k of NOTE_KEYS) if (typeof notes[k] === "string") clean[k] = notes[k];
   if (Object.keys(clean).length) {
-    for (const k of NOTE_KEYS) if (clean[k] !== undefined) q.set(k, clean[k]!);
-    q.set("et", String(et));
-    q.set("es", await signText(payload(pathOf(p), et, clean)));
+    // No browser value (it could not be stored): the link goes ahead without the message rather than with one anybody could open.
+    const v = cleanViewer(viewer) || (viewer === undefined ? await viewerForWrite() : "");
+    if (v) {
+      for (const k of NOTE_KEYS) if (clean[k] !== undefined) q.set(k, clean[k]!);
+      q.set("et", String(et));
+      q.set("es", await signText(payload(pathOf(p), et, v, clean)));
+    }
   }
   const qs = q.toString();
   const h = hash ? (hash.startsWith("#") ? hash : `#${hash}`) : "";
@@ -88,7 +122,9 @@ export async function flashToAt(path: string | string[], notes: Notes, et: numbe
 type Params = Record<string, string | string[] | undefined>;
 
 // The messages on this page's address that Loopin signed for this page in the last 15 minutes, and the minute they were signed.
-export async function readSignedNotes(sp: Params, path: string, now = Date.now()): Promise<{ notes: Notes; et: number } | null> {
+export async function readSignedNotes(sp: Params, path: string, now = Date.now(), viewer?: string): Promise<{ notes: Notes; et: number } | null> {
+  const v = cleanViewer(viewer) || (viewer === undefined ? await viewerForRead() : "");
+  if (!v) return null;
   const et = sp.et;
   const es = sp.es;
   if (typeof et !== "string" || typeof es !== "string" || !/^\d{1,10}$/.test(et)) return null;
@@ -101,7 +137,7 @@ export async function readSignedNotes(sp: Params, path: string, now = Date.now()
     if (typeof v === "string") notes[k] = v;
   }
   if (!Object.keys(notes).length) return null;
-  if (!(await verifyText(payload(pathOf(path), Number(et), notes), es))) return null;
+  if (!(await verifyText(payload(pathOf(path), Number(et), v, notes), es))) return null;
   const out: Notes = {};
   for (const k of NOTE_KEYS) {
     const v = notes[k];
@@ -115,6 +151,6 @@ export async function readSignedNotes(sp: Params, path: string, now = Date.now()
 }
 
 // Anything that isn't signed for this page, or is too old, gives {}.
-export async function readNotes(sp: Params, path: string, now = Date.now()): Promise<Notes> {
-  return (await readSignedNotes(sp, path, now))?.notes ?? {};
+export async function readNotes(sp: Params, path: string, now = Date.now(), viewer?: string): Promise<Notes> {
+  return (await readSignedNotes(sp, path, now, viewer))?.notes ?? {};
 }

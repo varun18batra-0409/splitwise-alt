@@ -1,3 +1,4 @@
+import { shownEmail } from "@/lib/email-clean";
 import Link from "@/components/Link";
 import { safePath } from "@/lib/paths";
 import { redirect } from "next/navigation";
@@ -23,9 +24,9 @@ export default async function SignIn({
   const notes = await readNotes(sp, "/signin");
   const back = safePath(sp.back);
   if (await getAccount()) redirect("/account");
-  // The address typed into the link is shown only if it looks like an email address (one @, no spaces, 254 characters at most).
+  // The address typed into the link is shown only if it is a real-looking email in plain ASCII (no look-alike or blank characters).
   const typed = sp.e ?? "";
-  const email = typed.length <= 254 && /^[^\s@]+@[^\s@]+$/.test(typed) ? typed : "";
+  const email = shownEmail(typed);
   const sent = sp.sent === "1" && typed;
   const error = notes.error?.slice(0, 200);
   const name = (sp.n ?? "").slice(0, 40);
@@ -126,7 +127,7 @@ export default async function SignIn({
           <form action={verifyCode} className="space-y-4">
             <input type="hidden" name="back" value={back} />
             <input type="hidden" name="name" value={name} />
-            <input type="hidden" name="email" value={email} />
+            <input type="hidden" name="email" value={typed.slice(0, 254)} />
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-600">Code</span>
               <input
@@ -146,7 +147,7 @@ export default async function SignIn({
             </button>
           </form>
           <p className="mt-6 text-center text-sm text-gray-500">
-            <Link href={`/signin?${new URLSearchParams({ e: email, back })}`} className="underline underline-offset-4">
+            <Link href={`/signin?${new URLSearchParams({ e: typed.slice(0, 254), back })}`} className="underline underline-offset-4">
               Use a different email or send a new code
             </Link>
           </p>

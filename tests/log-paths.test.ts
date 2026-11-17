@@ -55,3 +55,14 @@ describe("codes in addresses are never logged", () => {
     expect(hideCodes("GET /groups/x/people")).toBe("GET /groups/x/people");
   });
 });
+
+describe("codes printed as fields in an error message are hidden too", () => {
+  it("inviteCode, token and code values", () => {
+    expect(hideSecretsIn('Invalid `prisma.group.findUnique()` invocation: where: { inviteCode: "AbCdEfGh" }')).toBe('Invalid `prisma.group.findUnique()` invocation: where: { inviteCode: ":code" }');
+    expect(hideSecretsIn("token: 'abcdefghij_klmnopqrstu'")).toBe("token: ':code'");
+    expect(hideSecretsIn('{ "code": "AbCd12" }')).toBe('{ "code": ":code" }');
+    expect(hideSecretsIn("failed for code=AbCd12&x=1")).toBe("failed for code=:code&x=1");
+    expect(hideSecretsIn("Unique constraint failed on the fields: (`groupId`)")).toBe("Unique constraint failed on the fields: (`groupId`)");
+    expect(hideSecretsIn("decoded 5 of 10")).toBe("decoded 5 of 10");
+  });
+});

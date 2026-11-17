@@ -1,11 +1,19 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { flashTo, flashToAt, isPlainPath, readNotes, readSignedNotes } from "@/lib/flash";
+import { flashTo as flashToFor, flashToAt as flashToAtFor, isPlainPath, readNotes as readNotesFor, readSignedNotes as readSignedFor } from "@/lib/flash";
+import { shownEmail } from "@/lib/email-clean";
 
 // Messages in a page address are shown only if Loopin signed them for that page in the last 15 minutes (CB-2, OP-2, GP-11, SA-10, AS-12).
 
 const T0 = Date.parse("2026-11-16T10:00:00Z");
+// The browser's own value (the lp_v cookie). Passed in here; in the app it comes from the cookie.
+const VIEWER = "viewerAAAAAAAAAAAAAAAAAA";
+const OTHER_VIEWER = "viewerBBBBBBBBBBBBBBBBBB";
+const flashTo = (path: Parameters<typeof flashToFor>[0], notes: Parameters<typeof flashToFor>[1], extra?: Parameters<typeof flashToFor>[2], hash = "", now = T0) => flashToFor(path, notes, extra, hash, now, VIEWER);
+const flashToAt = (path: Parameters<typeof flashToAtFor>[0], notes: Parameters<typeof flashToAtFor>[1], et: number, extra?: Parameters<typeof flashToAtFor>[3]) => flashToAtFor(path, notes, et, extra, "", VIEWER);
+const readNotes = (sp: Parameters<typeof readNotesFor>[0], path: string, now = T0, viewer = VIEWER) => readNotesFor(sp, path, now, viewer);
+const readSignedNotes = (sp: Parameters<typeof readSignedFor>[0], path: string, now = T0, viewer = VIEWER) => readSignedFor(sp, path, now, viewer);
 const MIN = 60_000;
 const paramsOf = (url: string) => Object.fromEntries(new URL(url, "http://x").searchParams) as Record<string, string>;
 
@@ -115,6 +123,33 @@ describe("signed messages in addresses", () => {
     expect(await readNotes(moved, "/groups/g1/settle", T0 + 1 * MIN)).toEqual({});
   });
 
+  it("a signed link works only in the browser it was made for (the lp_v cookie)", async () => {
+    const sp = paramsOf(await flashTo("/", { error: "Pay ₹500 to x@ybl instead" }));
+    // the same browser: shown
+    expect(await readNotes(sp, "/")).toEqual({ error: "Pay ₹500 to x@ybl instead" });
+    // another browser (a different cookie value): nothing
+    expect(await readNotes(sp, "/", T0, OTHER_VIEWER)).toEqual({});
+    // no cookie at all, or a cookie that isn't a proper value: nothing
+    expect(await readNotes(sp, "/", T0, "")).toEqual({});
+    expect(await readNotes(sp, "/", T0, "short")).toEqual({});
+    // reading without saying whose browser it is (no cookie available here) shows nothing too
+    expect(await readNotesFor(sp, "/", T0)).toEqual({});
+    // and a message can't be made for "no browser"
+    expect(await flashToFor("/", { error: "x" }, undefined, "", T0, "")).toBe("/");
+  });
+
+  it("the same message signed in two browsers has two different signatures", async () => {
+    const a = paramsOf(await flashToFor("/c/AB", { error: "Nope" }, undefined, "", T0, VIEWER));
+    const b = paramsOf(await flashToFor("/c/AB", { error: "Nope" }, undefined, "", T0, OTHER_VIEWER));
+    expect(a.es).not.toBe(b.es);
+    expect(await readNotesFor(b, "/c/AB", T0, OTHER_VIEWER)).toEqual({ error: "Nope" });
+  });
+
+  it("an address from a link is shown only if it is a real-looking email in plain ASCII", () => {
+    expect(shownEmail("Asha@Example.com")).toBe("asha@example.com");
+    for (const bad of ["Pay 500 to x", "a@b@c.com", "a b@c.com", "x@", "", undefined, "a".repeat(250) + "@b.com", "asha\u2800@example.com", "\u3164@example.com", "as\u200bha@example.com", "аsha@example.com"]) expect(shownEmail(bad), String(bad)).toBe("");
+  });
+
   it("an invited list longer than 8000 characters is not shown (a cut-off list can't be read)", async () => {
     const big = "x".repeat(8001);
     expect((await readNotes(paramsOf(await flashTo("/groups/g1/invite", { invited: big, error: "e" }, undefined, "", T0)), "/groups/g1/invite", T0))).toEqual({ error: "e" });
@@ -178,6 +213,48 @@ describe("no free text from the address is shown unsigned", () => {
     ]) expect(readFileSync(f, "utf8"), f).toContain("flashTo(");
   });
 
+  // Any value typed into an address that a page prints as text (not only the message keys) must be checked first. Pages that read
+  // addresses and print one unchecked fail here; a field that IS checked is listed with the reason.
+  const CHECKED_FIELDS: Record<string, string[]> = {
+    "src/app/signin/verify/page.tsx": ["code"], // digits only, cut to 6
+  };
+  it("no page prints a raw value from the address as text", () => {
+    for (const f of files.filter((x) => x.endsWith("page.tsx"))) {
+      const src = readFileSync(f, "utf8");
+      if (!src.includes("await searchParams")) continue;
+      const spName = /const (\w+) = await searchParams/.exec(src)?.[1];
+      const names = new Set<string>();
+      for (const part of (/const \{([^}]*)\} = await searchParams/.exec(src)?.[1] ?? "").split(",")) {
+        const n = part.trim().split(":").pop()!.split("=")[0].trim();
+        if (n) names.add(n);
+      }
+      // one step of derived names: const y = sp.field.slice(...) / const y = typed ?? ""
+      const raw = (e: string) => (spName ? new RegExp(`\\b${spName}\\.\\w+`).test(e) : false) || [...names].some((n) => new RegExp(`(?<![\\w.])${n}\\b`).test(e));
+      const SAFE = /shownEmail|readNotes|safePath|===|!==|hasOwnProperty|Number\(|Boolean\(|\.test\(|\.replace\(/;
+      for (const line of src.split("\n")) {
+        const m = /^\s*const (\w+) = (.*);$/.exec(line);
+        if (m && raw(m[2]) && !SAFE.test(m[2]) && !line.includes("searchParams")) names.add(m[1]);
+      }
+      const allowed = CHECKED_FIELDS[f.replace(/\\/g, "/")] ?? [];
+      for (const line of src.split("\n")) {
+        // a JSX text child that is nothing but the value (optionally cut or defaulted)
+        const m = /(?:>|^\s*)\{\s*([\w.]+)(?:\.slice\([^)]*\))?(?:\s*\?\?\s*"[^"]*")?\s*\}\s*(?:<|$)/.exec(line);
+        if (!m) continue;
+        const expr = m[1];
+        const field = expr.replace(new RegExp(`^${spName}\\.`), "");
+        const isRaw = (spName && expr.startsWith(`${spName}.`)) || names.has(expr);
+        if (isRaw) expect(allowed.includes(field), `${f} prints "${expr}" straight from the address: ${line.trim()}`).toBe(true);
+      }
+    }
+  });
+
+  it("the sign-in pages show an address from the link only through shownEmail", () => {
+    for (const f of ["src/app/signin/page.tsx", "src/app/signin/verify/page.tsx"]) {
+      const src = readFileSync(f, "utf8");
+      expect(src, f).toContain("shownEmail(");
+    }
+  });
+
   it("no link is built by hand with a message in it, and flashUrl is gone", () => {
     for (const f of [...files, ...walk("src/lib")]) {
       const src = readFileSync(f, "utf8");
@@ -188,5 +265,39 @@ describe("no free text from the address is shown unsigned", () => {
 
   it("closing a message strips the signature as well", () => {
     expect(readFileSync("src/components/ui.tsx", "utf8")).toContain('params={["error", "et", "es"]}');
+  });
+});
+
+describe("the browser value (lp_v) is set before any page draws", () => {
+  const mw = readFileSync("src/middleware.ts", "utf8");
+  it("the middleware sets lp_v when it is missing, with the same attributes as the actions", () => {
+    expect(mw).toContain("VIEWER_COOKIE");
+    expect(mw).toContain("res.cookies.set(VIEWER_COOKIE, newViewer, viewerCookieOptions())");
+    expect(mw).toContain("!cleanViewer(req.cookies.get(VIEWER_COOKIE)?.value)"); // only when missing (or not a proper value)
+    expect(mw).toContain('requestHeaders.set("cookie"'); // the first page of a new browser already sees it
+    const opts = readFileSync("src/lib/viewer-cookie.ts", "utf8");
+    expect(opts).toContain("httpOnly: true");
+    expect(opts).toContain('sameSite: "lax"');
+    expect(opts).toContain('path: "/"');
+    expect(opts).toContain("60 * 60 * 24 * 730");
+    expect(readFileSync("src/lib/flash.ts", "utf8")).toContain("viewerCookieOptions()"); // the action-side backup uses the same options
+  });
+  it("it is skipped for files, non-page requests and the existing static and API exclusions", () => {
+    expect(mw).toContain('req.method === "GET" || req.method === "HEAD"');
+    expect(mw).toContain("!/\\.[A-Za-z0-9]{1,8}$/.test(req.nextUrl.pathname)");
+    expect(mw).toContain('matcher: ["/((?!_next/static|_next/image|api/).*)"]'); // unchanged
+  });
+  it("its existing rules are untouched", () => {
+    expect(mw).toContain("shouldMove(host, req.method, req.nextUrl.pathname)");
+    expect(mw).toContain('requestHeaders.set("x-nonce", nonce)');
+    expect(mw).toContain("res.cookies.set(SESSION_COOKIE");
+  });
+  it("lp_v is made of 128 random bits and only a proper value is accepted", async () => {
+    const { newViewerId, cleanViewer } = await import("@/lib/viewer-cookie");
+    const a = newViewerId();
+    expect(a).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(cleanViewer(a)).toBe(a);
+    expect(newViewerId()).not.toBe(a);
+    expect(cleanViewer("short")).toBe("");
   });
 });

@@ -14,5 +14,9 @@ export function hideSecrets(path: string): string {
 
 // The same for free text (an error message can repeat the address it came from): any /join/, /c/ or /p/ code anywhere in it.
 export function hideSecretsIn(text: string): string {
-  return String(text).replace(/\/+(join|c|p)\/+[^\s/?#"'<>)]+/gi, "/$1/:code");
+  return String(text)
+    .replace(/\/+(join|c|p)\/+[^\s/?#"'<>)]+/gi, "/$1/:code")
+    // A database or library error can print the row it was about: { inviteCode: "abc" }, token: 'abc', code=abc.
+    .replace(/\b(inviteCode|invite_code|token|code)(["']?\s*[:=]\s*)(["'`])[^"'`]*\3/gi, "$1$2$3:code$3")
+    .replace(/\b(inviteCode|invite_code|token|code)(\s*=\s*)[^\s,;&)"'`]+/gi, "$1$2:code");
 }
