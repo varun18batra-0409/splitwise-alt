@@ -791,7 +791,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
 class MembersMoved extends Error {}
 class MemberInUse extends Error {}
 
-export const memberInUseText = (name: string) => `${name} is already part of expenses, payments, the deposit, a goal or a game, so they can’t be removed.`;
+export const memberInUseText = (name: string) => `${name} is already part of expenses, payments, moments, the deposit, a goal or a game, so they can’t be removed.`;
 
 type UseClient = Pick<typeof db, "expenseShare" | "expense" | "payment" | "paymentClaim" | "moment" | "momentReaction" | "depositShare" | "goalEntry" | "potMove" | "potGame" | "bill">;
 
