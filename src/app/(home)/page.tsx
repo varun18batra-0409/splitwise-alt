@@ -35,7 +35,7 @@ import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
 import { moveOutPaymentIds } from "@/lib/payment-change";
 import { stillIn } from "@/lib/left-view";
-import { gamesForStories, homeBills, recentGames } from "@/lib/home/home-lists";
+import { gamesForStories, homeBills, potIdsToShow, recentGames } from "@/lib/home/home-lists";
 import { canUndo, originAtDb, paymentsForUndo } from "@/lib/undo";
 import { isGroupAdmin } from "@/lib/group-admin";
 import { UndoBar } from "@/components/UndoBar";
@@ -195,7 +195,7 @@ export default async function Home({
     );
   // Stories: the moments in your groups (a trip coming up, last night's game,
   // a group that just got square, a collection filling up, a year ago today).
-  const potIds = open.filter((g) => g.group.type === "pot").map((g) => g.group.id);
+  const potIds = potIdsToShow(open); // not the groups you left, so their games cannot fill the newest ten
   const gameRows = await recentGames(potIds, new Date(Date.now() - 3 * 86_400_000));
   // No game story for a group you left: it links to a page that people who left can't open.
   const games = gamesForStories(gameRows, open);

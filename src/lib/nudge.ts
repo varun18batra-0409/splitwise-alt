@@ -11,6 +11,8 @@ export function nudgeMessage(name: string, amountText: string, groupName: string
   return lines.join("\n");
 }
 
-export function nudgeLink(phone: string, name: string, amountText: string, groupName: string, extra?: { ways?: PayWays | null; link?: string }): string {
-  return whatsappLink(nudgeMessage(name, amountText, groupName, extra), waPhone(phone));
+// `currency` is the group's: a number with no country code is taken as an Indian one only in rupee groups (see waPhone). Without
+// it (unknown), nothing is guessed and WhatsApp opens with no chat picked.
+export function nudgeLink(phone: string, name: string, amountText: string, groupName: string, extra?: { ways?: PayWays | null; link?: string; currency?: string }): string {
+  return whatsappLink(nudgeMessage(name, amountText, groupName, extra), waPhone(phone, extra?.currency === "INR"));
 }
