@@ -29,7 +29,7 @@ jobs:
     # Long (Android + iPhone): by hand, or when the commit message says [full] (every release candidate).
     if: (github.event_name == 'workflow_dispatch' && inputs.target == 'local') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full]')) || github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 60 # Android + iPhone take about 25 min alone; next to a [full] screens run the runner is slower (17 Nov: cut off at 40)
     env:
       TURSO_DATABASE_URL: file:/tmp/e2e.db
       MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
