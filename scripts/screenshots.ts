@@ -34,9 +34,21 @@ else
   ]);
 const page = await context.newPage();
 
+// Open a page and wait until the network is quiet. If one small picture never finishes (a stuck image request keeps the network "busy"
+// for ever), the page itself has loaded: carry on once "load" is reached, instead of losing the screenshot.
+async function gotoQuiet(p: Page, url: string, quick = false) {
+  try {
+    await p.goto(url, { waitUntil: quick ? "load" : "networkidle", timeout: 30_000 });
+  } catch (e) {
+    if (quick || !/networkidle/i.test(String(e))) throw e;
+    console.log("  (note:", url.replace(base, ""), "never went network-quiet; carrying on once it has loaded)");
+    await p.waitForLoadState("load", { timeout: 10_000 });
+  }
+}
+
 async function shot(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
   try {
-    await page.goto(base + path, { waitUntil: hosted ? "load" : "networkidle", timeout: 30_000 });
+    await gotoQuiet(page, base + path, hosted);
     await page.waitForTimeout(900); // let the bar animation finish
     if (prepare) await prepare(page).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
     await page.screenshot({ path: `${out}/${name}.png`, fullPage });
@@ -299,7 +311,7 @@ if (!desktop && !hosted) {
         ["settle", "/settle"],
       ] as const) {
         try {
-          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + path);
           await p.waitForTimeout(500);
           await p.screenshot({ path: `${out}/direct${w}-${n}.png`, fullPage: true });
           console.log(`  ✓ direct${w}-${n}`);
@@ -328,7 +340,7 @@ if (!desktop && !hosted) {
     for (const w of [390, 320] as const) {
       await p.setViewportSize({ width: w, height: w === 320 ? 640 : 844 });
       try {
-        await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+        await gotoQuiet(p, base + "/");
         await p.waitForTimeout(500);
         await p.screenshot({ path: `${out}/direct${w}-home-both.png`, fullPage: false });
         console.log(`  ✓ direct${w}-home-both`);
@@ -361,7 +373,7 @@ if (!desktop && !hosted) {
   const card = () => page.locator("[data-balance-card]").first();
   const read = async () => {
     await page.setViewportSize(screen);
-    await page.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+    await gotoQuiet(page, base + "/");
     await card().waitFor();
     return `${await card().getAttribute("data-ticket")} | ${(await card().innerText()).replace(/\s+/g, " ").trim()}`;
   };
@@ -1051,7 +1063,7 @@ if (!hosted) {
   // Adds one moment the way a person does (the real form), then sets its "when" so the list reads like a real trip.
   const put = async (g: Awaited<ReturnType<typeof trip>>, by: "Varu" | "Nupur" | "Riya", acc: { id: string }, caption: string, takenOn: string, at: Date) => {
     const up = await uploader(acc);
-    await up.goto(`${base}/groups/${g.id}/moments/new`, { waitUntil: "networkidle", timeout: 30_000 });
+    await gotoQuiet(up, `${base}/groups/${g.id}/moments/new`);
     await up.getByLabel("Choose a photo").setInputFiles(nextPhoto());
     await up.locator('img[alt="Your photo"]').waitFor({ timeout: 20_000 });
     if (caption) await up.getByPlaceholder("The boat we almost missed").fill(caption);
@@ -1088,7 +1100,7 @@ if (!hosted) {
       await p.setViewportSize({ width: w, height: 780 });
       for (const [name, path, prepare, full] of list) {
         try {
-          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + path);
           await p.waitForTimeout(700);
           if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
           await assertMomentPhotosDecoded(p, `M1-${name}-${w}`); // fails the screenshot (✗) if any moment picture did not draw
@@ -1201,7 +1213,7 @@ if (!hosted) {
         const name = w === 390 ? s.name : `n${w}-${s.name}`;
         try {
           await p.setViewportSize({ width: w, height: 780 });
-          await p.goto(base + s.path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + s.path);
           await p.waitForTimeout(800);
           if (s.prepare) await s.prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
           await assertMomentPhotosDecoded(p, name);
@@ -1338,7 +1350,7 @@ if (!desktop) {
     try {
       for (const w of widths) {
         await p.setViewportSize(dims(w));
-        await p.goto(base + path, { waitUntil: hosted ? "load" : "networkidle", timeout: 30_000 });
+        await gotoQuiet(p, base + path, hosted);
         await p.waitForTimeout(700);
         if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
         await p.screenshot({ path: `${out}/${name}-${w}.png`, fullPage });
@@ -1577,7 +1589,7 @@ if (!hosted && !desktop && !ios) {
       const p = await c.newPage();
       for (const [name, path, prepare] of list) {
         try {
-          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await gotoQuiet(p, base + path);
           await p.waitForTimeout(900);
           if (prepare) await prepare(p); // unlike the numbered shots, a step that fails fails the picture: a wrong screen must not be saved as a guide image
           await p.screenshot({ path: `${out}/${name}.png`, fullPage: false });
