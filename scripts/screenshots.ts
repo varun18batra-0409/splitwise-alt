@@ -2006,6 +2006,8 @@ if (!desktop && !hosted) {
   for (const [n, amount] of [["Varun", 5000000], ["Asha", 4200000], ["Kabir", 4200000], ["Dev", 3000000]] as const) await db.depositShare.create({ data: { depositId: dep.id, memberId: id(flat, n), amount } });
   const goal = await db.goal.create({ data: { groupId: flat.id, name: "Sofa", target: 6000000, createdById: id(flat, "Varun") } });
   for (const [n, amount] of [["Varun", 2000000], ["Asha", 2000000], ["Kabir", 1500000], ["Dev", 500000]] as const) await db.goalEntry.create({ data: { goalId: goal.id, memberId: id(flat, n), amount } });
+  // The entries add up to the target, so the app would have marked it reached (goals-db does when an entry gets there); say so here too.
+  await db.goal.update({ where: { id: goal.id }, data: { reachedAt: new Date() } });
   const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
   await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: { [flat.id]: id(flat, "Varun"), [trip.id]: id(trip, "Varun") }, a: me.id, v: 0 }), url: base }]);
   const p = await c.newPage();

@@ -49,8 +49,13 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
           <span className="min-w-0 flex-1 max-[389px]:min-w-[120px]">
             <span className="block [overflow-wrap:break-word] font-display text-[17px] font-semibold leading-tight tracking-tight">{b.bill.name}</span>
             <span className="block text-[13px] text-fg/60">
-              {keepDots(`${cadence}${b.bill.nature === "daily" ? "" : ` · ${ordinalDay(b.bill.day).replace(/^last day$/, "Last day")}`} · ${who}`)}
-              {turns}
+              {/* Who pays stays whole ("Asha pays this month"): in a narrow row the glued line broke inside the name ("A / sha pays"). */}
+              {keepDots(`${cadence}${b.bill.nature === "daily" ? "" : ` · ${ordinalDay(b.bill.day).replace(/^last day$/, "Last day")}`}`)}
+              {"\u00a0· "}
+              <span className="whitespace-nowrap">
+                {who}
+                {turns}
+              </span>
               {b.bill.nature === "varies" && b.usual ? keepDots(` · usually ${money(b.usual)}`) : ""}
             </span>
             {b.status === "waiting" && hold === "fix" && b.reason && <span className="block text-xs text-fg/75">On hold: {b.reason}</span>}

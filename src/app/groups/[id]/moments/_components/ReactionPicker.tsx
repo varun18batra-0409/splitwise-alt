@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { PICKER_BAR, placePicker } from "@/lib/picker-place";
+import { PICKER_BAR, pageRoomNeeded, placePicker } from "@/lib/picker-place";
 
 // The "+" on a moment and the emoji choices it opens. The choices hang from the "+" button (never from the page edge), stay fully inside the
 // screen (at most the width minus 16 px each side, the emoji wrapping in columns), and open right under the button (with a small pointer to it).
 // If the picker is taller than the room under the button the page scrolls to fit; only when there is still no room does it open above the
-// button, and then it stays short (src/lib/picker-place.ts).
+// button, and then it stays short (src/lib/picker-place.ts). A page too short to scroll that far gets a little empty room at its end while the
+// picker is open (data-picker-room), so the picker still opens under the "+" and never covers the moment's title.
 // The choices themselves (a server form) come in as children, so reacting still works without script.
 export function ReactionPicker({ summaryClass, children }: { summaryClass: string; children: ReactNode }) {
   const box = useRef<HTMLDetailsElement>(null);
@@ -16,8 +17,13 @@ export function ReactionPicker({ summaryClass, children }: { summaryClass: strin
   useEffect(() => {
     const d = box.current;
     if (!d) return;
+    const roomEl = () => document.querySelector<HTMLDivElement>("[data-picker-room]");
+    const dropRoom = () => roomEl()?.remove();
     const fit = () => {
-      if (!d.open || !panel.current) return;
+      if (!d.open || !panel.current) {
+        dropRoom();
+        return;
+      }
       const b = d.getBoundingClientRect();
       // The card around the "+" may cut off what hangs outside it, so room is measured against the nearer of that card and the window.
       let area = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
@@ -35,13 +41,28 @@ export function ReactionPicker({ summaryClass, children }: { summaryClass: strin
       const h = panel.current.scrollHeight || 120; // the full height of the choices, whatever the panel is capped to
       const left = Math.min(Math.max(b.left, area.left + 16), area.right - 16 - w) - b.left; // 16 px from each edge at least
       const root = document.documentElement;
+      let scrollRoom = clipped ? 0 : root.scrollHeight - window.innerHeight - window.scrollY;
+      if (!clipped) {
+        const add = pageRoomNeeded({ buttonTop: b.top, buttonBottom: b.bottom, viewHeight: window.innerHeight, panelHeight: h + 2, scrollRoom });
+        if (add > 0) {
+          let el = roomEl();
+          if (!el) {
+            el = document.createElement("div");
+            el.setAttribute("data-picker-room", "");
+            el.setAttribute("aria-hidden", "true");
+            document.body.appendChild(el);
+          }
+          el.style.height = `${(parseFloat(el.style.height) || 0) + add}px`;
+          scrollRoom = root.scrollHeight - window.innerHeight - window.scrollY;
+        }
+      }
       // Inside a card that cuts things off the page can't scroll to make room, so the card's own edges are the room.
       const spot = placePicker({
         buttonTop: clipped ? b.top - Math.max(area.top, 8) + 8 : b.top,
         buttonBottom: b.bottom,
         viewHeight: clipped ? Math.min(area.bottom + PICKER_BAR, window.innerHeight) : window.innerHeight,
         panelHeight: h + 2,
-        scrollRoom: clipped ? 0 : root.scrollHeight - window.innerHeight - window.scrollY,
+        scrollRoom,
       });
       if (spot.scrollBy > 0) window.scrollBy({ top: spot.scrollBy, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       setPlace({ left, above: spot.above, maxH: spot.maxHeight, point: Math.min(Math.max(b.width / 2 - left - 6, 10), w - 22) });
@@ -52,6 +73,7 @@ export function ReactionPicker({ summaryClass, children }: { summaryClass: strin
     return () => {
       d.removeEventListener("toggle", onToggle);
       window.removeEventListener("resize", fit);
+      dropRoom();
     };
   }, []);
 

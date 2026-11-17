@@ -6,7 +6,7 @@ import { ONESIDE } from "@/lib/postcards/format";
 import { RARE, rareOpen, rareWhen, windowLabel } from "@/lib/postcards/catalog";
 import { ONESIDE_TOUCHES, REACTIONS, TOUCHES, sealBackLine } from "@/lib/postcards/looks";
 import { countdownPoster } from "@/lib/home/stories";
-import { PICKER_SHORT, placePicker } from "@/lib/picker-place";
+import { PICKER_SHORT, pageRoomNeeded, placePicker } from "@/lib/picker-place";
 
 const src = (p: string) => readFileSync(p, "utf8");
 
@@ -199,6 +199,21 @@ describe("s6: emoji in colour, and the picker under the +", () => {
     expect(PICKER_SHORT).toBe(184);
     // the + near the top of a short screen: more room under (152) than above (20), so stay under and scroll inside
     expect(placePicker({ buttonTop: 100, buttonBottom: 144, viewHeight: 400, panelHeight: 262, scrollRoom: 0 })).toEqual({ above: false, scrollBy: 0, maxHeight: 152 });
+  });
+  it("a short page gets just enough room at its end for the picker to open under the + (founder mockup s6: the title stays visible)", () => {
+    // 780 tall, + at 496..540, picker 282, page can't scroll: room under = 780 - 96 - 540 - 8 = 136, short by 146; the + may rise 496 - 72 = 424
+    expect(pageRoomNeeded({ buttonTop: 496, buttonBottom: 540, viewHeight: 780, panelHeight: 282, scrollRoom: 0 })).toBe(146);
+    // with that room the picker opens under the + and the page scrolls by 146
+    expect(placePicker({ buttonTop: 496, buttonBottom: 540, viewHeight: 780, panelHeight: 282, scrollRoom: 146 })).toEqual({ above: false, scrollBy: 146, maxHeight: 282 });
+    // the page already scrolls far enough: nothing added
+    expect(pageRoomNeeded({ buttonTop: 496, buttonBottom: 540, viewHeight: 780, panelHeight: 282, scrollRoom: 500 })).toBe(0);
+    // it fits under already: nothing added
+    expect(pageRoomNeeded({ buttonTop: 356, buttonBottom: 400, viewHeight: 800, panelHeight: 262, scrollRoom: 0 })).toBe(0);
+    // the + near the top: never more than lets it reach 72 px from the top (100 - 72 = 28)
+    expect(pageRoomNeeded({ buttonTop: 100, buttonBottom: 144, viewHeight: 400, panelHeight: 262, scrollRoom: 0 })).toBe(28);
+    const p = src("src/app/groups/[id]/moments/_components/ReactionPicker.tsx");
+    expect(p).toContain("data-picker-room");
+    expect(p).toContain("dropRoom()");
   });
   it("the picker is anchored with a pointer and measures its full height", () => {
     const p = src("src/app/groups/[id]/moments/_components/ReactionPicker.tsx");

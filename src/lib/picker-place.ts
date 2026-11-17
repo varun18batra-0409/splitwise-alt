@@ -23,3 +23,11 @@ export function placePicker(i: { buttonTop: number; buttonBottom: number; viewHe
   if (belowAfter >= PICKER_MIN || belowAfter >= above) return { above: false, scrollBy: Math.floor(canScroll), maxHeight: Math.max(0, Math.floor(belowAfter)) };
   return { above: true, scrollBy: 0, maxHeight: Math.min(i.panelHeight, PICKER_SHORT, Math.floor(above)) };
 }
+
+// A short page can't scroll far enough to make room under the "+" (the approved design keeps the picker under the button, so the moment's
+// title stays visible). How much empty room to add at the end of the page so it can: never more than lets the "+" reach PICKER_TOP_KEEP.
+export function pageRoomNeeded(i: { buttonTop: number; buttonBottom: number; viewHeight: number; panelHeight: number; scrollRoom: number }): number {
+  const below = Math.max(0, i.viewHeight - PICKER_BAR - i.buttonBottom - PICKER_GAP);
+  const want = Math.min(i.panelHeight - below, i.buttonTop - PICKER_TOP_KEEP);
+  return Math.max(0, Math.ceil(want - i.scrollRoom));
+}

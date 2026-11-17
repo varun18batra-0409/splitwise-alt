@@ -363,7 +363,8 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             {due.map((e) => (
               <li key={e.id} className={`flex items-center gap-3 py-2.5 ${isOrganiser ? "flex-wrap gap-y-1" : ""}`}>
                 {isOrganiser ? initial(e.name) : <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border-2 border-fg/25" />}
-                <span className={`min-w-0 flex-1 text-[15px] ${isOrganiser ? "min-w-[6.5rem] break-words" : "truncate"}`}>
+                {/* The name keeps at least 4.5rem, so on a 390 phone the three buttons stay on its line (founder mockup s6); on 320 they drop below. */}
+                <span className={`min-w-0 flex-1 text-[15px] ${isOrganiser ? "min-w-[4.5rem] break-words" : "truncate"}`}>
                   {e.name}
                   {isOrganiser && e.accountId && <span className="block text-[13px] leading-tight text-fg/65">on Loopin</span>}
                 </span>
