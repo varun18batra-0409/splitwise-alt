@@ -1748,7 +1748,7 @@ async function main() {
     const zoe = await db.member.findFirstOrThrow({ where: { groupId: gid, name: "Zoe" } });
     const rename = async (to: string) => {
       await go(V, `${g}/people`);
-      await V.locator("details summary").filter({ hasText: /^(?:[A-Z] )?Zoe/ }).first().click();
+      await V.locator("details summary").filter({ hasText: /Zoe/ }).first().click(); // the row reads "ZZoe…" (initial circle first)
       const box = V.locator("details[open]").locator('input[name="name"]').first();
       await box.fill(to);
       await box.press("Enter");
@@ -2942,8 +2942,11 @@ async function main() {
     await page.getByRole("link", { name: /Sign-in & devices/ }).click();
     await page.waitForURL(/\/account\/sign-in/);
     await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
+    const piaId = (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id;
+    // Wait for the saved key itself: "This device" can already be on the page before the key is saved.
+    await until("the passkey being saved", async () => (await db.passkey.count({ where: { accountId: piaId } })) > 0);
     await page.getByText(/Android phone|This device|Mac|Windows computer/).first().waitFor();
-    const keys = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
+    const keys = await db.passkey.count({ where: { accountId: piaId } });
     assert(keys === 1, `passkeys saved: ${keys}`);
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.waitForURL(base + "/");
@@ -3273,7 +3276,7 @@ async function main() {
     const p = await page.locator("[data-collection-progress]").innerText();
     // UX-03: said-paid money is “says paid”, not checked: "Checked ₹0" and "Says paid ₹500" are separate lines.
     const rep = await page.locator("[data-collection-reported]").innerText();
-    assert(/1 of 3 say they've paid/.test(p) && /Checked ₹0/.test(p) && /Says paid ₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
+    assert(/1\s+of\s+3\s+say\s+they['’]ve\s+paid/.test(p) && /Checked\s+₹0/.test(p) && /Says\s+paid\s+₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
     await ctx.close();
   });
 
@@ -3697,11 +3700,13 @@ async function main() {
       // One card design for every trip: newest first. Thailand, then Goa.
       const thaiCard = dana.page.locator(`[data-been-card='trip'][data-group='${thai.id}']`);
       const thaiText = (await thaiCard.innerText()).replace(/\s+/g, " ");
-      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May · 6 days", "THAILAND", "MAY 2026", "Relive trip"]) assert(thaiText.includes(w), `the Thailand card is missing “${w}”: ${thaiText}`);
+      // A card with a photo has no stamp (founder, 17 Nov); a card without one shows the big ring stamp instead.
+      const stampWords = async (card: typeof thaiCard, words: string[]) => ((await card.locator("[data-been-panel]").count()) ? words : []);
+      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May · 6 days", ...(await stampWords(thaiCard, ["THAILAND", "MAY 2026"])), "Relive trip"]) assert(thaiText.includes(w), `the Thailand card is missing “${w}”: ${thaiText}`);
       assert((await thaiCard.locator("[data-been-cta]").getAttribute("href")) === `/groups/${thai.id}/report`, "Relive trip doesn't go to the trip");
       const goaCard = dana.page.locator(`[data-been-card='trip'][data-group='${goa.id}']`);
       const goaText = (await goaCard.innerText()).replace(/\s+/g, " ");
-      for (const w of ["Goa", "13–15 Mar · 3 days", "INDIA", "MAR 2026"]) assert(goaText.includes(w), `the Goa card is missing “${w}”: ${goaText}`);
+      for (const w of ["Goa", "13–15 Mar · 3 days", ...(await stampWords(goaCard, ["INDIA", "MAR 2026"]))]) assert(goaText.includes(w), `the Goa card is missing “${w}”: ${goaText}`);
       const order = await dana.page.locator("[data-been-card='trip']").evaluateAll((els) => els.map((e) => e.getAttribute("data-group")));
       assert(order[0] === thai.id && order[1] === goa.id, `the cards aren't newest first: ${order.join(",")}`);
       assert((await dana.page.getByRole("link", { name: "Open your passport book" }).count()) === 1, "no quiet link to the passport book");
@@ -4123,7 +4128,8 @@ async function main() {
     await R.locator("[data-left-banner]").waitFor();
   });
   await step(R, "Permissions", "After Ravi left, Varun adds a new expense: Ravi doesn't see it, and still sees what was there before he left", async () => {
-    const o = { me: "Varun", name: "Late dinner", amount: "90" };
+    // Varun pays for himself only, so nobody owes anything and Zoe can still be removed later (removing needs a square balance).
+    const o = { me: "Varun", name: "Late dinner", amount: "90", split: { kind: "one" as const, who: "Varun" } };
     await go(V, `${rules}/add`);
     await fillExpense(V, o);
     await save(V, o);

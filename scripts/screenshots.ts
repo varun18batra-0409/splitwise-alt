@@ -69,6 +69,23 @@ async function dbRetry<T>(what: string, run: () => Promise<T>, tries = 12): Prom
   }
 }
 
+// Every database call this script makes goes through dbRetry, so one busy moment can't crash a whole screenshot run (the iPhone run of
+// 17 Nov stopped at a plain expense.create). Model calls only (db.expense.create…); nothing here uses $transaction.
+function patient<T extends object>(db: T): T {
+  return new Proxy(db, {
+    get(target, key, recv) {
+      const model = Reflect.get(target, key, recv);
+      if (typeof key !== "string" || key.startsWith("$") || key.startsWith("_") || !model || typeof model !== "object") return model;
+      return new Proxy(model as object, {
+        get(m, op) {
+          const fn = Reflect.get(m, op);
+          return typeof fn === "function" ? (...args: unknown[]) => dbRetry(`${key}.${String(op)}`, () => fn.apply(m, args)) : fn;
+        },
+      });
+    },
+  });
+}
+
 async function main() {
 const browser = withBypass(await (ios ? webkit : chromium).launch());
 const context = await browser.newContext({
@@ -313,7 +330,7 @@ await shot("31-currency-details", `${g}/add`, async (p) => {
 // New group needs a real account (a phone that only holds groups sees "Sign in or sign up" instead of the form), so 39 and 40 are shot
 // signed in with a throwaway account (local copy only), then the browser goes back to the usual demo cookie.
 if (!hosted) {
-  const { db } = await import("../src/lib/db");
+  const db = patient((await import("../src/lib/db")).db);
   const acct = await db.account.create({ data: { email: `shots-newgroup-${Date.now()}@uat.loopin.test`, name: "Varun" } });
   await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acct.id, v: 0 }), url: base }]);
 } else await signBackIn();
@@ -378,7 +395,7 @@ await shot("27-privacy", "/privacy");
 // Narrow phones (320 and 360 wide): the screens people use most and the ones changed lately, with a long name in the
 // group, so a reviewer can check nothing is cut off, overlapping or pushed sideways. (Phones only, not desktop.)
 if (!desktop && !hosted) {
-  const { db } = await import("../src/lib/db");
+  const db = patient((await import("../src/lib/db")).db);
   const other = await db.member.findFirst({ where: { groupId: demo.trip.id, accountId: null, leftAt: null }, orderBy: { createdAt: "asc" } });
   const was = other?.name;
   if (other) await db.member.update({ where: { id: other.id }, data: { name: "Bhagyalakshmi Venkataraman" } }).catch(() => undefined);
@@ -405,7 +422,7 @@ if (!desktop && !hosted) {
 // Expenses with one person (no group), at 390 and 320 wide: the choice, the picker, Add expense with them, the person's page, and Settle.
 // A throwaway account with a name-only person who owes it ₹600. Local database only.
 if (!desktop && !hosted) {
-  const { db } = await import("../src/lib/db");
+  const db = patient((await import("../src/lib/db")).db);
   const { ensureLocalPair } = await import("../src/lib/direct-db");
   const me = await db.account.create({ data: { email: `shots-direct-${Date.now()}@uat.loopin.test`, name: "Asha" } });
   const pair = await ensureLocalPair({ id: me.id }, "Rohan", { currency: "INR", myName: "Asha" });
@@ -480,7 +497,7 @@ if (!desktop && !hosted) {
 // The groups' own balances only come from live expenses and payments (src/lib/balances-db.ts), so this is all the card needs.
 // Finally Home is read again and must say exactly what it said before; if not, the run fails.
 if (!desktop && !hosted) {
-  const { db } = await import("../src/lib/db");
+  const db = patient((await import("../src/lib/db")).db);
   const tripId = demo.trip.id as string;
   const flatId = demo.flat.id as string;
   const open3 = [tripId, flatId, demo.couple.id as string];
@@ -597,7 +614,7 @@ for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
 // Collect: the organiser's screens, then what someone opening the link sees.
 let collectCode = "";
 if (!hosted) {
-  const { db } = await import("../src/lib/db");
+  const db = patient((await import("../src/lib/db")).db);
   const acc = await db.account.create({ data: { email: `shots-collect-${Date.now()}@uat.loopin.test`, name: "Varun" } });
   const priya = await db.account.create({ data: { email: `shots-priya-${Date.now()}@uat.loopin.test`, name: "Priya" } });
   const due = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
@@ -1024,7 +1041,7 @@ if (!hosted) {
     await db.account.update({ where: { id: priya.id }, data: { passportChoiceAt: new Date(), places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
     await shot("123-friends-passports", "/passport/friends", undefined, false);
     await shot("124-friend-passport", `/passport/friends/${priya.id}`, async (p) => {
-      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.getByRole("button", { name: /^Open .*passport$/ }).click(); // a friend's book says "Open Priya’s passport"
       await p.waitForTimeout(800);
       await p.getByRole("button", { name: "Next page" }).click();
       await p.waitForTimeout(800);
@@ -1228,7 +1245,7 @@ if (!hosted) {
 // ===== MOMENTS (part M1): the strip, Our moments, the add form, the viewer, the report page and a Home story frame, at 320 / 360 / 390 =====
 // A trip group made straight in the database with three people; each state is photographed as the person who sees it. (Local copy only.)
 if (!hosted) {
-  const { db } = await import("../src/lib/db");
+  const db = patient((await import("../src/lib/db")).db);
   const tag = Date.now().toString(36);
   const acct = (n: string) => db.account.create({ data: { email: `shots-mo-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n } });
   const [varu, nupur, riya] = [await acct("Varu"), await acct("Nupur"), await acct("Riya")];
@@ -1645,7 +1662,7 @@ if (!desktop) {
   // AS-3: a phone that holds three guest groups. The check shows when the typed code is sent (the same sheet shows before Google and
   // fingerprint or face). Local copy only: it makes three small groups and removes them again.
   if (!hosted) {
-    const { db } = await import("../src/lib/db");
+    const db = patient((await import("../src/lib/db")).db);
     const stamp = Date.now();
     const made: string[] = [];
     const held: Record<string, string> = {};
@@ -1703,7 +1720,7 @@ if (!desktop) {
 // A visitor from the US, as a person would: the tour, then signed in, a new
 // group in dollars, an expense, the profile and Home. (Local copy only.)
 if (!hosted) {
-  const { db } = await import("@/lib/db");
+  const db = patient((await import("@/lib/db")).db);
   const email = "shots-us@example.com";
   const old = await dbRetry("US account", () => db.account.findUnique({ where: { email } }));
   if (old) await dbRetry("US account", () => db.member.updateMany({ where: { accountId: old.id }, data: { accountId: null } }));
@@ -1806,7 +1823,7 @@ if (!hosted) {
 // Guide pictures come from the Android pass only (the iPhone pass shares the same database and doesn't need them).
 if (!hosted && !desktop && !ios) {
   try {
-    const { db } = await import("../src/lib/db");
+    const db = patient((await import("../src/lib/db")).db);
     const { startGame, recordMove, finishGame } = await import("../src/lib/pot-db");
     const tag = Date.now().toString(36);
     const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
@@ -1954,7 +1971,7 @@ if (!hosted && !desktop && !ios) {
 // money colours, a flat's deposit and a savings goal with someone who left, and a card-paid expense with its "incl. 3% card fee" line.
 // A throwaway account on the local database only.
 if (!desktop && !hosted) {
-  const { db } = await import("../src/lib/db");
+  const db = patient((await import("../src/lib/db")).db);
   const stamp = Date.now();
   const me = await dbRetry("b11b account", () => db.account.create({ data: { email: `shots-b11b-${stamp}@uat.loopin.test`, name: "Varun" } }));
   const asha = await dbRetry("b11b account", () => db.account.create({ data: { email: `shots-b11b-asha-${stamp}@uat.loopin.test`, name: "Asha" } }));
