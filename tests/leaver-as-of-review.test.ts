@@ -293,12 +293,14 @@ describe("second review: rejoining by the join link, move-out undo, marks", () =
   it("the square page and picture say nothing about other people's money to a leaver (checked in the source)", () => {
     expect(readFileSync("src/app/groups/[id]/square-image/route.tsx", "utf8")).toMatch(/if \(data\.leaver\) return new Response\([^)]*409/);
     const page = readFileSync("src/app/groups/[id]/square/page.tsx", "utf8");
-    expect(page).toContain("You're settled up here");
-    // Safety part C review: a leaver gets the neutral line in the heading's place, no confetti, no "All square" heading, and never "Add an expense first."
-    expect(page).toContain("{!leaver && <Confetti");
-    expect(page).toContain('{leaver ? neutral : "All square"}');
-    expect(page).toContain('leaver ? "Nothing to settle for you here." : "Add an expense first."');
-    expect(page).toMatch(/\{!leaver && \(\s*<div className="mt-4 w-full">\s*<ShareSheet/);
+    // The words and switches come from squareWords (its neutral line, no confetti, no share, no hide switch for a leaver: tested in
+    // leaver-review-fixes), and the page must use them in the right places.
+    expect(page).toContain("squareWords({ leaver,");
+    expect(page).toContain("{w.confetti && <Confetti");
+    expect(page).toContain("{w.heading}");
+    expect(page).toContain("{w.hideSwitch && (");
+    expect(page).toContain("{w.share && (");
+    expect(page).toContain("hide: hide && !leaver");
   });
   it("Home works out each left group's as-of changes once per request, in parallel, and Your month uses them (checked in the source)", () => {
     const db = readFileSync("src/lib/left-view-db.ts", "utf8");

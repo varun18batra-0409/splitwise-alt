@@ -65,7 +65,7 @@ async function world(over: { asha?: object; ravi?: object } = {}) {
   return { g, asha, ravi, meera, row };
 }
 const line = (groupId: string, actorId: string, kind: string, createdAt: Date) =>
-  db.groupEvent.create({ data: { groupId, actorId, kind, text: kind, createdAt, undo: kind.startsWith("member_") ? JSON.stringify({ type: "member_set", memberId: actorId, data: { leftAt: null } }) : null } });
+  db.groupEvent.create({ data: { groupId, actorId, kind, text: kind, createdAt, undo: kind.startsWith("member_") ? JSON.stringify({ type: "member_set", memberId: actorId, data: { leftAt: null } }) : "" } });
 
 afterAll(async () => {
   state.cookie = "";
@@ -168,7 +168,8 @@ describe("3: changing a reaction's emoji counts as reacting now", () => {
     const e = await db.expense.create({
       data: { groupId: w.g.id, description: "Dinner", amount: 3000, originalAmount: 3000, convertedAmount: 3000, splitType: "equal", paidById: w.row("Asha").id, createdById: w.row("Asha").id, shares: { create: [{ memberId: meera.id, amount: 1500 }, { memberId: w.row("Asha").id, amount: 1500 }] } },
     });
-    state.cookie = await encodeSession({ m: { [w.g.id]: meera.id }, t: today() });
+    // Meera is linked to an account, so she acts as that signed-in account (a bare guest cookie for a linked name doesn't count).
+    state.cookie = await encodeSession({ m: {}, a: w.meera.id, v: 0, t: today() });
     const react = async (emoji: string) => {
       const f = new FormData();
       f.set("expenseId", e.id);
