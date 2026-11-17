@@ -48,7 +48,8 @@ export async function GET(req: Request) {
   const fit = cols * Math.floor(PAGE_H / cellH);
   const shown = all.length > fit ? all.slice(0, fit - 1) : all;
   const more = all.length - shown.length;
-  const size = Math.min(190, Math.floor(Math.min(cellW, cellH) * 0.86));
+  // The boxed ARRIVED stamps are 1.16x wider than the round ones: size by that, so neighbours (and their waves) never touch.
+  const size = Math.min(190, Math.floor(Math.min(cellW / 1.16, cellH) * 0.84));
 
   const counts = [n.countries ? plural(n.countries, "country", "countries") : "", n.trips ? plural(n.trips, "trip", "trips") : "", n.days ? `${n.days} ${n.days === 1 ? "day" : "days"} travelled` : ""].filter(Boolean).join(" · ");
   const badges = p.badges.filter((b) => b.earned).slice(0, 3);

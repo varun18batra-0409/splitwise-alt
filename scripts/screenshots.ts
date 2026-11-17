@@ -18,14 +18,26 @@ const screen = desktop ? { width: 1440, height: 900 } : { width: 390, height: 84
 mkdirSync(out, { recursive: true });
 
 // A page screenshot. The browser can't save a picture taller than 32767 device pixels, so a very long page (a phone at 2x, like the guide)
-// is saved in parts of at most 30000 pixels: name.png when it fits, otherwise name-part1.png, name-part2.png, ... Short pages are unchanged.
-const MAX_SHOT_PX = 30000;
+// is saved in parts of at most 16000 pixels (the browser's drawing limit is 16384, and a part cut at 30000 stopped there with the rest of the
+// page missing): name.png when it fits, otherwise name-part1.png, name-part2.png, ... until the end of the page. Short pages are unchanged.
+const MAX_SHOT_PX = 16000;
 // A page taller than 8000 pixels is also saved in review parts of 4000 pixels each (name-review1.png, name-review2.png, ...), so a reviewer's
 // viewer shows every part at full size instead of shrinking the whole page. The full picture is still saved as before.
 const REVIEW_OVER_PX = 8000;
 const REVIEW_PART_PX = 4000;
+// The floating bottom bar sits on top of whatever is at the bottom of the screen, and in a full-page picture it lands in the middle
+// of the page and hides the content under it. Full-page pictures hide it (the bar is still in every normal, one-screen picture).
+const HIDE_NAV = "[data-bottom-nav]{display:none !important}";
 async function fullShot(p: Page, path: string, fullPage: boolean) {
   if (!fullPage) return void (await p.screenshot({ path, fullPage }));
+  const hide = await p.addStyleTag({ content: HIDE_NAV }).catch(() => null);
+  try {
+    await fullShotParts(p, path);
+  } finally {
+    await hide?.evaluate((el) => el.remove()).catch(() => {});
+  }
+}
+async function fullShotParts(p: Page, path: string) {
   const { w, h, dpr } = await p.evaluate(() => ({ w: Math.max(document.documentElement.scrollWidth, window.innerWidth), h: document.documentElement.scrollHeight, dpr: window.devicePixelRatio || 1 }));
   const slice = Math.floor(MAX_SHOT_PX / dpr);
   if (h <= slice) await p.screenshot({ path, fullPage: true });
@@ -141,6 +153,11 @@ async function rowCard(name: string, n: number) {
     if (at !== n - 1) throw new Error(`card ${n} did not come to the front (the row shows card ${at + 1})`);
     await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await p.waitForTimeout(300);
+    // Moving the page can wake the row's own snapping and send it back to card 1: put it on card n once more and check it stayed.
+    await track.evaluate((el, i) => el.scrollTo({ left: i * el.clientWidth, behavior: "auto" }), n - 1);
+    await p.waitForTimeout(500);
+    const stayed = await track.evaluate((el) => Math.round(el.scrollLeft / el.clientWidth));
+    if (stayed !== n - 1) throw new Error(`card ${n} slid back to card ${stayed + 1} before the picture`);
   }, false);
 }
 
@@ -183,8 +200,9 @@ await both("B11-flat-list", `/groups/${demo.flat.id}?tab=list`);
 await both("B11-trip-charts", `${g}?tab=charts`);
 // A flat's settings: "Also show amounts in" stays, "Card fees abroad" is gone (unless a markup is already saved).
 await both("B11-flat-settings", `/groups/${demo.flat.id}/settings`);
-// Memories: the group chips are never cut with "…"; the row scrolls and the next chip is seen coming in.
-await both("B11-memories-chips", "/memories", undefined, false);
+// Memories chips: the group chips are never cut with "…"; the row scrolls and the next chip is seen coming in. They need moments to
+// exist (this early in the run Memories is the empty state, no chips), so they are shot further down as M1-memories-chips-320/360/390,
+// after the moments are uploaded.
 await shot("09-add-expense", `${g}/add`, undefined, false);
 await shot("10-add-expense-typo-foreign", `${g}/add`, async (p) => {
   await p.locator("#expense-name").fill("Dinnr at the night market");
@@ -229,8 +247,15 @@ const openBreakdown = async (p: Page) => {
 const openRecordSheet = async (p: Page) => {
   const priya = p.locator("[data-settle-card='Priya']:has([data-record-open])");
   const card = (await priya.count()) ? priya.first() : p.locator("[data-settle-card]:has([data-record-open])").first();
-  await card.locator("[data-record-open]").click();
-  await p.locator("[data-record-sheet]").waitFor();
+  // The page must be interactive before the click counts, and at 320 the floating bar can sit on top of the button: scroll it clear
+  // of the bar, click, and if no sheet appeared (the click came before the page woke up), click again.
+  const open = card.locator("[data-record-open]");
+  await open.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  for (let tries = 0; tries < 6; tries++) {
+    await open.click({ force: true }).catch(() => {});
+    if (await p.locator("[data-record-sheet]").waitFor({ timeout: 1500 }).then(() => true, () => false)) break;
+  }
+  await p.locator("[data-record-sheet]").waitFor({ timeout: 5000 });
   await p.waitForTimeout(300);
 };
 await shot("28b-settle-breakdown", "/settle", openBreakdown);
@@ -285,6 +310,13 @@ await shot("31-currency-details", `${g}/add`, async (p) => {
   await p.getByRole("button", { name: "Details", exact: true }).click();
   await p.waitForTimeout(300);
 });
+// New group needs a real account (a phone that only holds groups sees "Sign in or sign up" instead of the form), so 39 and 40 are shot
+// signed in with a throwaway account (local copy only), then the browser goes back to the usual demo cookie.
+if (!hosted) {
+  const { db } = await import("../src/lib/db");
+  const acct = await db.account.create({ data: { email: `shots-newgroup-${Date.now()}@uat.loopin.test`, name: "Varun" } });
+  await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acct.id, v: 0 }), url: base }]);
+} else await signBackIn();
 await shot("39-new-group-types", "/groups/new", async (p) => {
   await p.getByRole("button", { name: /^Home/ }).click();
 }, false);
@@ -296,6 +328,7 @@ await shot("40-couple-split", "/groups/new", async (p) => {
   await p.getByLabel("You earn a month").fill("110000");
   await p.getByLabel("Your partner earns").fill("90000");
 }, false);
+await signBackIn(); // back to the usual demo cookie for the screens that follow
 await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.locator("#expense-name").fill("Dinner at Bastian");
   await p.getByLabel("Amount", { exact: true }).fill("3000");
@@ -1325,6 +1358,9 @@ if (!hosted) {
     }, false],
     ["memories-page", "/memories", async (p) => {
       await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });
+    }, false],
+    ["memories-chips", "/memories", async (p) => {
+      await p.locator("[data-memories-filter]").first().waitFor({ timeout: 10_000 });
     }, false],
     ["memories-page-filtered", `/memories?g=${thai.id}`, async (p) => {
       await p.locator("[data-memories-card]").first().waitFor({ timeout: 10_000 });

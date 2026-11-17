@@ -550,7 +550,7 @@ export default async function Home({
             {!account && (
               <p className="mt-4 text-center text-[15px] text-fg/65">
                 <Link href="/signin" className="inline-block py-3">
-                  Already here? <span className="font-semibold text-fg underline underline-offset-4">Sign in</span>
+                  Already here? <span className="font-semibold text-fg underline underline-offset-4">{"Sign\u00a0in"}</span>
                 </Link>
               </p>
             )}
@@ -696,7 +696,7 @@ export default async function Home({
                     month && monthMode === "slim" ? (
                       // Exactly one expense: one slim line, not a large card with one number in it.
                       <div key="month" className="flex flex-1 flex-col">
-                        <div className="relative flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-10 pt-4" data-month-card data-month-slim>
+                        <div className="relative flex flex-1 flex-wrap content-center items-center justify-between gap-x-4 gap-y-2 overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-10 pt-4" data-month-card data-month-slim>
                           <p className="relative min-w-0 text-[15px] text-fg/85" data-month-line>
                             {month.name} · 1 expense · your share{" "}
                             <span className="money font-semibold tabular-nums text-fg" title={formatMoney(month.share, month.currency)}>

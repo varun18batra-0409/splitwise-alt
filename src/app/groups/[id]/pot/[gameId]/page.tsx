@@ -293,7 +293,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                     <span className="block text-xs text-gray-500 tabular-nums">
                       {l.taken === 0
                         ? "not in yet"
-                        : `chips in ${money(l.taken)}${l.takes > 1 ? ` (${l.takes}×)` : ""} · ${still ? (l.returned ? `took home ${money(l.returned)} · playing` : "playing") : `took home ${money(l.returned)}`}`}
+                        : `chips\u00a0in\u00a0${money(l.taken)}${l.takes > 1 ? ` (${l.takes}×)` : ""} · ${still ? (l.returned ? `took home ${money(l.returned)} · playing` : "playing") : `took home ${money(l.returned)}`}`}
                       {l.adjust ? ` · fix ${l.adjust > 0 ? "+" : "−"}${money(Math.abs(l.adjust))}` : ""}
                     </span>
                   </span>
@@ -354,7 +354,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               const l = lineOf(p);
               const took = l?.taken ?? 0;
               const back = l?.returned ?? 0;
-              return { id: p, name: you(p), tookText: `chips in ${money(took)}${back ? `, took home ${money(back)}` : ""}`, base: back + (l?.adjust ?? 0) - took };
+              return { id: p, name: you(p), tookText: `chips\u00a0in\u00a0${money(took)}${back ? `, took home ${money(back)}` : ""}`, base: back + (l?.adjust ?? 0) - took };
             })}
             inPlay={totals.out}
             settled={lines.filter((l) => !playing.includes(l.memberId)).map((l) => ({ name: nameOf(l.memberId), net: l.net }))}
@@ -428,7 +428,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               <li key={m.id} className={`flex items-center gap-3 py-2.5 text-sm ${m.deletedAt ? "opacity-50" : ""}`}>
                 <span className="w-14 shrink-0 text-xs text-gray-400 tabular-nums">{time(m.createdAt)}</span>
                 <span className={`min-w-0 flex-1 ${m.deletedAt ? "line-through" : ""}`}>
-                  {you(m.memberId)} {m.kind === "take" ? (topUps.has(m.id) ? "topped up" : "chips in") : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"} {m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
+                  {you(m.memberId)} {m.kind === "take" ? (topUps.has(m.id) ? "topped\u00a0up" : "chips\u00a0in") : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"}{"\u00a0"}{m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
                   <span className="block text-xs text-gray-400">
                     {m.note && !CASHED.includes(m.note) && m.note !== COUNTED ? `${neutralGameText(m.note)} · ` : ""}
                     {m.createdById === m.memberId ? "" : `added by ${youLow(m.createdById)}`}

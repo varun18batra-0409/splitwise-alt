@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { revealSelected } from "@/lib/reveal-selected";
+import { keepPeeking, revealSelected } from "@/lib/reveal-selected";
 
 export type ToolDef = { id: string; name: string; icon: React.ReactNode };
 
@@ -18,7 +18,9 @@ export function ToolRow({ label, tools, active, onPick }: { label: string; tools
     el.addEventListener("scroll", measure, { passive: true });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     ro?.observe(el);
+    const stop = keepPeeking(el, 14);
     return () => {
+      stop();
       el.removeEventListener("scroll", measure);
       ro?.disconnect();
     };

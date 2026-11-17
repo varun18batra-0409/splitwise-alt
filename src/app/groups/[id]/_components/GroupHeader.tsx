@@ -48,10 +48,11 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
     const month = new Date(Date.UTC(2026, tripMonth(group.tripStart, group.tripEnd), 15)).toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
     return { pill: `${f(c.hi)} / ${f(c.lo)}`, where: stop.city || placeOf(group.name), month, w };
   })();
+  // The details box is not `relative`: the weather card hangs from the whole line (which is), so it stays inside the screen.
   const weatherPill = weather && (
-    <details className="group/wx relative" data-trip-weather>
+    <details className="group/wx" data-trip-weather>
       <summary className="-my-3 flex min-h-11 cursor-pointer list-none items-center font-semibold [&::-webkit-details-marker]:hidden">{weather.pill}</summary>
-      <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-line bg-white p-4 text-sm shadow-2xl shadow-black/60">
+      <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-full rounded-2xl border border-line bg-white p-4 text-sm shadow-2xl shadow-black/60">
         <p className="text-xs text-gray-400">
           {weather.where} in {weather.month}, usually
         </p>
@@ -120,7 +121,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
 
   // The one quiet line: how many, and the trip's dates or countdown (no pills), plus the usual weather.
   const line = (shadow: boolean) => (
-    <div className={`flex flex-wrap items-center gap-x-2 text-[13px] text-fg/75 ${shadow ? "[text-shadow:0_1px_12px_rgba(0,0,0,0.5)]" : ""}`} data-group-line>
+    <div className={`relative flex flex-wrap items-center gap-x-2 text-[13px] text-fg/75 ${shadow ? "[text-shadow:0_1px_12px_rgba(0,0,0,0.5)]" : ""}`} data-group-line>
       {people.length > 0 && (
         <span>
           {people.length} {people.length === 1 ? "person" : "people"}

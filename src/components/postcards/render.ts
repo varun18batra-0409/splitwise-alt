@@ -192,7 +192,18 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
     }
     // "GREETINGS FROM", letter-spaced by hand (canvas has no letter-spacing everywhere).
     const kick = "GREETINGS FROM".split("").join(String.fromCharCode(0x200a, 0x200a));
+    // The thin capitals get a closer, stronger shadow of their own, then the wide glow comes back for the title.
+    if (!margin) {
+      ctx.shadowColor = t.dark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = t.dark ? 0 : 1;
+    }
     ctx.fillText(kick, W / 2, base - size * 0.95);
+    if (!margin) {
+      ctx.shadowColor = t.dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = 30;
+      ctx.shadowOffsetY = 0;
+    }
     ctx.font = `${l.italic ? "italic " : ""}${Math.round(size)}px "${l.family}", Georgia, serif`;
     ctx.fillText(p.words, W / 2, base);
     ctx.shadowColor = "transparent";

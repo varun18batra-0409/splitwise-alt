@@ -19,7 +19,7 @@ export function WhereTo({ name, place = "", country = "", optional }: { name: st
       <p className="mb-2.5 text-sm text-gray-500" aria-live="polite">
         {guessed && !place ? `From the name: ${guessed} ✓ Add more stops or fix it here.` : "Add it to get a stamp in everyone’s trip passport."}
       </p>
-      <div className="grid grid-cols-[minmax(0,1fr)_9rem] gap-2">
+      <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-[minmax(0,1fr)_12rem]">
         <input name="tripPlace" defaultValue={place} maxLength={80} placeholder={guessedCities || "e.g. Bangkok, Phuket"} aria-label="Places" autoComplete="off" className={inputClass} />
         <SelectField name="tripCountry" defaultValue={country} aria-label="Country" className="min-w-0">
           <option value="">{guessedCountry && !country ? `${guessedCountry.flag} ${guessedCountry.name} (from the name)` : "Country…"}</option>

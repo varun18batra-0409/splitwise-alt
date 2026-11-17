@@ -23,3 +23,10 @@ export function compactName(name: string, allNames: string[]): string {
 
 // For display only: "Bills & Bits" never breaks after the "&" ("Bills &" / "Bits"). The stored name is unchanged.
 export const keepAmp = (s: string): string => s.replace(/ & /g, " & ");
+
+// For display only: a " · " separator never ends a line or starts one ("Monthly · 1st ·" / "you pay"): the dot is glued to
+// the words on both sides with non-breaking spaces. Lines still wrap at the other spaces.
+export const keepDots = (s: string): string => s.replace(/ · /g, " · ");
+
+// An email split where it may break: after the "@" or a "." only (see EmailText).
+export const emailParts = (email: string): string[] => email.split(/(?<=[@.])/);

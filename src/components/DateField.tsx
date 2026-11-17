@@ -12,9 +12,11 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "type" | "size"> 
   inline?: boolean;
   /** Show a quiet "Clear" while a date is chosen. Leave off when the date is required. */
   clearable?: boolean;
+  /** Put the "Clear" link on its own line under the box, so a narrow box shows the whole date. */
+  clearBelow?: boolean;
 };
 
-export function DateField({ placeholder = "Pick a date", size = "md", inline, clearable, className = "", value, defaultValue, onChange, required, disabled, ...rest }: Props) {
+export function DateField({ placeholder = "Pick a date", size = "md", inline, clearable, clearBelow, className = "", value, defaultValue, onChange, required, disabled, ...rest }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const controlled = value !== undefined;
   const [own, setOwn] = useState(String(defaultValue ?? ""));
@@ -42,7 +44,14 @@ export function DateField({ placeholder = "Pick a date", size = "md", inline, cl
     if (!controlled) setOwn("");
   }
 
+  const clearButton = (below: boolean) => (
+    <button type="button" onClick={clear} className={`${below ? "mt-1 block min-h-9 px-1 text-left" : "relative z-10 shrink-0"} text-sm text-fg/55 underline underline-offset-4 active:text-fg`} data-clear-date>
+      Clear
+    </button>
+  );
+
   return (
+    <>
     <span
       className={`relative ${inline ? "inline-flex" : "flex"} ${size === "sm" ? "h-10" : "h-12"} items-center gap-2 rounded-[14px] border border-[#26262c] bg-[#16161a] ${size === "sm" ? "px-3" : "px-4"} ${inline ? "min-w-[9.5rem]" : ""} text-base text-fg focus-within:border-fg/40 focus-within:ring-2 focus-within:ring-fg/10 ${disabled ? "opacity-50" : ""} ${className}`}
     >
@@ -61,12 +70,10 @@ export function DateField({ placeholder = "Pick a date", size = "md", inline, cl
         }}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 [color-scheme:dark] disabled:cursor-default"
       />
-      {canClear && (
-        <button type="button" onClick={clear} className="relative z-10 shrink-0 text-sm text-fg/55 underline underline-offset-4 active:text-fg">
-          Clear
-        </button>
-      )}
+      {canClear && !clearBelow && clearButton(false)}
     </span>
+    {canClear && clearBelow && clearButton(true)}
+    </>
   );
 }
 

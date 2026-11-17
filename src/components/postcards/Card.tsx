@@ -93,7 +93,14 @@ export function PostcardFront({ front, photo, words, lettering, tone = "white", 
           data-front-words
           data-tone={t.id}
         >
-          <div className="font-sans text-[2.1cqw] font-semibold uppercase tracking-[0.34em] opacity-95">Greetings from</div>
+          <div
+            className="font-sans text-[2.1cqw] font-semibold uppercase tracking-[0.34em] opacity-95"
+            // The thin capitals get a close, soft shadow so a busy photo does not swallow them (the title keeps the wide glow).
+            style={margin ? undefined : { textShadow: t.dark ? "0 0 3px rgba(255,255,255,0.7), 0 1px 10px rgba(255,255,255,0.5)" : "0 1px 3px rgba(0,0,0,0.55), 0 0 10px rgba(0,0,0,0.4)" }}
+            data-greetings-kicker
+          >
+            Greetings from
+          </div>
           <div
             className="leading-[0.95]"
             style={{

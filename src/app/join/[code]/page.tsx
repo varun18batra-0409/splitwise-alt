@@ -1,3 +1,4 @@
+import { EmailText } from "@/components/EmailText";
 import Link from "@/components/Link";
 import { redirect } from "next/navigation";
 import { invitationFor } from "@/lib/invitations";
@@ -176,7 +177,7 @@ export default async function JoinPage({
             <button type="submit" className={primaryButtonClass}>
               Join {group.name}
             </button>
-            <p className="text-center text-xs text-gray-400">Joining as {account.email}</p>
+            <p className="text-center text-xs text-gray-400">Joining as <EmailText email={account.email} /></p>
           </form>
 
           {/* Names stay out of sight until you ask: the page above shows none. */}

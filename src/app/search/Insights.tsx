@@ -1,4 +1,5 @@
-import { keepAmp } from "@/lib/format";
+import { keepAmp, keepDots } from "@/lib/format";
+import { SideRow } from "@/components/SideRow";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
@@ -233,18 +234,18 @@ export function Insights({ d }: { d: InsightsData }) {
             <h2 className="font-display text-lg font-semibold tracking-tight">Bills on repeat</h2>
             <span className="text-xs text-gray-400">{d.bills.length}</span>
           </div>
-          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <SideRow className="-mx-5 flex gap-3 px-5 pb-1">
             {d.bills.map((b) => (
               <Link key={b.id} href={b.href} className="lp-press w-[132px] shrink-0 rounded-[20px] border border-line bg-white px-3.5 py-3.5 active:bg-mist">
                 <ExpenseGlyph title={b.name} category="bills" emoji={b.emoji} size={36} />
-                <span className="mt-3 block truncate text-sm font-semibold">{b.name}</span>
+                <span className="mt-3 block break-words text-sm font-semibold leading-tight">{b.name}</span>
                 <span className="block truncate text-xs tabular-nums text-fg/60">{b.amount}</span>
-                <span className="mt-1 block truncate text-[11px] text-gray-400">
-                  {b.when} · {b.group}
+                <span className="mt-1 block break-words text-[11px] leading-snug text-gray-400">
+                  {keepDots(`${b.when} · ${b.group}`)}
                 </span>
               </Link>
             ))}
-          </div>
+          </SideRow>
         </div>
       )}
     </section>

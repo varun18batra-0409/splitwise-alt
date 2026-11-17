@@ -187,7 +187,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             );
           })()}
           <p className="pr-20 text-[13px] text-fg/60">{c.organiser} is collecting</p>
-          <h1 className="mt-1 break-words pr-16 font-display text-[clamp(24px,7.5vw,28px)] font-semibold leading-[1.1] tracking-tight" data-collection-title>
+          <h1 className="mt-1 break-words pr-20 font-display text-[clamp(24px,7.5vw,28px)] font-semibold leading-[1.1] tracking-tight" data-collection-title>
             {c.title}
           </h1>
           {c.note && <p className="mt-2 text-sm text-fg/60">{c.note}</p>}
@@ -254,11 +254,13 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
         </div>
         <p className="mt-2 flex items-baseline justify-between gap-3 text-sm" data-collection-progress>
-          <span className="text-fg/70">
-            {countsLine(p).split(" · ").map((part, i) => (
+          {/* Narrow phones: each count on its own line, and the "·" only between them on wider ones, glued to the count before it
+              (a line never starts with "·"). */}
+          <span className="flex min-w-0 flex-col text-fg/70 min-[390px]:block">
+            {countsLine(p).split(" · ").map((part, i, all) => (
               <span key={i} className="whitespace-nowrap">
-                {i > 0 && " · "}
                 {part}
+                {i < all.length - 1 && <span aria-hidden className="max-[389px]:hidden">{" ·\u00a0"}</span>}
               </span>
             ))}
           </span>
@@ -274,7 +276,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         </p>
         {lines.reported && (
           <p className="mt-0.5 text-right text-[13px] tabular-nums text-fg/70" data-collection-reported>
-            {lines.reported}
+            {lines.reported.replace(/ (?=\S+$)/, "\u00a0")}
           </p>
         )}
       </section>

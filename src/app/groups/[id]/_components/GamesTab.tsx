@@ -3,6 +3,7 @@ import Link from "@/components/Link";
 import type { GroupView } from "./view";
 import { parsePlayers, potGameLabel, potSummary, POT_GAMES } from "@/lib/pot";
 import { GAME_NOTE, gameEmoji } from "@/lib/game-words";
+import { glueAmounts } from "@/lib/money";
 import type { loadGames } from "@/lib/pot-db";
 
 type Game = Awaited<ReturnType<typeof loadGames>>[number];
@@ -52,9 +53,15 @@ export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Gam
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">{neutralGameText(g.name)}</span>
-                        <span className="block truncate text-xs text-gray-500">
-                          {potGameLabel(g.game)} · {g.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: v.tz }).replace("Sept", "Sep")} · {players.length} players
-                          {g.status === "open" ? ` · ${money(totals.taken)} chips in` : top && top.net > 0 ? ` · ${nameOf(top.memberId)} came out ahead by ${money(top.net)}` : ""}
+                        <span className="block text-xs text-gray-500" data-game-sub>
+                          {(() => {
+                            // Wraps to a second line rather than cutting an amount; a "·" stays with the word after it,
+                            // and an amount stays with its words ("₹6,000 chips in").
+                            const date = g.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: v.tz }).replace("Sept", "Sep");
+                            const tail = g.status === "open" ? `${money(totals.taken)}\u00a0chips\u00a0in` : top && top.net > 0 ? `${nameOf(top.memberId)} came out ahead by ${money(top.net)}` : "";
+                            const bits = [potGameLabel(g.game), date, `${players.length}\u00a0players`, tail].filter(Boolean);
+                            return glueAmounts(bits.join("\u00a0·\u00a0"));
+                          })()}
                         </span>
                         {/* Which nights still need sorting out. */}
                         {g.status === "done" && g.id in toSettle && (

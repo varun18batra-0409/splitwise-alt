@@ -24,11 +24,11 @@ export function TripDates({ start = "", end = "", titleClass = "text-sm font-med
       <span className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs text-gray-400">Starts</span>
-          <DateField name="tripStart" defaultValue={start} onChange={(e) => setFrom(e.target.value)} />
+          <DateField name="tripStart" clearBelow defaultValue={start} onChange={(e) => setFrom(e.target.value)} />
         </label>
         <label className="block">
           <span className="mb-1 block text-xs text-gray-400">Ends (if you know)</span>
-          <DateField name="tripEnd" defaultValue={end} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-invalid={bad || undefined} />
+          <DateField name="tripEnd" clearBelow defaultValue={end} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-invalid={bad || undefined} />
         </label>
       </span>
       {/* The dates in words, so a phone's dd/mm/yyyy can't be misread. */}

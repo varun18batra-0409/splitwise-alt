@@ -118,7 +118,7 @@ export function PasskeyAdd({ className, label = "Turn on fingerprint / face sign
   if (state === "done") return <p className="text-sm text-owed">✓ Done. Next time, sign in with your fingerprint or face.</p>;
   return (
     <div>
-      <button type="button" onClick={go} disabled={state === "busy"} className={className}>
+      <button type="button" onClick={go} disabled={state === "busy"} className={`${className} text-balance text-center`}>
         <FingerprintIcon /> {state === "busy" ? "Waiting for your device…" : label}
       </button>
       {error && <p className="mt-2 text-sm text-red-600" role="alert">{error}</p>}

@@ -24,7 +24,7 @@ export function SignInBanner({ className = "" }: { className?: string }) {
       <p className="min-w-0 flex-1 py-2 text-sm leading-snug text-fg/70">
         {t.before}
         <Link href="/signin" className="font-semibold text-fg underline underline-offset-4">
-          {t.link}
+          {t.link.replace(/ /g, "\u00a0")}
         </Link>
         {t.after}
       </p>

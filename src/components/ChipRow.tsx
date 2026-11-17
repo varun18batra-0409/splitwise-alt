@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { revealSelected } from "@/lib/reveal-selected";
+import { keepPeeking, revealSelected } from "@/lib/reveal-selected";
 
 // A row of chips that scrolls sideways. Names are never cut with "…": a long one is a long chip, and the row scrolls.
 // The row runs to the screen's edges (so the next chip is seen coming in), and while there is more to the right a soft fade
@@ -17,7 +17,9 @@ export function ChipRow({ label, children, dataKey }: { label: string; children:
     n.addEventListener("scroll", check, { passive: true });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(check) : null;
     ro?.observe(n);
+    const stop = keepPeeking(n, 20); // the last visible chip is whole or clearly peeking, never a sliver
     return () => {
+      stop();
       n.removeEventListener("scroll", check);
       ro?.disconnect();
     };

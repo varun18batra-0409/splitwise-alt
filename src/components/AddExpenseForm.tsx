@@ -627,8 +627,8 @@ export function AddExpenseForm({
       )}
       {foreign && fxOpen && (
         <section className="-mt-3 space-y-4 rounded-[20px] border border-line bg-white p-4">
-          <div className="-mb-2 flex justify-end">
-            <button type="button" onClick={() => setShowFx(false)} className="text-sm font-medium text-fg">
+          <div className="flex justify-end">
+            <button type="button" onClick={() => setShowFx(false)} className="min-h-9 text-sm font-medium text-fg">
               Hide details
             </button>
           </div>

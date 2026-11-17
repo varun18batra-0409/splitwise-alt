@@ -1,4 +1,4 @@
-import { keepAmp } from "@/lib/format";
+import { keepAmp, keepDots } from "@/lib/format";
 import { roundToWhole } from "@/lib/round-whole";
 import Link from "@/components/Link";
 import { getCategory } from "@/lib/categories";
@@ -147,7 +147,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 {next.name}
                 {next.amount ? <> · <span className="money tabular-nums">{next.amount}</span></> : null}
               </p>
-              <p className="text-[13px] text-fg/60">{next.when} · {next.who}</p>
+              <p className="text-[13px] text-fg/60">{keepDots(`${next.when} · ${next.who}`)}</p>
             </div>
           </div>
           <div className="mt-3.5 flex flex-wrap gap-2.5">
@@ -208,8 +208,8 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
               <li key={b.id} className="flex items-center gap-3 py-3">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{b.name}</span>
-                  <span className="block truncate text-xs text-gray-500">
-                    {b.when} · {b.who}
+                  <span className="block text-xs text-gray-500">
+                    {keepDots(`${b.when} · ${b.who}`)}
                   </span>
                 </span>
                 {b.status === "enter" && b.href ? (

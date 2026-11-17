@@ -81,7 +81,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                       {(() => {
                         const t = titles.find((x) => x.memberId === m.id);
                         return t ? (
-                          <span className="mb-0.5 mt-0.5 inline-block rounded-full border border-fg/15 px-2 py-0.5 text-[11px] font-semibold text-fg/75 [overflow-wrap:normal]" title={t.why} data-title={t.title}>
+                          <span className="mb-0.5 mt-0.5 inline-block max-w-full whitespace-nowrap rounded-full border border-fg/15 px-2 py-0.5 text-[11px] max-[340px]:text-[10px] max-[340px]:px-1.5 font-semibold text-fg/75 [overflow-wrap:normal]" title={t.why} data-title={t.title}>
                             {t.title}
                           </span>
                         ) : null;

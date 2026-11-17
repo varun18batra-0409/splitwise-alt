@@ -1,3 +1,4 @@
+import { EmailText } from "@/components/EmailText";
 import { ACCOUNT_FOOTER_LINKS, FooterLinks } from "@/components/FooterLinks";
 import Link from "@/components/Link";
 import { unreadPostcards } from "@/lib/blocks";
@@ -44,7 +45,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </span>
             <div className="min-w-0">
               <p className="truncate font-display text-2xl font-semibold leading-tight">{shown || "Add your name"}</p>
-              <p className="mt-0.5 break-all text-[13px] text-fg/55">Signed in as {account.email}</p>
+              <p className="mt-0.5 break-words text-[13px] text-fg/55">Signed in as <EmailText email={account.email} /></p>
             </div>
           </div>
           {nameState === "saved" && (

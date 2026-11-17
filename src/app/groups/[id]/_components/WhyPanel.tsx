@@ -73,7 +73,7 @@ export function WhyPanel({ v, memberId, open, summary }: { v: GroupView; memberI
                   {dayLabel(l.date, now, tz)}
                   {l.kind === "expense" && (l.paid ? ` · paid ${money(l.paid)}` : "")}
                   {l.kind === "expense" && l.share ? ` · share ${money(l.share)}` : ""}
-                  {l.fee ? ` (fee ${money(l.fee)})` : ""}
+                  {l.fee ? ` (fee\u00a0${money(l.fee)})` : ""}
                 </span>
               </span>
               <span className={`shrink-0 tabular-nums ${l.effect > 0 ? "text-owed" : l.effect < 0 ? "text-owe" : "text-gray-400"}`}>{sign(l.effect)}</span>

@@ -39,7 +39,7 @@ describe("Inside a group you left: no buttons that fail", () => {
     expect(src(`${G}/_components/OverviewTab.tsx`)).toContain("settings={!v.leaver}");
     expect(src(`${G}/_components/BalancesTab.tsx`)).toContain("{!v.leaver && (\n            <Link href={`/groups/${group.id}/settings`}");
     const banner = src(`${G}/_components/GroupSummary.tsx`);
-    expect(banner).toMatch(/\{!v\.leaver && \(\s*<form action=\{setGroupClosed\}>/);
+    expect(banner).toMatch(/\{!v\.leaver && \(\s*<form action=\{setGroupClosed\}[ >]/);
   });
   it("the add page checks a leaver BEFORE closed, and a removed person is not told to rejoin", () => {
     const add = src(`${G}/add/page.tsx`);

@@ -59,7 +59,8 @@ function Section({ slot, art, title, children }: { slot?: Slot; art?: StoryKind;
       ) : (
         heading
       )}
-      <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-600">{children}</div>
+      {/* A named button or label ("Mark paid", "Non-group") never splits across two lines: the bold name moves down whole. */}
+      <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-600 [&_strong]:inline-block [&_strong]:max-w-full">{children}</div>
     </section>
   );
 }
@@ -70,7 +71,7 @@ function Steps({ items }: { items: React.ReactNode[] }) {
       {items.map((it, i) => (
         <li key={i} className="flex gap-3">
           <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-fg text-xs font-semibold text-canvas">{i + 1}</span>
-          <span className="text-fg/85">{it}</span>
+          <span className="text-fg/85 [&_strong]:inline-block [&_strong]:max-w-full">{it}</span>
         </li>
       ))}
     </ol>

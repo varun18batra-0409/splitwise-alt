@@ -88,7 +88,7 @@ export function ActivityRow({
           <SettleIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className={`line-clamp-2 break-words text-[15px] font-semibold leading-snug tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>
+          <p className={`line-clamp-2 break-words pb-px pr-0.5 text-[15px] font-semibold leading-snug tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>
             {paymentTitle(nameOf(item.fromId), to, item.status, deleted)}
           </p>
           {sub && (
@@ -120,7 +120,7 @@ export function ActivityRow({
       <div className="flex items-center gap-3.5 py-3.5">
         <ExpenseGlyph title={item.title} category="activities" emoji="🃏" motion={motion} delay={delay} label="Game night" />
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 break-words text-[15px] font-semibold leading-snug tracking-tight">{neutralGameText(item.title)}</p>
+          <p className="line-clamp-2 break-words pb-px pr-0.5 text-[15px] font-semibold leading-snug tracking-tight">{neutralGameText(item.title)}</p>
           <p className={meta}>
             Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} came out ahead by <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
           </p>
@@ -152,7 +152,7 @@ export function ActivityRow({
       <ExpenseGlyph title={item.title} category={item.category} motion={deleted ? undefined : motion} delay={delay} label={cat.label} />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5" title={cat.label}>
-          <span className={`min-w-0 line-clamp-2 break-words text-[15px] font-semibold leading-snug tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
+          <span className={`min-w-0 line-clamp-2 break-words pb-px pr-0.5 text-[15px] font-semibold leading-snug tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
           {item.refund && <span className="shrink-0 rounded-md bg-owed/[0.14] px-1.5 py-[3px] text-[10px] font-semibold uppercase leading-none tracking-wide text-owed">Back</span>}
           {item.notes && (
             <svg aria-label="Has notes" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/60">

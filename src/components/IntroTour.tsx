@@ -56,7 +56,7 @@ function Cheers() {
           </span>
         ))}
       </div>
-      <div className="mt-7 flex flex-wrap justify-center gap-2">
+      <div className="mt-7 [@media(max-height:700px)]:mt-4 flex flex-wrap justify-center gap-2">
         {["Trip", "Home", "Couple", "Game night"].map((t, i) => (
           <span key={t} className={`nobreak rise rise-${Math.min(i + 2, 5)} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
@@ -95,7 +95,7 @@ function PassportArt() {
         {["Goa", "Lisbon", "Bangkok"].map((place, i) => (
           <span
             key={place}
-            className="flex aspect-square items-center justify-center rounded-full border-2 border-fg/40 px-1 text-center font-display text-[13px] font-semibold leading-none text-fg/75"
+            className="flex aspect-square items-center justify-center whitespace-nowrap rounded-full border-2 border-fg/40 px-0.5 text-center font-display text-[13px] font-semibold leading-none text-fg/75 max-[340px]:text-[11px]"
             style={{ transform: `rotate(${[-8, 5, -3][i]}deg)` }}
           >
             {place}
@@ -289,7 +289,7 @@ export function IntroTour({
   };
 
   return (
-    <div className="intro-tour -mb-24 flex min-h-[calc(100dvh-3rem)] flex-col">
+    <div className="intro-tour -mb-[calc(6rem+env(safe-area-inset-bottom))] flex min-h-[calc(100dvh-3rem)] flex-col">
       <header className="flex items-center justify-between">
         <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
         {/* Skip is the only way out of the tour before the end. */}
@@ -298,7 +298,7 @@ export function IntroTour({
         </Link>
       </header>
 
-      <div className="mt-6 flex gap-1.5" role="tablist" aria-label="Tour">
+      <div className="mt-6 [@media(max-height:700px)]:mt-3 flex gap-1.5" role="tablist" aria-label="Tour">
         {slides.map((s, i) => (
           <button
             key={s.id}
@@ -312,7 +312,7 @@ export function IntroTour({
         ))}
       </div>
 
-      <div ref={track} tabIndex={0} aria-label="Tour slides" className="no-scrollbar -mx-5 mt-8 flex flex-1 snap-x snap-mandatory overflow-x-auto">
+      <div ref={track} tabIndex={0} aria-label="Tour slides" className="no-scrollbar -mx-5 mt-8 [@media(max-height:700px)]:mt-4 flex flex-1 snap-x snap-mandatory overflow-x-auto">
         {slides.map((s, i) => (
           <section
             key={s.id}
@@ -327,14 +327,14 @@ export function IntroTour({
               else if (!last) go(active + 1);
             }}
           >
-            <h1 className="font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h1>
-            <div className="flex flex-1 items-center justify-center py-8">{s.art}</div>
-            <p className="min-h-[3.5rem] text-center text-sm text-gray-500">{s.caption}</p>
+            <h1 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h1>
+            <div className="flex flex-1 items-center justify-center py-8 [@media(max-height:700px)]:py-2">{s.art}</div>
+            <p className="min-h-[3.5rem] text-center text-sm text-gray-500 [@media(max-height:700px)]:min-h-0">{s.caption}</p>
           </section>
         ))}
       </div>
 
-      <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))] [@media(max-height:700px)]:mt-3 [@media(max-height:700px)]:space-y-2">
         {/* "Next" is the main button; on the last step it becomes the way in ("Create your first group"). */}
         {last ? (
           <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-tour-main>

@@ -55,11 +55,12 @@ function CardStamp({ code, country, when, byHand = false, tilt = -8, scale = 1 }
   const name = country.toUpperCase();
   const month = byHand ? "BEEN THERE" : stampMonth(when);
   const long = name.length > 11;
-  const w = Math.round(Math.min(124, Math.max(78, name.length * 8.4 + 22)) * scale);
+  const veryLong = name.length > 16; // "UNITED ARAB EMIRATES": whole words, smaller, on two lines (never cut with "…")
+  const w = Math.round(Math.min(124, Math.max(78, (veryLong ? 12 : 8.4) * name.length + 22)) * scale);
   return (
     <div data-stamp={country} data-country-stamp={code} data-by-hand={byHand ? "1" : "0"} role="img" aria-label={`${country}, ${byHand ? "been there" : month}`} style={flex({ position: "relative", width: w, transform: `rotate(${tilt}deg)`, color: ink, opacity: byHand ? 0.85 : 1 })}>
       <div style={flex({ flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", padding: `${Math.round(5 * scale)}px ${Math.round(6 * scale)}px`, backgroundColor: "#efe8d6", border: `${Math.max(1.5, 2 * scale)}px ${byHand ? "dashed" : "solid"} ${ink}`, borderRadius: 4 })}>
-        <div style={flex({ fontSize: Math.round((long ? 10 : 12) * scale), fontWeight: 800, letterSpacing: 1.2, lineHeight: 1.15 })}>{name.length > 16 ? `${name.slice(0, 15)}…` : name}</div>
+        <div style={flex({ fontSize: Math.round((veryLong ? 9 : long ? 10 : 12) * scale), fontWeight: 800, letterSpacing: veryLong ? 0.6 : 1.2, lineHeight: 1.15, textAlign: "center", flexWrap: "wrap", justifyContent: "center" })}>{name}</div>
         <div style={flex({ fontSize: Math.round(10 * scale), fontWeight: 700, letterSpacing: 1.4, lineHeight: 1.2 })}>{month}</div>
       </div>
       <Waves width={Math.round(w * 0.62)} style={{ right: -Math.round(w * 0.1), bottom: -Math.round(w * 0.12) }} />
@@ -75,6 +76,9 @@ function PageStamp({ s, size = 112, tilt, font = "var(--font-display), serif" }:
   const round = s.kind === "country";
   const line = s.byHand ? "dashed" : "solid";
   const label = s.name.length > 12 ? `${s.name.slice(0, 11)}…` : s.name;
+  // The name must sit inside the ring: a round stamp's inner ring is narrow at the bottom, so the letters shrink to fit
+  // (about 0.68em a letter) instead of running over the line.
+  const labelPx = Math.round(Math.min(size * (label.length > 9 ? 0.105 : 0.13), round ? (size * 0.6) / (label.length * 0.68) : 99));
   const w = round ? size : Math.round(size * 1.16);
   const ht = round ? size : Math.round(size * 0.72);
   const edge = Math.max(2.5, Math.round(size / 40));
@@ -87,11 +91,11 @@ function PageStamp({ s, size = 112, tilt, font = "var(--font-display), serif" }:
         <div style={flex({ flexDirection: "column", alignItems: "center", justifyContent: "center", width: "86%", height: "84%", border: `${hair}px ${line} ${ink}`, borderRadius: round ? 999 : 6 })}>
           <div style={flex({ fontSize: tiny, letterSpacing: 2, fontWeight: 700 })}>{s.byHand ? "BEEN THERE" : round ? "VISITED" : "ARRIVED"}</div>
           {round && <div style={flex({ marginTop: 1, fontSize: Math.round(size * 0.21), fontWeight: 800, letterSpacing: 1, fontFamily: font })}>{s.code.toUpperCase()}</div>}
-          <div style={flex({ marginTop: 1, fontSize: Math.round(size * (label.length > 9 ? 0.105 : 0.13)), fontWeight: 700, textAlign: "center", fontFamily: font })}>{label.toUpperCase()}</div>
-          {!s.byHand && <div style={flex({ fontSize: Math.max(8, Math.round(size * 0.07)), letterSpacing: 1, fontWeight: 700 })}>{stampMonth(s.when)}</div>}
+          <div style={flex({ marginTop: 1, fontSize: labelPx, fontWeight: 700, textAlign: "center", fontFamily: font })}>{label.toUpperCase()}</div>
+          {!s.byHand && <div style={flex({ fontSize: Math.max(8, Math.round(size * 0.07) - (round ? 1 : 0)), letterSpacing: round ? 0.5 : 1, marginBottom: round ? Math.round(size * 0.03) : 0, fontWeight: 700 })}>{stampMonth(s.when)}</div>}
         </div>
       </div>
-      <Waves width={Math.round(w * 0.55)} style={{ right: -Math.round(w * 0.12), bottom: -Math.round(ht * 0.02) }} />
+      <Waves width={Math.round(w * 0.55)} style={{ right: -Math.round(w * 0.14), bottom: -Math.round(ht * (round ? 0.16 : 0.1)) }} />
     </div>
   );
 }

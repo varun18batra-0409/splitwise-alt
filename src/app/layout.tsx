@@ -66,7 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="lp-open" aria-hidden>
           <Splash />
         </div>
-        <main className="mx-auto min-h-dvh max-w-md px-5 pb-32 pt-[max(1.5rem,env(safe-area-inset-top))]">{children}</main>
+        <main className="mx-auto min-h-dvh max-w-md px-5 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">{children}</main>
         <BottomNav />
         <PushSync />
         <TimeZoneSync />

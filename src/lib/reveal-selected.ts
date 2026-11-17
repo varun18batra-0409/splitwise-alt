@@ -10,3 +10,43 @@ export function revealSelected(row: HTMLElement | null, gap = 12): void {
   if (c.left < r.left + gap) row.scrollLeft += c.left - r.left - gap;
   else if (c.right > r.right - fade - gap) row.scrollLeft += c.right - r.right + fade + gap;
 }
+
+// How far a sideways row should move so its last visible item is never sliced to a bare letter: the item cut by the right edge
+// must be fully shown or clearly peeking (at least `min` of it). Pure numbers in, one number out (px to add to scrollLeft).
+// `items` are the items' [left, right] edges and `edge` is the row's right edge, in the same coordinates.
+export function peekFix(items: Array<[number, number]>, edge: number, min = 0.4): number {
+  for (const [l, r] of items) {
+    if (l >= edge || r <= edge) continue; // fully hidden or fully shown
+    const width = r - l;
+    const shown = edge - l;
+    if (shown / width >= min) return 0;
+    return Math.ceil(min * width - shown) + 1; // nudge forward until 40% of it shows
+  }
+  return 0;
+}
+
+// Keeps a sideways row tidy once the finger lifts: nudges it with `peekFix`. Returns a function that stops listening.
+// `fade` is the width of the soft edge fade on the right, which does not count as showing.
+export function keepPeeking(row: HTMLElement | null, fade = 0): () => void {
+  if (!row) return () => {};
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const settle = () => {
+    const rr = row.getBoundingClientRect();
+    const kids = Array.from(row.children) as HTMLElement[];
+    const items = kids.map((k) => {
+      const b = k.getBoundingClientRect();
+      return [b.left, b.right] as [number, number];
+    });
+    const d = peekFix(items, rr.right - fade);
+    if (d) row.scrollBy({ left: d, behavior: "smooth" });
+  };
+  const onScroll = () => {
+    if (t) clearTimeout(t);
+    t = setTimeout(settle, 140);
+  };
+  row.addEventListener("scroll", onScroll, { passive: true });
+  return () => {
+    if (t) clearTimeout(t);
+    row.removeEventListener("scroll", onScroll);
+  };
+}

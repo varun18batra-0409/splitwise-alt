@@ -1,3 +1,4 @@
+import { SideRow } from "@/components/SideRow";
 import { recapScope } from "@/lib/recap-scope";
 import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
@@ -199,36 +200,36 @@ export default async function SearchPage({
 
       {/* Group, month and year chips: one tap each, scroll sideways for more. */}
       {all.length > 1 && (
-        <div className="-mx-5 mb-2 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
-          <Link href={href({ g: null })} className={chip(!groupId)}>
+        <SideRow className="-mx-5 mb-2 flex gap-2 px-5 pb-1">
+          <Link href={href({ g: null })} className={chip(!groupId)} aria-current={!groupId ? "true" : undefined}>
             All groups
           </Link>
           {/* The chosen group comes first, so it's in view without scrolling. */}
           {[...all].sort((a, b) => Number(b.group.id === groupId) - Number(a.group.id === groupId)).map((g) => (
-            <Link key={g.group.id} href={href({ g: g.group.id })} className={chip(groupId === g.group.id)}>
+            <Link key={g.group.id} href={href({ g: g.group.id })} className={chip(groupId === g.group.id)} aria-current={groupId === g.group.id ? "true" : undefined}>
               {g.group.name}
             </Link>
           ))}
-        </div>
+        </SideRow>
       )}
-      <div className="-mx-5 mb-2 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
-        <Link href={href({ w: null, m: null, y: null })} className={chip(!period.week && !period.month && !period.year)}>
+      <SideRow className="-mx-5 mb-2 flex gap-2 px-5 pb-1">
+        <Link href={href({ w: null, m: null, y: null })} className={chip(!period.week && !period.month && !period.year)} aria-current={!period.week && !period.month && !period.year ? "true" : undefined}>
           All time
         </Link>
         {months.map((m) => (
-          <Link key={m} href={href({ m, y: null, w: null })} className={chip(period.month === m)}>
+          <Link key={m} href={href({ m, y: null, w: null })} className={chip(period.month === m)} aria-current={period.month === m ? "true" : undefined}>
             {monthLabel(m)}
           </Link>
         ))}
-      </div>
+      </SideRow>
       {years.length > 1 && (
-        <div className="-mx-5 mb-2 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+        <SideRow className="-mx-5 mb-2 flex gap-2 px-5 pb-1">
           {years.map((y) => (
-            <Link key={y} href={href({ y, m: null, w: null })} className={chip(period.year === y)}>
+            <Link key={y} href={href({ y, m: null, w: null })} className={chip(period.year === y)} aria-current={period.year === y ? "true" : undefined}>
               {y}
             </Link>
           ))}
-        </div>
+        </SideRow>
       )}
 
       {shown.length === 0 ? (

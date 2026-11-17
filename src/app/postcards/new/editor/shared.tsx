@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SideRow } from "@/components/SideRow";
 
 // Small shared pieces of the postcard editor: the look of chips, tiles and panels, and the tool icons.
 // Dark Loopin surfaces only (#0d0d0f / #16161a / #1f1f24, off-white text). No orange or green anywhere in the editor's own look.
@@ -14,9 +15,9 @@ export const tile = (on: boolean) =>
 // A strip that scrolls sideways (long lists). Runs to the panel's edges.
 export function Strip({ children, className = "", ...rest }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`-mx-3.5 flex gap-2 overflow-x-auto py-1.5 pl-3.5 pr-10 [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] ${className}`} {...rest}>
+    <SideRow className={`-mx-3.5 flex gap-2 py-1.5 pl-3.5 pr-10 ${className}`} {...rest}>
       {children}
-    </div>
+    </SideRow>
   );
 }
 
