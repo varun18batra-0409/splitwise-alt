@@ -16,7 +16,7 @@ export function OwnPhotoButton({ groupId }: { groupId: string }) {
     if (!file) return;
     setState("busy");
     try {
-      const blob = await shrink(file);
+      const blob = await shrink(file, { type: "image/jpeg" });
       const r = await fetch(`/api/group-photo/${groupId}`, { method: "POST", body: blob, headers: { "Content-Type": blob.type } });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!r.ok || !j.ok) throw new Error(j.error || "Couldn’t save that photo. Try another one.");
@@ -63,7 +63,7 @@ export function NewPhotoButton({ onPicked }: { onPicked: (previewSrc: string) =>
     if (!file) return;
     setState("busy");
     try {
-      const blob = await shrink(file);
+      const blob = await shrink(file, { type: "image/jpeg" });
       const bytes = new Uint8Array(await blob.arrayBuffer());
       let bin = "";
       for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -104,7 +104,8 @@ export function NewPhotoButton({ onPicked }: { onPicked: (previewSrc: string) =>
 // where the phone can't make WebP). Steps down in size and quality until it's
 // under ~150 KB; the smallest that fits the server's limit is the fallback.
 // Moments pass their own steps and sizes (a 1600 px photo and a 480 px small copy: see MOMENT_*_STEPS in covers.ts).
-export type ShrinkOptions = { steps?: readonly (readonly [maxSide: number, quality: number])[]; target?: number; max?: number };
+export type ShrinkOptions = { steps?: readonly (readonly [maxSide: number, quality: number])[]; target?: number; max?: number; type?: "image/webp" | "image/jpeg" };
+// `type: "image/jpeg"` for a group's own photo: the share pictures (made by ImageResponse) read JPEG and PNG only.
 export async function shrink(file: File, opts: ShrinkOptions = {}): Promise<Blob> {
   const steps = opts.steps ?? PHOTO_STEPS;
   const target = opts.target ?? TARGET_PHOTO_BYTES;
@@ -117,7 +118,7 @@ export async function shrink(file: File, opts: ShrinkOptions = {}): Promise<Blob
     canvas.width = Math.round(img.width * scale);
     canvas.height = Math.round(img.height * scale);
     canvas.getContext("2d")!.drawImage(img.source, 0, 0, canvas.width, canvas.height);
-    let blob = await toBlob(canvas, "image/webp", q);
+    let blob = opts.type === "image/jpeg" ? null : await toBlob(canvas, "image/webp", q);
     if (!blob || blob.type !== "image/webp") blob = await toBlob(canvas, "image/jpeg", q);
     if (!blob) continue;
     if (blob.size <= target) return blob;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatMoney } from "@/lib/money";
 import { overviewMoney } from "@/lib/money-display";
 import { dateRange, reportText, type TripReport } from "@/lib/trip-report";
@@ -136,9 +136,23 @@ export function TripShare({ report }: { report: TripReport }) {
     return blob ? new File([blob], fileName, { type: "image/png" }) : null;
   }
 
+  // The picture is made when the screen opens and kept, so a tap can call navigator.share straight away: iPhone only
+  // shares from a tap with nothing awaited in between.
+  const ready = useRef<File | null>(null);
+  useEffect(() => {
+    let live = true;
+    void picture().then((f) => {
+      if (live) ready.current = f;
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report]);
+
   async function share() {
     setNote("");
-    const file = await picture();
+    const file = ready.current ?? (await picture());
     try {
       if (file && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], text });

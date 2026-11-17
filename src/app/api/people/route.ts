@@ -23,6 +23,8 @@ export async function GET(req: Request) {
     db.member.findFirst({ where: { id: myId, groupId, leftAt: null }, select: { id: true } }),
     allow(`find:${clientIp(await headers())}`, 240, 3600),
   ]);
-  if (!member || !allowed) return none();
+  if (!member) return none();
+  // Busy is not the same as "nobody found": 429, so the screen can say so and not remember it as an answer.
+  if (!allowed) return Response.json([], { status: 429, headers: { "Cache-Control": "private, no-store" } });
   return Response.json(await searchPeople(memberships, groupId, q), { headers: { "Cache-Control": "private, no-store" } });
 }

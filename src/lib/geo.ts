@@ -177,6 +177,9 @@ const PLACES: [RegExp, string, string][] = [
   [/\b(istanbul|cappadocia|turkey)\b/i, "", "TR"],
   [/\b(iceland|reykjavik)\b/i, "", "IS"],
   [/\b(new ?york|nyc|manhattan|brooklyn)\b/i, "New York", "US"],
+  [/\b(atlanta)\b/i, "Atlanta", "US"],
+  [/\b(savannah)\b/i, "Savannah", "US"],
+  [/\bgeorgia,?\s*(usa|us|united states)\b/i, "", "US"],
   [/\b(las vegas|vegas)\b/i, "Las Vegas", "US"],
   [/\b(san francisco)\b/i, "San Francisco", "US"],
   [/\b(los angeles)\b/i, "Los Angeles", "US"],
@@ -194,7 +197,8 @@ const PLACES: [RegExp, string, string][] = [
   [/\b(cape town|south africa)\b/i, "", "ZA"],
   [/\b(kenya|masai mara|nairobi)\b/i, "", "KE"],
   [/\b(baku|azerbaijan)\b/i, "", "AZ"],
-  [/\b(tbilisi|georgia)\b/i, "", "GE"],
+  [/\b(tbilisi|batumi)\b/i, "", "GE"],
+  [/\bgeorgia\b(?!,?\s*(usa|us|united states)\b)/i, "", "GE"],
   [/\b(almaty|kazakhstan)\b/i, "", "KZ"],
   [/\b(tashkent|samarkand|uzbekistan)\b/i, "", "UZ"],
   [/\b(cancun|mexico)\b/i, "", "MX"],
@@ -212,6 +216,11 @@ export function tripStops(name: string, place = "", country = ""): Stop[] {
       if (!city && out.some((s) => s.country === c)) continue;
       if (out.some((s) => s.city === city && s.country === c)) continue;
       out.push({ city, country: c });
+    }
+    // "Atlanta, Georgia": the state, not the country. Drop a country-only Georgia (GE) guess that came from the word
+    // "georgia" when a US stop was found; "Tbilisi" and "Batumi" still mean the country.
+    if (out.some((s) => s.country === "US") && !/\b(tbilisi|batumi)\b/i.test(text)) {
+      return out.filter((s) => !(s.country === "GE" && !s.city));
     }
     return out;
   };

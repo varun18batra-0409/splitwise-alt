@@ -1,4 +1,4 @@
-import { whatsappLink } from "./whatsapp";
+import { waPhone, whatsappLink } from "./whatsapp";
 import { payLinkLabel, type PayWays } from "./pay-links";
 // A friendly WhatsApp reminder: opens WhatsApp with the message ready to send
 // (straight to their chat if we have their number). Nothing is sent by the app.
@@ -11,8 +11,8 @@ export function nudgeMessage(name: string, amountText: string, groupName: string
   return lines.join("\n");
 }
 
-export function nudgeLink(phone: string, name: string, amountText: string, groupName: string, extra?: { ways?: PayWays | null; link?: string }): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.length === 10) digits = `91${digits}`; // Indian mobile without country code
-  return whatsappLink(nudgeMessage(name, amountText, groupName, extra), digits.length >= 11 && digits.length <= 15 ? digits : "");
+// `currency` is the group's: a number with no country code is taken as an Indian one only in rupee groups (see waPhone). Without
+// it (unknown), nothing is guessed and WhatsApp opens with no chat picked.
+export function nudgeLink(phone: string, name: string, amountText: string, groupName: string, extra?: { ways?: PayWays | null; link?: string; currency?: string }): string {
+  return whatsappLink(nudgeMessage(name, amountText, groupName, extra), waPhone(phone, extra?.currency === "INR"));
 }

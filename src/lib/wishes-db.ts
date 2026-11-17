@@ -6,6 +6,7 @@ import { cleanNames } from "./names";
 import { countryOf } from "./geo";
 import { isDuplicateKey, previousResult } from "./once";
 import { SHARE_ALL, SHARE_ROW_LIMIT, WISH_LIMIT, cleanCountries, cleanCountry, cleanScope, mutualMatches, visibleTo } from "./wishes";
+import { isSupportedCurrency } from "./money";
 
 // "Want to go", with the database. EVERY access check for the list is in this file:
 //  - Your own list: only you.
@@ -246,7 +247,7 @@ export type PlanResult = { ok: true; groupId: string; memberId: string; existing
 // "Plan together": a new trip group named after the country, and the friend invited the normal way (Join / Not now).
 // Checked again here, whatever the button said: the match, the friendship and the blocks. The same request key twice makes one
 // group. If you two already have a trip group for that country, that group is returned instead ("Open your Japan trip").
-export async function planTogether(account: { id: string; name: string }, friendId: string, rawCountry: unknown, opts: { key?: string; origin: string; later?: (job: () => Promise<unknown>) => void }): Promise<PlanResult> {
+export async function planTogether(account: { id: string; name: string }, friendId: string, rawCountry: unknown, opts: { key?: string; origin: string; currency?: string; later?: (job: () => Promise<unknown>) => void }): Promise<PlanResult> {
   const country = cleanCountry(rawCountry);
   const refuse = { ok: false as const, error: "You can plan together once you both want to go and have shared it." };
   if (!country || !friendId || friendId === account.id) return refuse;
@@ -278,7 +279,7 @@ export async function planTogether(account: { id: string; name: string }, friend
   }
   let group;
   try {
-    group = await createGroupFor(account, { type: "trip", name: countryOf(country)!.name, yourName: name, currency: "INR", tripCountry: country, tripPlace: "" });
+    group = await createGroupFor(account, { type: "trip", name: countryOf(country)!.name, yourName: name, currency: opts.currency && isSupportedCurrency(opts.currency) ? opts.currency : "INR", tripCountry: country, tripPlace: "" });
   } catch (err) {
     if (key) await db.requestKey.deleteMany({ where: { key, result: "" } }).catch(() => undefined);
     throw err;

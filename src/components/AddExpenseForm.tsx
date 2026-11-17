@@ -405,6 +405,11 @@ export function AddExpenseForm({
     e.preventDefault();
     setError("");
     setDup(null);
+    // The Enter key can still send the form while the bill photo is going up; saving now would lose the photo.
+    if (scanBusy) {
+      setError("Wait a moment: the bill photo is still being added.");
+      return;
+    }
     if (itemSplit && !itemSplit.ok) {
       setError(itemSplit.error);
       setShowPeople(true);
@@ -1443,7 +1448,7 @@ export function AddExpenseForm({
             againRef.current = false;
             setAgain(false);
           }}
-          disabled={saving || rateState.status === "loading"}
+          disabled={saving || scanBusy || rateState.status === "loading"}
           className={primaryButtonClass}
         >
           {saving && !again ? "Saving…" : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
@@ -1456,7 +1461,7 @@ export function AddExpenseForm({
             againRef.current = true;
             setAgain(true);
           }}
-          disabled={saving || rateState.status === "loading"}
+          disabled={saving || scanBusy || rateState.status === "loading"}
           className="mx-auto mt-0.5 block whitespace-nowrap px-3 py-2 text-center text-sm font-medium text-fg/75 underline underline-offset-4 active:text-fg disabled:opacity-50"
         >
           {saving && again ? "Saving…" : "Save & add another"}

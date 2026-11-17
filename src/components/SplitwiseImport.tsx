@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { importFromSplitwise } from "@/app/actions";
 import { GROUP_TYPES, type GroupType } from "@/lib/group-types";
 import { MAX_IMPORT_BYTES, balanceGapText, balancesOf, planRow, previewText } from "@/lib/splitwise-csv";
@@ -23,7 +24,6 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<GroupType>("other");
   const [me, setMe] = useState(-1);
-  const [busy, setBusy] = useState(false);
 
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -62,7 +62,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
   const generic = detected?.ok && detected.format === "generic" ? detected : null;
 
   return (
-    <form action={importFromSplitwise} onSubmit={() => setBusy(true)} className="space-y-6">
+    <form action={importFromSplitwise} className="space-y-6">
       <label className="block rounded-[18px] border border-dashed border-line bg-white px-5 py-6 text-center">
         <span className="block text-[17px] font-semibold">{detected ? "Pick a different file" : "Pick the exported file"}</span>
         <span className="mt-1 block text-sm text-gray-500">A .csv spreadsheet from the other app</span>
@@ -238,12 +238,20 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
             </div>
           </fieldset>
 
-          <button type="submit" disabled={meNow < 0 || !name.trim() || busy} className={primaryButtonClass}>
-            {busy ? "Bringing it over…" : "Bring it over"}
-          </button>
+          <ImportButton disabled={meNow < 0 || !name.trim()} />
         </>
       )}
     </form>
+  );
+}
+
+// "Pending" comes from the form itself, so it lets go again when the screen comes back with an error (a stuck `busy` state used not to).
+function ImportButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={disabled || pending} className={primaryButtonClass}>
+      {pending ? "Bringing it over…" : "Bring it over"}
+    </button>
   );
 }
 

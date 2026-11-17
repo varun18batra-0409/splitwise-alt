@@ -35,6 +35,7 @@ import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
 import { moveOutPaymentIds } from "@/lib/payment-change";
 import { gameVisible, stillIn } from "@/lib/left-view";
+import { gamesForStories, homeBills, potIdsToShow, recentGames } from "@/lib/home/home-lists";
 import { canUndo, originAtDb, paymentsForUndo } from "@/lib/undo";
 import { isGroupAdmin } from "@/lib/group-admin";
 import { UndoBar } from "@/components/UndoBar";
@@ -198,16 +199,14 @@ export default async function Home({
     );
   // Stories: the moments in your groups (a trip coming up, last night's game,
   // a group that just got square, a collection filling up, a year ago today).
-  const potIds = open.filter((g) => g.group.type === "pot").map((g) => g.group.id);
-  const gameRows = potIds.length
-    ? await db.potGame.findMany({ where: { groupId: { in: potIds }, status: "done", deletedAt: null, finishedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, include: { moves: { where: { deletedAt: null } } }, take: 10 })
-    : [];
+  const potIds = potIdsToShow(open); // not the groups you left, so their games cannot fill the newest ten
+  const gameRows = await recentGames(potIds, new Date(Date.now() - 3 * 86_400_000));
   // Blocking works both ways: nobody with a block between them and you is named on a story (the group's own screens are unchanged).
   const blocked = account ? await blockedEitherWay(account.id) : new Set<string>();
   const isBlockedMember = (g: (typeof open)[number], id: string) => id !== g.myId && Boolean(blocked.size) && g.group.members.some((m) => m.id === id && m.accountId !== null && blocked.has(m.accountId));
   // Games played after someone left the group aren't theirs to see. A game with anyone in it who has a block either way with you has no story
   // at all (never a story with a name left out: that would read as a different result).
-  const games = gameRows.filter((gm) => {
+  const games = gamesForStories(gameRows, open).filter((gm) => {
     const grp = open.find((x) => x.group.id === gm.groupId);
     if (!grp || !gameVisible(grp.leaver ?? null, gm)) return false;
     return !gameHasBlockedPlayer(potSummary(parsePlayers(gm.players), gm.moves).lines.map((l) => l.memberId), (id) => isBlockedMember(grp, id));
@@ -399,7 +398,7 @@ export default async function Home({
   // The sliding row on Home (one row, in this order; see src/lib/home/highlights.ts): the usual weather for your next trip, your month,
   // a bill due within 5 days, a postcard, your passport, and the festival for your country when it is on. No trip photos.
   // A group they left shows no bills.
-  const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
+  const billRows = await homeBills(open.filter((g) => !g.leaver).map((g) => g.group.id));
   const fahrenheit = usesFahrenheit(region.country);
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
   const weatherCard = beforeYouGo(

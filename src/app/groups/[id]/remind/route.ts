@@ -29,6 +29,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const token = await payLinkFor(group.id, fromId, myId, myId);
   const link = `${url.origin}/p/${token}`;
   const ways = account && (account.upiId || account.payLink) ? { upiId: account.upiId, payLink: account.payLink } : null;
-  const wa = nudgeLink(who?.phone ?? "", who?.name ?? "there", formatMoney(t.amount, group.currency), group.type === "direct" ? "our shared expenses" : group.name, { ways, link });
+  const wa = nudgeLink(who?.phone ?? "", who?.name ?? "there", formatMoney(t.amount, group.currency), group.type === "direct" ? "our shared expenses" : group.name, { ways, link, currency: group.currency });
   return new Response(null, { status: 303, headers: { Location: wa, "Cache-Control": "private, no-store", "X-Pay-Link": link } });
 }
