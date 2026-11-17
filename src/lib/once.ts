@@ -63,9 +63,10 @@ export function isDuplicateKey(err: unknown): boolean {
 
 // The database was busy with another change at the same instant: wait a
 // moment and try again (the retry then sees what the other change did).
+// "SocketTimeout" (no space) is how the libsql adapter reports a busy database through Prisma 6.19 (as P2010 "unknown variant").
 export function isBusy(err: unknown): boolean {
   const e = err as { code?: string; message?: string };
-  return e?.code === "P2034" || e?.code === "P2028" || e?.code === "P1008" || /database is locked|SQLITE_BUSY|write conflict|deadlock|Unable to start a transaction|Socket timeout/i.test(String(e?.message ?? ""));
+  return e?.code === "P2034" || e?.code === "P2028" || e?.code === "P1008" || /database is locked|SQLITE_BUSY|write conflict|deadlock|Unable to start a transaction|Socket ?timeout/i.test(String(e?.message ?? ""));
 }
 // Within one server, money changes are written one after another (SQLite
 // allows one writer at a time; queueing them here avoids two transactions
