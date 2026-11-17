@@ -310,7 +310,7 @@ describe("The Pot (real database)", () => {
     expect(await db.expense.count({ where: { groupId: g.id, kind: "pot" } })).toBe(0);
   });
 
-  it("the admin can delete an open game whether or not the host is still in; a plain player can't", async () => {
+  it("the admin can delete an open game only once the host has left or the game has been quiet for a day; a plain player never can", async () => {
     const t = await table();
     // Who looks after the group, worked out as group-admin.ts does: nobody has claimed a place, so the earliest member (createdAt, then id) who hasn't left.
     const ordered = await db.member.findMany({ where: { groupId: t.g.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true } });
@@ -321,12 +321,16 @@ describe("The Pot (real database)", () => {
     const s = await startGame(t.g.id, host, { name: "Host night", game: "poker", players: [host, other] });
     if (!s.ok) throw new Error(s.error);
     expect((await loadGame(t.g.id, s.id))!.hostId).toBe(host);
-    // The host is still in: another player may not delete it, the admin may (a host who goes quiet must not trap the game).
+    // The host is in and the game is new: neither the admin nor another player may delete it.
+    expect((await deleteGame(s.id, admin)).ok).toBe(false);
     expect((await deleteGame(s.id, other)).ok).toBe(false);
     expect(await loadGame(t.g.id, s.id)).not.toBeNull();
+    // Quiet for a day (the game was started 25 hours ago and nothing has happened since): the admin can, a plain player still can't.
+    await db.potGame.update({ where: { id: s.id }, data: { createdAt: new Date(Date.now() - 25 * 3600_000) } });
+    expect((await deleteGame(s.id, other)).ok).toBe(false);
     expect((await deleteGame(s.id, admin)).ok).toBe(true);
     expect(await loadGame(t.g.id, s.id)).toBeNull();
-    // A second game whose host has left: the admin can still, a plain player still can't.
+    // A second game whose host has left: the admin can at once, a plain player still can't.
     const s2 = await startGame(t.g.id, host, { name: "Host night 2", game: "poker", players: [host, other] });
     if (!s2.ok) throw new Error(s2.error);
     await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });

@@ -90,12 +90,26 @@ async function groupFor(groupId: string, actorId: string) {
   return { error: "", g };
 }
 
-// The host runs the game. Whoever looks after the group (its admin) can always adjust, finish, reopen or delete it too: a host
-// who goes quiet with chips in an open game would otherwise leave the game, and so the group, stuck (nobody with chips in an
-// open game can leave or be removed).
-export function canRunGame(game: { hostId: string }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null }[], actorId: string): boolean {
+// The host runs the game (finish, delete, reopen, fix a gap, take back anyone's line). Whoever looks after the group (its admin)
+// gets the same powers only when the host can't: the host has left or been removed, or the game has been quiet for a day.
+// Otherwise a host who goes quiet with chips in an open game would leave the game, and so the group, stuck (nobody with chips in
+// an open game can leave or be removed), but an admin can't take over a game the host is actively running.
+// lastActivityAt: the latest of the newest chip line (made or taken back) and the game's own start or finish (see lastActivity).
+// A game with no activity time is treated as active.
+export const GAME_QUIET_MS = 24 * 60 * 60 * 1000;
+export function canRunGame(game: { hostId: string; lastActivityAt?: Date | null }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null }[], actorId: string, now = new Date()): boolean {
   if (game.hostId === actorId) return true;
-  return pickAdmin(members)?.id === actorId;
+  if (pickAdmin(members)?.id !== actorId) return false;
+  const host = members.find((m) => m.id === game.hostId);
+  if (!host || host.leftAt) return true; // left or removed (removing sets leftAt too)
+  return game.lastActivityAt ? now.getTime() - game.lastActivityAt.getTime() >= GAME_QUIET_MS : false;
+}
+
+// When anything last happened in a game: the latest of its start, its finish, and every chip line's making or taking back.
+// (A game has no "updated" column, and the schema only ever grows, so this is worked out from what is there.)
+export function lastActivity(game: { createdAt: Date; finishedAt: Date | null }, moves: { createdAt: Date; deletedAt?: Date | null }[]): Date {
+  const times = [game.createdAt, game.finishedAt, ...moves.flatMap((m) => [m.createdAt, m.deletedAt ?? null])].filter((d): d is Date => d instanceof Date);
+  return new Date(Math.max(...times.map((d) => d.getTime())));
 }
 
 async function gameFor(gameId: string, actorId: string) {
@@ -103,7 +117,8 @@ async function gameFor(gameId: string, actorId: string) {
   if (!game || game.deletedAt) return { error: "This game isn’t there any more." };
   const r = await groupFor(game.groupId, actorId);
   if (!r.g) return { error: r.error };
-  return { error: "", game, g: r.g };
+  const all = await db.potMove.findMany({ where: { gameId }, select: { createdAt: true, deletedAt: true } });
+  return { error: "", game: { ...game, lastActivityAt: lastActivity(game, all) }, g: r.g };
 }
 
 // Players who don't need to join: just names, added to the group (they can
@@ -216,13 +231,19 @@ export async function removeMove(moveId: string, actorId: string, hooks: Hooks =
   const r = await gameFor(m.gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   if (r.game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
-  if (m.createdById !== actorId && !canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only whoever added it, the host, or whoever looks after the group, can take it back." };
+  if (m.createdById !== actorId && !canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only whoever added it, or the host, can take it back (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
   await hooks.afterRead?.();
   const g = r.g;
   return move(async () => {
     await db.$transaction(async (tx) => {
       await openGame(tx, g, m.gameId);
-      await tx.potMove.updateMany({ where: { id: moveId, deletedAt: null }, data: { deletedAt: new Date() } });
+      const took = await tx.potMove.updateMany({ where: { id: moveId, deletedAt: null }, data: { deletedAt: new Date() } });
+      // Taking back a line someone ELSE recorded is told to the group (their own line is just a correction).
+      if (took.count === 1 && m.createdById !== actorId) {
+        const who = g.members.find((x) => x.id === m.memberId)?.name ?? "someone";
+        const what = m.kind === "take" ? "chips line" : m.kind === "return" ? "took-home line" : "adjustment";
+        await logEvent(tx, { groupId: g.id, actorId, kind: "pot_line_removed", text: `took back ${who}’s ${formatMoney(Math.abs(m.amount), g.currency)} ${what} in ${r.game!.name}` });
+      }
     });
     return { gameId: m.gameId };
   });
@@ -234,7 +255,7 @@ export async function adjustGap(gameId: string, actorId: string, input: { mode: 
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game } = r;
-  if (!canRunGame(game, r.g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can fix the difference." };
+  if (!canRunGame(game, r.g.members, actorId)) return { ok: false, error: "Only the host can fix the difference (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
   if (game.status !== "open") return { ok: false, error: "This game is finished." };
   const { lines, totals } = potSummary(parsePlayers(game.players), game.moves);
   if (totals.balanced) return { ok: false, error: "It already adds up." };
@@ -265,7 +286,7 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
-  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can finish the game." };
+  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can finish the game (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
   if (game.status !== "open") return { ok: false, error: "This game is already finished." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen it in settings first." };
   const { lines, totals } = potSummary(parsePlayers(game.players), game.moves);
@@ -338,7 +359,7 @@ export async function reopenGame(gameId: string, actorId: string, hooks: Hooks =
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
-  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can reopen the game." };
+  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can reopen the game (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
   if (game.status !== "done") return { ok: false, error: "This game is still going." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen the group first." };
   await hooks.afterRead?.();
@@ -380,7 +401,7 @@ export async function reopenGame(gameId: string, actorId: string, hooks: Hooks =
 export async function deleteGame(gameId: string, actorId: string, hooks: Hooks = {}): Promise<Result<{ groupId: string }>> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
-  if (!canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only the host, or whoever looks after the group, can delete the game." };
+  if (!canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only the host can delete the game (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
   if (r.game.status !== "open") return { ok: false, error: "Reopen it first." };
   await hooks.afterRead?.();
   const { g, game } = r;

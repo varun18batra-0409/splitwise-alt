@@ -82,6 +82,7 @@ const ICON: Record<string, string> = {
   pot_finished: "✓",
   pot_reopened: "•",
   pot_deleted: "✕",
+  pot_line_removed: "•",
   split_changed: "÷",
   bill_added: "↻",
   bill_changed: "✎",

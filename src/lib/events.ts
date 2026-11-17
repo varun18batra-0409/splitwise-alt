@@ -55,6 +55,7 @@ export type EventKind =
   | "pot_finished"
   | "pot_reopened"
   | "pot_deleted"
+  | "pot_line_removed"
   | "bill_added"
   | "bill_changed"
   | "group_imported";
