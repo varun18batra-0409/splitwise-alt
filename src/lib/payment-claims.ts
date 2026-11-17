@@ -17,7 +17,8 @@ export function pushToReceiver(toId: string, p: { title: string; body: string; u
   try {
     after(async () => {
       const { sendPushTo } = await import("./push");
-      await sendPushTo([toId], p, item, fromId);
+      // A payment alert still arrives between people with a block (a wrong payment must be catchable), and reaches someone who left (it is about their own money).
+      await sendPushTo([toId], p, item, fromId, { includeLeft: true, allowBlocked: true });
     });
   } catch {
     /* not inside a request (tests, scripts): nothing is sent */
@@ -160,6 +161,7 @@ export function tellAcross(c: { actorName: string; actorMemberIds: string[]; par
             },
             "payments.claimed",
             c.actorMemberIds[0],
+            { includeLeft: true, allowBlocked: true },
           );
         }
       } catch {

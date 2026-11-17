@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 // POL-03: report and block. Blocking stops postcards, passports, nudges and their pushes, both ways for passports;
 // it never touches group expenses or balances. Reports are saved and the operator is emailed (kept in the test outbox).
@@ -35,11 +36,18 @@ const { requireOwner, isOwner } = await import("@/lib/owner");
 const { netBalances } = await import("@/lib/balances");
 const { deleteAccount } = await import("@/lib/auth");
 const { loopinFriends, createCollection, organiserAction } = await import("@/lib/collect");
-const { addRegistered } = await import("@/lib/invites");
+const { addRegistered, searchPeople, inviteByEmail } = await import("@/lib/invites");
+const { loadNotifications, countAllUnread } = await import("@/lib/group-data");
+const { reactAction } = await import("@/app/reaction-actions");
+const { goingShopping } = await import("@/lib/home/list-db");
+const { tellParties } = await import("@/lib/payment-claims");
+const { countdownNames } = await import("@/lib/countdown");
+const { gameHasBlockedPlayer } = await import("@/lib/home/game-blocks");
+const { accountForEmail } = await import("@/lib/auth");
 const { sendEventPush, sendPushTo } = await import("@/lib/push");
 const { contactSupportAction } = await import("@/app/safety-actions");
 const { loadReportsForOwner, saveSupportMessage, openLabel } = await import("@/lib/reports");
-const { loadInvitations } = await import("@/lib/invitations");
+const { loadInvitations, acceptInvitation } = await import("@/lib/invitations");
 const { inviteToClaim } = await import("@/lib/invites");
 const { markPaidAction } = await import("@/app/collect-actions");
 const { reactPostcardAction } = await import("@/app/postcard-actions");
@@ -114,6 +122,7 @@ beforeEach(() => {
 afterAll(async () => {
   if (!hadKeys) await db.appSetting.deleteMany({ where: { key: "vapid" } }); // the stand-in keys made here
   await db.rateLimit.deleteMany({ where: { key: { in: rateKeys } } });
+  await db.appSetting.deleteMany({ where: { OR: accountIds.map((id) => ({ key: { startsWith: "blockfp:", endsWith: `:${id}` } })) } });
   await db.report.deleteMany({ where: { note: { contains: stamp } } });
   await db.collection.deleteMany({ where: { accountId: { in: accountIds } } });
   await db.report.deleteMany({ where: { reporterId: { in: accountIds } } });
@@ -383,7 +392,7 @@ describe("blocking: collections", () => {
 });
 
 describe("blocking: group invites", () => {
-  it("the invitee still lands in the group, but if they blocked the inviter they get no email and no alert; another invitee gets both", async () => {
+  it("Dev blocked Asha: Asha can't add Dev by account (the same reply as a stranger, nothing written); Eve, who didn't, is added with an email and an alert", async () => {
     const t = await crew("gi");
     const dev = await account(`Dev${stamp.slice(-4)}`);
     const eve = await account(`Eve${stamp.slice(-4)}`);
@@ -391,13 +400,16 @@ describe("blocking: group invites", () => {
     // Dev and Eve share an older group with Asha (since 16 Nov only people you share a group with can be added by account).
     const older = await db.group.create({ data: { name: `Older gi ${stamp}`, inviteCode: `rb-older-gi-${stamp}`, members: { create: [t.asha, dev, eve].map((a) => ({ name: a.name, accountId: a.id, claimedAt: new Date() })) } } });
     groupIds.push(older.id);
+    const membersBefore = await db.member.count({ where: { groupId: t.g.id } });
+    const invitesBefore = await db.invite.count({ where: { groupId: t.g.id } });
     const toDev = await addRegistered(t.g.id, t.ma.id, dev.id, "https://loopin.test");
+    expect(toDev).toEqual({ ok: false, error: "That person isn't on Loopin." });
+    expect(await db.member.count({ where: { groupId: t.g.id } })).toBe(membersBefore);
+    expect(await db.invite.count({ where: { groupId: t.g.id } })).toBe(invitesBefore);
     const toEve = await addRegistered(t.g.id, t.ma.id, eve.id, "https://loopin.test");
-    if (!toDev.ok || !toEve.ok) throw new Error("expected both to be added");
-    // Group money keeps working: both are in the group as names (they are linked to their accounts when they tap Join), with an invitation each.
-    expect(await db.member.count({ where: { groupId: t.g.id, id: { in: [toDev.memberId, toEve.memberId] }, leftAt: null, removedAt: null } })).toBe(2);
-    expect(await db.member.count({ where: { groupId: t.g.id } })).toBe(5);
-    expect(await db.invite.count({ where: { groupId: t.g.id, email: { in: [dev.email, eve.email] }, memberId: { in: [toDev.memberId, toEve.memberId] } } })).toBe(2);
+    if (!toEve.ok) throw new Error("expected Eve to be added");
+    expect(await db.member.count({ where: { groupId: t.g.id } })).toBe(membersBefore + 1);
+    expect(await db.invite.count({ where: { groupId: t.g.id, email: eve.email, memberId: toEve.memberId } })).toBe(1);
     expect(await db.outbox.count({ where: { to: dev.email } })).toBe(0);
     expect(await db.accountNote.count({ where: { accountId: dev.id } })).toBe(0);
     expect(await db.outbox.count({ where: { to: eve.email } })).toBe(1);
@@ -678,5 +690,416 @@ describe("support messages and account deletion / download", () => {
     const t = await crew("dy");
     await signedInAs(t.cleo);
     expect(await (await myData.GET()).text()).not.toContain("Your messages to support");
+  });
+});
+
+
+// ---------- Blocking works both ways (Step 2): Asha has blocked Ben ----------
+const ORIGIN = "https://loopin.test";
+const sentTo = () => new Set(push.send.mock.calls.map((c) => c[0].endpoint));
+async function subscribe(t: { mb: { id: string }; mc: { id: string }; ma: { id: string } }, tag: string) {
+  const ep = { a: goodEndpoint(`a-${stamp}-${tag}`), b: goodEndpoint(`b-${stamp}-${tag}`), c: goodEndpoint(`c-${stamp}-${tag}`) };
+  for (const [memberId, endpoint] of [[t.ma.id, ep.a], [t.mb.id, ep.b], [t.mc.id, ep.c]]) await db.pushSubscription.create({ data: { memberId, endpoint, p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
+  return ep;
+}
+// A small group of two accounts (so one of them can add or invite a third).
+async function twoOf(label: string, a: { id: string; name: string }, b: { id: string; name: string }) {
+  const g = await db.group.create({
+    data: { name: `Two ${label} ${stamp}`, inviteCode: `rb-two-${label}-${stamp}`, members: { create: [a, b].map((x) => ({ name: x.name, accountId: x.id, claimedAt: new Date() })) } },
+    include: { members: { orderBy: { createdAt: "asc" } } },
+  });
+  groupIds.push(g.id);
+  return { g, first: g.members[0], second: g.members[1] };
+}
+
+describe("blocking works both ways: pushes", () => {
+  it("Ben adds an expense: Asha (who blocked him) gets 0, Cleo gets 1. Asha adds one: Ben gets 0, Cleo 1", async () => {
+    const t = await crew("b2");
+    const ep = await subscribe(t, "b2");
+    await blockAccount(t.asha.id, t.ben.id);
+    const byBen = await db.groupEvent.create({ data: { groupId: t.g.id, actorId: t.mb.id, kind: "expense_added", text: "added Tea (₹50)" } });
+    push.send.mockClear();
+    await sendEventPush(byBen.id);
+    expect(sentTo()).toEqual(new Set([ep.c])); // not Asha (the blocker), not Ben (the actor)
+    const byAsha = await db.groupEvent.create({ data: { groupId: t.g.id, actorId: t.ma.id, kind: "expense_added", text: "added Lunch (₹300)" } });
+    push.send.mockClear();
+    await sendEventPush(byAsha.id);
+    expect(sentTo()).toEqual(new Set([ep.c]));
+  });
+
+  it("reactions and going shopping: no push between them either way; Cleo is still told", async () => {
+    const t = await crew("rx");
+    const ep = await subscribe(t, "rx");
+    await blockAccount(t.asha.id, t.ben.id);
+    const benExp = await db.expense.create({ data: { groupId: t.g.id, description: "Tea", amount: 5000, splitType: "equal", paidById: t.mb.id, createdById: t.mb.id, shares: { create: [{ memberId: t.ma.id, amount: 1667 }, { memberId: t.mb.id, amount: 1667 }, { memberId: t.mc.id, amount: 1666 }] } } });
+    // Asha reacts to Ben's expense: Ben is not told. Cleo reacting to it (control) does tell Ben.
+    await signedInAs(t.asha);
+    push.send.mockClear();
+    await redirected(() => reactAction(form({ expenseId: benExp.id, emoji: "😂" })));
+    expect(sentTo().size).toBe(0);
+    await signedInAs(t.cleo);
+    await redirected(() => reactAction(form({ expenseId: benExp.id, emoji: "😂" })));
+    expect(sentTo()).toEqual(new Set([ep.b]));
+    // Going shopping: Asha's goes to Cleo only; Ben's goes to Cleo only.
+    push.send.mockClear();
+    await goingShopping(t.g.id, t.ma.id);
+    expect(sentTo()).toEqual(new Set([ep.c]));
+    push.send.mockClear();
+    await goingShopping(t.g.id, t.mb.id);
+    expect(sentTo()).toEqual(new Set([ep.c]));
+  });
+
+  it("D-1: payment alerts still arrive between blocked people (both ways), and other alerts do not", async () => {
+    const t = await crew("d1");
+    const ep = await subscribe(t, "d1");
+    await blockAccount(t.asha.id, t.ben.id);
+    const pay = (actor: { id: string; name: string }, from: typeof t.ma, to: typeof t.ma) =>
+      tellParties({ event: "recorded", actorId: actor.id, actorName: actor.name, fromId: from.id, toId: to.id, fromName: from.name, toName: to.name, amountText: "₹400", groupName: "Crew", groupId: t.g.id, paymentId: `pay-${stamp}-${actor.id}` });
+    // Ben records paying Asha: Asha (who blocked him) is still told.
+    pay(t.mb, t.mb, t.ma);
+    for (const fn of state.pending.splice(0)) await fn();
+    expect(sentTo()).toEqual(new Set([ep.a]));
+    // Asha records paying Ben: Ben is still told.
+    push.send.mockClear();
+    pay(t.ma, t.ma, t.mb);
+    for (const fn of state.pending.splice(0)) await fn();
+    expect(sentTo()).toEqual(new Set([ep.b]));
+    // The flag is only for payment alerts: the same send without it reaches nobody.
+    push.send.mockClear();
+    await sendPushTo([t.ma.id], { title: "t", body: "b", url: "/", tag: "no-flag" }, "payments.claimed", t.mb.id);
+    expect(sentTo().size).toBe(0);
+    await sendPushTo([t.ma.id], { title: "t", body: "b", url: "/", tag: "flag" }, "payments.claimed", t.mb.id, { allowBlocked: true });
+    expect(sentTo()).toEqual(new Set([ep.a]));
+  });
+
+  it("sendPushTo to someone who has left: 0 by default, 1 with includeLeft", async () => {
+    const t = await crew("lv");
+    const ep = await subscribe(t, "lv");
+    await db.member.update({ where: { id: t.ma.id }, data: { leftAt: new Date() } });
+    push.send.mockClear();
+    expect(await sendPushTo([t.ma.id], { title: "t", body: "b", url: "/", tag: "l1" }, "expenses.added")).toBe(0);
+    expect(await sendPushTo([t.ma.id], { title: "t", body: "b", url: "/", tag: "l2" }, "payments.claimed", undefined, { includeLeft: true })).toBe(1);
+    expect(sentTo()).toEqual(new Set([ep.a]));
+  });
+
+  it("three reactions within 10 minutes: one push, but the reaction is always saved (the last one stays)", async () => {
+    const t = await crew("rl");
+    const ep = await subscribe(t, "rl");
+    rateKeys.push(`react-push:${t.e.id}:${t.mc.id}`);
+    await signedInAs(t.cleo);
+    push.send.mockClear();
+    for (const emoji of ["😂", "🔥", "😭"]) await redirected(() => reactAction(form({ expenseId: t.e.id, emoji })));
+    expect(push.send.mock.calls.length).toBe(1);
+    expect(sentTo()).toEqual(new Set([ep.a]));
+    expect((await db.reaction.findUnique({ where: { expenseId_memberId: { expenseId: t.e.id, memberId: t.mc.id } } }))?.emoji).toBe("😭");
+  });
+});
+
+describe("blocking works both ways: finding, adding, inviting", () => {
+  it("search: Asha doesn't find Ben, Ben doesn't find Asha, Cleo is found by both", async () => {
+    const t = await crew("se");
+    await blockAccount(t.asha.id, t.ben.id);
+    const forAsha = { [t.g.id]: t.ma.id };
+    const forBen = { [t.g.id]: t.mb.id };
+    expect((await searchPeople(forAsha, t.g.id, "bense")).map((f) => f.accountId)).toEqual([]);
+    expect((await searchPeople(forBen, t.g.id, "ashase")).map((f) => f.accountId)).toEqual([]);
+    expect((await searchPeople(forAsha, t.g.id, "cleose")).map((f) => f.accountId)).toEqual([t.cleo.id]);
+    expect((await searchPeople(forBen, t.g.id, "cleose")).map((f) => f.accountId)).toEqual([t.cleo.id]);
+    await unblockAccount(t.asha.id, t.ben.id);
+    expect((await searchPeople(forAsha, t.g.id, "bense")).map((f) => f.accountId)).toEqual([t.ben.id]);
+  });
+
+  it("adding by account is refused both ways with the stranger's reply, and nothing is written; unblocking allows it", async () => {
+    const t = await crew("ad");
+    await blockAccount(t.asha.id, t.ben.id);
+    const withCleoA = await twoOf("ad1", t.asha, t.cleo); // Asha's group: she tries to add Ben
+    const withCleoB = await twoOf("ad2", t.ben, t.cleo); // Ben's group: he tries to add Asha
+    const counts = async () => [await db.member.count({ where: { groupId: { in: [withCleoA.g.id, withCleoB.g.id] } } }), await db.invite.count({ where: { groupId: { in: [withCleoA.g.id, withCleoB.g.id] } } })];
+    const before = await counts();
+    const reply = { ok: false, error: "That person isn't on Loopin." };
+    expect(await addRegistered(withCleoA.g.id, withCleoA.first.id, t.ben.id, ORIGIN)).toEqual(reply);
+    expect(await addRegistered(withCleoB.g.id, withCleoB.first.id, t.asha.id, ORIGIN)).toEqual(reply);
+    expect(await counts()).toEqual(before);
+    await unblockAccount(t.asha.id, t.ben.id);
+    expect((await addRegistered(withCleoA.g.id, withCleoA.first.id, t.ben.id, ORIGIN)).ok).toBe(true);
+  });
+
+  it("Ben invites Asha's email (Asha blocked him): the reply includes her, a plain name row, no email, no alert, no card, and accepting is refused", async () => {
+    const t = await crew("ie2");
+    await blockAccount(t.asha.id, t.ben.id);
+    const room = await twoOf("ie2", t.ben, t.cleo);
+    const r = await inviteByEmail(room.g.id, room.first.id, t.asha.email, ORIGIN);
+    expect(r.bad).toEqual([]);
+    expect(r.people.map((p) => p.email)).toEqual([t.asha.email]); // the same reply as for anyone
+    expect(await db.member.count({ where: { groupId: room.g.id, accountId: null } })).toBe(1); // a plain name; never linked to Asha
+    expect(await db.outbox.count({ where: { to: t.asha.email } })).toBe(0);
+    expect(await db.accountNote.count({ where: { accountId: t.asha.id } })).toBe(0);
+    expect(await loadInvitations(t.asha)).toEqual([]);
+    const inv = await db.invite.findFirstOrThrow({ where: { groupId: room.g.id, email: t.asha.email } });
+    expect(await acceptInvitation(t.asha, inv.token)).toEqual({ ok: false, error: "This invitation is no longer there." });
+    expect(await db.member.count({ where: { groupId: room.g.id, accountId: t.asha.id } })).toBe(0);
+  });
+
+  it("Asha (the blocker) invites Ben's email: the same result; Ben has no card, and accepting is refused", async () => {
+    const t = await crew("ib");
+    await blockAccount(t.asha.id, t.ben.id);
+    const room = await twoOf("ib", t.asha, t.cleo);
+    const r = await inviteByEmail(room.g.id, room.first.id, t.ben.email, ORIGIN);
+    expect(r.people.map((p) => p.email)).toEqual([t.ben.email]);
+    expect(await db.member.count({ where: { groupId: room.g.id, accountId: null } })).toBe(1);
+    expect(await db.outbox.count({ where: { to: t.ben.email } })).toBe(0);
+    expect(await db.accountNote.count({ where: { accountId: t.ben.id } })).toBe(0);
+    expect(await loadInvitations(t.ben)).toEqual([]);
+    const inv = await db.invite.findFirstOrThrow({ where: { groupId: room.g.id, email: t.ben.email } });
+    expect(await acceptInvitation(t.ben, inv.token)).toEqual({ ok: false, error: "This invitation is no longer there." });
+  });
+
+  it("a person with no block (Eve) gets the normal invitation, so the refusals above are the block and nothing else", async () => {
+    const t = await crew("ic");
+    const eve = await account(`Eve${stamp.slice(-4)}c`);
+    const room = await twoOf("ic", t.asha, t.cleo);
+    await inviteByEmail(room.g.id, room.first.id, eve.email, ORIGIN);
+    expect(await db.outbox.count({ where: { to: eve.email } })).toBe(1);
+    expect((await loadInvitations(eve)).length).toBe(1);
+  });
+});
+
+describe("blocking works both ways: the Alerts bell and the countdown picture", () => {
+  it("Asha's Alerts drop Ben's events (the unread number falls by his only); the group's own lists still show his expense", async () => {
+    const t = await crew("al");
+    await db.groupEvent.create({ data: { groupId: t.g.id, actorId: t.mb.id, kind: "expense_added", text: "added Tea" } });
+    await db.groupEvent.create({ data: { groupId: t.g.id, actorId: t.mc.id, kind: "expense_added", text: "added Coffee" } });
+    const mine = { [t.g.id]: t.ma.id };
+    expect(await countAllUnread(mine, t.asha.id)).toBe(2);
+    await blockAccount(t.asha.id, t.ben.id);
+    expect(await countAllUnread(mine, t.asha.id)).toBe(1);
+    const { items, unread } = await loadNotifications(mine, 100, t.asha.id);
+    expect(items.map((i) => i.event.actorId)).toEqual([t.mc.id]);
+    expect(unread).toBe(1);
+    // Ben, who was blocked, loses Asha's the same way; Cleo (no block) still sees both of theirs (never her own).
+    await db.groupEvent.create({ data: { groupId: t.g.id, actorId: t.ma.id, kind: "expense_added", text: "added Lunch" } });
+    expect((await loadNotifications({ [t.g.id]: t.mb.id }, 100, t.ben.id)).items.map((i) => i.event.actorId).sort()).toEqual([t.mc.id]);
+    expect((await loadNotifications({ [t.g.id]: t.mc.id }, 100, t.cleo.id)).items.length).toBe(2);
+    // The group's own screens are untouched: Ben's expense is still listed for Asha and the money still adds up.
+    const { loadGroupView } = await import("@/lib/group-data");
+    await db.expense.create({ data: { groupId: t.g.id, description: "Tea", amount: 3000, splitType: "equal", paidById: t.mb.id, createdById: t.mb.id, shares: { create: [t.ma, t.mb, t.mc].map((m) => ({ memberId: m.id, amount: 1000 })) } } });
+    const view = await loadGroupView(t.g.id, { viewer: t.ma.id });
+    expect(view?.expenses.map((e) => e.createdById).sort()).toEqual([t.ma.id, t.mb.id].sort());
+    expect(Object.values(view!.net).reduce((a, b) => a + b, 0)).toBe(0);
+  });
+
+  it("countdownNames: Asha (viewer), Ravi, Ben (blocked), Pat (added, never opened), Lee (left) give Asha and Ravi", () => {
+    const m = (id: string, accountId: string | null, extra: Partial<{ addedBy: string; seenAt: Date | null; leftAt: Date | null }> = {}) => ({ id, name: id === "asha" ? "Asha K" : id[0].toUpperCase() + id.slice(1), accountId, addedBy: "", seenAt: null, leftAt: null, removedAt: null, ...extra });
+    const members = [m("asha", "A"), m("ravi", "R"), m("ben", "B"), m("pat", "P", { addedBy: "x" }), m("lee", "L", { leftAt: new Date() })];
+    expect(countdownNames(members, "asha", new Set(["B"]))).toEqual(["Asha", "Ravi"]);
+    // Ben's own picture: Asha is the blocked side for him, so she is left off; he is always kept.
+    expect(countdownNames(members, "ben", new Set(["A"]))).toEqual(["Ravi", "Ben"]);
+    // The viewer is kept even if they have left; Pat is named once she has opened the group.
+    expect(countdownNames([m("pat", "P", { addedBy: "x", seenAt: new Date() }), m("lee", "L", { leftAt: new Date() })], "lee", new Set())).toEqual(["Pat", "Lee"]);
+  });
+});
+
+// ---------- D-2: a block survives deleting the account and signing up again with the same email ----------
+const markKeys = (blockerId: string) => db.appSetting.findMany({ where: { key: { startsWith: "blockfp:", endsWith: `:${blockerId}` } } });
+
+describe("a block survives the blocked person deleting their account and signing up again", () => {
+  it("Asha blocks Ben; Ben deletes and signs up again with the same email: the block is back, and only a fingerprint was kept", async () => {
+    const t = await crew("d2");
+    await blockAccount(t.asha.id, t.ben.id);
+    const marks = await markKeys(t.asha.id);
+    expect(marks.length).toBe(1);
+    expect(marks[0].key + marks[0].value).not.toContain(t.ben.email);
+    expect(marks[0].key).toMatch(/^blockfp:[0-9a-f]{64}:/);
+    await deleteAccount(t.ben.id);
+    expect(await db.block.count({ where: { blockedId: t.ben.id } })).toBe(0);
+    const again = await accountForEmail(t.ben.email);
+    accountIds.push(again.id);
+    expect(again.id).not.toBe(t.ben.id);
+    expect([...(await blockedEitherWay(again.id))]).toEqual([t.asha.id]);
+    expect(await hasBlockedOneWay(t.asha.id, again.id)).toBe(true);
+    // And again: it keeps coming back until Asha unblocks.
+    await deleteAccount(again.id);
+    const third = await accountForEmail(t.ben.email);
+    accountIds.push(third.id);
+    expect(await isBlockedEitherWay(t.asha.id, third.id)).toBe(true);
+    // Signing in as the same person again (no new account) changes nothing.
+    expect((await accountForEmail(t.ben.email)).id).toBe(third.id);
+  });
+
+  it("Asha unblocks: the fingerprint is gone, and a new sign-up is not blocked", async () => {
+    const t = await crew("d2u");
+    await blockAccount(t.asha.id, t.ben.id);
+    await unblockAccount(t.asha.id, t.ben.id);
+    expect((await markKeys(t.asha.id)).length).toBe(0);
+    await deleteAccount(t.ben.id);
+    const again = await accountForEmail(t.ben.email);
+    accountIds.push(again.id);
+    expect(await isBlockedEitherWay(t.asha.id, again.id)).toBe(false);
+  });
+
+  it("Asha deletes her own account: her fingerprints go, and the blocked person's new sign-up is not blocked by anyone", async () => {
+    const t = await crew("d2d");
+    await blockAccount(t.asha.id, t.ben.id);
+    await blockAccount(t.asha.id, t.cleo.id);
+    expect((await markKeys(t.asha.id)).length).toBe(2);
+    await deleteAccount(t.asha.id);
+    expect((await markKeys(t.asha.id)).length).toBe(0);
+    await deleteAccount(t.ben.id);
+    const again = await accountForEmail(t.ben.email);
+    accountIds.push(again.id);
+    expect([...(await blockedEitherWay(again.id))]).toEqual([]);
+  });
+
+  it("a block made before this existed (no fingerprint yet) is kept when the blocked person deletes their account", async () => {
+    const t = await crew("d2o");
+    await db.block.create({ data: { blockerId: t.asha.id, blockedId: t.ben.id } }); // the old way: no fingerprint written
+    expect((await markKeys(t.asha.id)).length).toBe(0);
+    await deleteAccount(t.ben.id);
+    expect((await markKeys(t.asha.id)).length).toBe(1);
+    const again = await accountForEmail(t.ben.email);
+    accountIds.push(again.id);
+    expect(await isBlockedEitherWay(t.asha.id, again.id)).toBe(true);
+  });
+
+  it("two different people's emails never match each other's fingerprint", async () => {
+    const t = await crew("d2x");
+    await blockAccount(t.asha.id, t.ben.id);
+    await deleteAccount(t.ben.id);
+    const other = await accountForEmail(`someone-else-${stamp}@example.test`);
+    accountIds.push(other.id);
+    expect(await isBlockedEitherWay(t.asha.id, other.id)).toBe(false);
+  });
+});
+
+async function hasBlockedOneWay(blockerId: string, blockedId: string) {
+  return (await import("@/lib/blocks")).hasBlocked(blockerId, blockedId);
+}
+
+
+// ---------- Review fixes ----------
+describe("M-1: 'Invite back' gives the same reply with or without a block, and a block writes nothing", () => {
+  // A group where Asha (looks after it) and Cleo are in and `who` left (or was removed) earlier.
+  async function withOut(label: string, who: { id: string; name: string }, asha: { id: string; name: string }, cleo: { id: string; name: string }, removed: boolean) {
+    const at = new Date("2026-11-10T00:00:00Z");
+    const g = await db.group.create({
+      data: {
+        name: `Back ${label} ${stamp}`, inviteCode: `rb-back-${label}-${stamp}`,
+        members: {
+          create: [
+            { name: asha.name, accountId: asha.id, claimedAt: new Date("2026-11-01T00:00:00Z"), createdAt: new Date("2026-11-01T00:00:00Z") },
+            { name: cleo.name, accountId: cleo.id, claimedAt: new Date("2026-11-01T00:00:01Z"), createdAt: new Date("2026-11-01T00:00:01Z") },
+            { name: who.name, accountId: who.id, claimedAt: at, createdAt: new Date("2026-11-01T00:00:02Z"), leftAt: at, ...(removed ? { removedAt: at } : {}) },
+          ],
+        },
+      },
+      include: { members: { orderBy: { createdAt: "asc" } } },
+    });
+    groupIds.push(g.id);
+    return { g, asha: g.members[0], cleo: g.members[1], row: g.members[2] };
+  }
+
+  it("someone who left: with a block, the reply is the same as without; no invitation, no email, no alert", async () => {
+    const t = await crew("m1");
+    const dan = await account(`Dan${stamp.slice(-4)}`);
+    await blockAccount(t.asha.id, t.ben.id);
+    const blockedRoom = await withOut("m1a", t.ben, t.asha, t.cleo, false);
+    const openRoom = await withOut("m1b", dan, t.asha, t.cleo, false);
+    const a = await addRegistered(blockedRoom.g.id, blockedRoom.asha.id, t.ben.id, ORIGIN);
+    const b = await addRegistered(openRoom.g.id, openRoom.asha.id, dan.id, ORIGIN);
+    expect(a).toEqual({ ok: true, memberId: blockedRoom.row.id, eventId: "", name: t.ben.name, email: t.ben.email, invitedBack: true });
+    expect(b).toEqual({ ok: true, memberId: openRoom.row.id, eventId: "", name: dan.name, email: dan.email, invitedBack: true });
+    // Control: the unblocked one really is invited; the blocked one writes nothing.
+    expect(await db.invite.count({ where: { groupId: openRoom.g.id } })).toBe(1);
+    expect(await db.outbox.count({ where: { to: dan.email } })).toBe(1);
+    expect(await db.invite.count({ where: { groupId: blockedRoom.g.id } })).toBe(0);
+    expect(await db.outbox.count({ where: { to: t.ben.email } })).toBe(0);
+    expect(await db.accountNote.count({ where: { accountId: t.ben.id } })).toBe(0);
+    expect((await db.member.findUniqueOrThrow({ where: { id: blockedRoom.row.id } })).leftAt).not.toBeNull();
+  });
+
+  it("someone removed: a non-admin gets the same admin-only reply with or without a block; the admin gets the same success", async () => {
+    const t = await crew("m1r");
+    const dan = await account(`Dan${stamp.slice(-4)}r`);
+    await blockAccount(t.asha.id, t.ben.id);
+    const blockedRoom = await withOut("m1c", t.ben, t.asha, t.cleo, true);
+    const openRoom = await withOut("m1d", dan, t.asha, t.cleo, true);
+    const strip = (r: { ok: boolean; error?: string }, name: string) => ({ ...r, error: r.error?.replace(name, "NAME") });
+    // Cleo is not the admin in either room.
+    const a = await addRegistered(blockedRoom.g.id, blockedRoom.cleo.id, t.ben.id, ORIGIN);
+    const b = await addRegistered(openRoom.g.id, openRoom.cleo.id, dan.id, ORIGIN);
+    expect(strip(a, t.ben.name)).toEqual({ ok: false, error: "Only the person who looks after the group can bring NAME back." });
+    expect(strip(b, dan.name)).toEqual(strip(a, t.ben.name));
+    // Asha (the admin) gets the same reply for both; only the unblocked one writes anything.
+    const c = await addRegistered(blockedRoom.g.id, blockedRoom.asha.id, t.ben.id, ORIGIN);
+    const d = await addRegistered(openRoom.g.id, openRoom.asha.id, dan.id, ORIGIN);
+    expect(c.ok && d.ok && c.invitedBack && d.invitedBack).toBe(true);
+    expect(await db.invite.count({ where: { groupId: blockedRoom.g.id } })).toBe(0);
+    expect(await db.invite.count({ where: { groupId: openRoom.g.id } })).toBe(1);
+  });
+
+  it("someone already in the group: the same 'already in this group' reply with or without a block", async () => {
+    const t = await crew("m1i");
+    await blockAccount(t.asha.id, t.ben.id);
+    const withBlock = await addRegistered(t.g.id, t.ma.id, t.ben.id, ORIGIN);
+    const without = await addRegistered(t.g.id, t.ma.id, t.cleo.id, ORIGIN);
+    expect(withBlock).toEqual({ ok: false, error: `${t.ben.name} is already in this group.` });
+    expect(without).toEqual({ ok: false, error: `${t.cleo.name} is already in this group.` });
+  });
+});
+
+describe("M-2: payment alerts between blocked people are limited to 6 an hour per pair", () => {
+  it("Ben's 7th alert in an hour to Asha (who blocked him) is dropped quietly; the payment is still there; Cleo (no block) is never limited", async () => {
+    const t = await crew("m2");
+    const ep = await subscribe(t, "m2");
+    await blockAccount(t.asha.id, t.ben.id);
+    rateKeys.push(`payalert:${t.ben.id}:${t.asha.id}`, `payalert:${t.cleo.id}:${t.asha.id}`);
+    const payment = await db.payment.create({ data: { groupId: t.g.id, fromId: t.mb.id, toId: t.ma.id, amount: 40000, createdById: t.mb.id } });
+    const send = (from: { id: string }) => sendPushTo([t.ma.id], { title: "t", body: "b", url: "/", tag: `pa-${Math.random()}` }, "payments.claimed", from.id, { allowBlocked: true });
+    const results: number[] = [];
+    for (let i = 0; i < 7; i++) results.push(await send(t.mb));
+    expect(results).toEqual([1, 1, 1, 1, 1, 1, 0]);
+    expect(await db.payment.count({ where: { id: payment.id, deletedAt: null } })).toBe(1);
+    expect(sentTo()).toEqual(new Set([ep.a]));
+    // Asha's alerts to Ben are a different pair: their own six.
+    rateKeys.push(`payalert:${t.asha.id}:${t.ben.id}`);
+    expect(await sendPushTo([t.mb.id], { title: "t", body: "b", url: "/", tag: "x" }, "payments.claimed", t.ma.id, { allowBlocked: true })).toBe(1);
+    // No block between Cleo and Asha: no limit applies, so all 8 go.
+    const cleoResults: number[] = [];
+    for (let i = 0; i < 8; i++) cleoResults.push(await send(t.mc));
+    expect(cleoResults).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+  });
+});
+
+describe("M-3: Home game story", () => {
+  it("a game with anyone blocked in it has no story; a game without has one", () => {
+    const blocked = new Set(["ben"]);
+    expect(gameHasBlockedPlayer(["asha", "ben", "cleo"], (id) => blocked.has(id))).toBe(true);
+    expect(gameHasBlockedPlayer(["asha", "cleo"], (id) => blocked.has(id))).toBe(false);
+    expect(gameHasBlockedPlayer([], (id) => blocked.has(id))).toBe(false);
+  });
+  it("the Home page drops the whole game and no longer blanks the winner (that read as 'Everyone broke even')", () => {
+    const page = readFileSync("src/app/(home)/page.tsx", "utf8");
+    expect(page).toContain("gameHasBlockedPlayer(");
+    expect(page).toContain('winner: top && top.net > 0 ? name(top.memberId) : "",');
+  });
+});
+
+describe("L-7: search never shows a blocked person to the session's account, even through a phone-only row", () => {
+  it("Asha is signed in on a phone that is only a guest name in the group: Ben (who she blocked) is not found; signed out he is", async () => {
+    const t = await crew("l7");
+    const guest = await db.member.create({ data: { name: "Guest phone", groupId: t.g.id } });
+    await blockAccount(t.asha.id, t.ben.id);
+    const mine = { [t.g.id]: guest.id };
+    await signedInAs(t.asha);
+    expect((await searchPeople(mine, t.g.id, "benl7")).map((f) => f.accountId)).toEqual([]);
+    expect((await searchPeople(mine, t.g.id, "cleol7")).map((f) => f.accountId)).toEqual([t.cleo.id]);
+    state.session = "";
+    expect((await searchPeople(mine, t.g.id, "benl7")).map((f) => f.accountId)).toEqual([t.ben.id]);
+  });
+});
+
+describe("wording", () => {
+  it("the privacy page says when the notes are erased", () => {
+    expect(readFileSync("src/app/privacy/page.tsx", "utf8")).toContain("it’s erased when they unblock or delete their own account.");
   });
 });

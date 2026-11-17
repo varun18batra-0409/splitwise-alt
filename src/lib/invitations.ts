@@ -1,9 +1,10 @@
 import { db } from "./db";
 import { logEvent } from "./events";
 import { isGroupAdmin } from "./group-admin";
-import { blockedByMe } from "./blocks";
+import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
 import { copyPushTo, inviteMemberId } from "./invites";
 import { joinExisting, joinNew, NAME_NEEDED, type JoinFail, type JoinOk } from "./join";
+import { clearRemovalMark, removedByEmail } from "./removal-marks";
 import { claimDirectInvite } from "./direct-db";
 import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, undoViewerFor } from "./undo";
 
@@ -51,8 +52,8 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     }),
   ]);
   const out: Invitation[] = [];
-  // An invitation from someone this person blocked doesn't show (the name stays in the group, so the money still works).
-  const blocked = new Set(await blockedByMe(account.id));
+  // An invitation from someone with a block between them and this person (either way) doesn't show (the name stays in the group, so the money still works).
+  const blocked = await blockedEitherWay(account.id);
   const fromBlocked = (members: { id: string; accountId: string | null }[], inviterMemberId: string) => {
     const a = members.find((m) => m.id === inviterMemberId)?.accountId;
     return Boolean(a && blocked.has(a));
@@ -67,6 +68,12 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     if (own && !ownBack) continue;
     // A removed person's only counts if the admin sent it AFTER the removal (an older one was closed by the removal, and never counts).
     if (own?.removedAt && (i.createdAt.getTime() < own.removedAt.getTime() || !(await isGroupAdmin(g.id, i.invitedById)))) continue;
+    // Removed by the admin, then deleted their account and signed up again: only an invitation the admin sent after the removal can be
+    // accepted (acceptInvitation refuses the rest), so the others are not shown.
+    if (!own) {
+      const mark = await removedByEmail(g.id, account.email);
+      if (mark && (i.createdAt.getTime() < mark.at.getTime() || !(await isGroupAdmin(g.id, i.invitedById)))) continue;
+    }
     const memberId = g.members.find((m) => m.id === inviteMemberId(i) && (own ? m.id === own.id : !m.removedAt && !m.accountId && !m.leftAt))?.id ?? "";
     // Their name was taken out of the group again (or taken by someone else): nothing to answer any more.
     if (!memberId) continue;
@@ -99,6 +106,13 @@ export async function invitationFor(account: Account | null, groupId: string): P
 
 class InviteClosed extends Error {}
 
+// Is there a block (either way) between this account and the account behind a member row (the person who added or invited them)?
+async function blockedWith(accountId: string, memberId: string): Promise<boolean> {
+  if (!memberId) return false;
+  const by = await db.member.findUnique({ where: { id: memberId }, select: { accountId: true } });
+  return Boolean(by?.accountId && (await isBlockedEitherWay(accountId, by.accountId)));
+}
+
 export type Answer = { ok: true; groupId: string; memberId: string } | { ok: false; error: string; movedOut?: { groupId: string; memberId: string } };
 const GONE = "This invitation is no longer there.";
 const CLOSED = "This invitation is no longer open.";
@@ -108,11 +122,15 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
   if (key.startsWith("m:")) {
     const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, leftAt: null, removedAt: null, group: { deletedAt: null } } });
     if (!m) return { ok: false, error: GONE };
+    // A block either way with whoever added them: the invitation is gone (nothing is written).
+    if (await blockedWith(account.id, m.addedBy)) return { ok: false, error: GONE };
     await db.member.updateMany({ where: { id: m.id, seenAt: null, leftAt: null, removedAt: null }, data: { seenAt: new Date() } });
     return { ok: true, groupId: m.groupId, memberId: m.id };
   }
   const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email }, include: { group: { select: { id: true, inviteCode: true, deletedAt: true, type: true } } } }) : null;
   if (!inv || inv.group.deletedAt) return { ok: false, error: GONE };
+  // A block either way with whoever sent it: the invitation is gone (nothing is written).
+  if (await blockedWith(account.id, inv.invitedById)) return { ok: false, error: GONE };
   // Closed on purpose (Not now, cancelled by the person who sent it, or replaced by an invitation to another address).
   if (inv.declinedAt && !inv.acceptedAt) return { ok: false, error: CLOSED };
   // Someone shared expenses with you directly: the name row becomes you (and the pair's key becomes the two of you) in one step.
@@ -126,7 +144,8 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
   // The invitation is for one row. If that row is gone (undone) or was removed, there is nothing to join: no joining as someone new instead.
   // The invitation itself is left as it is, so if the row comes back (Redo) the card comes back with it.
   const row = memberId ? await db.member.findFirst({ where: { id: memberId, groupId: inv.groupId } }) : null;
-  if (!row || (row.removedAt && row.accountId !== account.id)) return { ok: false, error: CLOSED };
+  // A name that has left is never taken over by another account either (AS-5).
+  if (!row || ((row.removedAt || row.leftAt) && row.accountId !== account.id)) return { ok: false, error: CLOSED };
   let r: JoinOk | JoinFail;
   if (row.accountId === account.id) {
     // Their own row. Closing the invitation and clearing the left / removed mark happen in ONE step, each guarded on what was read:
@@ -169,9 +188,18 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
     await copyPushTo(account.id, row.id);
     return { ok: true, groupId: inv.groupId, memberId: row.id };
   } else {
+    // Removed by the admin, then deleted their account and signed up again: only an invitation the admin sent AFTER the removal lets them in,
+    // and accepting it clears the group's scrambled note of their email (removal-marks.ts).
+    const mark = await removedByEmail(inv.groupId, account.email);
+    if (mark && (inv.createdAt.getTime() < mark.at.getTime() || !(await isGroupAdmin(inv.groupId, inv.invitedById)))) {
+      const by = mark.by ? (await db.member.findFirst({ where: { id: mark.by, groupId: inv.groupId }, select: { name: true } }))?.name : "";
+      return { ok: false, error: `${by || "The person who looks after the group"} removed you from this group. Ask them to invite you again.` };
+    }
     // Link their name row if it is still free; if someone else took that name meanwhile, join as themselves (a new row, with their own name).
-    r = await joinExisting(code, account, memberId);
-    if (!r.ok && r.reason === "claimed") r = await joinNew(code, account, account.name);
+    const skipRemovalMark = Boolean(mark);
+    r = await joinExisting(code, account, memberId, { skipRemovalMark });
+    if (!r.ok && r.reason === "claimed") r = await joinNew(code, account, account.name, { skipRemovalMark });
+    if (r.ok && mark) await clearRemovalMark(inv.groupId, account.email);
   }
   if (!r.ok) {
     return { ok: false, error: r.reason === "name" ? NAME_NEEDED : r.reason === "removed" ? `${r.adminName || "The person who looks after the group"} removed you from this group. Ask them to invite you again.` : GONE };

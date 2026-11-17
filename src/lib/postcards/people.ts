@@ -43,3 +43,19 @@ export async function canSendTo(accountId: string, toIds: string[]): Promise<Set
   const ok = new Set(groups.flatMap((g) => g.people.map((p) => p.id)));
   return new Set(toIds.filter((id) => ok.has(id)));
 }
+
+// The group a postcard may be tagged to, one answer per person it goes to. A card carries its group only when BOTH people are in it
+// right now (really joined, not left, not removed, group not deleted, not a pair); otherwise that card carries none. So a card can
+// never name a group the other person isn't in, or one the sender has left.
+export async function postcardGroupTags(senderId: string, rawGroupId: string, toIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>(toIds.map((id) => [id, ""]));
+  if (!rawGroupId || !toIds.length) return out;
+  const rows = await db.member.findMany({
+    where: { groupId: rawGroupId, accountId: { in: [senderId, ...toIds] }, leftAt: null, removedAt: null, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null } },
+    select: { accountId: true },
+  });
+  const inGroup = new Set(rows.map((r) => r.accountId));
+  if (!inGroup.has(senderId)) return out;
+  for (const id of toIds) if (inGroup.has(id)) out.set(id, rawGroupId);
+  return out;
+}

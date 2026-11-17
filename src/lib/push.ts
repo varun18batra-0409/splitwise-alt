@@ -6,8 +6,9 @@ import { db } from "./db";
 import { pushHostForLog, validSub } from "./push-subs";
 import { isBigExpense } from "./big-expense";
 import { JOINED } from "./membership";
-import { blockersOf } from "./blocks";
+import { blockedEitherWay } from "./blocks";
 import { moveOutPaymentIds } from "./payment-change";
+import { allow } from "./rate-limit";
 
 // Phone notifications (Web Push). When someone changes something in a group,
 // everyone else in it who turned notifications on gets a short message.
@@ -118,9 +119,9 @@ export async function sendEventPush(eventId: string): Promise<number> {
       db.pushSubscription.findMany({ where: { memberId: ev.actorId }, select: { endpoint: true } }),
     ]);
     const actorPhones = new Set(own.map((o) => o.endpoint));
-    // Anyone who blocked the person who did this hears nothing about it (the group's money and activity list are unchanged).
+    // Blocking works both ways: neither a person who blocked the actor nor one the actor blocked hears about it (the group's money and activity list are unchanged).
     const actorAccountId = (await db.member.findUnique({ where: { id: ev.actorId }, select: { accountId: true } }))?.accountId;
-    const blockers = actorAccountId ? await blockersOf(actorAccountId) : new Set<string>();
+    const blockers = actorAccountId ? await blockedEitherWay(actorAccountId) : new Set<string>();
     // Both must agree: the person's account choices and the group's own settings.
     const prefs = await accountPrefs(all.map((s) => s.member.accountId));
     const item = eventItem(ev.kind);
@@ -187,16 +188,33 @@ async function usable(s: { endpoint: string; p256dh: string; auth: string }): Pr
 
 // Send a message to particular people (reminders, budget alerts…), on every
 // phone they turned notifications on for in that group. Never throws.
-// fromMemberId: the person whose action this is about (a reaction, "I've paid", going shopping). Anyone who has
-// blocked that person's account isn't told.
-export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }, item: ItemId, fromMemberId?: string): Promise<number> {
+// fromMemberId: the person whose action this is about (a reaction, "I've paid", going shopping). Nobody with a block
+// between them and that person's account (either way round) is told.
+// opts.includeLeft: also people who have left (about their own money: payment alerts, reminders of what they owe).
+// opts.allowBlocked: payment alerts still reach people with a block between them (a wrong payment must be catchable).
+export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }, item: ItemId, fromMemberId?: string, opts: { includeLeft?: boolean; allowBlocked?: boolean } = {}): Promise<number> {
   try {
     if (memberIds.length === 0) return 0;
-    const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds }, member: JOINED }, include: { member: { select: { notify: true, accountId: true } } } });
+    // People who left, or were removed (their leftAt/removedAt is set), hear nothing unless it is about their own money.
+    const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds }, member: { ...JOINED, ...(opts.includeLeft ? {} : { leftAt: null, removedAt: null }) } }, include: { member: { select: { notify: true, accountId: true } } } });
     const fromAccountId = fromMemberId ? (await db.member.findUnique({ where: { id: fromMemberId }, select: { accountId: true } }))?.accountId : null;
-    const blockers = fromAccountId ? await blockersOf(fromAccountId) : new Set<string>();
+    const blockers = fromAccountId ? await blockedEitherWay(fromAccountId) : new Set<string>();
     const prefs = await accountPrefs(subs.map((s) => s.member.accountId));
-    const wanted = subs.filter((s) => !(s.member.accountId && blockers.has(s.member.accountId)) && bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, !parseNotify(s.member.notify).off));
+    // Where the payment-alert exemption really gets past a block, it is limited per pair: at most 6 an hour from one person to one
+    // other. Beyond that the alert is dropped quietly (the payment itself is always recorded and shown in the group).
+    const charged = new Map<string, boolean>();
+    const wanted: typeof subs = [];
+    for (const s of subs) {
+      const to = s.member.accountId;
+      const blockedPair = Boolean(to && blockers.has(to));
+      if (blockedPair && !opts.allowBlocked) continue;
+      if (!bothAllow(to ? prefs.get(to) : "", "push", item, !parseNotify(s.member.notify).off)) continue;
+      if (blockedPair && fromAccountId && to) {
+        if (!charged.has(to)) charged.set(to, await allow(`payalert:${fromAccountId}:${to}`, 6, 3600));
+        if (!charged.get(to)) continue;
+      }
+      wanted.push(s);
+    }
     if (wanted.length === 0) return 0;
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });

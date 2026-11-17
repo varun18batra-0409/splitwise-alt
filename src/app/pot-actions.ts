@@ -4,6 +4,7 @@ import { redirect } from "@/lib/fresh-redirect";
 import { getMyMemberId } from "@/lib/identity";
 import { db } from "@/lib/db";
 import { cleanKey } from "@/lib/once";
+import { PAY_CHANGE_LIMIT_TEXT, payChangeOk } from "@/lib/pay-limit";
 import { getTimeZone } from "@/lib/tz";
 import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 import { flashTo } from "@/lib/flash";
@@ -132,6 +133,7 @@ export async function renamePlayerAction(f: FormData) {
 export async function markGamePaidAction(f: FormData) {
   const gameId = field(f, "gameId");
   const { groupId, myId } = await me(await gameGroup(gameId));
+  if (!(await payChangeOk(myId))) redirect(back(groupId, gameId, { error: PAY_CHANGE_LIMIT_TEXT }));
   const { markGamePaid } = await import("@/lib/pot-db");
   const { cleanKey } = await import("@/lib/once");
   const r = await markGamePaid(gameId, myId, cleanKey(f.get("rid")) ?? "");

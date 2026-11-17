@@ -126,6 +126,7 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     return false;
   }
   if (opts.ops && !(await allow(counter("mail:ops"), OPS_MAIL_PER_DAY, 86_400))) return false;
+  await noteHalfAllowance(cap);
   if (opts.suppress) return true;
   const message = {
     from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`,
@@ -148,6 +149,24 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   }
   await noteFailure("send");
   return false;
+}
+
+// Once a day, when half of the day's email allowance has been used, one line goes to the error list (no addresses, no names), so
+// the operator hears about a busy day before the allowance runs out. Never throws.
+async function noteHalfAllowance(cap: number): Promise<void> {
+  try {
+    const { db } = await import("./db");
+    const row = await db.rateLimit.findUnique({ where: { key: counter("mail:all") } });
+    if (!row || row.count < Math.ceil(cap / 2)) return;
+    try {
+      await db.notifyLog.create({ data: { key: counter(`mail-half:${new Date().toISOString().slice(0, 10)}`) } });
+    } catch {
+      return; // already noted today
+    }
+    await db.errorLog.create({ data: { path: "mail", message: "half of today's email allowance used" } });
+  } catch {
+    // noting it must never get in the way of the email
+  }
 }
 
 // A failed email is counted (when and why, never to whom), so the live stats

@@ -15,6 +15,7 @@ import { GroupCover } from "@/components/GroupCover";
 import { tripPhotoSrc } from "@/lib/places";
 import { inviteMemberId } from "@/lib/invites";
 import { invitedNameRows, NAME_NEEDED } from "@/lib/join";
+import { removedByEmail } from "@/lib/removal-marks";
 import type { Metadata } from "next";
 import { ChevronDown, GroupIcon } from "@/components/icons";
 
@@ -63,10 +64,12 @@ export default async function JoinPage({
   const memberships = await getMemberships();
   // Taken out of this group by whoever looks after it: the link doesn't bring them back in.
   const removedMe = account ? group.members.find((m) => m.accountId === account.id && m.removedAt) : undefined;
-  if (removedMe) {
+  // Removed, then deleted their account and signed up again with the same email: the group kept a scrambled note, so it is the same screen.
+  const removedNote = account && !removedMe && !group.members.some((m) => m.accountId === account.id) ? await removedByEmail(group.id, account.email) : null;
+  if (removedMe || removedNote) {
     // The admin invited them back: that invitation is answered from Home (Join / Not now), which clears the removal when they accept.
     if (account && (await invitationFor(account, group.id))) redirect("/");
-    const by = group.members.find((m) => m.id === removedMe.removedById)?.name ?? pickAdmin(group.members)?.name ?? "The person who looks after the group";
+    const by = group.members.find((m) => m.id === (removedMe?.removedById ?? removedNote?.by))?.name ?? pickAdmin(group.members)?.name ?? "The person who looks after the group";
     return (
       <section className="vault mt-10 rounded-[24px] px-6 py-10 text-center" data-join-removed>
         <p className="font-display text-[26px] font-semibold leading-tight tracking-tight">{group.name}</p>
@@ -120,6 +123,7 @@ export default async function JoinPage({
 
       {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
       {error === "name" && <ErrorNote>{NAME_NEEDED}</ErrorNote>}
+      {error === "left" && <ErrorNote>That name has left this group, so it can’t be taken over. Join as yourself instead.</ErrorNote>}
       {error === "claimed" && <ErrorNote>That name is already taken by someone else. Join as yourself instead.</ErrorNote>}
 
       {!account ? (

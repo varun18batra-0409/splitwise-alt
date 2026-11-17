@@ -14,7 +14,8 @@ export async function sendPassportAction(f: FormData) {
   if (!passportShared(me!)) redirect("/passport/send?error=private");
   const to = await canSendTo(me!.id, [...new Set(f.getAll("to").map(String))].slice(0, 60));
   if (!to.size) redirect("/passport/send?error=none");
-  if (!(await allow(`passport-send:${me!.id}`, 40, 86_400))) redirect("/passport/send?error=limit");
+  // 80 people a day: each person it goes to counts one, so a send to 60 people uses 60 of the 80.
+  if (!(await allow(`passport-send:${me!.id}`, 80, 86_400, undefined, to.size))) redirect("/passport/send?error=limit");
   const who = me!.name.trim().split(/\s+/)[0] || "A friend";
   await deliverNotes([{ accountIds: [...to], kind: "passport", title: `${who} sent you their passport`, body: "See where they’ve been.", url: `/passport/friends/${me!.id}`, tag: `passport-${me!.id}`, fromAccountId: me!.id }]);
   redirect(`/passport?sent=${to.size}`);

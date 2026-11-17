@@ -74,7 +74,7 @@ export async function sendReminders(now = new Date(), stop: () => boolean = () =
         for (const r of planFor(today, legacyBills)) {
           const to = r.memberIds.filter((m) => mine.has(m));
           if (to.length) {
-            sent += await sendPushTo(to, r, remindItem(r.tag));
+            sent += await sendPushTo(to, r, remindItem(r.tag), undefined, { includeLeft: !r.tag.startsWith("bill-") });
             await markSentByOldPath(key, to, now);
           }
         }
@@ -88,7 +88,7 @@ export async function sendReminders(now = new Date(), stop: () => boolean = () =
         const personKey = `reminders:${p.today}:${id}:m:${p.id}`;
         if (await coveredByOldRecord(`reminders:${p.today}:${id}`, now, p.id)) continue;
         if (!(await claimJob(personKey, now))) continue;
-        for (const r of plan) sent += await sendPushTo([p.id], r, remindItem(r.tag));
+        for (const r of plan) sent += await sendPushTo([p.id], r, remindItem(r.tag), undefined, { includeLeft: !r.tag.startsWith("bill-") });
         await finishJob(personKey);
       }
     }

@@ -2,6 +2,9 @@ import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { db } from "./db";
 import { allow } from "./rate-limit";
 import { sendMail, mailConfigured } from "./mail";
+import { emailFingerprint } from "./fingerprint";
+import { markBlocksOfDeleted, reapplyBlocks, dropBlockMarksOf } from "./block-marks";
+import { markRemovals } from "./removal-marks";
 
 // Optional email sign-in with a 6-digit code (also sent as a one-tap link).
 // A code works once, for 15 minutes, with at most 5 tries.
@@ -22,6 +25,9 @@ export function hashLoginCode(email: string, code: string): string {
   return createHash("sha256").update(`${pepper}:${email}:${code}`).digest("hex");
 }
 
+// A keyed fingerprint of an email (never the email itself): see fingerprint.ts.
+export { emailFingerprint };
+
 export type CodeResult = { ok: true } | { ok: false; error: string };
 
 export async function requestLoginCode(rawEmail: string, ip: string, origin: string, now = new Date(), back = "/"): Promise<CodeResult> {
@@ -32,6 +38,10 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
   const testing = (process.env.MAIL_OUTBOX === "1" && !process.env.VERCEL) || (process.env.VERCEL_ENV === "preview" && /\.test$/i.test(email));
   if (!testing && (!(await allow(`code-ip:${ip}`, 8, 15 * 60, now)) || !(await allow(`code-email:${email}`, 4, 15 * 60, now)))) {
     return { ok: false, error: "Too many codes asked for. Wait 15 minutes and try again." };
+  }
+  // One connection can ask for at most 20 codes a day (any addresses).
+  if (!testing && !(await allow(`code-ip-day:${ip}`, 20, 86_400, now))) {
+    return { ok: false, error: "Too many codes asked for from here today. Try again tomorrow, or sign in with Google or your fingerprint or face above." };
   }
   // At most 12 codes a day for one address (5 tries each): guessing a code stays hopeless.
   if (!testing && !(await allow(`code-email-day:${email}`, 12, 86_400, now))) {
@@ -82,8 +92,42 @@ export async function verifyLoginCode(rawEmail: string, rawCode: string, now = n
   }
   const used = await db.loginCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
   if (used.count !== 1) return { ok: false, error: "That code was already used. Ask for a new one." };
-  const account = await db.account.upsert({ where: { email }, create: { email }, update: {} });
+  let account;
+  try {
+    account = await accountForEmail(email);
+  } catch (err) {
+    if (err instanceof AccountSetupError) return { ok: false, error: ACCOUNT_SETUP_FAILED };
+    throw err;
+  }
   return { ok: true, accountId: account.id };
+}
+
+// The account for this verified email, made if it is new. A new account gets back the blocks people had against that address
+// (block-marks.ts), so deleting an account and signing up again does not undo a block.
+export const ACCOUNT_SETUP_FAILED = "Couldn’t finish setting up your account. Wait a minute, then ask for a new code and try again.";
+export class AccountSetupError extends Error {
+  constructor() {
+    super(ACCOUNT_SETUP_FAILED);
+  }
+}
+export async function accountForEmail(email: string, name?: string) {
+  const found = await db.account.findUnique({ where: { email } });
+  if (found) return found;
+  try {
+    // The account and the blocks people had against this address are made in ONE step: if putting the blocks back fails, no account is
+    // made (nothing to undo), never an account that quietly has none of them.
+    return await db.$transaction(async (tx) => {
+      const made = await tx.account.create({ data: { email, ...(name ? { name } : {}) } });
+      await reapplyBlocks(tx, made.id, email);
+      return made;
+    }, { timeout: 30000 }); // the same allowance as deleting an account: someone blocked by many people still gets in
+  } catch {
+    // Two sign-ups for the same email at the same moment: the second one's insert fails (the email is unique) and it is rolled back
+    // whole, so it uses the first one's account, which put the blocks back exactly once in its own step.
+    const winner = await db.account.findUnique({ where: { email } });
+    if (winner) return winner;
+    throw new AccountSetupError();
+  }
 }
 
 // "Delete my account": the email and sign-in codes are removed; group
@@ -116,6 +160,8 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       const goneIds = photoIds.filter((p) => !stillUsed.has(p));
       const goneFiles = (await tx.postcardPhoto.findMany({ where: { id: { in: goneIds } }, select: { blobKey: true } })).map((p) => p.blobKey);
       await queuePhotoDeletes(tx, goneFiles);
+      // Groups that removed this person keep a scrambled note of the email, so signing up again doesn't walk back in (removal-marks.ts).
+      await markRemovals(tx, accountId, acc.email);
       // Each name gets a new grant epoch, so old copies of this phone-only access elsewhere stop working (SEC-01).
       await tx.member.updateMany({ where: { accountId }, data: { accountId: null, grantEpoch: { increment: 1 } } });
       await tx.loginCode.deleteMany({ where: { email: acc.email } });
@@ -138,6 +184,10 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       // Blocks you made or that were made against you go with the account (reports stay: they are the record of what was reported).
       // Messages this account sent to support go with it (reports stay, as they are the record of what was reported).
       await tx.report.deleteMany({ where: { kind: "support", reporterId: accountId } });
+      // Whoever blocked this person keeps a scrambled note of the email (so the block comes back if they sign up again); the notes this
+      // person held as a blocker go with their account.
+      await markBlocksOfDeleted(tx, accountId, acc.email);
+      await dropBlockMarksOf(tx, accountId);
       await tx.block.deleteMany({ where: { OR: [{ blockerId: accountId }, { blockedId: accountId }] } });
       await tx.collectionEntry.updateMany({ where: { accountId }, data: { accountId: "" } });
       await tx.account.delete({ where: { id: accountId } });

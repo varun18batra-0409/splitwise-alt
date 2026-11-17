@@ -165,17 +165,31 @@ describe("3: the sender of an open invitation is kept", () => {
     const guest = await account("Guest3");
     await inviteByEmail(t.g.id, t.meeraId, guest.email, origin);
     const rowId = (await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: guest.email } })).memberId;
-    await inviteByEmail(t.g.id, t.ashaId, guest.email, origin); // Asha asks again
-    expect((await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: guest.email } })).invitedById).toBe(t.meeraId);
-    expect(await inviteToClaim(t.g.id, t.ashaId, rowId, guest.email, origin)).toEqual({ ok: true, email: guest.email }); // same email again
-    expect((await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: guest.email } })).invitedById).toBe(t.meeraId);
+    const sender = async () => (await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: guest.email } })).invitedById;
+    await inviteByEmail(t.g.id, t.thirdId, guest.email, origin); // Third (not the admin) asks again
+    expect(await sender()).toBe(t.meeraId);
+    expect(await inviteToClaim(t.g.id, t.meeraId, rowId, guest.email, origin)).toEqual({ ok: true, email: guest.email }); // same email again, by the sender
+    expect(await sender()).toBe(t.meeraId);
 
-    expect((await cancelInvitation(t.g.id, t.ashaId, rowId)).ok).toBe(true); // closed
-    await inviteByEmail(t.g.id, t.ashaId, guest.email, origin); // a new invitation
+    expect((await cancelInvitation(t.g.id, t.thirdId, rowId)).ok).toBe(false); // Third didn't send it and isn't the admin
+    expect((await cancelInvitation(t.g.id, t.meeraId, rowId)).ok).toBe(true); // closed
+    await inviteByEmail(t.g.id, t.thirdId, guest.email, origin); // a new invitation
     const again = await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: guest.email } });
-    expect(again.invitedById).toBe(t.ashaId);
+    expect(again.invitedById).toBe(t.thirdId);
     expect(again.declinedAt).toBeNull();
     expect(again.memberId).toBe(rowId);
+  });
+
+  // The person who looks after the group (Asha) takes an open invitation over: a removed person who signed up again only gets back in
+  // through an invitation the admin sent (invitations.ts), so the admin asking again has to make it theirs. (Deliberate, Safety part B.)
+  it("the admin asking again takes an open invitation over", async () => {
+    const t = await trip("i3b");
+    const guest = await account("Guest3b");
+    await inviteByEmail(t.g.id, t.meeraId, guest.email, origin);
+    await inviteByEmail(t.g.id, t.ashaId, guest.email, origin); // Asha is the admin
+    expect((await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: guest.email } })).invitedById).toBe(t.ashaId);
+    await inviteByEmail(t.g.id, t.meeraId, guest.email, origin); // and now Meera asking again doesn't take it back
+    expect((await db.invite.findFirstOrThrow({ where: { groupId: t.g.id, email: guest.email } })).invitedById).toBe(t.ashaId);
   });
 });
 

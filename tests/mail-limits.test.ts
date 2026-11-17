@@ -259,10 +259,12 @@ describe("asking for a sign-in code: 12 a day", () => {
 
     const results: Record<string, unknown[]> = { known: [], unknown: [] };
     // 20 minutes apart: well inside one day, but past the separate 4-every-15-minutes limit.
+    // Each address asks from its own connection: one connection may only ask for 20 codes a day (join-claims.test.ts), and this
+    // test is about the 12 a day for one address (13 each, not 26 from one place).
     for (let i = 0; i < 13; i++) {
       setClock(T0 + i * 20 * 60_000);
       results.known.push(await requestLoginCode(known, "10.0.0.2", ORIGIN, new Date()));
-      results.unknown.push(await requestLoginCode(unknown, "10.0.0.2", ORIGIN, new Date()));
+      results.unknown.push(await requestLoginCode(unknown, "10.0.0.3", ORIGIN, new Date()));
     }
     expect(results.known).toEqual(results.unknown);
     expect(results.known.slice(0, 12).every((r) => (r as { ok: boolean }).ok)).toBe(true);

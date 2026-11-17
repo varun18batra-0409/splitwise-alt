@@ -81,6 +81,8 @@ export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Pr
       await tx.potMove.deleteMany({ where: { game: inG() } });
       await tx.potGame.deleteMany({ where: inG() });
       await tx.member.deleteMany({ where: inG() });
+      // The scrambled notes of removed people who deleted their sign-in (removal-marks.ts) go with the group.
+      await tx.appSetting.deleteMany({ where: { OR: ids.map((id) => ({ key: { startsWith: `removed:${id}:` } })) } });
       await tx.group.deleteMany({ where: { id: { in: ids } } });
     },
     { timeout: 30000 },

@@ -20,7 +20,7 @@ export const SESSION_MAX_DAYS = 365;
 
 const enc = new TextEncoder();
 
-function secret(): string {
+export function secret(): string {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
   if (process.env.TURSO_AUTH_TOKEN) return `loopin-session:${process.env.TURSO_AUTH_TOKEN}`;
   // The live app never signs sessions with a string that is written in the code.

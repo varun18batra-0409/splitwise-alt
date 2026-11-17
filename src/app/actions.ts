@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
+import { PAY_CHANGE_LIMIT_TEXT, isPaymentChangeEvent, payChangeOk } from "@/lib/pay-limit";
 import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
 import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
@@ -212,7 +213,7 @@ async function finishJoin(groupId: string, memberId: string, accountId: string, 
 
 // Where a refused join goes: the join page says it calmly.
 function joinRefused(code: string, r: JoinFail): never {
-  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : r.reason === "name" ? "?error=name" : ""}`);
+  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : r.reason === "name" ? "?error=name" : r.reason === "left" ? "?error=left" : ""}`);
 }
 
 // "That's me": claim a name someone added before invitations existed.
@@ -330,6 +331,7 @@ export async function removePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
+  if (memberships[groupId] && !(await payChangeOk(memberships[groupId]))) redirect(await flashTo(["groups", groupId], { error: PAY_CHANGE_LIMIT_TEXT }, { tab: "activity" }));
   const r = await deletePayment(paymentId, memberships[groupId], { memberships });
   redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
 }
@@ -339,6 +341,7 @@ export async function restorePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
+  if (memberships[groupId] && !(await payChangeOk(memberships[groupId]))) redirect(await flashTo(["groups", groupId], { error: PAY_CHANGE_LIMIT_TEXT }, { tab: "activity" }));
   const r = await setPaymentDeleted(paymentId, memberships[groupId], false, { memberships });
   redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
 }
@@ -349,7 +352,10 @@ export async function undoChange(formData: FormData) {
   const eventId = String(formData.get("eventId") ?? "");
   const back = String(formData.get("back") ?? "group");
   const memberships = await getMemberships();
-  const r = await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships });
+  // Undoing or redoing a payment change is a payment change too: the same limit, checked before anything is written.
+  const ev = /^[A-Za-z0-9_-]{6,40}$/.test(eventId) ? await db.groupEvent.findUnique({ where: { id: eventId }, select: { groupId: true, kind: true, paymentId: true, undo: true } }) : null;
+  const limited = Boolean(ev && ev.groupId === groupId && isPaymentChangeEvent(ev) && memberships[groupId] && !(await payChangeOk(memberships[groupId])));
+  const r: Awaited<ReturnType<typeof undoEvent>> = limited ? { ok: false, error: PAY_CHANGE_LIMIT_TEXT } : await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships });
   const notes: Notes = r.ok ? {} : { error: r.error };
   const done: Record<string, string> = r.ok ? { undone: "1", ...(r.eventId ? { did: r.eventId } : {}) } : {};
   if (back === "home") redirect(await flashTo("/", notes, { ...done, g: groupId }));
@@ -547,6 +553,8 @@ export async function settleAcrossGroups(formData: FormData) {
     redirect("/settle?settle=error");
   }
   const { settleAcrossCore } = await import("@/lib/cross-settle-db");
+  const limitKey = (await getAccount())?.id ?? Object.values(await getMemberships()).sort()[0];
+  if (limitKey && !(await payChangeOk(limitKey))) redirect("/settle?settle=busy");
   const r = await settleAcrossCore(parts, await getMemberships(), cleanKey(formData.get("rid")));
   // The person's own page asks to come back to it ("people:<pairId>"); only a pair id from the parts themselves is accepted.
   const back = String(formData.get("back") ?? "");
@@ -592,6 +600,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (ks.state === "stale") await back(STALE_KEY_ERROR);
   if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
 
+  if (!(await payChangeOk(myId))) await back(PAY_CHANGE_LIMIT_TEXT);
   // More than they (or the person paid) can owe each other (often a typo with an extra zero): asked once, checked inside the write.
   const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && !(formData.get("over") === "1" && formData.get("overFor") === overKey(fromId, toId, amount!)) });
   if (r.kind === "refused") await back(r.error);
@@ -664,6 +673,7 @@ export async function settleEverything(formData: FormData) {
   if (group.type === "direct") redirect(`/people/${group.id}`); // a pair is never closed (the lib refuses too)
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!(await payChangeOk(myId))) redirect(await flashTo(["groups", group.id], { error: PAY_CHANGE_LIMIT_TEXT }, { tab: "balances" }));
   const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
   if (!r.ok) redirect(await flashTo(["groups", group.id], { error: r.error }, { tab: "balances" }));
   redirect(`/?closed=1&did=${r.eventId}&g=${group.id}`);

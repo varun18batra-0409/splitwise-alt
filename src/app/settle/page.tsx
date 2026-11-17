@@ -10,6 +10,7 @@ import { differentAmountFor, filledActionClass, outlineButtonClass, PayAppButton
 import { crossActionLabel, crossPreview, settleRowId } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
 import { STALE_KEY_ERROR } from "@/lib/once";
+import { PAY_CHANGE_LIMIT_TEXT } from "@/lib/pay-limit";
 import { FreshKey } from "@/components/FreshKey";
 import { PageHeader } from "@/components/ui";
 import { SquareSeal } from "@/components/DrawnIcons";
@@ -401,6 +402,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       {notice === "changed" && <Notice params={["settle"]} className="mb-3">Balances just changed. Here’s the latest.</Notice>}
       {notice === "stale" && <Notice tone="error" params={["settle"]} className="mb-3">{STALE_KEY_ERROR}</Notice>}
       {notice === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
+      {notice === "busy" && <Notice tone="error" params={["settle"]} className="mb-3">{PAY_CHANGE_LIMIT_TEXT}</Notice>}
 
       {all.length === 0 && direct.length === 0 ? (
         <p className="rounded-[20px] border border-line bg-white px-4 py-8 text-center text-sm text-fg/60">

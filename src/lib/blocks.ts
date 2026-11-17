@@ -1,7 +1,9 @@
 import { db } from "./db";
+import { markBlock, unmarkBlock } from "./block-marks";
 
-// Blocking: one person stops hearing from another. It only ever affects what people send each other directly
-// (postcards, passports, nudges, their pushes). Groups, expenses and balances are never touched.
+// Blocking works both ways: neither person can find, add, invite, send to or hear from the other (postcards, passports, nudges,
+// invitations, their notifications and Alerts). Payment alerts are the one exception (they still arrive, so a wrong payment can be
+// caught). Groups, expenses and balances are never touched.
 
 // Everyone this person has blocked.
 export async function blockedByMe(accountId: string): Promise<string[]> {
@@ -26,12 +28,6 @@ export async function hasBlocked(blockerId: string, blockedId: string): Promise<
   return Boolean(await db.block.findFirst({ where: { blockerId, blockedId }, select: { id: true } }));
 }
 
-// Everyone who has blocked this person (they are not told about this person's activity).
-export async function blockersOf(accountId: string): Promise<Set<string>> {
-  const rows = await db.block.findMany({ where: { blockedId: accountId }, select: { blockerId: true }, take: 2000 });
-  return new Set(rows.map((r) => r.blockerId));
-}
-
 // May this person open this postcard? The sender always can. The person it went to can't once either of them has blocked
 // the other, even for a card sent before the block.
 export async function canViewPostcard(viewerId: string, card: { fromId: string; toId: string }): Promise<boolean> {
@@ -43,8 +39,11 @@ export async function canViewPostcard(viewerId: string, card: { fromId: string; 
 // Idempotent: blocking twice is the same as once. You can't block yourself or someone who isn't on Loopin.
 export async function blockAccount(blockerId: string, blockedId: string): Promise<boolean> {
   if (!blockerId || !blockedId || blockerId === blockedId) return false;
-  if (!(await db.account.findUnique({ where: { id: blockedId }, select: { id: true } }))) return false;
+  const target = await db.account.findUnique({ where: { id: blockedId }, select: { email: true } });
+  if (!target) return false;
   await db.block.upsert({ where: { blockerId_blockedId: { blockerId, blockedId } }, create: { blockerId, blockedId }, update: {} });
+  // The block survives them deleting their account and signing up again with this email: only a scrambled fingerprint of the email is kept.
+  await markBlock(blockerId, target.email);
   // "Want to go" shares between the two end, both ways. Unblocking does not bring them back: share again if you want to.
   await db.wishShare.deleteMany({ where: { OR: [{ ownerId: blockerId, friendId: blockedId }, { ownerId: blockedId, friendId: blockerId }] } });
   return true;
@@ -52,6 +51,8 @@ export async function blockAccount(blockerId: string, blockedId: string): Promis
 
 export async function unblockAccount(blockerId: string, blockedId: string): Promise<void> {
   await db.block.deleteMany({ where: { blockerId, blockedId } });
+  const target = await db.account.findUnique({ where: { id: blockedId }, select: { email: true } });
+  if (target) await unmarkBlock(blockerId, target.email);
 }
 
 // Have these two people been in a group together? (Used so a report or block can only point at someone you actually know.)

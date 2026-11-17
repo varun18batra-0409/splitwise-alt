@@ -300,3 +300,15 @@ export function passQuip(name: string, p: TripPhase, slot = 0): string | null {
   const turn = p.kind === "before" ? p.days : p.kind === "during" ? p.day : 0;
   return lines[(slot + turn) % lines.length];
 }
+
+// The first names shown on the countdown picture: people really in the group (not left, not removed, not still just "added"), never
+// anyone with a block between them and the viewer (either way). The viewer is always kept. Pure, so it can be tested.
+export function countdownNames(
+  members: { id: string; name: string; accountId: string | null; addedBy: string; seenAt: Date | null; leftAt: Date | null; removedAt?: Date | null }[],
+  viewerMemberId: string,
+  blocked: Set<string>,
+): string[] {
+  return members
+    .filter((m) => m.id === viewerMemberId || (!m.leftAt && !m.removedAt && (m.addedBy === "" || m.seenAt !== null) && !(m.accountId && blocked.has(m.accountId))))
+    .map((m) => m.name.split(" ")[0]);
+}
