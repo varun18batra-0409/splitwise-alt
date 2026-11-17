@@ -145,17 +145,18 @@ export function parsePercent(input: string): number | null {
 
 // ₹ amounts the Indian way (₹1,23,456.50); dollars the US way ($123,456.50);
 // other currencies with their code (THB 3,000).
-export function formatMoney(minor: number, currency = "INR"): string {
+// `keepDecimals` keeps the paise even on a whole amount (₹2,670.00), so a list with some paise lines up. Display-only.
+export function formatMoney(minor: number, currency = "INR", opts?: { keepDecimals?: boolean }): string {
   const d = decimalsOf(currency);
-  const whole = minor % 10 ** d === 0;
-  const opts = { minimumFractionDigits: whole ? 0 : d, maximumFractionDigits: d };
+  const whole = !opts?.keepDecimals && minor % 10 ** d === 0;
+  const fmt = { minimumFractionDigits: whole ? 0 : d, maximumFractionDigits: d };
   if (currency === "INR") {
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency, ...opts }).format(minor / 10 ** d);
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency, ...fmt }).format(minor / 10 ** d);
   }
   if (currency === "USD") {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency, ...opts }).format(minor / 10 ** d);
+    return new Intl.NumberFormat("en-US", { style: "currency", currency, ...fmt }).format(minor / 10 ** d);
   }
-  return `${currency} ${new Intl.NumberFormat("en-US", opts).format(minor / 10 ** d)}`;
+  return `${currency} ${new Intl.NumberFormat("en-US", fmt).format(minor / 10 ** d)}`;
 }
 
 export function formatPercent(bp: number): string {

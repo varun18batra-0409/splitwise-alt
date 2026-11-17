@@ -294,6 +294,7 @@ export default async function Home({
           code: c.code,
           title: c.title,
           paid: pr.paidCount,
+          checked: pr.checked,
           people: pr.people,
           in: formatMoney(pr.confirmedAmount, c.currency),
           reported: pr.reportedAmount > 0 ? formatMoney(pr.reportedAmount, c.currency) : undefined,

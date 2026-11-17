@@ -69,6 +69,23 @@ export function recap(expenses: RecapExpense[]) {
   };
 }
 
+// The rows the recap adds up: expenses only. A card game's result (`pot`) is money moving between players, not spending, so it
+// stays in the list but not in the summary (the same as the Insights chart). `myShare` is what the viewer's share of that
+// expense came to (before the money-back sign).
+type RecapSource = { id: string; kind: string; amount?: number; category?: string; refund?: boolean; pot?: boolean };
+export function recapRows<T extends { item: RecapSource; g: { group: { currency: string } } }>(shown: T[], myShare: (r: T) => number): RecapExpense[] {
+  return shown.flatMap((r) =>
+    r.item.kind === "expense" && !r.item.pot
+      ? [{
+          amount: r.item.refund ? -(r.item.amount ?? 0) : (r.item.amount ?? 0),
+          category: r.item.category ?? "other",
+          currency: r.g.group.currency,
+          mine: (r.item.refund ? -1 : 1) * myShare(r),
+        }]
+      : [],
+  );
+}
+
 // ---------- Insights: the chart on top of Search ----------
 
 export type Grain = "w" | "m" | "y";

@@ -5,6 +5,7 @@ import { getMemberships } from "@/lib/identity";
 import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney, toInputAmount } from "@/lib/money";
+import { listMoney } from "@/lib/money-display";
 import { differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
 import { crossActionLabel, crossPreview, settleRowId } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
@@ -40,7 +41,9 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   const accounts = owedAccounts.length ? await db.account.findMany({ where: { id: { in: owedAccounts } }, select: { id: true, upiId: true, payLink: true } }) : [];
 
   type Item = (typeof settleItems)[number];
-  const amt = (it: Item, n: number) => `${it.converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
+  const amt = (it: Item, n: number, fmt: (minor: number) => string = (x) => formatMoney(x, common)) => `${it.converted ? "≈ " : ""}${fmt(Math.abs(n))}`;
+  // The TO PAY and TO RECEIVE cards: if any has paise, every amount keeps its two decimals so they line up (₹2,670.00 beside ₹30,723.44).
+  const listFmt = listMoney(settleItems.map((it) => Math.abs(it.net)), common);
   // The picture on the stub: the group of this person's biggest part (the first one listed).
   const coverOf = (it: Item): { cover?: StubCover; mark: ReturnType<typeof groupMark> } => {
     const g = all.find((x) => x.group.id === it.parts[0]?.groupId)?.group;
@@ -179,7 +182,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const names = [...new Set(parts.map((p) => p.groupName))];
     const groupLine = names.length <= 2 ? names.join(" · ") : `${names.length} groups`;
     const tone = it.net > 0 ? ("owed" as const) : ("owe" as const);
-    const amount = it.net === 0 ? "Even" : amt(it, it.net);
+    const amount = it.net === 0 ? "Even" : amt(it, it.net, listFmt);
     const pv = crossPreview(it, common);
     // Remind about a part where they owe you (never one where you're the one paying).
     const biggest = [...parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];

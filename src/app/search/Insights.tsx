@@ -2,7 +2,8 @@ import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
 import { compactMoney, signedMoney } from "@/lib/chart-labels";
-import { overviewMoney, signedOverview } from "@/lib/money-display";
+import { overviewMoney, percentsTo100, roundPartsToTotal, signedOverview } from "@/lib/money-display";
+import { recapDiffLabel } from "@/lib/insights";
 import { getCategory } from "@/lib/categories";
 import { bucketLabel, bucketTitle, type Grain } from "@/lib/search";
 
@@ -46,6 +47,10 @@ export function Insights({ d }: { d: InsightsData }) {
   const top = niceMax(Math.max(...d.bars.map((b) => Math.max(0, b.value)), 0));
   const approx = d.converted ? "≈ " : "";
   const totalCat = d.categories.reduce((s, c) => s + Math.max(0, c.amount), 0);
+  // Every category is listed, so the rows add up to the total: percentages to 100, and amounts that add up to the rounded total.
+  const catAmounts = d.categories.map((c) => c.amount);
+  const catPcts = percentsTo100(catAmounts);
+  const catShown = roundPartsToTotal(catAmounts, d.currency);
   // Same look as the rest of Loopin: the group tabs' switch, off-white for what's chosen, green for money bars.
   const pill = (on: boolean) => `flex-1 rounded-full py-2 text-center text-sm ${on ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`;
   const grainChip = (on: boolean) =>
@@ -122,7 +127,7 @@ export function Insights({ d }: { d: InsightsData }) {
               </span>
             </p>
             <p className="px-1">
-              <span className="block text-[11px] text-fg/50">{d.me.net < 0 ? "You owe" : d.me.net > 0 ? "You’re owed" : "Even"}</span>
+              <span className="block text-[11px] text-fg/50">{recapDiffLabel(d.me.net)}</span>
               <span className={`block text-sm font-semibold tabular-nums ${d.me.net < 0 ? "text-owe" : d.me.net > 0 ? "text-owed" : ""}`} title={formatMoney(Math.abs(d.me.net), d.currency)} data-exact={formatMoney(Math.abs(d.me.net), d.currency)}>
                 {approx}
                 {overviewMoney(Math.abs(d.me.net), d.currency)}
@@ -182,9 +187,9 @@ export function Insights({ d }: { d: InsightsData }) {
         <div className="mt-6">
           <h2 className="mb-3 font-display text-lg font-semibold tracking-tight">Where it went</h2>
           <ul className="space-y-3">
-            {d.categories.slice(0, 5).map((c, n) => {
+            {d.categories.map((c, n) => {
               const cat = getCategory(c.id);
-              const pct = totalCat > 0 ? Math.round((Math.max(0, c.amount) / totalCat) * 100) : 0;
+              const pct = catPcts[n] ?? 0;
               return (
                 <li key={c.id}>
                   <Link href={d.catHref ? d.catHref(c.id) : "#"} className="lp-press -mx-2 flex items-center gap-3 rounded-[14px] px-2 py-1 active:bg-mist" data-category-link={c.id}>
@@ -194,7 +199,7 @@ export function Insights({ d }: { d: InsightsData }) {
                       <span className="line-clamp-2 min-w-0 break-words font-medium leading-tight" data-category-name>{cat.label}</span>
                       <span className="shrink-0 tabular-nums text-fg/80" title={formatMoney(c.amount, d.currency)} data-exact={formatMoney(c.amount, d.currency)}>
                         {approx}
-                        {overviewMoney(c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
+                        {overviewMoney(catShown[n] ?? c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
                       </span>
                     </span>
                     <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">

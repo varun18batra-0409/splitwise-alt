@@ -9,6 +9,7 @@ import { loadGroup } from "@/lib/group-data";
 import { canUndo, leaverUndoChecks, ownMoveOut } from "@/lib/undo";
 import { UNDO_MOVE_OUT_EXPLAINER, UndoMoveOutButton, leaverBlockedText } from "../_components/LeftBanner";
 import { formatMoney } from "@/lib/money";
+import { listMoney } from "@/lib/money-display";
 import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { Notice } from "@/components/Notice";
@@ -54,6 +55,8 @@ export default async function PeoplePage({
   for (const p of group.payments) used.add(p.fromId).add(p.toId);
 
   const money = (m: number) => formatMoney(Math.abs(m), group.currency);
+  // The balance lines: if any has paise, every line keeps its two decimals so they line up.
+  const listFmt = listMoney(group.members.map((m) => Math.abs(net[m.id] ?? 0)), group.currency);
   // Taken out by whoever looks after the group ("removed"): kept in the history, can't rejoin on their own.
   // Everyone is listed once (a removed person only under Removed).
   // Someone who left sees the people as they were on the day they left, and no one else's balance.
@@ -110,7 +113,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(-bal)}` : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${listFmt(bal)}` : bal < 0 ? `owes ${listFmt(-bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>

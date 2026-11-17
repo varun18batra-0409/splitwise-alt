@@ -4,7 +4,7 @@ import { CATEGORIES, getCategory } from "@/lib/categories";
 import { dayKey, expenseDate } from "@/lib/dates";
 import { niceDate } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney } from "@/lib/money-display";
+import { overviewMoney, percentsTo100, roundPartsToTotal } from "@/lib/money-display";
 import { Amt } from "@/components/Amt";
 import { spentByCurrency } from "@/lib/secondary";
 import { ColumnChart, HBarChart } from "@/components/Charts";
@@ -29,10 +29,17 @@ export function ChartsTab({ v }: { v: GroupView }) {
   };
 
   const byCat = sumBy((e) => [getCategory(e.category).id], (e) => spentAmount(e));
-  const catData = CATEGORIES.filter((c) => byCat.has(c.id))
-    .map((c) => {
+  // The rows add up to the total shown: percentages to 100, and (from 1,000 up, where the paise are dropped) amounts that add up to the rounded total.
+  const catRows = CATEGORIES.filter((c) => byCat.has(c.id));
+  const catValues = catRows.map((c) => byCat.get(c.id)!);
+  const addsUp = catValues.reduce((t, x) => t + x, 0) === spent;
+  const catPcts = addsUp ? percentsTo100(catValues) : null;
+  const catShown = addsUp ? roundPartsToTotal(catValues, group.currency) : catValues;
+  const catData = catRows
+    .map((c, i) => {
       const value = byCat.get(c.id)!;
-      return { key: c.id, label: c.label, icon: <ExpenseGlyph title="" category={c.id} size={22} className="rounded-[7px]!" />, value, valueText: `${backMoney(value, short)} · ${percentText(value, spent)}`, exactText: `${backMoney(value, money)} · ${percentText(value, spent)}`, href: `/search?g=${group.id}&c=${c.id}` };
+      const pct = catPcts && spent > 0 ? `${catPcts[i]}%` : percentText(value, spent);
+      return { key: c.id, label: c.label, icon: <ExpenseGlyph title="" category={c.id} size={22} className="rounded-[7px]!" />, value, valueText: `${backMoney(catShown[i], short)} · ${pct}`, exactText: `${backMoney(value, money)} · ${pct}`, href: `/search?g=${group.id}&c=${c.id}` };
     })
     .sort((a, b) => b.value - a.value);
 
@@ -142,7 +149,10 @@ function PersonByCategory({ rows, currency }: { rows: { id: string; name: string
       <h3 className="mb-1 font-display text-base font-semibold tracking-tight">Each person’s share, by category</h3>
       <p className="mb-4 text-xs text-fg/50">What each of you spent on stays, food, travel and the rest. Tap a category to see its expenses.</p>
       <ul className="space-y-3">
-        {rows.map((r) => (
+        {rows.map((r) => {
+          // Their parts add up to their total as shown (from 1,000 up the paise are dropped, so the parts are rounded to match).
+          const shown = roundPartsToTotal(r.parts.map((p) => p.amount), currency);
+          return (
           <li key={r.id} className="rounded-[18px] border border-line bg-mist/40 px-4 py-3.5" data-person-row={r.name}>
             <div className="flex items-baseline justify-between gap-3">
               <span className="truncate text-[15px] font-semibold">{r.name}</span>
@@ -155,20 +165,21 @@ function PersonByCategory({ rows, currency }: { rows: { id: string; name: string
               ))}
             </div>
             <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
-              {r.parts.map((p) => (
+              {r.parts.map((p, pi) => (
                 <li key={p.id}>
                   <Link href={p.href} className="block text-[13px] leading-tight active:opacity-70">
                     <span className="flex items-center gap-1.5">
                       <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: CAT_COLOUR[p.id] ?? CAT_COLOUR.other }} />
                       <span className="min-w-0 break-words text-fg/60">{p.label}</span>
                     </span>
-                    <span className="mt-0.5 block pl-3.5 tabular-nums text-fg/90"><Amt minor={p.amount} currency={currency} /></span>
+                    <span className="mt-0.5 block pl-3.5 tabular-nums text-fg/90" title={formatMoney(p.amount, currency)} data-exact={formatMoney(p.amount, currency)}>{overviewMoney(shown[pi], currency)}</span>
                   </Link>
                 </li>
               ))}
             </ul>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );

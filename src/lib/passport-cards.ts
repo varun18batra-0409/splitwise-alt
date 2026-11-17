@@ -25,7 +25,7 @@ export type BeenCardData = {
   people: number;
   countryName: string; // the stamp always names the country: a trip to Goa is "INDIA / MAR 2026"
   stampWhen: string; // the trip's start day ("" = been there)
-  cta?: { label: "Relive trip" | "View memories"; href: string }; // the one button; none for a country added by hand
+  cta?: { label: "Relive trip" | "Trip so far" | "View memories"; href: string }; // the one button; none for a country added by hand
   photo?: string; // the picture on the left; none = the drawn stamp on cream paper
 };
 
@@ -101,7 +101,10 @@ export function beenCards(
       countryName: country,
       stampWhen: t.start,
       // One button: your moments if there are any to see, otherwise the trip's story.
-      cta: x?.moments ? { label: "View memories", href: `/groups/${t.groupId}/moments` } : { label: "Relive trip", href: `/groups/${t.groupId}/report` },
+      // A trip still going on isn't "relived" yet: it is "Trip so far" (the same report). It is over from the day after its last day.
+      cta: x?.moments
+        ? { label: "View memories", href: `/groups/${t.groupId}/moments` }
+        : { label: (t.end || t.start) < today ? "Relive trip" : "Trip so far", href: `/groups/${t.groupId}/report` },
     };
     card.photo = cardPhoto(card, have);
     cards.push(card);

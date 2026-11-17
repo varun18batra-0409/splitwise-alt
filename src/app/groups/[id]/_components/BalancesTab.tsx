@@ -2,6 +2,8 @@ import Link from "@/components/Link";
 import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/DrawnIcons";
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
+import { listMoney } from "@/lib/money-display";
+import { squareWords } from "@/lib/settle-ui";
 import { foreignPartLine } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
@@ -20,6 +22,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
   const people = group.members.filter((m) => !m.leftAt);
   // Fun titles (habits, never money rankings): one per person at most.
   const leaver = v.leaver;
+  // The "By person" lines: if any has paise, every line keeps its two decimals so they line up.
+  const listFmt = listMoney(group.members.map((m) => Math.abs(net[m.id] ?? 0)), group.currency);
+  const words = squareWords({ leaver: Boolean(leaver) });
   const titles = group.type === "pot" || leaver ? [] : funTitles(expenses, people.map((m) => m.id), v.tz, group.currency);
 
   // Everyone's "Why?" totals in one pass; only the open one gets its item list.
@@ -32,8 +37,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       {transfers.length === 0 ? (
         <div className="rounded-[20px] border border-line bg-white px-4 py-8 text-center">
           <SquareSeal size={56} className="mx-auto" />
-          <p className="mt-3 font-display text-xl font-semibold">All square</p>
-          <p className="mt-1 text-sm text-gray-500">{leaver ? "You don’t owe anyone here, and no one owes you." : "Nobody owes anybody in this group."}</p>
+          <p className="mt-3 font-display text-xl font-semibold">{words.headline}</p>
+          <p className="mt-1 text-sm text-gray-500">{leaver ? words.line : "Nobody owes anybody in this group."}</p>
           {expenses.length > 0 && (
             <Link href={`/groups/${group.id}/square`} className="mt-4 inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg">
               Share the moment
@@ -89,7 +94,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                       data-exact={b !== 0 ? money(Math.abs(b)) : undefined}
                       data-balance={b !== 0 ? money(Math.abs(b)) : "0"}
                     >
-                      {b > 0 ? `gets ${money(b)}` : b < 0 ? `owes ${money(-b)}` : "settled"}
+                      {b > 0 ? `gets ${listFmt(b)}` : b < 0 ? `owes ${listFmt(-b)}` : "settled"}
                     </span>
                     <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/40 transition-transform group-open/person:rotate-90 motion-reduce:transition-none">
                       <path d="m9 6 6 6-6 6" />

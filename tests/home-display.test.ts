@@ -17,13 +17,14 @@ describe("homeMoney: whole units for big amounts, display only", () => {
     expect(homeMoney(100050, "INR")).toBe("₹1,001");
     expect(homeMoney(12345678, "INR")).toBe("₹1,23,457"); // ₹1,23,456.78
   });
-  it("under ₹1,000 the exact amount stays: ₹999.99, ₹393.34, ₹250", () => {
-    expect(homeMoney(99999, "INR")).toBe("₹999.99");
-    expect(homeMoney(39334, "INR")).toBe("₹393.34");
+  // The founder chose "round everything on overviews" on 17 Nov: small amounts drop their paise too (this used to keep them under ₹1,000).
+  it("under ₹1,000 it is whole rupees too: ₹999.99 -> ₹1,000, ₹393.34 -> ₹393, ₹250", () => {
+    expect(homeMoney(99999, "INR")).toBe("₹1,000");
+    expect(homeMoney(39334, "INR")).toBe("₹393");
     expect(homeMoney(25000, "INR")).toBe("₹250");
   });
-  it("USD keeps cents under $1,000 and drops them from $1,000: 48.50 stays, 1,234.56 -> $1,235", () => {
-    expect(homeMoney(4850, "USD")).toBe("$48.50");
+  it("USD drops the cents at every size: 48.50 -> $49 (rounds half up), 1,234.56 -> $1,235", () => {
+    expect(homeMoney(4850, "USD")).toBe("$49");
     expect(homeMoney(123456, "USD")).toBe("$1,235");
   });
   it("EUR 2,500.40 -> EUR 2,500; yen (no decimals) is untouched", () => {

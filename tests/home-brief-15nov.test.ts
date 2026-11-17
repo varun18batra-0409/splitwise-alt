@@ -85,8 +85,8 @@ describe("stories are playful again (from before a9fe48ee) and moments are not s
     expect(EMOJI.test(JSON.stringify(of("memory").frames))).toBe(true);
   });
   it("collections have their circle again: 'N of M paid' with a roll call, 'Checked ✓' with no amount", () => {
-    const [c] = buildStories({ ...base, collections: [{ id: "c1", code: "abc", title: "Teacher’s Day gift", paid: 2, people: 4, in: "₹2,000", target: "₹4,000", paidNames: ["Asha", "Ravi"], dueNames: ["Kabir", "Meera"] }] });
-    expect(c).toMatchObject({ kind: "collect", short: "Collection", href: "/c/abc", emoji: "🪙", big: "2/4", headline: "Teacher’s Day gift: 2 of 4 paid" });
+    const [c] = buildStories({ ...base, collections: [{ id: "c1", code: "abc", title: "Teacher’s Day gift", paid: 2, checked: 2, people: 4, in: "₹2,000", target: "₹4,000", paidNames: ["Asha", "Ravi"], dueNames: ["Kabir", "Meera"] }] });
+    expect(c).toMatchObject({ kind: "collect", short: "Collection", href: "/c/abc", emoji: "🪙", big: "2/4", headline: "Teacher’s Day gift: 2 of 4 say they've paid · 2 checked" });
     const roll = c.frames.find((f) => f.kind === "list");
     expect(roll && roll.kind === "list" && roll.rows.map((r) => r.value)).toEqual(["Checked ✓", "Checked ✓", "Not yet", "Not yet"]);
   });

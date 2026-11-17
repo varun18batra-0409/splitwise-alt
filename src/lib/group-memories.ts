@@ -42,7 +42,7 @@ export function dayGroups<T extends { takenOn: string; createdAt: Date }>(cards:
 export type TripStamp = BeenCardData;
 
 // This trip's passport card, from the passport's own helpers (buildPassport and beenCards), so the Memories tab draws the same StampCard
-// as the passport: the stamp reads "THAILAND / MAY 2026", the dates carry no year, and the one button is "Relive trip".
+// as the passport: the stamp reads "THAILAND / MAY 2026", the dates carry no year, and the one button is "Relive trip" (or "Trip so far" while the trip is still going on).
 // Null for a trip with no dates, one that hasn't started, or one this person left before it began (they didn't go).
 export function tripStampCard(
   group: { id: string; name: string; tripStart: string; tripEnd: string; tripPlace: string; tripCountry: string; memberCount: number },
@@ -55,7 +55,7 @@ export function tripStampCard(
   if (!wentOnTrip(group.tripStart, leftAt, tz)) return null;
   const trip: PassportTrip = { groupId: group.id, name: group.name, start: group.tripStart, end: group.tripEnd, place: group.tripPlace, country: group.tripCountry, people: group.memberCount };
   const passport = buildPassport([trip], [], home, today);
-  // No moments count is handed in on purpose: this is the Memories tab, so the button stays "Relive trip".
+  // No moments count is handed in on purpose: this is the Memories tab, so the button is "Relive trip", or "Trip so far" while the trip is still going on.
   return beenCards({ ...passport, trips: [trip] }, {}, today).cards.find((c) => c.kind === "trip" && c.groupId === group.id) ?? null;
 }
 

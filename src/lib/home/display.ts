@@ -2,14 +2,13 @@ import { decimalsOf, formatMoney } from "../money";
 
 // Display-only helpers for Home. Nothing here changes a stored value or any other screen's numbers.
 
-// Big amounts on Home show whole rupees/dollars (₹68,263, not ₹68,263.10). Under 1,000 whole units, and in currencies
-// without decimals, the exact amount is shown. `minor` is in the currency's smallest unit; the exact amount is
+// Overview amounts show whole rupees/dollars (₹68,263, not ₹68,263.10; ₹393, not ₹393.34), at every size (founder's choice, 17 Nov).
+// Currencies without decimals are already whole. `minor` is in the currency's smallest unit; the exact amount is
 // still what is stored, and callers put it in a tooltip / spoken label.
 export function homeMoney(minor: number, currency = "INR"): string {
   const d = decimalsOf(currency);
   if (d === 0) return formatMoney(minor, currency);
   const unit = 10 ** d;
-  if (Math.abs(minor) < 1000 * unit) return formatMoney(minor, currency);
   const whole = Math.sign(minor) * Math.round(Math.abs(minor) / unit) * unit;
   return formatMoney(whole, currency);
 }

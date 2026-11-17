@@ -102,3 +102,9 @@ export function computeInsights(
     me,
   };
 }
+
+// The third number of the recap: what you paid minus your share for the period. It ignores settle-up payments, so it is not
+// "owed" (Home and Settle count payments). Worded as what it is.
+export function recapDiffLabel(net: number): string {
+  return net > 0 ? "More than your share" : net < 0 ? "Less than your share" : "Exactly your share";
+}

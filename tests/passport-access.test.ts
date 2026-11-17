@@ -475,3 +475,29 @@ describe("loadPassport counts only trips you really joined", () => {
     expect(stampOf(p, g.id)).toBe("2024-10-01");
   });
 });
+
+// Batch B4 (VA2-13, VD1-4): Our passports compares everyone by the same rule, the viewer included. A trip with no dates and spending
+// today is "still going on", so it is in nobody's comparison until 3 days after the last spending.
+describe("Our passports: one rule for everybody (loadComparePassport)", () => {
+  it("an undated trip with spending on 16 Nov: neither person has IN on 16 Nov; both have it, shared, on 20 Nov", async () => {
+    const { loadComparePassport } = await import("@/lib/passport-db");
+    const y = await account("cmpY", {});
+    const p = await account("cmpP", {});
+    const g = await group("Pune weekend", [{ account: y }, { account: p }]);
+    const me = await db.member.findFirst({ where: { groupId: g.id, accountId: y.id } });
+    await db.expense.create({
+      data: {
+        groupId: g.id, description: "Misal", splitType: "equal", forMode: "everyone", amount: 20000, originalAmount: 20000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 20000,
+        paidById: me!.id, createdById: me!.id, createdAt: new Date("2026-11-16T06:00:00Z"), spentAt: new Date("2026-11-16T06:00:00Z"),
+        shares: { create: (await db.member.findMany({ where: { groupId: g.id } })).map((m) => ({ memberId: m.id, amount: 10000 })) },
+      },
+    });
+    // The home country is where the trip is, so it is a "been" stamp only when the trip counts (here IN from the place "Goa").
+    await db.group.update({ where: { id: g.id }, data: { type: "trip", tripPlace: "Goa", tripCountry: "IN" } });
+    const accounts = [y, p].map((a) => ({ id: a.id, homeCountry: "", places: "[]", timeZone: "Asia/Kolkata" }));
+    const on16 = await Promise.all(accounts.map((a) => loadComparePassport(a, "2026-11-16")));
+    expect(on16.map((x) => x.index.map((r) => r.code))).toEqual([[], []]);
+    const on20 = await Promise.all(accounts.map((a) => loadComparePassport(a, "2026-11-20"))); // 16 Nov + 3 days = 19 Nov, before today
+    expect(on20.map((x) => x.index.map((r) => r.code))).toEqual([["IN"], ["IN"]]);
+  });
+});

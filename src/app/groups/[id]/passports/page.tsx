@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { loadPassport, passportRoster } from "@/lib/passport-db";
+import { loadComparePassport, passportRoster } from "@/lib/passport-db";
 import { blockedEitherWay } from "@/lib/blocks";
 import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
@@ -45,7 +45,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
       const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, timeZone: true, passportShare: true, passportChoiceAt: true } });
       if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
       if (!mine && !passportShared(a)) return { m, mine, state: a.passportShare === "private" ? "private" : "unshared", codes: [], cities: 0 };
-      const p = await loadPassport(a, "", today, { forFriend: !mine });
+      const p = await loadComparePassport(a, today);
       const codes = p.index.map((r) => r.code);
       return { m, mine, state: codes.length ? "open" : "empty", codes, cities: p.stats.cities };
     }),

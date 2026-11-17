@@ -95,7 +95,7 @@ export function StampCard({ c }: { c: BeenCardData }) {
             href={c.cta.href}
             className="mt-3 inline-flex h-11 items-center justify-center rounded-full border border-fg/25 px-5 text-[15px] font-semibold text-fg transition-transform active:scale-[0.97] active:bg-fg/10"
             data-been-cta={c.cta.label}
-            data-been-relive={c.cta.label === "Relive trip" ? "" : undefined}
+            data-been-relive={c.cta.label === "Relive trip" || c.cta.label === "Trip so far" ? "" : undefined}
             data-been-moments={c.cta.label === "View memories" ? "" : undefined}
           >
             {c.cta.label}

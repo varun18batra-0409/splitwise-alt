@@ -15,6 +15,17 @@ describe("goal plan", () => {
     expect(p.perPerson).toEqual([{ memberId: "you", amount: 1237500 }, { memberId: "riya", amount: 1012500 }]);
     expect(p.onTrack).toBe(true); // ₹27,500 a month so far
   });
+  it("B4: ₹1,28,000 left by 15 Mar is ₹42,667 a month in whole rupees (not ₹42,666.67), split 55 / 45 to add up exactly", () => {
+    // left = 20000000 - 7200000 = 12800000 paise = ₹1,28,000. Months: Nov to Mar is 4, minus 1 (15th is before the 16th) = 3.
+    // 12800000 / 3 = 4266666.67 paise = ₹42,666.67 a month, rounded UP to a whole rupee: ₹42,667 = 4266700.
+    // Shared out in whole rupees: 42667 x 55% = 23466.85, x 45% = 19200.15. Rounded down 23466 + 19200 = 42666; the 1 left goes to .85.
+    const p = goalPlan({ currency: "INR", target: 20000000, saved: 7200000, today: "2026-11-16", byDate: "2027-03-15", createdAt: "2026-07-01", weights: { you: 55, riya: 45 } });
+    expect(p.left).toBe(12800000);
+    expect(p.months).toBe(3);
+    expect(p.perMonth).toBe(4266700);
+    expect(p.perPerson).toEqual([{ memberId: "you", amount: 2346700 }, { memberId: "riya", amount: 1920000 }]);
+    expect(p.perPerson.reduce((t, x) => t + x.amount, 0)).toBe(p.perMonth);
+  });
   it("no date: no monthly plan; reached: nothing left", () => {
     expect(goalPlan({ target: 1000, saved: 200, today: "2026-10-16", byDate: "", createdAt: "2026-10-01", weights: { a: 100 } }).months).toBe(0);
     const done = goalPlan({ target: 1000, saved: 1500, today: "2026-10-16", byDate: "2027-01-01", createdAt: "2026-10-01", weights: { a: 100 } });

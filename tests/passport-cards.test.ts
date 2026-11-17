@@ -151,3 +151,21 @@ describe("Been: days travelled (counted so far for a trip still going), and long
     expect(titleFit("Goa", 22)).toBe("max(14px, min(22px, 55.5cqw))");
   });
 });
+
+// Batch B4 (VI1-16, VI2-49): a trip still going on is not "relived" yet. It is over from the day after its last day.
+describe("the one button on a trip card: Trip so far / Relive trip", () => {
+  const goa = (today: string) => {
+    const trips = [trip("goa", "Goa trip", "2026-11-15", "2026-11-19", 4, "Goa", "IN")];
+    const p = buildPassport(trips, [], "IN", today);
+    return beenCards({ trips, stamps: p.stamps, been: p.been, stats: p.stats }, {}, today).cards[0];
+  };
+  it("16 Nov (day 2): Trip so far, still linking to the report", () => {
+    expect(goa("2026-11-16").cta).toEqual({ label: "Trip so far", href: "/groups/goa/report" });
+  });
+  it("19 Nov (the last day): still Trip so far", () => {
+    expect(goa("2026-11-19").cta?.label).toBe("Trip so far");
+  });
+  it("20 Nov (the day after): Relive trip", () => {
+    expect(goa("2026-11-20").cta).toEqual({ label: "Relive trip", href: "/groups/goa/report" });
+  });
+});

@@ -213,7 +213,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                   </div>
                   <div className="min-w-0 border-l border-line">
                     <p className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">{money(remaining)}</p>
-                    <p className="text-[13px] text-fg/60">remaining</p>
+                    <p className="text-[13px] text-fg/60">not reported</p>
                   </div>
                 </>
               ) : (
