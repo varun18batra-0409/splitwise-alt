@@ -155,7 +155,7 @@ export function rateDateLabel(
   if (!o.rateDate) return prefix;
   const when = niceDate(o.rateDate);
   if (!o.expenseDay || o.expenseDay === o.rateDate) return `${prefix} for ${when}`;
-  return o.saved ? `${prefix}, from ${when} (the latest when it was saved)` : `${prefix} from ${when}, the latest available`;
+  return o.saved ? `Rate of ${when}, taken when it was saved` : `${prefix} from ${when}, the latest available`;
 }
 
 // Where the rate came from, for the line under the maths of an expense that is already saved (Activity). `rateDate` is the
@@ -165,7 +165,7 @@ export function rateSourceLine(e: { rateSource: string; rateDate: string }, nice
   if (e.rateSource === "api") {
     if (!e.rateDate) return "Rate saved with this expense";
     const when = niceDate(e.rateDate);
-    return !expenseDay || expenseDay === e.rateDate ? `Rate for ${when}` : `Rate from ${when} (the latest when it was saved)`;
+    return !expenseDay || expenseDay === e.rateDate ? `Rate for ${when}` : `Rate of ${when}, taken when it was saved`;
   }
   if (e.rateSource === "manual") return "Rate entered by hand";
   if (e.rateSource === "converted") return "Adjusted when the group currency changed";

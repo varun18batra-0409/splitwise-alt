@@ -38,7 +38,7 @@ export function CollectionsSection({ list, limit, total, className = "mt-8", sho
               <Link href={`/c/${c.code}`} className={`block overflow-hidden rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${c.closedAt ? "opacity-60" : ""}`}>
                 <span className="flex items-baseline justify-between gap-3">
                   <span className="truncate text-[15px] font-semibold">{c.title}</span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">Confirmed {formatMoney(p.confirmedAmount, c.currency)}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">Checked {formatMoney(p.confirmedAmount, c.currency)}</span>
                 </span>
                 <span className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
                   <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} />

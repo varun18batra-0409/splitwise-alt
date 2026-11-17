@@ -156,7 +156,7 @@ export default async function SearchPage({
   const chip = (on: boolean) =>
     `shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-medium text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`;
   const periodName = period.month ? monthLabel(period.month) : period.year ?? "All time";
-  const monthLabelShort = (week: string) => new Date(`${week}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  const monthLabelShort = (week: string) => new Date(`${week}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).replace("Sept", "Sep");
   const back = groupId ? `/groups/${groupId}` : "/";
 
   // Search comes first: typing finds any expense, payment, person or place across
@@ -189,10 +189,10 @@ export default async function SearchPage({
       {sum.count > 0 && (
         <p
           className="mb-4 text-sm text-gray-500"
-          title={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
+          title={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · your share ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
           data-exact={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} | ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
         >
-          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
+          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · your share{" "}
           {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
         </p>
       )}

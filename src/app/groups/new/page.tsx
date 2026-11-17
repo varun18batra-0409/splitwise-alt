@@ -31,7 +31,7 @@ export default async function NewGroup({
         <section className="vault rounded-[24px] px-6 py-8 text-fg">
           <h1 className="font-display text-2xl font-semibold leading-tight">First, a quick sign-in</h1>
           <p className="mt-2 text-sm text-fg/60">
-            Sign in or sign up to create your group: with Google, or a code sent to your email. Your groups then follow you to any phone, and
+            Sign in or sign up to create your group: with Google, or a code sent to your email. Your groups then follow you to any device, and
             notifications reach the right one. It takes about 30 seconds, and there’s no password.
           </p>
           <Link href={`/signin?${new URLSearchParams({ back })}`} className={`mt-6 ${primaryButtonClass}`}>

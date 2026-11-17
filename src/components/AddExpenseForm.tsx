@@ -936,10 +936,10 @@ export function AddExpenseForm({
       {/* Who paid: right under the name, one tap to change. Several payers and Spin for it are under More. */}
       {members.length > 1 && (
         <div>
-          <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
+          <span id="who-paid-label" className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
           {/* One scrolling row, with a fade at the right edge so a cut-off name reads as "more this way". With several payers the single choice is off. */}
           <div className={`relative -mx-5 ${multiPay ? "opacity-40" : ""}`} data-payer-row aria-disabled={multiPay || undefined}>
-            <div className={`flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none] ${multiPay ? "pointer-events-none" : ""}`}>
+            <div role="group" aria-labelledby="who-paid-label" className={`flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none] ${multiPay ? "pointer-events-none" : ""}`}>
               {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
                 <Chip
                   key={m.id}
@@ -967,8 +967,8 @@ export function AddExpenseForm({
       {/* How to split: one row of choices (founder, 16 Nov). "Only some" is an equal split among the people you tap (one person too);
           Amounts, %, Shares and Items open the people list right under the row. The row wraps; it never scrolls sideways. */}
       <section>
-        <span className={labelClass}>How to split?</span>
-        <div className="flex flex-wrap gap-2" data-split-row>
+        <span id="how-split-label" className={labelClass}>How to split?</span>
+        <div role="group" aria-labelledby="how-split-label" className="flex flex-wrap gap-2" data-split-row>
           {groupShares && (
             <Chip
               on={!byItem && !showPeople && groupSplitOn}
@@ -1150,7 +1150,7 @@ export function AddExpenseForm({
                         <li key={id} className="flex items-center gap-2 py-2">
                           <span className="min-w-0 flex-1">
                             <span className="block truncate">{who(id)}</span>
-                            {amt !== null && <span className="block text-xs text-gray-400">{base(amt)}</span>}
+                            {amt !== null && <span className="block text-xs text-gray-400">{money(amt)}</span>}
                           </span>
                           <button type="button" aria-label={`Fewer shares for ${who(id)}`} onClick={() => stepShare(id, -0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
                             −
@@ -1352,7 +1352,7 @@ export function AddExpenseForm({
         )}
       </div>
 
-      {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       {dup && (
         <div role="status" className="rounded-[20px] border border-line bg-white px-4 py-3 text-sm">
           <p>

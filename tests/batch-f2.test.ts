@@ -290,7 +290,7 @@ describe("activity filter chips", () => {
 describe("postcard opens line", () => {
   it("the same instant reads differently in each reader's zone", () => {
     const at = new Date("2026-12-31T18:30:00Z"); // 00:00 on 1 Jan 2027 in Asia/Kolkata
-    expect(opensLine(at, "Asia/Kolkata")).toBe("Opens 1 January 2027 at 00:00 your time");
+    expect(opensLine(at, "Asia/Kolkata")).toBe("Opens 1 January 2027");
     expect(opensLine(at, "Europe/London")).toBe("Opens 31 December 2026 at 18:30 your time");
     expect(opensLine(at, "America/New_York")).toBe("Opens 31 December 2026 at 13:30 your time");
   });

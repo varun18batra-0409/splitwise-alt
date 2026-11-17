@@ -202,7 +202,7 @@ export function buildStories(i: StoryInput): Story[] {
       ...(s.payments ? [{ kind: "poster", tone: "sky", kicker: "Payments it took", big: String(s.payments), line: "*that we know of" } as Frame] : []),
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Bragging rights", head: "Share it with the group", line: "Friendships: intact ✓" } as Frame] : []),
     ];
-    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), short: "All square", headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "🎉", big: "All square", frames, at: s.at.getTime() });
+    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), short: place(s.name), headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "🎉", big: "All square", frames, at: s.at.getTime() });
   }
   for (const c of i.collections) {
     if (c.people === 0) continue;
@@ -212,7 +212,7 @@ export function buildStories(i: StoryInput): Story[] {
     const counts = countsLine({ paidCount: c.paid, people: c.people, checked });
     const frames: Frame[] = [
       { kind: "art", art: "collect", kicker: c.title, head: all ? "Everyone’s in" : c.paid === 0 ? "No one yet" : `${c.paid} of ${c.people} say they’ve paid`, line: all ? "Time to close it" : c.paid === 0 ? "Who’s going first?" : "The jar is filling up" },
-      ...(c.in && c.target ? [{ kind: "poster", tone: "coral", kicker: "Confirmed", big: c.in, line: `of ${c.target}${c.reported ? ` · ${c.reported} reported, awaiting check` : ""}` } as Frame] : []),
+      ...(c.in && c.target ? [{ kind: "poster", tone: "coral", kicker: "Checked", big: c.in, line: `of ${c.target}${c.reported ? ` · ${c.reported} says paid` : ""}` } as Frame] : []),
       ...((c.paidNames?.length || c.reportedNames?.length || c.dueNames?.length)
         ? [{ kind: "list", tone: "mint", kicker: "Roll call", rows: [...(c.paidNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Checked ✓", good: true })), ...(c.reportedNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Says paid", good: false })), ...(c.dueNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Not yet", bad: true }))], line: (c.dueNames?.length ?? 0) > 0 ? "A gentle nudge might help" : "Legends, all of them" } as Frame]
         : []),

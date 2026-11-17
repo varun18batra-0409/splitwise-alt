@@ -113,7 +113,7 @@ test("a game night from first chips in to settled", async ({ browser }) => {
   const net = async (name: string) => Number(await A.locator(`[data-player='${name}']`).getAttribute("data-net"));
   const nets = { Asha: await net("Asha"), Ravi: await net("Ravi"), Chirag: await net("Chirag"), Dev: await net("Dev"), Neha: await net("Neha") };
   expect(nets, `nets were ${JSON.stringify(nets)}`).toEqual({ Asha: 60000, Ravi: -30000, Chirag: -20000, Dev: -10000, Neha: 0 });
-  const pays = A.getByRole("region", { name: "Money owed" });
+  const pays = A.getByRole("region", { name: "Balances" });
   await expect(pays.locator("[data-transfer]")).toHaveCount(3);
   await expect(pays).toContainText("Ravi pays you");
   await expect(pays).toContainText("₹300");
@@ -123,7 +123,7 @@ test("a game night from first chips in to settled", async ({ browser }) => {
   await pays.getByRole("button", { name: "Mark paid: Dev pays you" }).click();
   await A.waitForURL(/\/pot\/[^/?]+\?paid=1/);
   await settled(A);
-  await expect(A.getByRole("region", { name: "Money owed" }).locator("[data-transfer='paid']").filter({ hasText: "Dev pays you" })).toHaveCount(1);
+  await expect(A.getByRole("region", { name: "Balances" }).locator("[data-transfer='paid']").filter({ hasText: "Dev pays you" })).toHaveCount(1);
   await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "50000");
 
   // Ravi sees it in the group: down ₹300, and pays Asha in Settle up.
@@ -137,7 +137,7 @@ test("a game night from first chips in to settled", async ({ browser }) => {
   await R.waitForURL(/paid=1/);
   await R.goto(game);
   await settled(R);
-  await expect(R.getByRole("region", { name: "Money owed" }).locator("[data-transfer='paid']").filter({ hasText: "You pay Asha" })).toHaveCount(1);
+  await expect(R.getByRole("region", { name: "Balances" }).locator("[data-transfer='paid']").filter({ hasText: "You pay Asha" })).toHaveCount(1);
   await expect(R.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "20000");
 
   // Only the host finishes or reopens: Ravi doesn't get those buttons.

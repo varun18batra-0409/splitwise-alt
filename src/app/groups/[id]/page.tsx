@@ -167,10 +167,10 @@ export default async function GroupPage({
         b.status === "waiting" || b.bill.nature === "varies"
           ? `${b.due < today ? "Was due" : "Due"} ${niceDate(b.due)}`
           : b.bill.nature === "daily"
-            ? `Added up ${niceDate(b.due)}`
+            ? `Totalled ${niceDate(b.due)}`
             : `Repeats · next ${niceDate(b.due)}`,
       who: b.payerId ? (b.payerId === myId ? "you pay" : `${v.nameOf(b.payerId)} pays`) : "taking turns",
-      amount: b.bill.nature === "varies" ? (b.usual ? `~${v.money(b.usual)}` : "") : b.bill.nature === "daily" ? `${v.money(b.bill.amount)}/day` : v.money(b.bill.amount),
+      amount: b.bill.nature === "varies" ? (b.usual ? `~${v.money(b.usual)}` : "") : b.bill.nature === "daily" ? `${v.money(b.bill.amount)} a day` : v.money(b.bill.amount),
       status: (b.status === "waiting" ? "enter" : "due") as "enter" | "due",
       href: b.status === "waiting" ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined,
     }));

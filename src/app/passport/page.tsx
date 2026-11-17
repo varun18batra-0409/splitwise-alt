@@ -38,7 +38,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
     return (
       <>
         <PageHeader title="Trip passport" back="/account" />
-        <p className="text-sm text-gray-500">Sign in to collect a stamp for every trip, on any phone.</p>
+        <p className="text-sm text-gray-500">Sign in to collect a stamp for every trip, on any device.</p>
         <Link href="/signin?back=/passport" className={`mt-5 ${primaryButtonClass}`}>
           Sign in
         </Link>

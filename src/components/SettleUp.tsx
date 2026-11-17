@@ -155,7 +155,6 @@ export function SettleCard({
               ref={menuBtn}
               type="button"
               aria-label={`More for ${name}`}
-              aria-haspopup="menu"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((o) => !o)}
               data-settle-menu
@@ -168,13 +167,12 @@ export function SettleCard({
               </svg>
             </button>
             {menuOpen && (
-              <ul role="menu" className="absolute right-0 top-11 z-30 w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-line bg-mist py-1 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]" data-settle-menu-list>
+              <ul className="absolute right-0 top-11 z-30 w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-line bg-mist py-1 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]" data-settle-menu-list>
                 {menu.map((m) => (
-                  <li key={m.key} role="none">
+                  <li key={m.key}>
                     {m.opensSheet ? (
                       <button
                         type="button"
-                        role="menuitem"
                         {...m.attrs}
                         onClick={() => {
                           setMenuOpen(false);
@@ -185,7 +183,7 @@ export function SettleCard({
                         {m.label}
                       </button>
                     ) : (
-                      <Link href={m.href ?? "#"} role="menuitem" {...m.attrs} className="flex min-h-11 items-center px-4 text-[15px] text-fg active:bg-fg/10">
+                      <Link href={m.href ?? "#"} {...m.attrs} className="flex min-h-11 items-center px-4 text-[15px] text-fg active:bg-fg/10">
                         {m.label}
                       </Link>
                     )}
@@ -253,8 +251,16 @@ export function SettleCard({
             <div className="mt-5 flex items-center gap-3">
               <Initial name={sheet.other} />
               <div className="min-w-0">
-                <p className="truncate font-display text-[20px] font-semibold leading-tight" aria-label={sheet.even ? `You and ${sheet.other}` : `${sheet.from} to ${sheet.to}`} data-record-route>
-                  {sheet.even ? `You and ${sheet.other}` : `${sheet.from} → ${sheet.to}`}
+                <p className="truncate font-display text-[20px] font-semibold leading-tight" data-record-route>
+                  {/* The arrow is only for the eye: a screen reader hears "from to". */}
+                  {sheet.even ? (
+                    `You and ${sheet.other}`
+                  ) : (
+                    <>
+                      <span className="sr-only">{sheet.from} to {sheet.to}</span>
+                      <span aria-hidden>{sheet.from} → {sheet.to}</span>
+                    </>
+                  )}
                 </p>
                 <p className="mt-0.5 truncate text-[14px] text-fg/60">{sheet.groupLine}</p>
               </div>

@@ -9,7 +9,7 @@ import { ActivityTab } from "@/app/groups/[id]/_components/ActivityTab";
 import { getTimeZone } from "@/lib/tz";
 import { canUndo } from "@/lib/undo";
 import { neutralGameText } from "@/lib/game-words";
-import { formatMoney, toInputAmount } from "@/lib/money";
+import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { balanceLine } from "@/lib/direct";
 import { cancelInvite, renamePerson, settleAcrossGroups } from "@/app/actions";
 import { openInviteEmail } from "@/lib/direct-db";
@@ -28,7 +28,7 @@ import { readNotes } from "@/lib/flash";
 
 // A person you share expenses with directly (no group): who owes whom, a way to settle, and the history between the two of you.
 // Only the two of you can open it (a name nobody else has joined is visible to its owner alone). It never mentions any group.
-const SHEET_NOTE = "This records a payment made outside Loopin. No money will be transferred.";
+const SHEET_NOTE = PAYMENT_LINE;
 
 type SP = { settle?: string; paid?: string; ok?: string; notgot?: string; invited?: string; inviteError?: string; email?: string; error?: string; did?: string; undone?: string; open?: string; n?: string; tab?: string };
 
@@ -270,7 +270,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       </section>
 
       <p className="mt-6 px-1 text-[13.5px] leading-snug text-fg/60" data-settle-footnote>
-        Recording a payment updates the balance. Loopin doesn’t transfer money.
+        {PAYMENT_LINE}
       </p>
 
       {showUndo && justDid && (

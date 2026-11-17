@@ -4,7 +4,7 @@ import { differentAmountHref } from "@/lib/money";
 import type { PayButton } from "@/lib/pay-links";
 
 // ONE layout for a payment to make, used by a group's Settle up, the all-groups Settle up
-// and a card night's "Money owed":
+// and a card night's "Balances":
 //   who pays whom + the amount
 //   one FILLED main button  ("Open payment app" or "Remind"; other saved ways are quiet "or pay with PayPal" links),
 //   one OUTLINED button      ("I've paid" / "Mark paid"),

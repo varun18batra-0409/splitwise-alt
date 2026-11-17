@@ -57,7 +57,7 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
         <Link href="/passport/friends" className="font-semibold text-fg underline underline-offset-4">
           All friends’ passports
         </Link>
-        {"  ·  "}
+        {" \u00b7 "}
         <Link href="/passport" className="font-semibold text-fg underline underline-offset-4">
           Yours
         </Link>

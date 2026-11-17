@@ -92,8 +92,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   );
 
   const whoPays = (
-        <section aria-label="Money owed" className="mt-6">
-          <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Money owed</h2>
+        <section aria-label="Balances" className="mt-6">
+          <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Balances</h2>
           {!settlement || settlement.transfers.length === 0 ? (
             <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Nobody owes anybody for this game.</p>
           ) : (
@@ -156,6 +156,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           )}
         </section>
   );
+
+  // A player's first buy-in reads "chips in"; any later one reads "topped up" (moves are oldest first).
+  const topUps = new Set(game.moves.filter((m, i) => m.kind === "take" && game.moves.slice(0, i).some((x) => x.kind === "take" && x.memberId === m.memberId)).map((m) => m.id));
 
   return (
     <>
@@ -264,7 +267,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {/* Players */}
       <section aria-label="Game tally" className="mt-8">
         <h2 className="font-display text-lg font-semibold tracking-tight">Game tally</h2>
-        <p className="mb-2 mt-0.5 text-xs text-gray-500">{open ? "At the table. This is only a count: nothing is owed until the game is finished." : "How the game went. Who owes what is under Money owed."}</p>
+        <p className="mb-2 mt-0.5 text-xs text-gray-500">{open ? "At the table. This is only a count: nothing is owed until the game is finished." : "How the game went. Who owes what is under Balances."}</p>
         <p className="mb-2 text-xs text-gray-400" data-game-note>{GAME_NOTE}</p>
         <ul className="divide-y divide-line">
           {(open ? lines : ranked).map((l) => {
@@ -404,7 +407,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {host ? (
             form(
               finishGameAction,
-              totals.balanced ? "Finish: put it into Money owed" : "Finish (when it adds up)",
+              totals.balanced ? "Finish: put it into Balances" : "Finish (when it adds up)",
               `pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] ${totals.balanced ? "" : "opacity-50"}`,
               totals.balanced ? potResultLine(lines.map((l) => ({ name: nameOf(l.memberId), net: l.net })), group.currency) : undefined,
             )
@@ -425,7 +428,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               <li key={m.id} className={`flex items-center gap-3 py-2.5 text-sm ${m.deletedAt ? "opacity-50" : ""}`}>
                 <span className="w-14 shrink-0 text-xs text-gray-400 tabular-nums">{time(m.createdAt)}</span>
                 <span className={`min-w-0 flex-1 ${m.deletedAt ? "line-through" : ""}`}>
-                  {you(m.memberId)} {m.kind === "take" ? "chips in" : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"} {m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
+                  {you(m.memberId)} {m.kind === "take" ? (topUps.has(m.id) ? "topped up" : "chips in") : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"} {m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
                   <span className="block text-xs text-gray-400">
                     {m.note && !CASHED.includes(m.note) && m.note !== COUNTED ? `${neutralGameText(m.note)} · ` : ""}
                     {m.createdById === m.memberId ? "" : `added by ${youLow(m.createdById)}`}

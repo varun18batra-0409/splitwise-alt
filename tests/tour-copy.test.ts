@@ -13,7 +13,9 @@ describe("the 1-minute tour", () => {
   });
   it("uses the approved titles and wording that works outside India", () => {
     for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story."]) expect(src).toContain(`title: "${t}"`);
-    expect(src).toContain("to the last paisa or cent");
+    // India says paisa, everywhere else says cent (a US visitor never sees "paisa").
+    expect(src).toContain('to the last ${L.india ? "paisa" : "cent"}');
+    expect(src).not.toContain("paisa or cent");
     expect(src).toContain("Pay each other however you like, then record it. It counts straight away, and the other person is told. Loopin never moves money; it just keeps the score straight.");
     expect(src).not.toMatch(/no sign-up|splitwise/i);
   });

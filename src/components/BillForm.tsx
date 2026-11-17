@@ -114,7 +114,7 @@ export function BillForm({
     nature === "varies"
       ? `${payer === "turns" ? "Whoever’s turn it is gets" : payer === myId ? "You get" : `${who(payer)} gets`} a nudge to enter the amount ${dayText}.`
       : nature === "daily"
-        ? `${amount ? `${billAmountText(amount, currency)} a day` : "The price per day"} is added up at month end, ${payerText}.`
+        ? `${amount ? `${billAmountText(amount, currency)} a day` : "The price per day"} is totalled at month end, ${payerText}.`
         : `${amount ? billAmountText(amount, currency) : "The amount"} is added ${dayText}, ${payerText}${each && (split === "equal" || split === "some") ? `, ${each}` : ""}.`;
 
   return (
@@ -128,7 +128,7 @@ export function BillForm({
       <input type="hidden" name="split" value={split} />
       {split === "some" && ids.map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
 
-      {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       {!editing && (
         <fieldset>

@@ -83,10 +83,10 @@ export function parsePlayers(json: string): string[] {
   }
 }
 
-// The question asked before a game's result goes into the group's balances ("Money owed"). Biggest amounts first (a win before an equal loss);
+// The question asked before a game's result goes into the group's balances ("Balances"). Biggest amounts first (a win before an equal loss);
 // players who came out even are left out. Amounts are minor units.
 export function potResultLine(results: { name: string; net: number }[], currency: string): string {
   const shown = results.filter((r) => r.net !== 0).sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.net - a.net || a.name.localeCompare(b.name));
   const who = shown.length ? shown.map((r) => `${r.name} ${r.net > 0 ? "+" : "−"}${formatMoney(Math.abs(r.net), currency)}`).join(", ") : "Nobody came out ahead or behind";
-  return `Put this game into Money owed? ${who}. You can reopen it.`;
+  return `Put this game into Balances? ${who}. You can reopen it.`;
 }

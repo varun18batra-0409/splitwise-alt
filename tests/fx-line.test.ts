@@ -61,7 +61,7 @@ describe("rateSourceLine", () => {
   it("says where the rate came from", () => {
     expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate)).toBe("Rate for 14 Oct 2026");
     // A rate stored with an expense is never "live"; expense on 13 Oct, rate published 14 Oct.
-    expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate, "2026-10-13")).toBe("Rate from 14 Oct 2026 (the latest when it was saved)");
+    expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate, "2026-10-13")).toBe("Rate of 14 Oct 2026, taken when it was saved");
     expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate, "2026-10-14")).toBe("Rate for 14 Oct 2026");
     // An old expense with no rate date still says the rate was saved.
     expect(rateSourceLine({ rateSource: "api", rateDate: "" }, niceDate, "2026-10-13")).toBe("Rate saved with this expense");
@@ -78,7 +78,7 @@ describe("rateDateLabel (the day the rate is for, next to the day of the expense
   });
   it("says plainly when the rate is from another day (expense 13 Oct, rate saved 14 Oct)", () => {
     expect(rateDateLabel({ rateDate: "2026-10-14", expenseDay: "2026-10-13", saved: true }, niceDate)).toBe(
-      "Rate saved with this expense, from 14 Oct 2026 (the latest when it was saved)",
+      "Rate of 14 Oct 2026, taken when it was saved",
     );
     expect(rateDateLabel({ rateDate: "2026-10-11", expenseDay: "2026-10-13" }, niceDate)).toBe("Live rate from 11 Oct 2026, the latest available");
   });
@@ -94,7 +94,7 @@ describe("rateDateLabel (the day the rate is for, next to the day of the expense
     // The rate date is the day the rate source (Frankfurter, the ECB's publishing day) says, not the UTC day of the save.
     // Say it was published for 13 Oct: for an expense on 14 Oct (IST) the line says "from 13 Oct", not "for 14 Oct".
     expect(rateDateLabel({ rateDate: "2026-10-13", expenseDay: dayKey(justAfterMidnight, "Asia/Kolkata"), saved: true }, niceDate)).toBe(
-      "Rate saved with this expense, from 13 Oct 2026 (the latest when it was saved)",
+      "Rate of 13 Oct 2026, taken when it was saved",
     );
   });
 });

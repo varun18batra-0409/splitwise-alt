@@ -1,9 +1,9 @@
 import Link from "@/components/Link";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { blockAction } from "@/app/safety-actions";
+import { blockText } from "@/lib/block-text";
 
-export const blockText = (name: string) =>
-  `Block ${name}? They won’t be able to send you postcards, passports or nudges, and you won’t see their cards or passport. You’ll still see shared group expenses and balances.`;
+export { blockText } from "@/lib/block-text";
 
 // "Report" and "Block {name}", side by side and quiet. `kind`/`targetId` say what is being reported
 // (a postcard id, or the person's account id); `accountId` is the person to block; `back` is where Report returns to.

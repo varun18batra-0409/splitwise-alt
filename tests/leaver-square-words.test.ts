@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { settledPercent, squareWords } from "@/lib/settle-ui";
+import { settledPercent, settleHeadline } from "@/lib/settle-ui";
 import { wrapSlides } from "@/lib/wrapped";
 import { reportText, type TripReport } from "@/lib/trip-report";
 
@@ -13,15 +13,15 @@ import { reportText, type TripReport } from "@/lib/trip-report";
 
 const BANNED = [/Nobody owes anybody/i, /Everyone.s square/i, /All square/i];
 
-describe("squareWords and the wrapped ending", () => {
+describe("settleHeadline and the wrapped ending", () => {
   it("a leaver is 'You’re square' in every line, picture and share text", () => {
-    const w = squareWords({ leaver: true });
+    const w = settleHeadline({ leaver: true });
     expect(w.headline).toBe("You’re square");
     expect(w.line).toBe("You don’t owe anyone here, and no one owes you.");
     for (const text of [w.headline, w.line, w.nice, w.picture, w.share("Goa trip")]) for (const bad of BANNED) expect(text).not.toMatch(bad);
   });
   it("everyone else keeps the words they have today", () => {
-    const w = squareWords({ leaver: false });
+    const w = settleHeadline({ leaver: false });
     expect([w.headline, w.line, w.nice, w.picture]).toEqual(["All square", "Nobody owes anybody here.", "Nobody owes anybody. Nice one.", "Nobody owes anybody."]);
     expect(w.share("Goa trip")).toBe("Goa trip: all square 🎉 Nobody owes anybody.");
   });
@@ -40,10 +40,12 @@ describe("squareWords and the wrapped ending", () => {
     expect(settledPercent(400000, 0)).toBe(100);
     expect(settledPercent(400000, 400000)).toBe(50);
   });
-  it("the screens use squareWords (source check, so a later edit cannot quietly bring the old words back)", () => {
-    for (const f of ["src/app/groups/[id]/settle/page.tsx", "src/app/groups/[id]/square/page.tsx", "src/app/groups/[id]/square-image/route.tsx", "src/app/groups/[id]/_components/BalancesTab.tsx"]) {
-      expect(readFileSync(f, "utf8"), f).toContain("squareWords(");
+  it("the screens use settleHeadline (source check, so a later edit cannot quietly bring the old words back)", () => {
+    for (const f of ["src/app/groups/[id]/settle/page.tsx", "src/app/groups/[id]/square-image/route.tsx", "src/app/groups/[id]/_components/BalancesTab.tsx"]) {
+      expect(readFileSync(f, "utf8"), f).toContain("settleHeadline(");
     }
+    // the Square page has its own wording function in lib/square.ts (squareWords), a different name from the Settle-up one
+    expect(readFileSync("src/app/groups/[id]/square/page.tsx", "utf8")).toContain("squareWords(");
     expect(readFileSync("src/app/groups/[id]/wrapped/page.tsx", "utf8")).toContain("leaver: Boolean(data.leaver)");
     expect(readFileSync("src/app/groups/[id]/wrapped-image/route.tsx", "utf8")).toContain("leaver: Boolean(data.leaver)");
     expect(readFileSync("src/app/groups/[id]/report/page.tsx", "utf8")).toContain("You’re settled ✅");
@@ -104,5 +106,22 @@ describe.skipIf(!dbReady)("a leaver's scoped numbers (database)", () => {
     expect(ashaS!.paidSoFar).toBe(400000); // only payments she is in
     const meeraS = await loadGroupSettle(groupId, M);
     expect(settledPercent(meeraS!.paidSoFar, meeraS!.transfers.reduce((t, x) => t + x.amount, 0))).toBe(50);
+  });
+  it("a leaver's payment count is their own payments only, the same rows as 'paid so far'", async () => {
+    const { db } = await import("@/lib/db");
+    const { loadGroupSettle } = await import("@/lib/group-data");
+    const g = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+    const id = (n: string) => g!.members.find((m) => m.name === n)!.id;
+    const [A, R, M] = [id("Asha"), id("Ravi"), id("Meera")];
+    // Hand-worked: the group now holds 2 payments. Asha -> Meera 4,00,000 paise (Asha is in it) and Ravi -> Meera 1,00,000 (Asha is not).
+    await db.payment.create({ data: { groupId, fromId: R, toId: M, amount: 100000, createdById: R, createdAt: new Date("2026-11-11T07:00:00Z") } });
+    const asha = await loadGroupSettle(groupId, A);
+    expect(asha!.paymentCount).toBe(1); // her own one, not the group's 2
+    expect(asha!.paidSoFar).toBe(400000);
+    const meera = await loadGroupSettle(groupId, M);
+    expect(meera!.paymentCount).toBe(2); // Meera is in both
+    expect(meera!.paidSoFar).toBe(500000);
+    // Meera: 5,00,000 paid and 3,00,000 still to come = 500000 / 800000 = 62.5, shown as 63.
+    expect(settledPercent(meera!.paidSoFar, meera!.transfers.reduce((t, x) => t + x.amount, 0))).toBe(63);
   });
 });

@@ -66,7 +66,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
 
       <p className="mt-8 text-center text-sm text-gray-500">
         <Link href="/switching" className="underline">
-          Coming from another app? What’s different
+          What’s different in Loopin
         </Link>
       </p>
     </>

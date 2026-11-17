@@ -118,18 +118,22 @@ jobs:
         id: shots_ios
         continue-on-error: true
         run: |
-          SHOT_ENGINE=webkit npx tsx scripts/screenshots.ts 2>&1 | tee shots-ios.log || true
+          SHOT_ENGINE=webkit npx tsx scripts/screenshots.ts 2>&1 | tee shots-ios.log
+          # The script's own exit code (not tee's): a crash partway can print no "✗" line, so it must fail the step by itself.
+          code=${PIPESTATUS[0]}
           taken=$(grep -c '^✓' shots-ios.log || true); failed=$(grep -c '^✗' shots-ios.log || true)
           echo "::notice title=iPhone screens::$taken taken, $failed failed $(grep '^✗' shots-ios.log | head -5 | tr '\n' ' ')"
-          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ]; then echo "::error title=iPhone screenshots failed::$taken taken, $failed failed. $(grep '^✗' shots-ios.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
+          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ] || [ "${code:-0}" -ne 0 ]; then echo "::error title=iPhone screenshots failed::$taken taken, $failed failed, the script exited with code ${code:-0}. $(grep '^✗' shots-ios.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
       - name: Screenshots on a desktop (1440×900)
         id: shots_desktop
         continue-on-error: true
         run: |
-          SHOT_ENGINE=desktop npx tsx scripts/screenshots.ts 2>&1 | tee shots-desktop.log || true
+          SHOT_ENGINE=desktop npx tsx scripts/screenshots.ts 2>&1 | tee shots-desktop.log
+          # The script's own exit code (not tee's): a crash partway can print no "✗" line, so it must fail the step by itself.
+          code=${PIPESTATUS[0]}
           taken=$(grep -c '^✓' shots-desktop.log || true); failed=$(grep -c '^✗' shots-desktop.log || true)
           echo "::notice title=Desktop screens::$taken taken, $failed failed $(grep '^✗' shots-desktop.log | head -5 | tr '\n' ' ')"
-          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ]; then echo "::error title=Desktop screenshots failed::$taken taken, $failed failed. $(grep '^✗' shots-desktop.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
+          if [ "${taken:-0}" -eq 0 ] || [ "${failed:-0}" -gt 0 ] || [ "${code:-0}" -ne 0 ]; then echo "::error title=Desktop screenshots failed::$taken taken, $failed failed, the script exited with code ${code:-0}. $(grep '^✗' shots-desktop.log | head -5 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
       - name: UAT (a person tapping through every feature)
         id: uat
         continue-on-error: true

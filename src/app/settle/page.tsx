@@ -4,7 +4,7 @@ import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
-import { formatMoney, toInputAmount } from "@/lib/money";
+import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { listMoney } from "@/lib/money-display";
 import { differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
 import { CLEAR_BOTH_NOTE, CLEAR_BOTH_SUBTITLE, crossActionLabel, crossPreview, clearBothLines, evenCaption, isEvenItem, settleRowId } from "@/lib/cross-settle";
@@ -176,7 +176,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   const evenNamed = evenNames.length <= 1 ? evenNames.join("") : `${evenNames.slice(0, -1).join(", ")} and ${evenNames[evenNames.length - 1]}`;
   const otherRows = othersPending.map((g) => ({ id: g.group.id, name: g.group.name, n: g.transfers.filter((t) => t.from !== g.myId && t.to !== g.myId).length }));
   const otherCount = otherRows.reduce((t, r) => t + r.n, 0);
-  const SHEET_NOTE = "This records a payment made outside Loopin. No money will be transferred.";
+  const SHEET_NOTE = PAYMENT_LINE;
 
   const card = (it: Item, way: "in" | "out" | "even") => {
     const first = firstName(it.name);
@@ -579,7 +579,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       )}
 
       <p className="mt-5 px-1 text-[13.5px] leading-snug text-fg/60" data-settle-footnote>
-        Recording a payment updates balances. Loopin doesn’t transfer money.
+        {PAYMENT_LINE}
       </p>
     </>
   );

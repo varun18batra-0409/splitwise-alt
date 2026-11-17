@@ -142,9 +142,12 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   });
   it("all-groups Settle up has the new cards and sheet, with the hooks the tests read (15 Nov design)", () => {
     const cards = src("src/components/SettleUp.tsx");
-    for (const s of ["data-settle-summary", "TOTAL YOU OWE", "TOTAL OWED TO YOU", "Across all your groups", "Other group payments", "Recording a payment updates balances. Loopin doesn’t transfer money.", "Pay outside Loopin, then record it here."]) expect(all).toContain(s);
+    for (const s of ["data-settle-summary", "TOTAL YOU OWE", "TOTAL OWED TO YOU", "Across all your groups", "Other group payments", "PAYMENT_LINE", "Pay outside Loopin, then record it here."]) expect(all).toContain(s);
     for (const s of ["data-settle-card", "data-breakdown-toggle", "View breakdown", "data-record-sheet", "data-record-confirm", "Full balance", "Today", "Pay with ", "Cancel", "data-sheet-handle", "data-sheet-close"]) expect(cards).toContain(s);
-    for (const s of ["Record payment", "Confirm payment recorded", "Mark received", "Remind ", "This records a payment made outside Loopin. No money will be transferred."]) expect(all).toContain(s);
+    for (const s of ["Record payment", "Confirm payment recorded", "Mark received", "Remind "]) expect(all).toContain(s);
+    // One sentence for "this doesn’t move money" on every payment screen (lib/money.ts PAYMENT_LINE).
+    expect(all).not.toContain("No money will be transferred");
+    expect(all).not.toContain("doesn’t transfer money");
     // The UPI button comes ABOVE the confirm button in the sheet.
     expect(cards.indexOf("data-record-pay")).toBeLessThan(cards.indexOf("data-record-confirm"));
     // Every secondary action the old page had is still reachable (in the ⋮ menu or the breakdown).

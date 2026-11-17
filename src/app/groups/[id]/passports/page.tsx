@@ -91,7 +91,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
       <PageHeader title="Our passports" back={back} />
       <section aria-label="Together" className="rounded-[22px] border border-line bg-white px-5 py-5">
         <p className="text-sm text-gray-500">{group.name}</p>
-        {together.length > 0 && <p className="mt-1 text-[15px] text-fg/75">Between you</p>}
+        {together.length > 0 && <p className="mt-1 text-[15px] text-fg/75">Between you all</p>}
         <p className="mt-0.5 font-display text-[28px] font-semibold leading-tight" data-group-countries={together.length}>
           {together.length === 0 ? "No countries yet" : <span className="whitespace-nowrap">{together.length} {together.length === 1 ? "country" : "countries"}</span>}
         </p>

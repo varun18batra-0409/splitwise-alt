@@ -4,7 +4,7 @@ export type PhoneState = "checking" | "unsupported" | "ios-install" | "denied" |
 
 export function phoneStatusLabel(state: PhoneState, permission: "default" | "granted" | "denied" | "none"): string {
   if (state === "checking") return "Checking…";
-  if (state === "ios-install") return "iPhone: add Loopin to your Home Screen first";
+  if (state === "ios-install") return "Needs Loopin on your Home Screen"; // the box under it gives the steps, so the steps are not said twice
   if (state === "unsupported") return "Not available in this browser";
   if (state === "denied") return "Blocked in phone settings";
   if (state === "on" || state === "working") return permission === "granted" ? "Allowed" : "Not asked yet";

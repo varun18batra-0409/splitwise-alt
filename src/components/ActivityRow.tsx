@@ -181,7 +181,7 @@ export function ActivityRow({
       {deleted ? (
         <Effect label="deleted" cls="" />
       ) : item.effect > 0 ? (
-        <Effect label="you lent" amount={short(item.effect)} exact={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" note={cardFeeLabel(item.cardFeeBp)} />
+        <Effect label={item.refund ? "you get back" : "you lent"} amount={short(item.effect)} exact={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" note={cardFeeLabel(item.cardFeeBp)} />
       ) : item.effect < 0 ? (
         <Effect label="you owe" amount={short(-item.effect)} exact={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" note={cardFeeLabel(item.cardFeeBp)} />
       ) : (

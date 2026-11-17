@@ -41,8 +41,8 @@ export function sheetFor(type: string, groupId: string): TypeSheet | null {
       title: "Your Game night is ready",
       cards: [
         // Game page: "At the table. This is only a count: nothing is owed until the game is finished."
-        { icon: "tally", title: "Game tally vs Money owed", body: "The Game tally is only a count while you play. Nothing is owed until the game is finished, then it shows up under Money owed." },
-        // PotCount: finishing asks "Put this game into Money owed?"; the host can reopen it.
+        { icon: "tally", title: "Game tally vs Balances", body: "The Game tally is only a count while you play. Nothing is owed until the game is finished, then it shows up under Balances." },
+        // PotCount: finishing asks "Put this game into Balances?"; the host can reopen it.
         { icon: "confirm", title: "Balances only after you confirm", body: "When a game ends, Loopin asks before its result goes into the group’s balances. You can reopen the game if something was off." },
       ],
       primary: { label: "Start a game", href: `/groups/${groupId}/pot/new` },

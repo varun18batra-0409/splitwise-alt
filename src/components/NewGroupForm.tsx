@@ -14,6 +14,7 @@ import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
 import { useRequestKey } from "./FreshKeyInput";
 import Link from "./Link";
 import { currencyLine } from "@/lib/currency-line";
+import { decimalsOf, formatMoney } from "@/lib/money";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
   trip: <path d="M2 16l20-7-4-2-6 2-6-4-2 1 4 5-4 1-2-1-1 1zM3 21h18" />,
@@ -228,7 +229,7 @@ export function NewGroupForm({
               <div className="flex-1 bg-[#6e6b63]" />
             </div>
             <p className="mt-3 text-sm text-gray-500">
-              A ₹1,000 dinner: you ₹{ratio * 10}, your partner ₹{(100 - ratio) * 10}.
+              A {formatMoney(1000 * 10 ** decimalsOf(currency), currency)} dinner: you {formatMoney(ratio * 10 * 10 ** decimalsOf(currency), currency)}, your partner {formatMoney((100 - ratio) * 10 * 10 ** decimalsOf(currency), currency)}.
             </p>
           </section>
           {mode === "income" && <p className="text-xs text-gray-400">Only the split is saved. Your incomes are never stored or shown to anyone.</p>}

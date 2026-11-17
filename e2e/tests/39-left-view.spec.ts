@@ -5,12 +5,12 @@ import type { RateAnswer } from "../../src/lib/rate-cache";
 import { signUp } from "../helpers/auth";
 import { addEqualExpense, contextFor, createGroup, joinGroup, settled } from "../helpers/app";
 
-// Someone who left sees the group only up to the day they left, plus later changes to their own share.
+// Someone who left sees the group only up to the day they left, and their own share can't change after that.
 //
 // Asha, Ravi and Meera share a trip equally. Dinner ₹900 (Asha paid): ₹300 each. Ravi pays Asha ₹300, so
 // Ravi is square, and leaves. Then Meera adds Taxi ₹600 shared by Asha and Meera, and Asha changes
-// Dinner to take Ravi out (₹450 each for Asha and Meera). Ravi's own balance is +₹300 (the whole
-// ledger's), he sees Dinner, his payment and the "changed Dinner" line, and never Taxi.
+// Dinner to take Ravi out, which is refused (his share can't change after he left). Ravi's own balance stays 0, he sees Dinner and
+// his payment, and never Taxi.
 test("someone who left sees the group up to that day; their share can't be changed after they left", async ({ browser }) => {
   test.setTimeout(180_000);
   const asha = await signUp("Asha", testEmail("lv-asha"));
@@ -54,7 +54,7 @@ test("someone who left sees the group up to that day; their share can't be chang
   await R.goto(g.path);
   await settled(R);
   await expect(R.locator("[data-left-banner]")).toContainText("You left on");
-  await expect(R.locator("[data-left-banner]")).toContainText("You see the group up to that day, plus any later change to your own share.");
+  await expect(R.locator("[data-left-banner]")).toContainText("You see the group up to that day. Your share can’t change after that.");
   // Nothing about his share changed after he left.
   await expect(R.locator("[data-left-after]")).toHaveCount(0);
   await expect(R.getByText("Dinner").first()).toBeVisible();
@@ -62,6 +62,11 @@ test("someone who left sees the group up to that day; their share can't be chang
   await expect(R.locator("[data-left-footnote]")).toContainText("New expenses the group adds without you aren’t shown.");
   // Only Overview, Expenses and People (and Memories, read-only).
   for (const t of ["This month", "Bills", "List", "Games"]) await expect(R.getByRole("link", { name: t, exact: true })).toHaveCount(0);
+
+  // His balance is still 0: the refused edit moved nothing (Dinner 900 split three ways = 300 each, and he paid his 300).
+  const { netBalances } = await import("../../src/lib/balances");
+  const ledger = await db.group.findUniqueOrThrow({ where: { id: gid }, include: { expenses: { include: { shares: true } }, payments: true } });
+  expect(netBalances([a, r, m], ledger.expenses.filter((e) => !e.deletedAt), ledger.payments.filter((p) => !p.deletedAt))[r]).toBe(0);
 
   // Balances: only his own line.
   await R.goto(`${g.path}?tab=balances`);

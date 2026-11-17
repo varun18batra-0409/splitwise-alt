@@ -17,7 +17,7 @@ export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Gam
   return (
     <section aria-label="Games">
       <p className="mb-4 text-sm text-gray-500">
-        Put chips in to play, take home what’s left. The Game tally keeps count while you play; a finished game’s result goes into Money owed. Loopin never holds or moves money.
+        Put chips in to play, take home what’s left. The Game tally keeps count while you play; a finished game’s result goes into Balances. Loopin never holds or moves money.
       </p>
       <p className="-mt-2 mb-4 text-xs text-gray-400" data-game-note>{GAME_NOTE}</p>
       {!closed && (
@@ -53,7 +53,7 @@ export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Gam
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">{neutralGameText(g.name)}</span>
                         <span className="block truncate text-xs text-gray-500">
-                          {potGameLabel(g.game)} · {g.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: v.tz })} · {players.length} players
+                          {potGameLabel(g.game)} · {g.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: v.tz }).replace("Sept", "Sep")} · {players.length} players
                           {g.status === "open" ? ` · ${money(totals.taken)} chips in` : top && top.net > 0 ? ` · ${nameOf(top.memberId)} came out ahead by ${money(top.net)}` : ""}
                         </span>
                         {/* Which nights still need sorting out. */}

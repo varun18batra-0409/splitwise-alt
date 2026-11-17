@@ -92,7 +92,7 @@ export function NewCollectionForm({ defaultCurrency, yourName, friends = [], you
         <span className={label}>
           Each pays <span className={hint}>(leave empty for any amount)</span>
         </span>
-        <input name="amount" defaultValue={v.amount} inputMode="decimal" placeholder={shownCurrency === "INR" ? "₹ 300" : `${shownCurrency} 20`} autoComplete="off" className={`${inputClass} tabular-nums`} />
+        <input name="amount" defaultValue={v.amount} inputMode="decimal" placeholder={shownCurrency === "INR" ? "₹300" : `${shownCurrency} 20`} autoComplete="off" className={`${inputClass} tabular-nums`} />
       </label>
 
       {shownCurrency === "INR" ? (

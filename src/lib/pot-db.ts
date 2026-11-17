@@ -193,7 +193,7 @@ export async function startGame(groupId: string, actorId: string, input: { name:
   const players = [...new Set([...input.players, ...named.ids].filter((p) => active.has(p)))];
   if (players.length < 2) return { ok: false, error: "Pick at least two players." };
   // The day where the players are (not the server's clock): a game at 1 am is still that night's date for them.
-  const when = today.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz });
+  const when = today.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz }).replace("Sept", "Sep");
   const name = String(input.name ?? "").trim().replace(/\s+/g, " ").slice(0, 60) || `${potGameLabel(game)} · ${when}`;
   const created = await db.potGame.create({ data: { groupId, name, game, players: JSON.stringify(players), hostId: actorId } });
   await logEvent(db, { groupId, actorId, kind: "pot_started", text: `started a game: ${name} (${potGameLabel(game)}, ${players.length} players)` });

@@ -93,7 +93,7 @@ describe("recurring bills", () => {
 describe("collect, organiser view", () => {
   const page = src("src/app/c/[code]/page.tsx");
   it("shows three numbers, the goal, the three-part bar and the counts line", () => {
-    for (const s of ["confirmed</p>", "reported</p>", "not reported</p>", "Goal: {money(p.target)}", "data-bar-confirmed", "data-bar-reported", "data-collection-progress"]) expect(page).toContain(s);
+    for (const s of ["checked</p>", "says paid</p>", "not paid yet</p>", "Goal: {money(p.target)}", "data-bar-confirmed", "data-bar-reported", "data-collection-progress"]) expect(page).toContain(s);
     // Only the money that has arrived may be green.
     expect(page).toContain("p.confirmedAmount > 0 ? \"text-owed\"");
   });
@@ -102,11 +102,11 @@ describe("collect, organiser view", () => {
     expect(1800 - 600 - 300).toBe(900);
   });
   it("rows say Says paid or Confirmed, with an outline Confirm received, and Share collection link is the one cream button", () => {
-    for (const s of ['"Says paid"', '"Confirmed"', "Confirm received", "Share collection link", "primaryButtonClass", "Paid cash", "Uncheck", 'aria-label="Still to pay"', 'aria-label="Paid"']) expect(page).toContain(s);
+    for (const s of ['"Says paid"', '"Checked"', "Confirm received", "Share collection link", "primaryButtonClass", "Paid cash", "Uncheck", 'aria-label="Still to pay"', 'aria-label="Paid"']) expect(page).toContain(s);
     expect(page).not.toContain('"Got it"');
     expect(page).toContain("border border-fg/25");
   });
   it("the payer's page keeps its own words", () => {
-    for (const s of ["is collecting", "say they've paid", "Reported, awaiting check", "I’ve paid", "checked by"]) expect(page + src("src/lib/collect-rules.ts") + src("src/components/CollectBits.tsx")).toContain(s);
+    for (const s of ["is collecting", "say they've paid", "I’ve paid", "checked by"]) expect(page + src("src/lib/collect-rules.ts") + src("src/components/CollectBits.tsx")).toContain(s);
   });
 });

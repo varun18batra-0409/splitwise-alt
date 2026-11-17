@@ -42,7 +42,7 @@ export function LeftBanner({ v, ownMoveOut = null }: { v: GroupView; ownMoveOut?
   return (
     <div className="mb-5 rounded-2xl bg-mist px-4 py-3" data-left-banner>
       <p className="font-semibold">{leaver.removed ? `You were removed on ${day}` : ownMoveOut ? `You moved out on ${day}` : `You left on ${day}`}</p>
-      <p className="mt-0.5 text-sm text-gray-500">You see the group up to that day, plus any later change to your own share.</p>
+      <p className="mt-0.5 text-sm text-gray-500">You see the group up to that day. Your share can’t change after that.</p>
       {ownMoveOut && (
         <div className="mt-3" data-own-move-out>
           {ownMoveOut.check.ok ? (

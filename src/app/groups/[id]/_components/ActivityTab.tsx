@@ -26,11 +26,11 @@ import { SelectField } from "@/components/SelectField";
 import { FilterSheet } from "@/components/FilterSheet";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
-const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Selected people", one: "One person" };
+const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Only some", one: "One person" };
 
 const whenIn = (tz: string) => {
   const f = formatter("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-  return (d: Date) => f.format(d);
+  return (d: Date) => f.format(d).replace("Sept", "Sep");
 };
 
 // Every expense, payment and group change, by day — tap one for its details,

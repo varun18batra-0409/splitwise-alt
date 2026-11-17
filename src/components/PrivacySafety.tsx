@@ -3,6 +3,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { aiConsentFor, type AiConsent } from "@/lib/ai-consent";
 import { saveAiConsentForm } from "@/app/ai-actions";
 import { unblockAction } from "@/app/safety-actions";
+import { unblockText } from "@/lib/block-text";
 
 // "Privacy and safety" on the You page: whether Loopin's AI may read bills and lines, the people you blocked, and a way to reach us.
 export async function PrivacySafety({ accountId, flags }: { accountId: string | null; flags: { ai?: string; blocked?: string; unblocked?: string } }) {
@@ -59,7 +60,7 @@ export async function PrivacySafety({ accountId, flags }: { accountId: string | 
                   <span className="min-w-0 flex-1 truncate">{nameOf.get(b.blockedId) ?? "Someone"}</span>
                   <form action={unblockAction}>
                     <input type="hidden" name="accountId" value={b.blockedId} />
-                    <ConfirmButton message={`Unblock ${nameOf.get(b.blockedId) ?? "this person"}? They’ll be able to send you postcards and see your passport again.`} className="min-h-11 rounded-full border border-line px-4 text-sm font-medium active:bg-mist">
+                    <ConfirmButton message={unblockText(nameOf.get(b.blockedId) ?? "this person")} className="min-h-11 rounded-full border border-line px-4 text-sm font-medium active:bg-mist">
                       Unblock
                     </ConfirmButton>
                   </form>

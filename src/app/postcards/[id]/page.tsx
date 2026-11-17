@@ -66,7 +66,8 @@ export default async function PostcardPage({ params, searchParams }: { params: P
           </div>
           <p className="mt-6 text-center text-sm leading-relaxed text-fg/60">
             {first(from?.name)} wrote this for {opens}.<br />
-            {p.opensAt ? opensLine(p.opensAt, tz) : "It opens on the day"}. We’ll let you know.
+            {/* The date is said once: a time is added only when the reader's own clock says it opens at a time other than midnight. */}
+            {p.opensAt && opensLine(p.opensAt, tz) !== `Opens ${sealedDay(p.opensAt, tz, tz)}` ? `${opensLine(p.opensAt, tz)}. ` : ""}We’ll let you know when it opens.
           </p>
         </>
       ) : (

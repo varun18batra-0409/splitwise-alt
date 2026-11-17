@@ -197,7 +197,7 @@ describe("The Pot (real database)", () => {
 
   // C136. Asha takes ₹1,000 and puts back ₹1,500; Bina takes 1,000 and puts back 700; Chirag takes 1,000 and puts back 800.
   // Results +50000, −30000, −20000 (sum 0). The game tally is not in the balances until the game is finished.
-  it("Game tally vs Money owed: balances stay 0 until finished, then +50000 / −30000 / −20000; reopen puts them back to 0; the result is not spending", async () => {
+  it("Game tally vs Balances: balances stay 0 until finished, then +50000 / −30000 / −20000; reopen puts them back to 0; the result is not spending", async () => {
     const { g, a, b, c } = await table();
     const s = await startGame(g.id, a, { name: "Tally night", game: "teenpatti", players: [a, b, c] });
     if (!s.ok) throw new Error(s.error);

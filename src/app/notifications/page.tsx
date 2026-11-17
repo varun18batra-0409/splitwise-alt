@@ -8,7 +8,7 @@ import { loadNotifications, markNotificationsSeen } from "@/lib/group-data";
 import { byDay } from "@/lib/activity";
 import { getTimeZone } from "@/lib/tz";
 import { parseDetails } from "@/lib/events";
-import { viewerDetails } from "@/lib/left-view";
+import { viewerDetails, viewerEventText } from "@/lib/left-view";
 import { PageHeader } from "@/components/ui";
 import { PhoneStatus } from "@/components/PushControls";
 import { loadNeedsYou, withoutRepeats } from "@/lib/needs-you";
@@ -271,7 +271,7 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm" title={neutralGameText(n.event.text)} data-exact={neutralGameText(n.event.text)}>
-                            <strong className="font-medium">{n.actorName}</strong> {neutralGameText(n.event.text)}
+                            <strong className="font-medium">{n.actorName}</strong> {viewerEventText(neutralGameText(n.event.text), n.myName)}
                             {n.event.undoneAt && <span className="text-gray-400"> (since undone)</span>}
                           </span>
                           {n.event.kind === "expense_edited" && details.length > 0 && (

@@ -138,11 +138,16 @@ async function stepOn(only: Profile[], why: string, page: Page | null, area: str
   results.push({ n: results.length + 1, area, name, status: "na", detail: `not applicable on ${PROFILE}: ${why} (runs on ${only.join(", ")})`, only });
   console.log("–", area, "—", name, `(not applicable on ${PROFILE})`);
 }
-// No Remind link on Settle. If the independent ledger says Varun IS owed money, that is a failure; only when
-// nobody owes him is the step genuinely not applicable (and then it is recorded as not run, never as a pass).
-function noRemind(before: string): NotRun {
-  const owed = expected().Varun;
-  assert(!(owed > 0), `${before}Varun is owed ${rupees(owed)} by the ledger, but Settle shows no Remind link`);
+// No Remind link on Settle. If Varun IS owed money, that is a failure; only when nobody owes him is the step genuinely not applicable
+// (and then it is recorded as not run, never as a pass). The balance is read from the database rows themselves: the small model in
+// `expected()` stopped being updated after "Settle everything & close" and later changes, so it is no longer a fair judge here.
+async function noRemind(before: string, groupPath: string): Promise<NotRun> {
+  const { netBalances } = await import("../src/lib/balances");
+  const grp = await db.group.findUniqueOrThrow({ where: { id: groupPath.split("/").pop()! }, include: { members: true, expenses: { include: { shares: true } }, payments: true } });
+  const net = netBalances(grp.members.map((m) => m.id), grp.expenses.filter((e) => !e.deletedAt), grp.payments.filter((p) => !p.deletedAt));
+  const varun = grp.members.find((m) => m.name === "Varun")!.id;
+  const owed = net[varun] ?? 0;
+  assert(!(owed > 0), `${before}Varun is owed ${rupees(owed)} (from the database rows), but Settle shows no Remind link`);
   return notRun(`${before}nobody owes Varun right now, so there was nothing to remind`);
 }
 // Old and new names for the same time zone (Chrome says Asia/Calcutta, the standard list says Asia/Kolkata).
@@ -314,6 +319,13 @@ async function shownBalances(page: Page, groupPath: string): Promise<Record<stri
     out[name] = amt && gets ? minor(amt[1]) : amt && owes ? -minor(amt[1]) : 0;
   }
   return out;
+}
+// "Everyone is square": the rows must really be there first (an empty list, or a missing data-balance that reads as 0, must not pass as "all zero").
+function assertAllSquare(got: Record<string, number>, names: string[], what: string) {
+  const missing = names.filter((n) => !(n in got));
+  assert(missing.length === 0, `${what}: the Balances tab doesn't list ${missing.join(", ")} (it lists ${Object.keys(got).join(", ") || "nobody"})`);
+  assert(Object.keys(got).length >= 2, `${what}: only ${Object.keys(got).length} balance row(s) found`);
+  assert(Object.values(got).every((x) => x === 0), `${what}: not all square: ${JSON.stringify(got)}`);
 }
 async function checkBalances(page: Page, groupPath: string) {
   const want = expected();
@@ -750,12 +762,22 @@ async function main() {
     await V.getByText("Filter coffee at the beach").first().waitFor({ state: "attached" });
     return checkBalances(V, g);
   });
-  await step(V, "Add", "Wrong amounts are refused: letters, zero, empty name still saves as “Expense”?", async () => {
+  await step(V, "Add", "Wrong amounts are refused (letters, zero); an empty name still saves, as “Expense”", async () => {
     await go(V, `${g}/add`);
     await fillExpense(V, { me: "Varun", name: "Junk", amount: "abc" });
     await save(V, { me: "Varun", name: "", amount: "", expectError: /amount/i });
     await V.getByLabel("Amount", { exact: true }).fill("0");
     await save(V, { me: "Varun", name: "", amount: "", expectError: /amount/i });
+    // Now the part the title promises: a good amount and no name really saves, and the saved name is "Expense".
+    const o = { me: "Varun", name: "", amount: "10" };
+    await go(V, `${g}/add`);
+    await fillExpense(V, o);
+    await save(V, o);
+    const gid = g.split("/").pop()!;
+    const saved = await db.expense.findFirst({ where: { groupId: gid, amount: 1000, deletedAt: null }, orderBy: { createdAt: "desc" } });
+    assert(saved?.description === "Expense", `the empty name was saved as “${saved?.description}”, not “Expense”`);
+    ledger.push({ key: "Expense", payer: "Varun", amount: 1000, shares: equal(1000, PEOPLE), active: true });
+    return checkBalances(V, g);
   });
   await step(V, "Add", "Double-tapping Save adds the expense only once", async () => {
     await go(V, `${g}/add`);
@@ -841,7 +863,8 @@ async function main() {
     await fillExpense(V, { me: "Varun", name: "Beach shack", amount: "1000", currency: "THB", method: "Card", rate: "2.5", markup: "group" });
     const box = await V.locator("dl").innerText();
     assert(/2,575/.test(box), `calculation box shows: ${box.replace(/\s+/g, " ")}`);
-    assert(/75/.test(box), "no ₹75 card fee shown");
+    // The fee row on its own ("+ ≈ ₹75"), not the "75" inside "2,575" that was just checked.
+    assert(/₹75(\.00)?(?![\d,])/.test(box.replace(/2,575(\.00)?/g, "")), `no ₹75 card fee row in: ${box.replace(/\s+/g, " ")}`);
     await V.getByRole("button", { name: "Hide details" }).click();
     const line = await V.locator("[data-fx-card] [data-fx-line]").innerText();
     assert(/2,575/.test(line) && /3% fee/.test(line), `one quiet line: ${line}`);
@@ -1071,26 +1094,35 @@ async function main() {
     return checkBalances(V, g);
   });
   await step(V, "Settle", "“I’ve paid” counts at once: the balances move and nothing waits for Asha", async () => {
-    await go(V, `${g}/settle`);
+    // Set the situation up first, so this money rule always runs (in the main group Varun is never the one who owes): a small group where
+    // Asha paid ₹500 for Varun alone, so Varun owes Asha exactly 50000 paise. If the row is missing now, that is a failure, never "not run".
+    const ip = await seedGroup("UAT I’ve paid", ["Asha"]);
+    const ashaAcc = await db.account.findUniqueOrThrow({ where: { email: email("asha") } });
+    await db.member.updateMany({ where: { groupId: ip.id, name: "Asha" }, data: { accountId: ashaAcc.id, claimedAt: new Date() } });
+    const o = { me: "Asha", name: "Setup dinner", amount: "500", split: { kind: "one" as const, who: "Varun" } };
+    await go(A, `${ip.path}/add`);
+    await fillExpense(A, o);
+    await save(A, o);
+    const owing: GEntry[] = [{ payer: "Asha", amount: 50000, shares: { Varun: 50000 } }];
+    await checkLedger(V, ip.path, ["Varun", "Asha"], owing); // Varun −₹500.00, Asha +₹500.00
+    await go(V, `${ip.path}/settle`);
     const mine = settleCards(V).filter({ has: V.locator("[data-i-paid]") });
-    if (!(await mine.count())) return notRun("Varun pays nobody right now");
+    assert((await mine.count()) === 1, "Varun owes Asha ₹500 but Settle up has no “I’ve paid” row for him");
     const t = (await mine.first().innerText()).replace(/\s+/g, " ");
     const m = /You pay (\w+) (₹[\d,.]+)/.exec(t);
     assert(m, `can't read the row: ${t}`);
-    if (m[1] !== "Asha") return notRun(`Varun pays ${m[1]}, who isn't one of the signed-in phones here`);
-    const amt = minor(m[2]);
-    const before = await checkBalances(V, g);
+    assert(m[1] === "Asha" && minor(m[2]) === 50000, `the row says “${t}”, not “You pay Asha ₹500”`);
     await mine.first().locator("[data-i-paid]").click();
     await V.waitForURL(/paid=1/);
-    payments.push({ from: "Varun", to: "Asha", amount: amt, active: true, key: "claim" });
-    const after = await checkBalances(V, g); // the payment counted at once
+    // The payment counted at once: both are square (and both names are listed, so an empty page can't pass as "all zero").
+    const after = await checkLedger(V, ip.path, ["Varun", "Asha"], [...owing, { payer: "Varun", amount: 50000, shares: { Asha: 50000 } }]);
     // Asha is told, but has nothing to answer: nothing under "Needs you", no question on Settle up.
     await go(A, "/notifications");
     assert((await A.locator('[data-need="claim"]').count()) === 0, "Needs you lists a claim after an I've paid");
     assert((await A.getByText(/says they paid/).count()) === 0, "Alerts still says someone 'says they paid'");
-    await go(A, `${g}/settle`);
+    await go(A, `${ip.path}/settle`);
     assert((await A.locator("[data-waiting='Varun']").count()) === 0, "Asha is asked to confirm a payment that already counts");
-    return `${before} → ${after}`;
+    return `Varun −₹500.00, Asha +₹500.00 → ${after}`;
   });
   // Record a payment: From and To are folded away until tapped (the To list starts open when nobody is picked yet).
   const pickFrom = async (page: Page, name: string) => {
@@ -1154,7 +1186,7 @@ async function main() {
     await V.waitForURL(/closed=1/);
     await V.getByText("Closed groups").first().waitFor();
     const got = await shownBalances(V, g);
-    assert(Object.values(got).every((x) => x === 0), `not all square after settling: ${JSON.stringify(got)}`);
+    assertAllSquare(got, PEOPLE, "after settling everything");
     await go(V, g);
     await V.getByRole("button", { name: "Reopen" }).click();
     await V.waitForURL(new RegExp(g));
@@ -1205,15 +1237,16 @@ async function main() {
     assert((await V.locator("main").getByText("I’ve paid").count()) === 0, "the all-groups Settle screen says “I’ve paid”");
     // "Mark received" (Varun is owed) is in the ⋮ menu and opens the sheet; only confirming it saves anything.
     await card.locator("[data-settle-menu]").click();
-    await card.getByRole("menuitem", { name: "Mark received" }).click();
+    await card.getByRole("link", { name: "Mark received" }).or(card.getByRole("button", { name: "Mark received" })).click();
     const sheet = V.locator("[data-record-sheet]");
     await sheet.waitFor();
-    assert(/Mark received/.test(await sheet.innerText()) && /No money will be transferred/.test(await sheet.innerText()), "the sheet doesn't say what it records");
+    assert(/Mark received/.test(await sheet.innerText()) && /Loopin doesn’t move money/.test(await sheet.innerText()), "the sheet doesn't say what it records");
     await sheet.locator("[data-record-confirm]").click();
     await V.waitForURL(/settle=done/);
     const b2 = await shownBalances(V, g2);
     const b3 = await shownBalances(V, g3);
-    assert(Object.values(b2).every((x) => x === 0) && Object.values(b3).every((x) => x === 0), `not square: ${JSON.stringify({ b2, b3 })}`);
+    assertAllSquare(b2, ["Varun"], "the flat group");
+    assertAllSquare(b3, ["Varun"], "the second group");
   });
   await step(V, "Across groups", "All square page: a “Hide amounts” switch blanks the money tile (₹ ••••), and the shared picture follows", async () => {
     await go(V, `${g2}/square`);
@@ -1550,7 +1583,7 @@ async function main() {
         }
         return out;
       })()`)) as string[];
-      const allowed = /^Coming up$/;
+      const allowed = /^(Coming up|Your trips)$/; // "Your trips" when one of them is already on
       assert(between.every((b) => allowed.test(b)), `between Your groups and Latest: ${between.join(", ")}`);
     }
     const phone = V.getByText(/saved on this phone/);
@@ -1699,9 +1732,21 @@ async function main() {
     await V.waitForURL(new RegExp(g3));
   });
   await step(V, "People", "Rename someone on the People screen", async () => {
-    await go(V, `${g}/people`);
-    const t = await V.locator("body").innerText();
-    assert(/Zoe/.test(t), "Zoe not listed");
+    // A real rename: Zoe becomes "Zoe K", then goes back, and the name is checked on the screen and in the database both times.
+    const gid = g.split("/").pop()!;
+    const zoe = await db.member.findFirstOrThrow({ where: { groupId: gid, name: "Zoe" } });
+    const rename = async (to: string) => {
+      await go(V, `${g}/people`);
+      await V.locator("details summary").filter({ hasText: /^(?:[A-Z] )?Zoe/ }).first().click();
+      const box = V.locator("details[open]").locator('input[name="name"]').first();
+      await box.fill(to);
+      await box.press("Enter");
+      await until(`Zoe renamed to ${to}`, async () => (await db.member.findUnique({ where: { id: zoe.id } }))?.name === to);
+      await go(V, `${g}/people`);
+      assert(new RegExp(to.replace(/\s+/g, "\\s+")).test(await V.locator("body").innerText()), `“${to}” is not shown on the People screen after the rename`);
+    };
+    await rename("Zoe K");
+    await rename("Zoe"); // back, so the rest of the run still knows her as Zoe
   });
   await step(V, "Account", "Signed in: You page shows the email; Sign in goes to it; privacy page opens", async () => {
     await go(V, "/account");
@@ -1797,15 +1842,28 @@ async function main() {
     await go(V, `${g3}/people`);
     assert((await V.getByText("Sheldon").count()) === 0, "Sheldon still listed");
   });
-  await step(V, "People", "Someone owing money can't be marked as left until settled", async () => {
-    await go(V, `${g}/people`);
-    const before = await shownBalances(V, g);
-    const debtor = PEOPLE.find((p) => p !== "Varun" && (before[p] ?? 0) !== 0);
-    if (!debtor) return notRun("everyone settled");
-    await go(V, `${g}/people`);
-    await V.locator("details summary").filter({ hasText: debtor }).first().click();
-    assert(await V.locator("details[open]").getByRole("button", { name: "Settle up first" }).isDisabled(), "leave button isn't disabled");
-    return `${debtor} can't leave while owing`;
+  await step(V, "People", "Someone owing money can't be marked as left until settled: the button is off, and a forged leave is refused with their \"left\" mark still empty", async () => {
+    // Its own small group, so the debt is always there (the main group is square by now): Varun pays ₹300 for both, so Kiran owes 15000 paise.
+    const og = await seedGroup("UAT Owing", ["Kiran"]);
+    const o = { me: "Varun", name: "Dinner out", amount: "300" };
+    await go(V, `${og.path}/add`);
+    await fillExpense(V, o);
+    await save(V, o);
+    await checkLedger(V, og.path, ["Varun", "Kiran"], [{ payer: "Varun", amount: 30000, shares: evenly(30000, ["Varun", "Kiran"]) }]);
+    await go(V, `${og.path}/people`);
+    await V.locator("details summary").filter({ hasText: "Kiran" }).first().click();
+    assert(await V.locator("details[open]").getByRole("button", { name: "Remove Kiran" }).isDisabled(), "the remove button isn't disabled while Kiran owes");
+    assert((await V.locator("details[open]").getByText("To remove Kiran, settle up first.").count()) === 1, "the line saying what to do first is missing");
+    // The server's own rule, not just the greyed button: the same call the form makes.
+    const { setMemberLeft } = await import("../src/lib/people");
+    const members = await db.member.findMany({ where: { groupId: og.id } });
+    const varunId = members.find((m) => m.name === "Varun")!.id;
+    const kiranId = members.find((m) => m.name === "Kiran")!.id;
+    const refused = await setMemberLeft(og.id, varunId, kiranId, true);
+    assert(!refused.ok && /still owes .*Settle up first/.test(refused.error), `the forged leave was not refused the right way: ${JSON.stringify(refused)}`);
+    const row = await db.member.findUniqueOrThrow({ where: { id: kiranId } });
+    assert(row.leftAt === null && row.removedAt === null, "Kiran's left mark changed although the leave was refused");
+    return "greyed, and refused with leftAt still empty";
   });
   await step(V, "Edit", "Change who paid on an expense: balances move by exactly that amount", async () => {
     const before = await shownBalances(V, g);
@@ -2127,7 +2185,7 @@ async function main() {
     assert((await page.locator("[data-tour-slide]").count()) === 7, `${await page.locator("[data-tour-slide]").count()} slides, not 7 (the tour is 7 slides)`);
     const all = seen.join(" ");
     for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story.", "Send a postcard.", "Keep the little moments.", "Collect your passport."]) assert(all.includes(t), `no “${t}” slide`);
-    assert(/to the last paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa or cent”");
+    assert(/to the last (paisa|cent)\b/.test(all) && !/paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa” (India) or “to the last cent”");
     assert(/Pay each other however you like/.test(all), "the settle slide doesn’t say “Pay each other however you like”");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
     assert(!/UPI|Teen Patti|Poker|Diwali/i.test(all), "a slide has India-only or card-room words");
@@ -3044,7 +3102,7 @@ async function main() {
   await step(V, "Settle", "Remind opens WhatsApp with the amount and who owes it", async () => {
     await go(V, `${g}/settle`);
     const link = V.getByRole("link", { name: /Remind/ }).first();
-    if (!(await link.count())) return noRemind("");
+    if (!(await link.count())) return noRemind("", g);
     // Remind goes through Loopin (to make the "I've paid" link), then on to WhatsApp.
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     const href = res.headers()["location"] ?? "";
@@ -3111,7 +3169,7 @@ async function main() {
     const row = V.locator("li, div").filter({ hasText: "Internet" }).filter({ has: V.getByRole("link", { name: "Add it" }) }).last();
     await row.getByRole("link", { name: "Add it" }).click();
     await V.waitForURL(/\/add\?/);
-    assert((await V.getByLabel("Amount", { exact: true }).inputValue()).replace(/,/g, "") === "999", "Add it isn't pre-filled with ₹999");
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "999", "Add it isn't pre-filled with ₹999 (the box holds the grouped digits exactly: 999)");
   });
 
   await step(V, "Switching", "A file that isn't a known export gets a clear message; a second currency is flagged", async () => {
@@ -3172,8 +3230,8 @@ async function main() {
     for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByRole("listitem").filter({ hasText: n }).first().waitFor();
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    // The organiser's summary: nothing confirmed or reported yet, 3 x ₹500 = ₹1,500 remaining and the goal, and "3 still to pay".
-    assert(/₹0 confirmed|₹0\s+confirmed/.test(p) && /₹1,500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && (await due.getByRole("listitem").count()) === 3, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // The organiser's summary: nothing checked or said paid yet, 3 x ₹500 = ₹1,500 not paid yet and the goal, and "3 still to pay".
+    assert(/₹0\s+checked/.test(p) && /₹1,500\s+not paid yet/.test(p) && /Goal: ₹1,500/.test(p) && (await due.getByRole("listitem").count()) === 3, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   // Notifications are written just after the page answers: give them a moment.
@@ -3202,9 +3260,9 @@ async function main() {
     await page.waitForURL(/ticked=1/);
     await page.getByText("You’re on the list.", { exact: false }).waitFor();
     const p = await page.locator("[data-collection-progress]").innerText();
-    // UX-03: said-paid money is reported, not confirmed: "Confirmed ₹0" and "Reported, awaiting check ₹500" are separate lines.
+    // UX-03: said-paid money is “says paid”, not checked: "Checked ₹0" and "Says paid ₹500" are separate lines.
     const rep = await page.locator("[data-collection-reported]").innerText();
-    assert(/1 of 3 say they've paid/.test(p) && /Confirmed ₹0/.test(p) && /Reported, awaiting check ₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
+    assert(/1 of 3 say they've paid/.test(p) && /Checked ₹0/.test(p) && /Says paid ₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
     await ctx.close();
   });
 
@@ -3215,12 +3273,12 @@ async function main() {
     await paid.getByText("Says paid", { exact: true }).waitFor();
     await paid.getByRole("button", { name: "Confirm received" }).click();
     await V.waitForLoadState("networkidle").catch(() => undefined);
-    await paid.getByText("Confirmed", { exact: true }).waitFor();
+    await paid.getByText("Checked", { exact: true }).waitFor();
     await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
-    await V.getByRole("region", { name: "Paid" }).getByText(/Confirmed · cash/).waitFor();
+    await V.getByRole("region", { name: "Paid" }).getByText(/Checked · cash/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    // Zoya ₹500 + Kabir ₹500 (cash) = ₹1,000 confirmed of a ₹1,500 goal: ₹500 remaining, 2 confirmed, 1 still to pay, nothing reported.
-    assert(/₹1,000\s+confirmed/.test(p) && /₹500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && (await V.getByRole("region", { name: "Paid" }).getByText(/^Confirmed/).count()) === 2 && (await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").count()) === 1 && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // Zoya ₹500 + Kabir ₹500 (cash) = ₹1,000 checked of a ₹1,500 goal: ₹500 not paid yet, 2 checked, 1 still to pay, nothing reported.
+    assert(/₹1,000\s+checked/.test(p) && /₹500\s+not paid yet/.test(p) && /Goal: ₹1,500/.test(p) && (await V.getByRole("region", { name: "Paid" }).getByText(/^Checked/).count()) === 2 && (await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").count()) === 1 && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
@@ -3237,12 +3295,27 @@ async function main() {
     await go(page, collectPath);
     assert((await page.getByRole("button", { name: "Confirm received" }).count()) === 0, "a stranger sees Confirm received");
     assert((await page.getByRole("button", { name: "Close collection" }).count()) === 0, "a stranger sees Close");
+    // The buttons are only hidden. Send the organiser's confirm as someone who isn't the organiser (Asha, who is not the organiser here):
+    // it must be refused, and no entry may change.
+    const code = collectPath.split("/").pop()!;
+    const coll = await db.collection.findFirstOrThrow({ where: { code }, include: { entries: true } });
+    const state = async () => (await db.collectionEntry.findMany({ where: { collectionId: coll.id }, orderBy: { id: "asc" } })).map((e) => `${e.id}:${e.status}`).join(",");
+    const before = await state();
+    const target = coll.entries.find((e) => e.status === "paid") ?? coll.entries[0];
+    const { organiserAction } = await import("../src/lib/collect");
+    const ashaAcc2 = await db.account.findUniqueOrThrow({ where: { email: email("asha") } });
+    assert(ashaAcc2.id !== coll.accountId, "the test person is the organiser, so this can't prove anything");
+    for (const kind of ["confirm", "cash", "close"] as const) {
+      const r = await organiserAction(code, ashaAcc2.id, { kind, entryId: target.id });
+      assert(!r.ok, `a forged “${kind}” as a non-organiser was accepted`);
+    }
+    assert((await state()) === before, "a collection entry changed after the refused forged calls");
     await ctx.close();
   });
 
-  await step(V, "New group", "“What’s it for?” offers Trip, Home, Couple, Game night, Collect and Anything Goes; Game night explains itself; Collect opens Collect", async () => {
+  await step(V, "New group", "“What’s it for?” offers Trip, Home, Couple, Game night, Collect and Anything goes; Game night explains itself; Collect opens Collect", async () => {
     await go(V, "/groups/new");
-    for (const t of [/^Trip/, /^Home/, /^Couple/, /^Game night/, /^Anything Goes/]) assert(await V.getByRole("button", { name: t }).count(), `no ${t} choice`);
+    for (const t of [/^Trip/, /^Home/, /^Couple/, /^Game night/, /^Anything goes/]) assert(await V.getByRole("button", { name: t }).count(), `no ${t} choice`);
     await V.getByRole("button", { name: /^Game night/ }).click();
     await V.getByText(/Loopin works out who came out ahead, who came out behind and who pays whom/).waitFor();
     await V.getByText(/No betting happens in the app/).waitFor();
@@ -3312,7 +3385,7 @@ async function main() {
 
   await step(V, "Groups", "A photo picked while making a group becomes its picture", async () => {
     await go(V, "/groups/new");
-    await V.getByRole("button", { name: /^Anything Goes/ }).click();
+    await V.getByRole("button", { name: /^Anything goes/ }).click();
     await V.locator('input[name="groupName"]').fill(`UAT photo group ${stamp % 1000}`);
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
     await V.getByLabel("Choose your own photo").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
@@ -3330,7 +3403,7 @@ async function main() {
     await V.getByLabel("Type the expense in one line").fill("Snacks 600 split with everyone");
     await V.getByRole("button", { name: "Fill", exact: true }).click();
     assert((await V.locator("#expense-name").inputValue()) === "Snacks", `name is “${await V.locator("#expense-name").inputValue()}”`);
-    assert((await V.getByLabel("Amount", { exact: true }).inputValue()).replace(/,/g, "") === "600", "amount not filled");
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "600", "amount not filled (the box holds exactly 600)");
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 
@@ -3451,7 +3524,7 @@ async function main() {
     await settleNav(V);
     await go(V, `${g}/settle`);
     const link = V.locator("[data-remind]").first();
-    if (!(await link.count())) return noRemind("the pay details were saved, but ");
+    if (!(await link.count())) return noRemind("the pay details were saved, but ", g);
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     assert(res.status() === 303, `Remind answered ${res.status()}`);
     const wa = decodeURIComponent(res.headers()["location"] ?? "");
@@ -3463,7 +3536,7 @@ async function main() {
     await page.locator("[data-paylink='owes']").waitFor();
     assert(((await page.locator("[data-pay='upi']").getAttribute("href")) ?? "").startsWith("upi://pay?pa=varun%40okicici"), "no UPI button for Varun");
     assert(/^Pay with UPI$/.test((await page.locator("[data-pay='upi']").innerText()).trim()), "the UPI button isn't “Pay with UPI”");
-    assert(/This records a payment made outside Loopin\. Loopin doesn't move money\./.test(await page.locator("body").innerText()), "the payment line is missing on the I’ve paid page");
+    assert(/This records a payment made outside Loopin\. Loopin doesn’t move money\./.test(await page.locator("body").innerText()), "the payment line is missing on the I’ve paid page");
     assert(await page.locator("[data-i-paid]").count(), "no I’ve paid button");
     // A made-up link: a friendly page, not an error.
     await go(page, "/p/AAAAAAAAAAAAAAAAAAAAAA");
@@ -3480,7 +3553,7 @@ async function main() {
     await settleNav(V);
     await go(V, `${g}/settle`);
     const link = V.locator("[data-remind]").first();
-    if (!(await link.count())) return noRemind("the pay details were saved, but ");
+    if (!(await link.count())) return noRemind("the pay details were saved, but ", g);
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     assert(res.status() === 303, `Remind answered ${res.status()}`);
     const payPath = new URL(res.headers()["x-pay-link"] ?? "").pathname;
@@ -3562,7 +3635,7 @@ async function main() {
     await V.getByRole("button", { name: "Open your passport" }).click();
     await V.getByRole("button", { name: "Next page" }).waitFor();
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Add visited place" }).click();
+    await V.getByRole("button", { name: "Add a place" }).click();
     const sheet = V.getByRole("dialog", { name: "Add countries" });
     await sheet.getByLabel("Search countries").fill("thai");
     await sheet.getByRole("checkbox", { name: "Thailand" }).check();
@@ -4034,6 +4107,17 @@ async function main() {
     await go(R, rules);
     await R.locator("[data-left-banner]").waitFor();
   });
+  await step(R, "Permissions", "After Ravi left, Varun adds a new expense: Ravi doesn't see it, and still sees what was there before he left", async () => {
+    const o = { me: "Varun", name: "Late dinner", amount: "90" };
+    await go(V, `${rules}/add`);
+    await fillExpense(V, o);
+    await save(V, o);
+    await go(R, `${rules}?tab=activity`);
+    await R.getByText("Snack").first().waitFor(); // what was there before he left is still shown, so an empty page can't pass as "hidden"
+    assert((await R.getByText("Late dinner").count()) === 0, "Ravi (who left) can see an expense added after he left");
+    await go(R, rules);
+    assert((await R.getByText("Late dinner").count()) === 0, "Ravi (who left) sees the later expense on the group's front page");
+  });
   await step(R, "Permissions", "A leaver trying to edit: the Add screen says he left and offers no Save, and Varun's old expense opens read-only", async () => {
     const gid = rules.split("/").pop()!;
     const before = await db.expense.findUniqueOrThrow({ where: { id: snackId } });
@@ -4045,6 +4129,19 @@ async function main() {
     assert((await R.locator("#expense-name").count()) === 0 && (await R.getByRole("button", { name: /^Save/ }).count()) === 0, "a leaver is offered the Edit form");
     const after = await db.expense.findUniqueOrThrow({ where: { id: snackId } });
     assert(after.description === before.description && after.amount === before.amount && (await db.expense.count({ where: { groupId: gid } })) === count, "something changed in the group after the leaver tried");
+    // The screens only hide the forms. Send the same save calls the forms make, as Ravi: both must be refused and change nothing.
+    const { saveExpense } = await import("../src/lib/save-expense");
+    const members = await db.member.findMany({ where: { groupId: gid } });
+    const ravi = members.find((m) => m.accountId === raviAcc.id)!.id;
+    const varun = members.find((m) => m.name === "Varun")!.id;
+    const rate = (async () => ({ ok: true, rate: "1", date: new Date().toISOString().slice(0, 10) })) as never;
+    const form = { groupId: gid, name: "Forged", category: "", amount: "50", currency: "INR", paidById: ravi, forMode: "selected" as const, selected: [ravi, varun], onePersonId: "", splitType: "equal" as const, exact: {}, percent: {}, paymentMethod: "cash" as const, markupChoice: "group" as const, markupCustom: "", rateMode: "auto" as const, manualRate: "" };
+    const forgedAdd = await saveExpense(form, ravi, rate);
+    assert(!forgedAdd.ok, "a forged Add as the leaver was accepted");
+    const forgedEdit = await saveExpense({ ...form, expenseId: snackId, name: "Snack", rateMode: "keep" as const }, ravi, rate);
+    assert(!forgedEdit.ok, "a forged Edit as the leaver was accepted");
+    const still = await db.expense.findUniqueOrThrow({ where: { id: snackId } });
+    assert(still.description === before.description && still.amount === before.amount && (await db.expense.count({ where: { groupId: gid, description: "Forged" } })) === 0, "a refused forged save still changed the group");
   });
   await step(V, "Permissions", "Varun removes Zoe; she can't get back in with the old invite link or the old group address", async () => {
     await go(V, `${rules}/people`);
@@ -4061,6 +4158,15 @@ async function main() {
     assert(/You were removed/.test(await Z.locator("[data-left-banner]").innerText()), "the banner doesn't say she was removed");
     await go(Z, `${rules}/add`);
     assert((await Z.locator("#expense-name").count()) === 0 && (await Z.getByRole("button", { name: /Save expense/ }).count()) === 0, "a removed person is offered the Add form");
+    // The page only hides the Join button. Send the join the button would, as Zoe: it must be refused and her removal must stay.
+    const { joinExisting, joinNew } = await import("../src/lib/join");
+    const zoeRow = await db.member.findFirstOrThrow({ where: { groupId: rules.split("/").pop()!, accountId: zoeAcc.id } });
+    const who = { id: zoeAcc.id, name: zoeAcc.name, email: zoeAcc.email };
+    const asSelf = await joinExisting(rulesCode, who, zoeRow.id);
+    const asNew = await joinNew(rulesCode, who, "Zoe");
+    assert(!asSelf.ok && !asNew.ok, `a removed person got back in with a forged join: ${JSON.stringify({ asSelf, asNew })}`);
+    const kept = await db.member.findUniqueOrThrow({ where: { id: zoeRow.id } });
+    assert(kept.removedAt !== null, "Zoe's removal was undone by the refused join");
   });
 
   // ----- Layout: no sideways scroll at this device's own size; the desktop column -----

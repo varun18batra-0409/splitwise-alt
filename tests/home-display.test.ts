@@ -79,7 +79,7 @@ describe("story labels", () => {
     });
     const shortOf = (k: string) => stories.find((s) => s.kind === k)?.short;
     expect(shortOf("pot")).toBe("Game night");
-    expect(shortOf("square")).toBe("All square");
+    expect(shortOf("square")).toBe("Flat 402"); // by place, like the trip circles (the headline says "all square")
     expect(shortOf("collect")).toBe("Collection"); // collections have their circle again (founder, 15 Nov)
     expect(shortOf("memory")).toBe("A year ago");
     expect(shortOf("wrapped")).toBe("Wrapped");

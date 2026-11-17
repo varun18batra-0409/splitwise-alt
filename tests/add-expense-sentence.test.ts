@@ -96,7 +96,7 @@ describe("Add expense sentence: the line under the card", () => {
     const pairs = [{ from: "me", to: "nupur", amount: 30000 }];
     expect(resultSentence({ payers: [{ memberId: "nupur", amount: 180000 }], total: 180000, pairs, myId: "me", myShare: 30000, inShares: true, justMe: false, refund: false, name: n, money: inr })).toEqual([
       { text: "Nupur paid ₹1,800.", amount: "", tone: "plain" },
-      { text: "Your share is", amount: "₹300.", tone: "owe" },
+      { text: "Your share is", amount: "₹300", tone: "owe" },
     ]);
   });
   // You paid 2,400 for 4: 600 each, so Asha, Ravi and Meera owe you 1,800.
@@ -104,7 +104,7 @@ describe("Add expense sentence: the line under the card", () => {
     const pairs = ["asha", "ravi", "meera"].map((from) => ({ from, to: "me", amount: 60000 }));
     expect(resultSentence({ payers: [{ memberId: "me", amount: 240000 }], total: 240000, pairs, myId: "me", myShare: 60000, inShares: true, justMe: false, refund: false, name, money: inr })).toEqual([
       { text: "You paid ₹2,400.", amount: "", tone: "plain" },
-      { text: "You get back", amount: "₹1,800.", tone: "owed" },
+      { text: "You get back", amount: "₹1,800", tone: "owed" },
     ]);
   });
   // You 100 + Asha 100 paid 200 for 4 (50 each): you and Asha are each owed 50 by Ravi / Meera.
@@ -112,7 +112,7 @@ describe("Add expense sentence: the line under the card", () => {
     const pairs = [{ from: "ravi", to: "me", amount: 5000 }, { from: "meera", to: "asha", amount: 5000 }];
     const s = resultSentence({ payers: [{ memberId: "me", amount: 10000 }, { memberId: "asha", amount: 10000 }], total: 20000, pairs, myId: "me", myShare: 5000, inShares: true, justMe: false, refund: false, name, money: inr });
     expect(s[0].text).toBe("You + Asha paid ₹200.");
-    expect(s[1]).toEqual({ text: "You get back", amount: "₹50.", tone: "owed" });
+    expect(s[1]).toEqual({ text: "You get back", amount: "₹50", tone: "owed" });
   });
   // Money back: Asha got 400 back, shared by 4 (100 each): you get back 100 of it.
   it("money back says who got it", () => {
@@ -120,7 +120,7 @@ describe("Add expense sentence: the line under the card", () => {
     const s = resultSentence({ payers: [{ memberId: "asha", amount: 40000 }], total: 40000, pairs, myId: "me", myShare: 10000, inShares: true, justMe: false, refund: true, name, money: inr });
     expect(s).toEqual([
       { text: "Asha got ₹400 back.", amount: "", tone: "plain" },
-      { text: "You get back", amount: "₹100.", tone: "owed" },
+      { text: "You get back", amount: "₹100", tone: "owed" },
     ]);
   });
   it("just you", () => {
@@ -196,6 +196,6 @@ describe("groupDigits (display only: the typed amount is what is saved)", () => 
     const pairs = [{ from: "a", to: "me", amount: 128784 }, { from: "b", to: "me", amount: 128783 }, { from: "c", to: "me", amount: 128783 }];
     const base = { payers: [{ memberId: "me", amount: 515134 }], total: 515134, pairs, myId: "me", myShare: 128784, inShares: true, justMe: false, refund: false, name, money: inr };
     expect(resultSentence(base).map((p) => p.text)).toEqual(["You paid ₹5,151.34.", "You get back"]);
-    expect(resultSentence({ ...base, showPaid: false })).toEqual([{ text: "You get back", amount: "₹3,863.5.", tone: "owed" }]);
+    expect(resultSentence({ ...base, showPaid: false })).toEqual([{ text: "You get back", amount: "₹3,863.5", tone: "owed" }]);
   });
 });

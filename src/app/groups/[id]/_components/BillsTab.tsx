@@ -33,7 +33,7 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
   const row = (b: BillStatus) => {
     const payer = b.payerId ?? (b.bill.payer || null);
     const who = payer === myId ? "you pay" : payer ? `${nameOf(payer)} pays` : "taking turns";
-    const turns = !b.bill.payer && payer ? " (turns)" : "";
+    const turns = !b.bill.payer && payer ? " this month" : ""; // taking turns: "Asha pays this month"
     const hold = billHold({ nature: b.bill.nature, reason: b.reason, payerId: b.payerId });
     const badge = billBadge({ nature: b.bill.nature, status: b.status, due: b.due, payerId: b.payerId, reason: b.reason, recordedThisMonth: b.recordedThisMonth, tz: b.bill.tz, now: new Date() });
     const cadence = b.bill.nature === "daily" ? "Daily" : b.bill.every > 1 ? `Every ${b.bill.every} months` : "Monthly";
@@ -121,7 +121,7 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
 
       {bills.length > 0 && (
         <p className="mt-6 text-xs leading-relaxed text-gray-500">
-          Same each time ones repeat on the day; ones that change are entered by whoever pays. Tap a bill to change it, skip a month, or stop it. Everyone is told when a bill is added, and anyone can undo it.
+          Fixed bills are added automatically on their day. Bills that change (like electricity) are entered by whoever pays. Tap a bill to change it, skip a month, or stop it. Everyone is told when a bill is added, and anyone can undo it.
         </p>
       )}
 

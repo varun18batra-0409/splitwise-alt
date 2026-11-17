@@ -5,7 +5,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { formatMoney } from "@/lib/money";
 import { photoData } from "@/lib/share-photo";
 import { loadOgFonts } from "@/lib/og-assets";
-import { squareWords } from "@/lib/settle-ui";
+import { settleHeadline } from "@/lib/settle-ui";
 import { isSquare, squareNumbers, squareTiles } from "@/lib/square";
 
 // "All square" as a story-sized picture (1080 × 1920) for WhatsApp status or
@@ -23,7 +23,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (data.leaver) return new Response("Only people still in the group can share this.", { status: 409, headers: { "Cache-Control": "private, no-store" } });
   // The picture says "Nobody owes anybody": only made when that is true (settled, with at least one expense).
   if (!isSquare({ transfers, expenses })) return new Response("This group isn’t all square yet.", { status: 409, headers: { "Cache-Control": "private, no-store" } });
-  const words = squareWords({ leaver: Boolean(data.leaver) });
+  const words = settleHeadline({ leaver: Boolean(data.leaver) });
   const people = data.people.filter((m) => m.id === myId || !m.leftAt); // (a leaver counts themselves) the scoped list (as Wrapped does), so a leaver is not shown people from after they left
   const n = squareNumbers({ expenses, payments, people: people.length, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const origin = new URL(req.url).origin;

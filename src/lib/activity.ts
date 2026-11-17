@@ -170,7 +170,7 @@ export function dayLabel(date: Date, now = new Date(), timeZone: string = DEFAUL
     ...(sameYear ? { weekday: "short" } : { year: "numeric" }),
     day: "numeric",
     month: "short",
-  }).format(date);
+  }).format(date).replace("Sept", "Sep"); // "Sep", never "Sept": one spelling everywhere
 }
 
 // Groups items under day headings, keeping order.
@@ -271,7 +271,7 @@ export function activityMoreHref(groupId: string, f: ActivityFilter, n: number):
   return activityHref(groupId, f, n);
 }
 
-const DAY = (iso: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`));
+const DAY = (iso: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`)).replace("Sept", "Sep");
 const TYPE_WORDS: Record<string, string> = { expense: "Expenses", payment: "Payments", refund: "Money back", change: "Changes" };
 
 // One small chip for each filter in use; tapping a chip opens the same list without that one filter.

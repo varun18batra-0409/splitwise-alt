@@ -177,13 +177,13 @@ function makeSlides(L: Local, momentPhoto?: string): Slide[] {
     {
       id: "group",
       title: "Make a group.",
-      caption: "One for the trip, home, or the two of you. Friends join from a link or a QR code.",
+      caption: "One for a trip, a home, the two of you, a game night and more. Friends join from a link or a QR code.",
       art: <Cheers />,
     },
     {
       id: "add",
       title: "Add what you paid.",
-      caption: "Type it, scan the bill or just say it. Loopin splits it to the last paisa or cent, in any currency.",
+      caption: `Type it, scan the bill or just say it. Loopin splits it to the last ${L.india ? "paisa" : "cent"}, in any currency.`,
       art: (
         <Card>
           <p className="rise text-xs text-gray-400">Beach dinner</p>
@@ -216,13 +216,13 @@ function makeSlides(L: Local, momentPhoto?: string): Slide[] {
             <Dot name="Ravi" />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">Ravi pays you</span>
-              <span className="block text-xs text-gray-400">One payment clears the trip</span>
+              <span className="block text-xs text-gray-400">His share of the dinner</span>
             </span>
-            <span className={`font-display text-lg ${owed}`}>{L.m(v.back)}</span>
+            <span className={`font-display text-lg ${owed}`}>{L.m(v.each)}</span>
           </div>
           <div className="rise rise-3 mt-4 rounded-2xl bg-mist p-3">
             <p className="text-sm">
-              Ravi paid you {L.m(v.back)}
+              Ravi paid you {L.m(v.each)}
             </p>
           </div>
         </Card>

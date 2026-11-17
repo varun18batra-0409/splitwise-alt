@@ -11,6 +11,9 @@ export function TripDates({ start = "", end = "", titleClass = "text-sm font-med
   const [from, setFrom] = useState(start);
   const [to, setTo] = useState(end);
   const bad = Boolean(from && to && to < from);
+  // Dates that are all in the past have no countdown to show: say so, instead of the "start the countdown" promise above.
+  const today = new Date().toLocaleDateString("en-CA");
+  const over = Boolean(from && !bad && (to || from) < today);
   return (
     <div id="trip" className="scroll-mt-6">
       <span className={`mb-2 block ${titleClass}`}>When’s the trip?</span>
@@ -31,7 +34,7 @@ export function TripDates({ start = "", end = "", titleClass = "text-sm font-med
       {/* The dates in words, so a phone's dd/mm/yyyy can't be misread. */}
       {from && (
         <p role="status" className={`mt-2 text-[13px] ${bad ? "text-owe" : "text-fg/65"}`}>
-          {bad ? "The trip can’t end before it starts." : tripRange(from, to)}
+          {bad ? "The trip can’t end before it starts." : over ? `${tripRange(from, to)}. That trip is over, so there’s no countdown.` : tripRange(from, to)}
         </p>
       )}
     </div>

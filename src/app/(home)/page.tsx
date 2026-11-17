@@ -364,6 +364,7 @@ export default async function Home({
     // polaroid, the ticket's stub and the countdown thumb.
     photo: tripPhotoSrc(g.group),
     balance: g.myBalance,
+    expenses: g.expenseCount,
   }));
   const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
   // A trip pass's picture: the group's own cover, the same as its polaroid.
@@ -562,7 +563,7 @@ export default async function Home({
             </Link>
             <Link href="/how-it-works" className="flex min-h-[84px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
               <span className="text-[13px] text-fg/55">How Loopin works</span>
-              <span className="mt-0.5 text-sm font-medium leading-snug text-fg/85 [text-wrap:balance]">Three steps, one minute</span>
+              <span className="mt-0.5 text-sm font-medium leading-snug text-fg/85 [text-wrap:balance]">A one-minute tour</span>
             </Link>
           </div>
 
@@ -612,7 +613,7 @@ export default async function Home({
           {passes.length > 0 && (
             <section aria-labelledby="coming-up-h" className="mt-7" data-coming-up>
               <h2 id="coming-up-h" className="mb-2 font-display text-[22px] font-semibold tracking-tight">
-                Coming up
+                {passes.some((p) => p.days === null) ? "Your trips" : "Coming up"}
               </h2>
               <PassStack label="Upcoming trips" attrs={{ "data-coming-up-stack": "" }}>
                 {passes.map((p) => {

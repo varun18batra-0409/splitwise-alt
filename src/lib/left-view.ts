@@ -113,6 +113,13 @@ export function viewerDetails(lines: string[], myName: string): string[] {
   return lines.map((l) => (myName && l.startsWith(prefix) ? `Your share ${l.slice(prefix.length).trim()}` : l));
 }
 
+// An event's words as the viewer should read them: a payment to the viewer says "paid you", not their own name
+// ("Ravi paid Varun ₹5,000" reads "Ravi paid you ₹5,000" in Varun's own list). Anything else is left exactly as saved.
+export function viewerEventText(text: string, myName: string): string {
+  const lead = `paid ${myName} `;
+  return myName && text.startsWith(lead) ? `paid you ${text.slice(lead.length)}` : text;
+}
+
 // The lines of a change that are about the leaver's own share ("Ravi’s share: ₹300 → ₹0"), as saved JSON.
 // Other people's amounts in changes made after they left are not shown to them.
 export function ownShareDetails(detailsJson: string, name: string): string {

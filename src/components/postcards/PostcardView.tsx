@@ -13,6 +13,7 @@ export const face = (shown: boolean) => ({ visibility: shown ? ("visible" as con
 export function PostcardFlip({ front, back, className = "", start = "front" }: { front: FrontProps; back: BackProps; className?: string; start?: "front" | "back" }) {
   const [over, setOver] = useState(start === "back");
   return (
+    <>
     <button
       type="button"
       onClick={() => {
@@ -32,6 +33,11 @@ export function PostcardFlip({ front, back, className = "", start = "front" }: {
         </div>
       </div>
     </button>
+    {/* The button's label replaces what is inside it for a screen reader, so the card's words are said here, outside the button (nothing changes on screen). */}
+    <p className="sr-only" data-postcard-text>
+      Postcard from {back.from}{back.place ? `, ${back.place}` : ""}. {back.message}
+    </p>
+    </>
   );
 }
 

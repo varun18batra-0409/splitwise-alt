@@ -216,8 +216,12 @@ describe("R1 item 14: Balances", () => {
   });
   it("People says the amount once", () => {
     const p = src("src/app/groups/[id]/people/page.tsx");
-    expect(p).toContain("must be settled up first.`");
-    expect(p).not.toContain("must be settled up first (");
+    expect(p).toContain("settle up first.`");
+    expect(p).not.toContain("settle up first (");
+    // One line says which action waits (removing / leaving), and the greyed button keeps its own name instead of "Settle up first".
+    expect(p).toContain("To remove ${m.name}, settle up first.");
+    expect(p).toContain("To leave, settle up first.");
+    expect(p).not.toContain("Settle up first\n");
   });
 });
 

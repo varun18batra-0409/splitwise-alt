@@ -319,7 +319,7 @@ export function ComingUp({ passes }: { passes: TripPassView[] }) {
   return (
     <section aria-labelledby="coming-up-h" className="mt-6" data-coming-up>
       <h2 id="coming-up-h" className="mb-2 font-display text-[20px] font-semibold tracking-tight">
-        Coming up
+        {passes.some((p) => p.days === null) ? "Your trips" : "Coming up"}
       </h2>
       <PassStack label="Upcoming trips" attrs={{ "data-coming-up-stack": "" }}>
         {passes.map((p) => (

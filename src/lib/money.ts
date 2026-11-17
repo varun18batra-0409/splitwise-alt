@@ -171,7 +171,7 @@ export function toInputAmount(minor: number, currency = "INR"): string {
 }
 
 // The one line shown wherever a payment is recorded (Pay, Settle up, the I've paid page, card nights).
-export const PAYMENT_LINE = "This records a payment made outside Loopin. Loopin doesn't move money.";
+export const PAYMENT_LINE = "This records a payment made outside Loopin. Loopin doesn’t move money.";
 
 // "This is ₹2,700 more than what's owed. Record it anyway?" — null when the amount is no more than what's owed.
 // typed and owes are in minor units. `ask` is the closing question ("Confirm anyway?" on Confirm received).

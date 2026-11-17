@@ -55,9 +55,9 @@ describe("the group-type chips and the game screens carry none of the old words"
     expect(hasBannedGameWord(JSON.stringify(sheet))).toBe(false);
     expect(sheet.primary.href).toBe("/groups/g1/pot/new"); // routes unchanged
   });
-  it("the question before a result goes into Money owed uses neutral words", () => {
+  it("the question before a result goes into Balances uses neutral words", () => {
     const line = potResultLine([{ name: "Asha", net: 60000 }, { name: "Dev", net: -60000 }], "INR");
-    expect(line).toBe("Put this game into Money owed? Asha +₹600, Dev −₹600. You can reopen it.");
+    expect(line).toBe("Put this game into Balances? Asha +₹600, Dev −₹600. You can reopen it.");
     expect(hasBannedGameWord(line)).toBe(false);
   });
   it("the words in the screens' own source (comments and code names left out) have none of the banned words", () => {

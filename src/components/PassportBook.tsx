@@ -134,7 +134,7 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
 
         <div ref={strip} onScroll={onScroll} className="relative flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Passport pages" tabIndex={0}>
           {/* The photo page */}
-          <Sheet n={1} of={total} label="Your details">
+          <Sheet n={1} of={total} label={own ? "Your details" : `${name || "Their"}’s details`}>
             <div className="flex h-full flex-col px-6 pb-8 pt-6">
               <p className="text-[12px] font-semibold text-[#7a7262]">Loopin travel document</p>
               <div className="mt-4 flex gap-4">
@@ -256,7 +256,7 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
           <button
             type="button"
             onClick={() => setOpen(true)}
-            aria-label="Open your passport"
+            aria-label={own ? "Open your passport" : `Open ${name ? `${name}’s` : "their"} passport`}
             className="absolute inset-0 z-20 flex origin-left flex-col items-center rounded-r-[14px] rounded-l-[4px] border border-[#2b2b31] bg-[#16161a] px-6 pt-12 text-center shadow-[0_24px_40px_-24px_rgba(0,0,0,0.9)] transition-[transform,opacity] duration-[650ms] ease-[cubic-bezier(0.3,0.7,0.2,1)] motion-reduce:transition-none"
             style={{ transform: open ? "rotateY(-105deg)" : "none", opacity: open ? 0 : 1, color: GOLD, backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.018) 0 2px, transparent 2px 5px)" }}
           >

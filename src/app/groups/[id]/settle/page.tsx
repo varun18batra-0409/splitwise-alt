@@ -33,7 +33,7 @@ import { waitingForMe } from "@/lib/payment-ok";
 import { notReceivedDone, notReceivedQuestion } from "@/lib/payment-words";
 import { planSettleRow, settleMainAction, settleRowFacts, tripEnded } from "@/lib/settle-row";
 import { listMoney } from "@/lib/money-display";
-import { leaverMoneyLine, settledPercent, squareWords } from "@/lib/settle-ui";
+import { leaverMoneyLine, settledPercent, settleHeadline, settlePaymentsHeadline } from "@/lib/settle-ui";
 import { confirmPaymentAction, markAllPaidAction, rejectPaymentAction } from "@/app/pay-actions";
 import { readNotes } from "@/lib/flash";
 
@@ -105,7 +105,7 @@ export default async function GroupSettle({
   // Paid back so far, out of everything that needed paying back (payments made + what's still left).
   const left = transfers.reduce((t, x) => t + x.amount, 0);
   const settledPct = settledPercent(paidSoFar, left);
-  const words = squareWords({ leaver: Boolean(data.leaver) });
+  const words = settleHeadline({ leaver: Boolean(data.leaver) });
 
   const cover: StubCover = { id: group.id, cover: coverFor(group), photo: tripPhotoSrc(group), name: group.name };
   const mark = groupMark(group.type);
@@ -214,7 +214,7 @@ export default async function GroupSettle({
       {/* How far the group is: one segment per payment, filled once it is paid. */}
       <div className="-mt-2 mb-7">
         <p className="font-display text-[28px] font-semibold leading-[1.04] tracking-[-0.02em]">
-          {transfers.length === 0 ? words.headline : data.leaver ? leaverMoneyLine(transfers, myId, (id) => nameOf(id).split(/\s+/)[0], money) : `${transfers.length === 1 ? "One payment" : `${transfers.length} payments`} and you’re all square`}
+          {transfers.length === 0 ? words.headline : data.leaver ? leaverMoneyLine(transfers, myId, (id) => nameOf(id).split(/\s+/)[0], money) : settlePaymentsHeadline(transfers, myId)}
         </p>
         <p className="mt-1.5 text-[13px] leading-snug text-fg/55">
           {group.name}
@@ -425,7 +425,7 @@ export default async function GroupSettle({
                     <input type="hidden" name="groupId" value={group.id} />
                     <input type="hidden" name="plan" value={planKey(transfers)} />
                     <FreshKey name="rid" />
-                    <ConfirmButton message={`Mark all ${othersToMark.length} paid? These are the payments between other people. The group stays open, everyone is told, and you can undo it.`} className={quietLinkClass}>
+                    <ConfirmButton message={`Mark all ${othersToMark.length} paid? These are the payments other people make${othersToMark.filter((t) => t.to === myId).length ? `, including ${othersToMark.filter((t) => t.to === myId).length} to you` : ""}. The group stays open, everyone is told, and you can undo it.`} className={quietLinkClass}>
                       Mark all {othersToMark.length} paid
                     </ConfirmButton>
                   </form>

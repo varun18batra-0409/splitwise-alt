@@ -27,7 +27,7 @@ export function settledPercent(paid: number, left: number): number {
 
 // The words for "settled up". Someone who has left only knows their own side (you owe nobody, nobody owes you), so they never
 // say anything about other people's money ("Nobody owes anybody") and nothing they share says it either.
-export function squareWords(o: { leaver: boolean }) {
+export function settleHeadline(o: { leaver: boolean }) {
   const leaver = o.leaver;
   return {
     headline: leaver ? "You’re square" : "All square",
@@ -36,6 +36,14 @@ export function squareWords(o: { leaver: boolean }) {
     picture: leaver ? "You don’t owe anyone, and no one owes you." : "Nobody owes anybody.",
     share: (groupName: string) => (leaver ? `${groupName}: I’m square 🎉 I don’t owe anyone, and no one owes me.` : `${groupName}: all square 🎉 Nobody owes anybody.`),
   };
+}
+
+// The big line on the group's Settle page while payments are open: "3 payments and everyone’s square". "You’re all square" is said only
+// when every one of the payments is yours (you pay or get paid), because only then do they clear your own side and nothing else is left.
+export function settlePaymentsHeadline(transfers: { from: string; to: string }[], myId: string): string {
+  const count = transfers.length === 1 ? "One payment" : `${transfers.length} payments`;
+  const allMine = transfers.length > 0 && transfers.every((t) => t.from === myId || t.to === myId);
+  return `${count} and ${allMine ? "you’re all square" : "everyone’s square"}`;
 }
 
 // What someone who has LEFT is told about money still open: only their own side, never a claim about the group
@@ -48,5 +56,5 @@ export function leaverMoneyLine(transfers: { from: string; to: string; amount: n
   const parts: string[] = [];
   if (pay.length) parts.push(`You pay ${list(pay.map((t) => nameOf(t.to)))} ${fmt(sum(pay))} to be square.`);
   if (get.length) parts.push(`${list(get.map((t) => nameOf(t.from)))} ${get.length === 1 ? "owes" : "owe"} you ${fmt(sum(get))}.`);
-  return parts.length ? parts.join(" ") : squareWords({ leaver: true }).line;
+  return parts.length ? parts.join(" ") : settleHeadline({ leaver: true }).line;
 }

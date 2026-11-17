@@ -1003,7 +1003,7 @@ if (!hosted) {
       console.log("✓ country-photos-contact-sheet");
     }
     await shot("113-passport-pick", "/passport", async (p) => {
-      await p.getByRole("button", { name: "Add visited place" }).click();
+      await p.getByRole("button", { name: "Add a place" }).click();
       const sheet = p.getByRole("dialog", { name: "Add countries" });
       await sheet.getByRole("checkbox", { name: "Albania" }).check();
       await sheet.getByRole("checkbox", { name: "Andorra" }).check();

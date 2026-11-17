@@ -12,6 +12,7 @@ import type { CoverChoice } from "@/lib/covers";
 import type { Frame, Story } from "@/lib/home/stories";
 import { orderStories } from "@/lib/home/story-order";
 import { storyShort } from "@/lib/home/display";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 // Home's stories, as a row of circles under the header (like Instagram). A gold ring means you haven't seen it yet; seen ones have a faint ring. Tap one to open the stories full screen: tap the
 // right side for the next, the left for the one before, hold to pause,
@@ -206,6 +207,9 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const notATap = useRef(false);
   const cta = useRef<HTMLAnchorElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
+  // Keyboard and screen-reader users land on Close when a story opens, Tab stays inside it, and focus returns to the circle afterwards.
+  const box = useFocusTrap(true, { start: () => closeBtn.current });
   const [dy, setDy] = useState(0);
   const stopped = paused || userPaused || tabHidden;
   const story = stories[at.s];
@@ -302,7 +306,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   // Every slide is dark now (photos, artwork, posters), so the controls are always light.
   const ink = "#f7f4ec";
   return (
-    <div className="fixed inset-0 z-[60]" style={{ background: `rgba(0,0,0,${dy ? Math.max(0.35, 1 - dy / 500) : 1})` }} role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
+    <div ref={box} className="fixed inset-0 z-[60]" style={{ background: `rgba(0,0,0,${dy ? Math.max(0.35, 1 - dy / 500) : 1})` }} role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
       <div
         className="relative mx-auto h-full max-w-md touch-none overflow-hidden"
         data-story-viewer
@@ -332,6 +336,10 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         onPointerUp={letGo}
         onPointerCancel={() => letGo(null)}
       >
+        {/* Said aloud when the slide changes (nothing shows). */}
+        <p className="sr-only" aria-live="polite" data-story-live>
+          Story {at.s + 1} of {stories.length}, slide {Math.min(at.f, Math.max(frames.length, 1) - 1) + 1} of {Math.max(frames.length, 1)}: {story.headline}
+        </p>
         {f ? <Slide key={`${at.s}-${at.f}`} f={f} uid={`sl-${story.id}-${at.f}`} story={story} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
 
         {/* Progress: one bar per slide of this story. */}
@@ -353,7 +361,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
           </span>
           <span className="truncate text-sm font-semibold">{story.label}</span>
         </div>
-        <button type="button" onClick={close} aria-label="Close" className="glass absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-11 w-11 items-center justify-center rounded-full" style={{ color: ink }}>
+        <button ref={closeBtn} type="button" onClick={close} aria-label="Close" className="glass absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-11 w-11 items-center justify-center rounded-full" style={{ color: ink }}>
           <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
             <path d="M6 6l12 12M18 6 6 18" />
           </svg>

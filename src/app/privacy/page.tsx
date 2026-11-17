@@ -80,7 +80,7 @@ export default function Privacy() {
           Passport → Who can see it.
         </li>
         <li>
-          <strong>Moments:</strong> only people in that group. Someone who left on their own still sees the moments added before they left, and none added after; someone the group’s admin removed sees none. If you block someone, you stop seeing their moments, and they stop seeing yours. Loopin looks at a moment only if someone reports it.
+          <strong>Moments:</strong> only people in that group. Someone who left on their own still sees the moments added before they left, and none added after. Someone who was removed by whoever looks after the group sees none. If you block someone, you stop seeing their moments, and they stop seeing yours. Loopin looks at a moment only if someone reports it.
         </li>
         <li>
           <strong>Postcards:</strong> only the person who sent a card and the people it was sent to. That includes the photo on it. Your earlier photos can be reused only by you. Cards go only to
@@ -91,7 +91,7 @@ export default function Privacy() {
           names, the amount owed and how the person owed asked to be paid (their UPI ID or pay link, with a QR code), and can tap “I’ve paid”. It works for that one debt only, and stops after 30 days, once it’s settled, or if the group is closed. Send it only to the person who owes.
         </li>
         <li>
-          <strong>If you leave a group:</strong> you still see it as it was up to the day you left, plus any later change to your own share. Older expenses
+          <strong>If you leave a group:</strong> you still see it as it was up to the day you left, and your share can’t change after that. Older expenses
           show as they are now, but if someone changes one after you left, its notes are hidden from you.
         </li>
       </ul>
@@ -133,7 +133,7 @@ export default function Privacy() {
         <li>The person who added a moment can delete it, and so can whoever looks after the group. The photo is erased too, and it can’t be brought back. A moment’s photo that was already open on someone’s phone can stay on that phone for up to 30 days.</li>
         <li>A whole group can be deleted from its settings. Whoever deleted it, or looks after it, can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
         <li>
-          “You → Export your data → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the collections you organised, the saved copy of support messages you sent while signed in, and the blocks you made. If someone blocked you, their block stays as a scrambled fingerprint of your email (never the email itself), so signing up again doesn’t undo it; it’s erased when they unblock or delete their own account.
+          “You → Export your data → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the Collect links you made, the saved copy of support messages you sent while signed in, and the blocks you made. If someone blocked you, their block stays as a scrambled fingerprint of your email (never the email itself), so signing up again doesn’t undo it; it’s erased when they unblock or delete their own account.
         </li>
         <li>If someone removed from a group deletes their sign-in, we keep a scrambled fingerprint of their email (never the email itself), so the group’s link can’t bring them back. It’s erased with the group.</li>
         <li>Deleting your email also stops notifications on your other phones.</li>
@@ -142,14 +142,14 @@ export default function Privacy() {
         </li>
         <li>Support messages that were already emailed to Loopin’s support inbox aren’t erased by the app, and messages sent while signed out aren’t linked to an account, so deleting your account doesn’t reach them. To have one removed, use <a href="/support" className="underline underline-offset-4">Contact support</a>.</li>
         <li>Reports stay with us so we can act on them: the ones you made, and reports made about you, including the reporter’s note, are kept even after you delete your account.</li>
-        <li>“You → Export your data → Download all my data” gives you, in one spreadsheet: your account details; your groups, expenses and payments; your messages to support; your postcards, sent and received (for each: the date, the other person’s current Loopin name, the words on the front, the message and the postmark place; text only, no photos; a postcard still sealed for you, and cards from people you blocked or who blocked you, are left out); your passport (home country, places and countries); your Want to go list and the first names of the friends you showed each place to (never anyone else’s list); the moments you added (the date, the group, your words and the day; text only, no photos); the collections you organise (the title, amount, date, and how many people are listed, have said they paid and are checked, but not their names or phone numbers) and the collections you are on the list of (your own line); and your notification settings. Reports you sent and reports about you are not in it. Anyone signed in can download it.</li>
+        <li>“You → Export your data → Download all my data” gives you, in one spreadsheet: your account details; your groups, expenses and payments; your messages to support; your postcards, sent and received (for each: the date, the other person’s current Loopin name, the words on the front, the message and the postmark place; text only, no photos; a postcard still sealed for you, and cards from people you blocked or who blocked you, are left out); your passport (home country, places and countries); your Want to go list and the first names of the friends you showed each place to (never anyone else’s list); the moments you added (the date, the group, your words and the day; text only, no photos); the Collect links you organise (the title, amount, date, and how many people are listed, have said they paid and are checked, but not their names or phone numbers) and the Collect links you are on the list of (your own line); and your notification settings. Reports you sent and reports about you are not in it. Anyone signed in can download it.</li>
         <li>Encrypted backups are kept for 14 days and then removed. Something you delete can stay in a backup until then.</li>
       </ul>
 
       <h2 className={h}>Your rights</h2>
       <p className={p}>
         Under India’s Digital Personal Data Protection Act, 2023, you can ask to see the data we hold about you, correct it, have it erased, and complain if
-        something is wrong. The quickest way is in the app: “You → Export your data → Download all my data” gives you your account details, groups, expenses, payments, postcards, passport, collections, notification settings and messages to support (not reports or our own records; use Contact support for those), edit things in the app to correct them, and “You → Export your data → Delete my
+        something is wrong. The quickest way is in the app: “You → Export your data → Download all my data” gives you your account details, groups, expenses, payments, postcards, passport, Collect links, notification settings and messages to support (not reports or our own records; use Contact support for those), edit things in the app to correct them, and “You → Export your data → Delete my
         email &amp; sign-in” to erase it.
         {contactReady ? (
           <>

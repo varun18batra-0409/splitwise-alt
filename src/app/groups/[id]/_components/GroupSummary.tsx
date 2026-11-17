@@ -3,7 +3,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { setGroupClosed } from "@/app/actions";
 import { exactMoney } from "@/lib/money-display";
-import { leaverMoneyLine, squareWords } from "@/lib/settle-ui";
+import { leaverMoneyLine, settleHeadline } from "@/lib/settle-ui";
 import type { GroupFacts } from "@/lib/home/money-card";
 import type { GroupView } from "./view";
 
@@ -17,7 +17,7 @@ export function ClosedBanner({ v }: { v: GroupView }) {
         Closed{group.closedAt ? ` on ${niceDate(dayKey(group.closedAt, v.tz))}` : ""}. History stays here; new expenses are paused.{" "}
         {expenses.length > 0 && (
           <Link href={`/groups/${group.id}/report`} className="font-medium text-fg underline underline-offset-4">
-            {group.type === "trip" ? "Trip report" : "Report"}
+            {group.type === "trip" ? "Trip report" : "Group report"}
           </Link>
         )}
       </span>
@@ -86,7 +86,7 @@ function summaryLine(v: GroupView): string {
   const fromMe = transfers.filter((t) => t.from === myId).map((t) => first(t.to));
   // Someone who left hears only about their own side (never "N payments clear everything").
   if (v.leaver) return leaverMoneyLine(transfers, myId, first, v.money);
-  const clear = transfers.length === 0 ? (v.leaver ? squareWords({ leaver: true }).line : "Nobody owes anybody.") : `${transfers.length === 1 ? "1 payment clears" : `${transfers.length} payments clear`} everything.`;
+  const clear = transfers.length === 0 ? (v.leaver ? settleHeadline({ leaver: true }).line : "Nobody owes anybody.") : `${transfers.length === 1 ? "1 payment clears" : `${transfers.length} payments clear`} everything.`;
   if (toMe.length) return `${list(toMe)} ${toMe.length === 1 ? "owes" : "owe"} you. ${clear}`;
   if (fromMe.length) return `You pay ${list(fromMe)}. ${clear}`;
   return clear;

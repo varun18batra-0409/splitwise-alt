@@ -3,7 +3,7 @@ import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/Draw
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { listMoney } from "@/lib/money-display";
-import { squareWords } from "@/lib/settle-ui";
+import { settleHeadline } from "@/lib/settle-ui";
 import { foreignPartLine } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
@@ -26,7 +26,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
   const leaver = v.leaver;
   // The "By person" lines: if any has paise, every line keeps its two decimals so they line up.
   const listFmt = listMoney(group.members.map((m) => Math.abs(net[m.id] ?? 0)), group.currency);
-  const words = squareWords({ leaver: Boolean(leaver) });
+  const words = settleHeadline({ leaver: Boolean(leaver) });
   const titles = group.type === "pot" || leaver ? [] : funTitles(expenses, people.map((m) => m.id), v.tz, group.currency);
 
   // Everyone's "Why?" totals in one pass; only the open one gets its item list.

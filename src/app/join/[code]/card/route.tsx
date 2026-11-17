@@ -32,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
             <span style={{ fontSize: 44, fontFamily: "Display, SansExt", fontWeight: 700 }}>loopin</span>
             <span style={{ display: "flex", padding: "10px 22px", borderRadius: 999, border: "2px solid rgba(216,189,122,0.6)", color: "#e8d29a", fontSize: 22, letterSpacing: 5, fontWeight: 700 }}>
               {kind}
-              {n > 0 ? ` · ${n} IN` : ""}
+              {n > 0 ? ` · ${n} ${n === 1 ? "PERSON" : "PEOPLE"}` : ""}
             </span>
           </div>
           <div style={{ display: "flex", marginTop: "auto", fontSize: 30, letterSpacing: 6, color: "#d8bd7a", fontWeight: 700 }}>YOU’RE INVITED TO</div>

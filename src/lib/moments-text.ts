@@ -115,7 +115,7 @@ export function timeAgo(then: Date, now: Date, tz: string): string {
     const d = Math.floor(s / 86_400);
     return `${d} ${d === 1 ? "day" : "days"} ago`;
   }
-  return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz });
+  return then.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz }).replace("Sept", "Sep");
 }
 
 // Who a moment is "by", for the viewer. "You" only when the author is the viewer (same account, or the same member of the group);

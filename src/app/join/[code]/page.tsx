@@ -148,7 +148,7 @@ export default async function JoinPage({
               Continue with email
             </Link>
           </div>
-          <p className="mt-3 text-center text-[13px] text-fg/50">About 30 seconds, no password. Your groups follow you to any phone.</p>
+          <p className="mt-3 text-center text-[13px] text-fg/50">About 30 seconds, no password. Your groups follow you to any device.</p>
         </>
       ) : (
         <>

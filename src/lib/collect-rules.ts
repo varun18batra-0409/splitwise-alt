@@ -83,15 +83,16 @@ export function progressBar(p: ReturnType<typeof progress>): { confirmedPct: num
   return { confirmedPct, reportedPct };
 }
 
-// The two money lines, always apart: "Confirmed ₹600" and "Reported, awaiting check ₹300" (the second only when there is some).
+// The two money lines, always apart: "Checked ₹600" and "Says paid ₹300" (the second only when there is some). Two words for the two states, everywhere:
+// "Says paid" (they ticked it) and "Checked" (the organiser has seen the money).
 export function progressLines(p: ReturnType<typeof progress>, currency: string): { confirmed: string; reported: string | null } {
-  return { confirmed: `Confirmed ${formatMoney(p.confirmedAmount, currency)}`, reported: p.reportedAmount > 0 ? `Reported, awaiting check ${formatMoney(p.reportedAmount, currency)}` : null };
+  return { confirmed: `Checked ${formatMoney(p.confirmedAmount, currency)}`, reported: p.reportedAmount > 0 ? `Says paid ${formatMoney(p.reportedAmount, currency)}` : null };
 }
 
 // The message the organiser sends to the group ("still to pay: …").
 export function reminderText(c: { title: string; organiser: string; amount: number; currency: string; dueDate: string }, due: string[], link: string): string {
   const each = c.amount > 0 ? `${formatMoney(c.amount, c.currency)} each` : "any amount";
-  const by = c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : "";
+  const by = c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).replace("Sept", "Sep")}` : "";
   const who = due.length ? `\nStill to pay: ${due.slice(0, 30).join(", ")}${due.length > 30 ? "…" : ""}` : "";
   return `${c.title}: ${each}${by}.${who}\nPay and tick your name here: ${link}`;
 }
@@ -162,6 +163,6 @@ export function whatsappTo(phone: string, text: string): string {
 export function personalReminder(c: { title: string; amount: number; currency: string; dueDate: string }, name: string, link: string): string {
   const first = name.split(" ")[0];
   const each = c.amount > 0 ? `${formatMoney(c.amount, c.currency)} for ` : "";
-  const by = c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : "";
+  const by = c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).replace("Sept", "Sep")}` : "";
   return `Hi ${first}! ${each}${c.title}${by}. Pay and tick your name here: ${link}`;
 }

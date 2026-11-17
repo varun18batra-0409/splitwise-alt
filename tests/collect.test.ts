@@ -90,11 +90,11 @@ describe("Collect: the progress bar and reminder", () => {
     expect(progress(entries, 0).target).toBe(0); // any amount: no target
   });
 
-  it("UX-03: the bar and the lines show Confirmed and Reported separately (₹300 confirmed + ₹300 reported of ₹1,200)", () => {
+  it("UX-03: the bar and the lines show Checked and Says paid separately (₹300 checked + ₹300 says paid of ₹1,200)", () => {
     const p = progress(entries, 30000);
     // 30000 / 120000 = 25% solid; 30000 / 120000 = 25% lighter, after it.
     expect(progressBar(p)).toEqual({ confirmedPct: 25, reportedPct: 25 });
-    expect(progressLines(p, "INR")).toEqual({ confirmed: "Confirmed ₹300", reported: "Reported, awaiting check ₹300" });
+    expect(progressLines(p, "INR")).toEqual({ confirmed: "Checked ₹300", reported: "Says paid ₹300" });
     // Nothing reported: no second line.
     expect(progressLines(progress([{ name: "Ravi", amount: 30000, status: "confirmed" }], 30000), "INR").reported).toBeNull();
     // Any amount (no target): the bar counts people, 1 checked + 1 said-paid of 4.

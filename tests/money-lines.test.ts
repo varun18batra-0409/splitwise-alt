@@ -5,7 +5,7 @@ import { amountEcho, amountError, overpayLine, parseAmount, PAYMENT_LINE } from 
 
 describe("the payment line", () => {
   it("is exactly the founder's sentence", () => {
-    expect(PAYMENT_LINE).toBe("This records a payment made outside Loopin. Loopin doesn't move money.");
+    expect(PAYMENT_LINE).toBe("This records a payment made outside Loopin. Loopin doesn’t move money.");
   });
 });
 

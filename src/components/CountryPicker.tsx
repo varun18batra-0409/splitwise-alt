@@ -46,12 +46,12 @@ export function CountryPicker({ added, home = "", tile = false, mode = "been", a
   return (
     <>
       {tile ? (
-        // The outline "Add visited place" button (half the row, next to Share) on the passport's tabs.
+        // The outline "Add a place" button (half the row, next to Share) on the passport's tabs.
         <button ref={opener} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full border border-fg/25 px-2 py-1.5 text-center text-[14px] leading-tight text-fg active:bg-fg/10 min-[360px]:gap-2 min-[360px]:px-3 min-[360px]:text-[15px]" data-add-visited={want ? undefined : ""} data-add-wish={want ? "" : undefined}>
           <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="shrink-0">
             <path d="M12 5v14M5 12h14" />
           </svg>
-          {want ? "Add a place" : "Add visited place"}
+          Add a place
         </button>
       ) : (
         <button ref={opener} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="mt-3 w-full rounded-xl border border-line px-4 py-3 text-sm font-semibold active:bg-mist">

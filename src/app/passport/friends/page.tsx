@@ -83,7 +83,7 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
                             ? "Hasn’t shared their passport yet"
                             : "Keeps their passport private"
                           : f.stats
-                            ? [f.stats.countries ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"}` : "", f.stats.cities ? `${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ")
+                            ? [f.stats.countries ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"}` : "", f.stats.cities ? `${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ") || "No stamps yet"
                             : "",
                         `${f.groups.slice(0, 2).join(", ")}${f.groups.length > 2 ? ` +${f.groups.length - 2}` : ""}`,
                       ]

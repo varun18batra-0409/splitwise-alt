@@ -188,7 +188,7 @@ export default async function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Create a group" title="Create a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in about 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
+            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in about 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
             <>The quickest way: copy the group’s link, or tap <strong>Invite on WhatsApp</strong>. The share sheet, the QR code, search, contacts and email are all under <strong>More ways to add people</strong>. Got a link from a friend? Tap <strong>Join with a link</strong> and paste it. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
@@ -203,7 +203,7 @@ export default async function HowItWorks() {
       <Section slot="dinner" kicker="2 · Add an expense" title="Add an expense in seconds">
         <Steps
           items={[
-            <>Tap <strong>Add</strong>, the middle button in the bar at the bottom (Home · Groups · Add · Settle · You).</>,
+            <>Tap <strong>Add</strong>, the middle button in the bar at the bottom (Home, Groups, Add, Settle and You).</>,
             <>Pick <strong>who paid</strong>, type what it was and how much. Loopin tags it for you: Bites &amp; Sips, Wheels &amp; Wings, Beds &amp; Bunks, Pantry Run, Bags &amp; Bling, Thrills &amp; Tickets, Bills &amp; Bits or Odds &amp; Ends.</>,
             <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room). <strong>Items</strong> splits a restaurant bill line by line: each dish to whoever had it, tax and tip shared by what each had.</>,
           ]}
@@ -250,9 +250,10 @@ export default async function HowItWorks() {
       <div id="balances" className="scroll-mt-4" />
       <Section slot="friends" kicker="4 · Balances" title="Who owes what, and why">
         <p>
-          The money card at the top of Home shows where you stand across all your groups: <strong>Coming back to you</strong> in green, <strong>You owe</strong> in orange,
-          or <strong>Nobody owes anybody</strong>. Under it, the people the money is with, largest first. When you owe, the main button is <strong>Pay</strong> (the person you owe most);
-          when you’re owed, it’s <strong>Remind</strong> (the person who owes you most, on WhatsApp).
+          The money card on Home, just under the story circles, shows where you stand across all your groups: <strong>Net · you’re owed</strong> in green, <strong>Net · you owe</strong> in orange,
+          or <strong>All square</strong>. When some money is in groups and some is with a person you share with directly, it shows the two parts as <strong>Group</strong> and <strong>Non-group</strong>.
+          Tap the card to open <strong>Settle up</strong>, where you pay (the person you owe) or <strong>Remind</strong> (the people who owe you, on WhatsApp).
+          What needs your answer is behind the bell at the top right.
           A payment someone records with you counts straight away, and you’re told.
         </p>
         <p>
@@ -269,7 +270,7 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list that clears everything: “Just 3 payments”, say.</>,
-            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>I’ve paid</strong>. It counts straight away and the other person is told; if it’s wrong, open it and delete it (only the two of you can). Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
+            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>I’ve paid</strong>. It counts straight away and the other person is told; if it’s wrong, open it and delete it (only the two of you can). If you paid a different amount, tap <strong>Paid a different amount?</strong></>,
             <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link they can tap without signing in.</>,
             <>Owe the same friend in two groups? <strong>Settle up</strong> on Home combines them into one payment, and shows each group’s part before it records anything.</>,
           ]}
@@ -280,7 +281,7 @@ export default async function HowItWorks() {
       <div id="trips" className="scroll-mt-4" />
       <Section title="Trip over? The trip in numbers">
         <p>
-          Open <strong>Charts → Trip report</strong>: the total, per person and per day, where it went, the biggest expense, who paid most and
+          Open <strong>Trip recap → Trip report, to share</strong>: the total, per person and per day, where it went, the biggest expense, who paid most and
           what’s left to settle. <strong>Share to WhatsApp</strong> sends it as a picture with a short message. There’s no link to the group,
           so only what’s in the picture leaves your phone.
         </p>
@@ -355,7 +356,7 @@ export default async function HowItWorks() {
       <Section slot="place-bali-2" title="Trip over? Watch the Wrapped">
         <p>
           Every trip gets its own <strong>Wrapped</strong>: the total you spent together and who paid up front, where the money went, the biggest
-          day, the splurge as a receipt, and everyone’s title. Open it from the group’s Charts (or from Home after the trip) and share it as a picture.
+          day, the splurge as a receipt, and everyone’s title. Open it from the group’s Trip recap (or from Home after the trip) and share it as a picture.
         </p>
         <Screens
           a={{ src: "/guide/wrapped-total.webp", alt: "Wrapped: the total spent together, and who paid up front", caption: "The total, and who paid" }}
@@ -372,7 +373,7 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <><strong>Friends’ passports.</strong> Anyone you’ve shared a group with, even an old flat or a finished trip, who has chosen to show theirs: You → Friends’ passports.</>,
-            <><strong>Moments.</strong> Your 5th country, a new continent, 10 cities: each one shows up in Your updates (the bell at the top right), once.</>,
+            <><strong>Milestones.</strong> Your 5th country, a new continent, 10 cities: each one shows up in Your updates (the bell at the top right), once.</>,
             <><strong>Our passports.</strong> Inside any group: where you’ve all been together, with every flag.</>,
             <><strong>Empty passport?</strong> Nudge them. They’ll see it in Your updates, never as a push or email.</>,
             <><strong>Yours to show.</strong> Loopin asks once whether to show your places to people in your groups. Until you tap Show, nobody sees them. Change it any time under Who can see it. Trips still happening stay hidden until they’re over.</>,
@@ -388,7 +389,7 @@ export default async function HowItWorks() {
       <Section title="Moments, for the trip group">
         <p>
           In a trip group, anyone signed in can add a <strong>moment</strong>: one photo and a few words, and the day of the trip if you like. Open it
-          from the little <strong>Our moments</strong> row on the group page. Only people in that group see them, and new ones show up in the circles on Home.
+          from the little <strong>Our moments</strong> row on the group page. Only people in that group see them, and they stay in the group’s Memories tab.
         </p>
         <Steps
           items={[
@@ -438,7 +439,7 @@ export default async function HowItWorks() {
         <p>
           Gathering money for a gift, a farewell or a booking? Tap <strong>New group → Collect</strong>. Set the amount each, your UPI ID (or a pay
           link), and share the link in your WhatsApp group. People pay you directly, tick their name (no sign-up), and you tap <strong>Confirm received</strong> once you
-          see the money. Until you do, a payment shows as <strong>says paid</strong> (reported); after, as <strong>checked</strong>. Loopin keeps the two apart, and only checked money counts as collected.
+          see the money. Until you do, a payment shows as <strong>says paid</strong>; after, as <strong>checked</strong>. Loopin keeps the two apart, and only checked money counts as collected.
           Friends on Loopin hear about it in the app.
         </p>
       </Section>
@@ -448,11 +449,11 @@ export default async function HowItWorks() {
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Mistakes happen. Fix them.</h2>
         <p>Most changes can be undone, and the history shows who changed what. Undo works on the latest change to something: once a newer change has touched it, undo that first. It won’t change the balance of someone who has left the group. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
         <p>
-          Left a group? You still see it as it was the day you left, plus any later change to your own share. Something unwelcome? <strong>Report</strong> or <strong>Block</strong> someone;
+          Left a group? You still see it as it was the day you left, and your share can’t change after that. Something unwelcome? <strong>Report</strong> or <strong>Block</strong> someone;
           you’ll both still see shared group money, because it has to add up. Questions or problems: <strong>You → Help & support</strong>.
         </p>
         <p>
-          You sign in with Google, your email (a code, no password) or your fingerprint or face, so your groups come back on any phone. Only people in a group can see it.
+          You sign in with Google, your email (a code, no password) or your fingerprint or face, so your groups come back on any device. Only people in a group can see it.
           No ads, and we don’t sell your data. <strong>You → Export your data → Download all my data</strong> gives you a copy. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
         </p>
       </section>

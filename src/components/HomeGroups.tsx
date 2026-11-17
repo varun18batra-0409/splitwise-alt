@@ -18,6 +18,7 @@ export type GroupCardData = {
   photo?: string; // a place photo for a trip with no picture of its own
   balance: number; // minor units, in the group's currency; + is owed to you (only its sign is used here)
   tag?: string | null; // a small tag on the photo (Home no longer sets one)
+  expenses?: number; // how many expenses the group has: none means the word is "No expenses yet", not "Settled"
 };
 
 const tilt = ["-rotate-[2deg]", "rotate-[1.5deg]"];
@@ -45,7 +46,7 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
         </Link>
       </li>
       {shown.map((g, i) => {
-        const status = cardWord(g.balance);
+        const status = cardWord(g.balance, g.expenses);
         return (
           <li key={g.id} className="w-[calc((100%-72px-24px)/2)] max-w-[150px] shrink-0 snap-start">
             <Link

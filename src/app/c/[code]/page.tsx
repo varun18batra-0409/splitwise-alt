@@ -27,7 +27,7 @@ import { readNotes } from "@/lib/flash";
 
 type Props = { params: Promise<{ code: string }>; searchParams: Promise<{ new?: string; ticked?: string; undone?: string; added?: string; reminded?: string; error?: string }> };
 
-const when = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const when = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).replace("Sept", "Sep");
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const c = await loadCollection((await params).code);
@@ -203,7 +203,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                 <p data-collection-confirmed className={`money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums ${p.confirmedAmount > 0 ? "text-owed" : ""}`}>
                   {money(p.confirmedAmount)}
                 </p>
-                <p className="text-[13px] text-fg/60">confirmed</p>
+                <p className="text-[13px] text-fg/60">checked</p>
               </div>
               {p.target > 0 ? (
                 <>
@@ -211,11 +211,11 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                     <p {...(p.reportedAmount > 0 ? { "data-collection-reported": "" } : {})} className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">
                       {money(p.reportedAmount)}
                     </p>
-                    <p className="text-[13px] text-fg/60">reported</p>
+                    <p className="text-[13px] text-fg/60">says paid</p>
                   </div>
                   <div className="min-w-0 border-l border-line">
                     <p className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">{money(remaining)}</p>
-                    <p className="text-[13px] text-fg/60">not reported</p>
+                    <p className="text-[13px] text-fg/60">not paid yet</p>
                   </div>
                 </>
               ) : (
@@ -223,12 +223,12 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                   <p {...(p.reportedAmount > 0 ? { "data-collection-reported": "" } : {})} className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">
                     {money(p.reportedAmount)}
                   </p>
-                  <p className="text-[13px] text-fg/60">reported</p>
+                  <p className="text-[13px] text-fg/60">says paid</p>
                 </div>
               )}
             </div>
             {p.target > 0 && <p className="mt-3 text-center text-sm text-fg/75">Goal: {money(p.target)}</p>}
-            <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is confirmed" data-collection-bar>
+            <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is checked" data-collection-bar>
               <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
               <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
             </div>
@@ -249,7 +249,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           {c.dueDate && <span className="rounded-full border border-fg/15 px-2.5 py-1 text-fg/70">{late ? `Was due ${when(c.dueDate)}` : `By ${when(c.dueDate)}`}</span>}
           {closed && <span className="rounded-full border border-fg/15 px-2.5 py-1 text-fg/70">Closed</span>}
         </div>
-        <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is confirmed" data-collection-bar>
+        <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is checked" data-collection-bar>
           <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
           <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
         </div>
@@ -421,7 +421,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                     {/* A neutral status, never a coloured fill: a drawn tick once the organiser has confirmed it. */}
                     <span className="flex items-center gap-1 text-sm text-fg/70">
                       {e.status === "confirmed" && <CheckIcon size={13} />}
-                      {e.status === "confirmed" ? "Confirmed" : "Says paid"}
+                      {e.status === "confirmed" ? "Checked" : "Says paid"}
                       {e.method === "cash" ? " · cash" : ""}
                     </span>
                   </span>

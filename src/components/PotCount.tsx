@@ -18,7 +18,7 @@ function Submit({ host, confirmText }: { host: boolean; confirmText: string | nu
       name="settle"
       value={host ? "1" : "0"}
       disabled={pending}
-      // Putting the result into Money owed: asked once (the host can reopen the game later).
+      // Putting the result into Balances: asked once (the host can reopen the game later).
       onClick={(e) => {
         if (confirmText && !window.confirm(confirmText)) e.preventDefault();
       }}
@@ -63,7 +63,7 @@ export function PotCount({
   const counted = filled.reduce((s, r) => s + (value(r.id) ?? 0), 0);
   const all = filled.length === rows.length;
   const gap = counted - inPlay;
-  // When this tap will finish the game (host, everyone counted, it adds up): say what goes into Money owed.
+  // When this tap will finish the game (host, everyone counted, it adds up): say what goes into Balances.
   const confirmText =
     host && all && gap === 0
       ? potResultLine([...settled, ...rows.map((r) => ({ name: r.name, net: r.base + (value(r.id) ?? 0) }))], currency)

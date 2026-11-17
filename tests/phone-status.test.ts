@@ -7,7 +7,7 @@ describe("This phone", () => {
     expect(phoneStatusLabel("on", "granted")).toBe("Allowed");
     expect(phoneStatusLabel("denied", "denied")).toBe("Blocked in phone settings");
     expect(phoneStatusLabel("off", "default")).toBe("Not asked yet");
-    expect(phoneStatusLabel("ios-install", "none")).toBe("iPhone: add Loopin to your Home Screen first");
+    expect(phoneStatusLabel("ios-install", "none")).toBe("Needs Loopin on your Home Screen");
   });
   it("allowed by the phone but switched off in Loopin is said plainly", () => {
     expect(phoneStatusLabel("off", "granted")).toBe("Allowed, but turned off in Loopin");

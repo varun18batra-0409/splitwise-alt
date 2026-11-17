@@ -21,9 +21,12 @@ export function cardStatus(balance: number, format: (minor: number) => string): 
 
 // What Home's polaroids print under the handwritten name: ONLY a short status word, no amount (the money pass above is the one place
 // the amount is on Home). "You owe" (orange ink), "You’re owed" (green ink), "Settled" (neutral: green is only for money owed to you).
-export function cardWord(balance: number): { text: "You owe" | "You’re owed" | "Settled"; tone: CardTone } {
+// A group nobody has spent in yet (`expenses` = 0) is "No expenses yet", never "Settled": nothing was ever owed, so nothing was settled.
+// `expenses` left out means "unknown", which keeps the old words.
+export function cardWord(balance: number, expenses?: number): { text: "You owe" | "You’re owed" | "Settled" | "No expenses yet"; tone: CardTone } {
   if (balance > 0) return { text: "You’re owed", tone: "owed" };
   if (balance < 0) return { text: "You owe", tone: "owe" };
+  if (expenses === 0) return { text: "No expenses yet", tone: "square" };
   return { text: "Settled", tone: "square" };
 }
 

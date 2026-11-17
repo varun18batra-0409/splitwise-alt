@@ -252,12 +252,14 @@ export async function loadGroupSettle(id: string, viewer?: string | null) {
   if (me && leaverCut(me)) {
     const full = await loadGroup(id, { viewer: me.id, events: false });
     if (!full) return null;
+    const ownPayments = full.payments.filter((p) => p.fromId === me.id || p.toId === me.id);
     return {
       group: full.group as typeof group,
       transfers: full.transfers,
       expenseCount: full.expenses.length,
-      paymentCount: full.payments.length,
-      paidSoFar: full.payments.filter((p) => p.fromId === me.id || p.toId === me.id).reduce((t, p) => t + p.amount, 0), // their own payments only (not other people's in the group)
+      // Their own payments only (not other people's in the group): the count and "paid so far" use the same rows, so the progress bar agrees with itself.
+      paymentCount: ownPayments.length,
+      paidSoFar: ownPayments.reduce((t, p) => t + p.amount, 0),
       before: pairwiseDebtCount(full.expenses, full.payments),
       leaver: full.leaver,
     };

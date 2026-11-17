@@ -114,12 +114,12 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
   return (
     <>
       <section aria-label="What you owe" className="vault lp-rise rounded-[20px] px-5 pb-5 pt-5" data-paylink="owes">
-        <p className="font-hand text-[22px] font-bold leading-none text-fg/75">{to} is asking</p>
+        <p className="font-hand text-[22px] font-bold leading-none text-fg/75">Hi {from}, {to} is asking</p>
         <p className="mt-3 break-words font-display text-[clamp(34px,10vw,40px)] font-semibold leading-none tracking-[-0.02em] text-owe lining-nums tabular-nums" data-paylink-amount>
           {money}
         </p>
         <p className="mt-3 text-sm text-fg/60">
-          for <span className="font-medium text-fg/85">{s.group.name}</span> · hi {from}
+          for <span className="font-medium text-fg/85">{s.group.name}</span>
         </p>
       </section>
 

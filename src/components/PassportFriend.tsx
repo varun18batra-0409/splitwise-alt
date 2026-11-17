@@ -34,7 +34,7 @@ export function NudgeBox({ accountId, first, sent, error }: { accountId: string;
         <>
           <p className="text-sm font-semibold">{first}’s passport is still empty</p>
           <p className="mt-0.5 text-xs text-gray-500">Ask them to add the countries they’ve been to. They’ll see it in Alerts.</p>
-          {error && <p className="mt-2 text-xs text-owe">{error.slice(0, 120)}</p>}
+          {error && <p role="alert" className="mt-2 text-xs text-owe">{error.slice(0, 120)}</p>}
           <form action={nudgePassportAction} className="mt-3">
             <input type="hidden" name="accountId" value={accountId} />
             <button type="submit" className="rounded-full border border-line px-4 py-2 text-sm font-semibold active:bg-mist">

@@ -86,6 +86,7 @@ export function placeOf(name: string): string {
   const hadYear = /\b(19|20)\d{2}\b/.test(name);
   let t = name
     .replace(/\b(road|bike|weekend|girls|boys|family|friends)\s+(trip|tour|getaway)\b/gi, "")
+    .replace(/\b(trip|tour|holiday|vacation|getaway)\s+(over|done|ended|finished)\b/gi, "") // "Phuket, trip over" is the place Phuket, not "Phuket, over"
     .replace(/\b(trip|tour|holiday|vacation|getaway|outing|plan|plans|gang|squad|group)\b/gi, "")
     .replace(/\b(19|20)\d{2}\b/g, "");
   // Tidy until nothing changes: spaces, dashes and commas at either end, and a month left dangling after the year went ("Manali: Dec 2026").
@@ -259,11 +260,11 @@ const STAGE: Record<CountdownStage, { kickers: string[]; quips: Quip[] }> = {
     quips: [(p, e) => `A week to ${p} ${e}`, () => `Sunscreen, chargers, ID. Check.`, () => `The group chat is getting loud`, (p) => `${p} mode: loading…`, () => `Vibes: packed. Bag: not yet.`, () => `Do-not-disturb mode is loading`, () => `Sleep now. You won't on the trip.`],
   },
   w3: {
-    kickers: ["Boarding soon", "Bags out", "Any minute now", "Pack tonight", "Last few sleeps", "Final checks", "Nearly there"],
+    kickers: ["Boarding soon", "Bags out", "Any minute now", "Time to pack", "Last few sleeps", "Final checks", "Nearly there"],
     quips: [(p, e) => `A few sleeps to ${p} ${e}`, () => `Pack now, thank yourself later`, () => `Someone check the weather. Not it.`, () => `Tickets downloaded? Offline too?`, (p) => `${p} playlist: finalised`, () => `Plan the outfits, skip the overthinking`, () => `Charge every power bank you own`],
   },
   w1: {
-    kickers: ["Boarding tomorrow", "Tomorrow!", "One sleep", "Last night at home", "Almost go-time", "T-minus one day", "Set the alarm"],
+    kickers: ["Boarding tomorrow", "Tomorrow!", "One sleep", "Last night at home", "Almost go-time", "Pack tonight", "Set the alarm"],
     quips: [(p, e) => `${p} tomorrow ${e}`, () => `Charge everything. Find your ID.`, () => `Sleep. You won't, but try.`, () => `Set two alarms. Maybe three.`, (p) => `${p} is one sleep away`, () => `Bags by the door`, () => `Who's got the tickets? Check twice.`],
   },
   today: {

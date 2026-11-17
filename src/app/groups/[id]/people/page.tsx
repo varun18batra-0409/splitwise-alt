@@ -322,7 +322,7 @@ export default async function PeoplePage({
                 <StaysGoes text={removeText(m.name)} />
                 {bal !== 0 ? (
                   <button type="submit" disabled className={small}>
-                    Settle up first
+                    Remove {m.name}
                   </button>
                 ) : (
                   <ConfirmButton message={`Remove ${m.name} from ${group.name}? They won’t be able to rejoin on their own.`} className={small}>
@@ -330,7 +330,7 @@ export default async function PeoplePage({
                   </ConfirmButton>
                 )}
                 <p className="mt-2 text-xs text-gray-400" title={bal !== 0 ? money(bal) : undefined} data-exact={bal !== 0 ? money(bal) : undefined}>
-                  {bal !== 0 ? `${m.name} must be settled up first.` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                  {bal !== 0 ? `To remove ${m.name}, settle up first.` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
                 </p>
               </form>
             ) : (
@@ -339,9 +339,9 @@ export default async function PeoplePage({
                 <input type="hidden" name="left" value="1" />
                 <StaysGoes text={leaveText()} />
                 <button type="submit" disabled={bal !== 0} className={small}>
-                  {bal !== 0 ? "Settle up first" : "Leave group"}
+                  Leave group
                 </button>
-                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">You must be settled up first.</p>}
+                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">To leave, settle up first.</p>}
               </form>
             )}
           </div>
@@ -376,7 +376,7 @@ export default async function PeoplePage({
         <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><PeoplePassportsIcon size={18} /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">Our passports</span>
-          <span className="block text-xs text-gray-500">Where everyone in {group.name} has been</span>
+          <span className="block text-xs text-gray-500">Where everyone in this group has been</span>
         </span>
         <span aria-hidden className="text-gray-400">›</span>
       </Link>

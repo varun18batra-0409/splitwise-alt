@@ -204,7 +204,7 @@ export function ContactInvite({ groupId, groupName, link, india = true }: { grou
       >
         <InviteIcon size={18} /> {picker ? "Choose from contacts" : "Invite from contacts"}
       </button>
-      {!picker && <p className="mt-1.5 text-xs text-gray-400">Opens your phone’s share sheet: pick people in Messages or WhatsApp.</p>}
+      {!picker && <p className="mt-1.5 text-xs text-gray-400">Opens the share sheet: pick people in Messages or WhatsApp.</p>}
       {msg && <p className="mt-1.5 text-xs text-gray-500">{msg}</p>}
       {picked.some((c) => c.email) && (
         <form action={invitePeople} className="mt-3">

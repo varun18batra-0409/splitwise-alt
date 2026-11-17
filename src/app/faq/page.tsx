@@ -13,15 +13,15 @@ const sections = (): { title: string; items: QA[] }[] => [
     title: "Getting started",
     items: [
       { q: "What is Loopin?", a: "A free way to split costs with friends on a trip, flatmates at home, or the two of you as a couple. Everyone adds what they paid, Loopin keeps the balances, and works out a short list of payments to settle up." },
-      { q: "Is it really free? Any limits or ads?", a: "Yes, Loopin is free to use right now: no ads and no limit on how many expenses you add." },
-      { q: "Do my friends need to sign up?", a: "Yes, with an email (or Google), once. It takes about 30 seconds and there’s no password. It means everyone in a group has a checked email, so notifications reach the right phone." },
+      { q: "Is it really free? Any limits or ads?", a: "Yes, Loopin is free to use right now, with no ads. Add as many expenses as you like; there is only a safety limit, to stop robots, which normal use never reaches." },
+      { q: "Do my friends need to sign up?", a: "Only to join a group: sign in once with an email (or Google), about 30 seconds and no password. It means everyone in a group has a checked email, so updates reach the right phone. People you add by name can wait and join later. To pay a Collect or use an “I’ve paid” link, no sign-up is needed." },
       {
         q: "What’s in the bar at the bottom?",
         a: "Home, Groups, Add, Settle and You. Add opens a new expense, Settle shows who pays whom, and You has your passport, postcards and settings (when you’re not signed in, those rows show with a lock and “Sign in to use”). Your updates are behind the bell at the top right, with a small dot when something needs you.",
       },
       {
         q: "What’s at the top of Home?",
-        a: "Your money card first: where you stand across all your groups, who it’s with, and a button to Pay (when you owe) or Remind (when you’re owed). Under it, stories from your groups, then cards picked for right now, like a trip countdown, a bill due or a postcard waiting.",
+        a: "Story circles from your groups first, then your money card: where you stand across all your groups. Tap it to open Settle up, where you pay or remind people. Under it, cards picked for right now, like a trip countdown in Coming up, then Your groups.",
       },
       {
         q: "Where are all my groups on Home?",
@@ -86,7 +86,7 @@ const sections = (): { title: string; items: QA[] }[] => [
     items: [
       {
         q: "How do I invite friends?",
-        a: "Open Add people: copy the group’s link or tap Invite on WhatsApp. For more, open More ways to add people: your phone’s share sheet, a QR code, search by name or email, your contacts, or email. Got a link from a friend? Tap Join with a link and paste it. To invite someone to Loopin without making a group, tap Invite friends to Loopin on Home or the You page.",
+        a: "Open Add people: copy the group’s link or tap Invite on WhatsApp. For more, open More ways to add people: the share sheet, a QR code, search by name or email, your contacts, or email. Got a link from a friend? Tap Join with a link and paste it. To invite someone to Loopin without making a group, tap Invite friends to Loopin on Home or the You page.",
       },
       { q: "Can I give a group a picture, or use my own photo?", a: "Yes. In the group’s settings, pick a drawn picture or a photo, or tap Your photo to choose one from your gallery. Your own photo is made small on your phone first, and only people in the group can see it." },
       {
@@ -95,9 +95,9 @@ const sections = (): { title: string; items: QA[] }[] => [
       },
       {
         q: "What does someone who left a group still see?",
-        a: "The group as it was the day they left, plus any later change to their own share. Notes on expenses edited after they left aren’t shown to them.",
+        a: "The group as it was the day they left. Their share can’t change after that. Notes on expenses edited after they left aren’t shown to them.",
       },
-      { q: "Can I use it on more than one phone, or install it as an app?", a: "Sign in on any phone and your groups are there. To put Loopin on your home screen, tap App on the Home screen and follow the steps for your phone." },
+      { q: "Can I use it on more than one phone, or install it as an app?", a: "Sign in on any device and your groups are there. To put Loopin on your home screen, open You and tap the app button there, then follow the steps for your phone." },
     ],
   },
   {
@@ -124,17 +124,17 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "What are the little circles on Home?",
         a: "Stories from your groups: a trip countdown (with the trip’s photo behind it), today’s spend while you’re away, a game night result, a group that just got all square. Tap the right side for the next slide, and swipe down or press Back to close. A bright ring means you haven’t seen it yet.",
       },
-      { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Charts, and share it as a picture. You can hide the amounts first." },
+      { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Trip recap, and share it as a picture. You can hide the amounts first." },
       {
         q: "What is the trip passport?",
-        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days travelled on top. Trips and days come from your trips in Loopin; countries also include places you add by hand. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
+        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days travelled on top. Trips and days come from your trips in Loopin; countries also include places you add by hand. You can add countries you visited before Loopin with Add a place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
       },
       {
         q: "Who can see my passport?",
         a: "Nobody, until you say yes. Loopin asks once whether to show your places to people in your groups, and you can keep it private (Only me) any time. Friends see stamps and countries only, never your money, groups or email, and trips still happening stay hidden until they’re over.",
       },
       { q: "How do postcards work?", a: "Pick a trip photo, write a few words and send it in Loopin to anyone you share a group with, or on WhatsApp to anyone. You can seal it until a day you choose, and every stamp you send or get is kept in your stamp album, where the ones you haven’t collected yet show the dates they’re available." },
-      { q: "Who can see our moments?", a: "Only the people in that trip group. Someone who left sees the moments added before they left, and someone the group’s admin removed sees none. Block a person and you stop seeing their moments. Loopin looks at a moment only if someone reports it." },
+      { q: "Who can see our moments?", a: "Only the people in that trip group. Someone who left sees the moments added before they left. Someone who was removed by whoever looks after the group sees none. Block a person and you stop seeing their moments. Loopin looks at a moment only if someone reports it." },
       { q: "How do I remove a moment?", a: "Open it, tap the three dots, and choose Delete if you added it. Whoever looks after the group can remove any moment. The photo is erased for everyone and can’t be brought back. To report one, use the same menu." },
       { q: "Reactions, titles and the spinning wheel?", a: "Open any expense to react with an emoji. Once a group has a few expenses, everyone gets a title on Balances, for habits and never for who paid less. On Add expense, Spin for it lets the wheel decide who pays tonight." },
     ],

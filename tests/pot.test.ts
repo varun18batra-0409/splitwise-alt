@@ -62,8 +62,8 @@ describe("The Pot", () => {
   });
 });
 
-// C136: "Game tally" while playing, "Money owed" once finished, and a question before the result goes into balances.
-describe("the question before a game goes into Money owed", () => {
+// C136: "Game tally" while playing, "Balances" once finished, and a question before the result goes into balances.
+describe("the question before a game goes into Balances", () => {
   // Asha takes 1000 and puts back 1500; Ravi 1000 → 700; Meera 1000 → 800.
   const moves = [take("Asha", 1000), take("Ravi", 1000), take("Meera", 1000), back("Asha", 1500), back("Ravi", 700), back("Meera", 800)];
 
@@ -77,12 +77,12 @@ describe("the question before a game goes into Money owed", () => {
   it("says who is up and who is down, and that it can be reopened", () => {
     const { lines } = potSummary(["Asha", "Ravi", "Meera"], moves);
     expect(potResultLine(lines.map((l) => ({ name: l.memberId, net: l.net })), "INR")).toBe(
-      "Put this game into Money owed? Asha +₹500, Ravi −₹300, Meera −₹200. You can reopen it.",
+      "Put this game into Balances? Asha +₹500, Ravi −₹300, Meera −₹200. You can reopen it.",
     );
   });
 
   it("leaves out people who came out even, and copes with a game nobody won", () => {
-    expect(potResultLine([{ name: "Asha", net: 10000 }, { name: "Dev", net: 0 }, { name: "Ravi", net: -10000 }], "INR")).toBe("Put this game into Money owed? Asha +₹100, Ravi −₹100. You can reopen it.");
-    expect(potResultLine([{ name: "Asha", net: 0 }], "INR")).toBe("Put this game into Money owed? Nobody came out ahead or behind. You can reopen it.");
+    expect(potResultLine([{ name: "Asha", net: 10000 }, { name: "Dev", net: 0 }, { name: "Ravi", net: -10000 }], "INR")).toBe("Put this game into Balances? Asha +₹100, Ravi −₹100. You can reopen it.");
+    expect(potResultLine([{ name: "Asha", net: 0 }], "INR")).toBe("Put this game into Balances? Nobody came out ahead or behind. You can reopen it.");
   });
 });

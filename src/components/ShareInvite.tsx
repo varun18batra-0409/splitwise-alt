@@ -40,7 +40,7 @@ export function ShareInvite({ code, groupName }: { code: string; groupName: stri
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-medium">{copied ? "Link copied" : "Share the link"}</span>
-        <span className="block text-xs text-gray-400">Your phone’s share sheet</span>
+        <span className="block text-xs text-gray-400">The share sheet</span>
       </span>
       <span aria-hidden className="text-fg/55">›</span>
     </button>

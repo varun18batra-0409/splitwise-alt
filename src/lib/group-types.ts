@@ -9,7 +9,7 @@ export const GROUP_TYPES: { id: GroupType; label: string; hint: string; namePlac
   { id: "home", label: "Home", hint: "Flatmates or family. Rent, bills, groceries", namePlaceholder: "Flat 402" },
   { id: "couple", label: "Couple", hint: "The two of you, your own split", namePlaceholder: "Us" },
   { id: "pot", label: GAME_NIGHT, hint: "Cards or board games: the score, who pays", namePlaceholder: "Friday game night" },
-  { id: "other", label: "Anything Goes", hint: "Dinners, gifts, a party", namePlaceholder: "Friday dinners" },
+  { id: "other", label: "Anything goes", hint: "Dinners, gifts, a party", namePlaceholder: "Friday dinners" },
 ];
 
 // Does the group's settings page show "Card fees abroad" (the group's default card markup)? A flat has no foreign cards, so it is

@@ -20,7 +20,7 @@ export type InsightsData = {
   currency: string;
   skipped?: number; // expenses left out because their currency has no saved rate
   converted: boolean; // some groups were in other currencies (shown with ≈)
-  me: { share: number; paid: number; net: number }; // the lit period: my cut, what I paid, the difference
+  me: { share: number; paid: number; net: number }; // the lit period: your share, what you paid, the difference
   bars: { key: string; value: number; href: string }[];
   selected: string; // the lit bar
   categories: { id: string; amount: number }[]; // for the selected bar, biggest first

@@ -74,7 +74,7 @@ export function splitSubline(x: { byItem: boolean; splitType: SplitKind; groupSp
 
 export type ResultPart = { text: string; amount: string; tone: "owe" | "owed" | "plain" };
 
-// The one quiet line under the card: "Nupur paid ₹1,800. Your share is ₹300." / "You paid ₹2,400. You get back ₹1,800." /
+// The one quiet line under the card: "Nupur paid ₹1,800. Your share is ₹300" / "You paid ₹2,400. You get back ₹1,800" (no full stop after the last amount) /
 // "Just you" / "You're square" / "Not shared with you". Display only: built from the same pairs the save uses.
 export function resultSentence(x: {
   payers: { memberId: string; amount: number }[];
@@ -88,7 +88,7 @@ export function resultSentence(x: {
   name: (id: string) => string; // "You" for yourself
   money: (minor: number) => string;
   // Foreign currency: the conversion line above already says what the whole thing comes to, so the sentence leaves out "You paid ≈ ₹5,151.34."
-  // and gives only what it means for you ("You get back ≈ ₹3,863.50."). Default true.
+  // and gives only what it means for you ("You get back ≈ ₹3,863.50"). Default true.
   showPaid?: boolean;
 }): ResultPart[] {
   const lines = youResult(x.pairs, x.myId, x.justMe, x.name, x.money, x.inShares);
@@ -98,11 +98,11 @@ export function resultSentence(x: {
   const verb = x.refund ? "got" : "paid";
   const head: ResultPart = { text: `${who} ${verb} ${x.money(x.total)}${x.refund ? " back" : ""}.`, amount: "", tone: "plain" };
   if (!x.refund && !iPaid && x.inShares && x.myShare > 0 && lines.length === 1 && lines[0].tone === "owe") {
-    if (x.showPaid === false) return [{ text: "Your share is", amount: `${x.money(x.myShare)}.`, tone: "owe" }];
-    return [head, { text: "Your share is", amount: `${x.money(x.myShare)}.`, tone: "owe" }];
+    if (x.showPaid === false) return [{ text: "Your share is", amount: x.money(x.myShare), tone: "owe" }];
+    return [head, { text: "Your share is", amount: x.money(x.myShare), tone: "owe" }];
   }
-  if (x.showPaid === false) return lines.map((l) => ({ text: l.lead, amount: `${l.amount}.`, tone: l.tone }));
-  return [head, ...lines.map((l) => ({ text: l.lead, amount: `${l.amount}.`, tone: l.tone }))];
+  if (x.showPaid === false) return lines.map((l) => ({ text: l.lead, amount: l.amount, tone: l.tone }));
+  return [head, ...lines.map((l) => ({ text: l.lead, amount: l.amount, tone: l.tone }))];
 }
 
 // "$" alone means US dollars; other dollars get their own prefix so A$10 is never read as US$10.

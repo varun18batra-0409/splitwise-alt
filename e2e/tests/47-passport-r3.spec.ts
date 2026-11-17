@@ -85,7 +85,7 @@ test("Want to go: add Japan and share it; the friend sees it; both share, then P
   const ben = await signUp("Ben", testEmail("r3-ben"));
   const A = await pageFor(browser, ana);
   const B = await pageFor(browser, ben);
-  const g = await createGroup(A, groupName("Friends"), "Anything Goes");
+  const g = await createGroup(A, groupName("Friends"), "Anything goes");
   await joinGroup(B, g.invite, g.path);
 
   // Ana's list is private until she shares: "Only you".
@@ -138,7 +138,7 @@ test("Want to go fits 320×640, 360×740 and 390×844 with a match on the page",
   const di = await signUp("Di", testEmail("r3-di"));
   const C = await pageFor(browser, cy);
   const D = await pageFor(browser, di);
-  const g = await createGroup(C, groupName("Pair"), "Anything Goes");
+  const g = await createGroup(C, groupName("Pair"), "Anything goes");
   await joinGroup(D, g.invite, g.path);
   await addJapan(C);
   await shareJapanWith(C, "Di");

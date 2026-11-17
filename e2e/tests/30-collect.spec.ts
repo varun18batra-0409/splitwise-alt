@@ -76,15 +76,15 @@ test("the organiser checks Ravi off, marks Meera's cash, sees it on Home, and cl
   const paid = org.getByRole("region", { name: "Paid", exact: true });
   await expect(paid).toContainText("Says paid");
   await paid.getByRole("button", { name: "Confirm received" }).click();
-  await expect(org.getByRole("region", { name: "Paid", exact: true })).toContainText("Confirmed");
+  await expect(org.getByRole("region", { name: "Paid", exact: true })).toContainText("Checked");
 
   await org.getByRole("region", { name: "Still to pay", exact: true }).getByRole("button", { name: "Paid cash" }).click();
   // Both are confirmed now: 2 x ₹300 = ₹600 confirmed against a goal of ₹600.
-  // The stat boxes: ₹600 confirmed, ₹0 not reported.
+  // The stat boxes: ₹600 checked, ₹0 not paid yet.
   await expect(org.locator("[data-collection-confirmed]")).toHaveText("₹600");
-  await expect(org.locator("[data-collection-progress]")).toContainText("confirmed");
+  await expect(org.locator("[data-collection-progress]")).toContainText("checked");
   await expect(org.locator("[data-collection-progress]")).toContainText("₹0");
-  await expect(org.locator("[data-collection-progress]")).toContainText("not reported");
+  await expect(org.locator("[data-collection-progress]")).toContainText("not paid yet");
   await expect(org.locator("[data-collection-progress]")).toContainText("Goal: ₹600");
 
   await org.goto("/");
