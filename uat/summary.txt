@@ -1,0 +1,4 @@
+228 passed, 1 failed, 4 not applicable, 2 NOT RUN · profile: android (Android phone: Chromium, 390×844, touch, en-IN, Asia/Kolkata)
+✗ Payments — Delete a payment from the history, then restore it: locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Restore payment' }).first() (screenshot: fail-01.png)
+○ Settle — “I’ve paid” counts at once: the balances move and nothing waits for Asha: not run: Varun pays nobody right now
+○ People — Someone owing money can't be marked as left until settled: not run: everyone settled
