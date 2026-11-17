@@ -43,6 +43,24 @@ export function parseQuickLine(text: string, members: QuickMember[], myId: strin
   const first = (n: string) => norm(n.split(" ")[0]);
   const firstCount = new Map<string, number>();
   for (const m of members) firstCount.set(first(m.name), (firstCount.get(first(m.name)) ?? 0) + 1);
+  // Which word is the amount. With several numbers ("Dinner for 4 2400", "2 beers 600", "Lunch 300 Goa 2026") the amount is:
+  // a number with a currency sign or a "k" ("₹240", "1.2k") if there is one; otherwise, leaving out what is clearly a count (right after
+  // "for", "x" or "×", or right before a plural word like "beers" or "people") and a year (1990-2099), the FIRST number left. A rule only
+  // applies while some number would still be left. The other numbers stay in the name.
+  const nameWords = new Set(members.flatMap((m) => m.name.split(/\s+/).map(norm)));
+  const candidates = toks.map((t, i) => ({ i, amount: amountOf(t), marked: /^[₹$£€¥]|^(rs\.?|inr|usd)|k$/i.test(t) })).filter((c) => c.amount !== null);
+  const isCount = (c: { i: number }) => {
+    const before = c.i > 0 ? norm(toks[c.i - 1]) : "";
+    const after = c.i + 1 < toks.length ? norm(toks[c.i + 1]) : "";
+    return before === "for" || before === "x" || before === "×" || /^x$/i.test(toks[c.i - 1] ?? "") || ((/^[a-z]{3,}s$/.test(after) || after === "people") && !nameWords.has(after));
+  };
+  const isYear = (c: { i: number }) => /^(199\d|20\d\d)$/.test(toks[c.i]);
+  let pool = candidates.filter((c) => c.marked);
+  if (!pool.length) {
+    pool = candidates;
+    for (const drop of [isCount, isYear]) if (pool.some((c) => !drop(c))) pool = pool.filter((c) => !drop(c));
+  }
+  const amountAt = pool[0]?.i ?? -1;
   type Tok = { word: string; kind: "amount" | "person" | "paid" | "by" | "with" | "for" | "except" | "all" | "filler" | "text"; id?: string; amount?: string; len: number };
   const out: Tok[] = [];
   for (let i = 0; i < toks.length; ) {
@@ -61,7 +79,7 @@ export function parseQuickLine(text: string, members: QuickMember[], myId: strin
       const a = amountOf(toks[i]);
       if (byFirst) matched = { word: toks[i], kind: "person", id: byFirst.id, len: 1 };
       else if (ME.has(w)) matched = { word: toks[i], kind: "person", id: myId, len: 1 };
-      else if (a && !out.some((t) => t.kind === "amount")) matched = { word: toks[i], kind: "amount", amount: a, len: 1 };
+      else if (a && i === amountAt) matched = { word: toks[i], kind: "amount", amount: a, len: 1 };
       else if (PAID.has(w)) matched = { word: toks[i], kind: "paid", len: 1 };
       else if (BY.has(w)) matched = { word: toks[i], kind: "by", len: 1 };
       else if (WITH.has(w)) matched = { word: toks[i], kind: "with", len: 1 };

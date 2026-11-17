@@ -75,10 +75,14 @@ export function groupCsv(
   const name = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
   // Money back is written as negative amounts, so a column adds up to what was really spent.
   const sign = (e: Expense) => (e.kind === "refund" ? -1 : 1);
+  // A deleted line is still listed (the Status column says so), but its money cells are left empty so no column adds in spending that
+  // was taken back; what it was goes in Notes instead.
+  const wasNote = (notes: string, amount: number, deleted: boolean) => (deleted ? [notes, `Deleted (it was ${plain(amount, cur)})`].filter(Boolean).join(" · ") : notes);
   // One payer: their name. Several: each with their part ("You 2000.00 + Asha 1000.00").
   const paidByCell = (e: Expense) => {
     const list = payersOf(e);
-    return list.length > 1 ? list.map((p) => `${name(p.memberId)} ${plain(p.amount, cur)}`).join(" + ") : name(list[0].memberId);
+    // A deleted line shows who paid, never how much (the amounts would add spending that was taken back).
+    return list.length > 1 ? list.map((p) => (e.deletedAt ? name(p.memberId) : `${name(p.memberId)} ${plain(p.amount, cur)}`)).join(" + ") : name(list[0].memberId);
   };
   const header = [
     "Date", "Type", "Description", "Notes", "Category", "Paid by", `Amount (${cur})`,
@@ -93,12 +97,13 @@ export function groupCsv(
     rows.push({
       date,
       cells: [
-        dayKey(date, tz), typeLabel(e.kind), e.description, e.notes ?? "", getCategory(e.category).label, paidByCell(e), plain(sign(e) * e.amount, cur),
-        foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
-        e.markupAmount ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
+        dayKey(date, tz), typeLabel(e.kind), e.description, wasNote(e.notes ?? "", sign(e) * e.amount, !!e.deletedAt), getCategory(e.category).label, paidByCell(e),
+        e.deletedAt ? "" : plain(sign(e) * e.amount, cur),
+        foreign && !e.deletedAt ? plain(e.originalAmount, e.originalCurrency) : "", foreign && !e.deletedAt ? e.originalCurrency : "", foreign && !e.deletedAt ? e.exchangeRate : "",
+        e.markupAmount && !e.deletedAt ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
         ...cols.map((m) => {
           const s = e.shares.find((x) => x.memberId === m.id);
-          return s ? plain(sign(e) * s.amount, cur) : "";
+          return s && !e.deletedAt ? plain(sign(e) * s.amount, cur) : "";
         }),
       ],
     });
@@ -107,7 +112,7 @@ export function groupCsv(
     rows.push({
       date: p.createdAt,
       cells: [
-        dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, "", "", name(p.fromId), plain(p.amount, cur),
+        dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, wasNote("", p.amount, !!p.deletedAt), "", name(p.fromId), p.deletedAt ? "" : plain(p.amount, cur),
         "", "", "", "", "", p.deletedAt ? "Deleted" : "", ...cols.map(() => ""),
       ],
     });
@@ -214,14 +219,16 @@ export function myDataCsv(
       const paidMine = list.find((p) => p.memberId === g.myId)?.amount ?? 0;
       const foreign = e.originalCurrency && e.originalCurrency !== cur;
       const date = e.spentAt ?? e.createdAt;
+      const gone = !!e.deletedAt; // a deleted line keeps its row but no money in the cells (the amount is in Notes), so columns add up to live spending
       rows.push({
         group: g.name,
         date,
         cells: [
-          g.name, g.type, dayKey(date, tz), typeLabel(e.kind), e.description, e.notes ?? "", getCategory(e.category).label,
-          list.length > 1 ? list.map((p) => `${name(p.memberId)} ${plain(p.amount, cur)}`).join(" + ") : name(list[0].memberId),
-          plain(sign * e.amount, cur), cur, mine ? plain(sign * mine, cur) : "", plain(sign * (paidMine - mine), cur),
-          foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", status(e.deletedAt),
+          g.name, g.type, dayKey(date, tz), typeLabel(e.kind), e.description,
+          gone ? [e.notes ?? "", `Deleted (it was ${plain(sign * e.amount, cur)})`].filter(Boolean).join(" · ") : (e.notes ?? ""), getCategory(e.category).label,
+          list.length > 1 ? list.map((p) => (gone ? name(p.memberId) : `${name(p.memberId)} ${plain(p.amount, cur)}`)).join(" + ") : name(list[0].memberId),
+          gone ? "" : plain(sign * e.amount, cur), cur, !gone && mine ? plain(sign * mine, cur) : "", gone ? "" : plain(sign * (paidMine - mine), cur),
+          foreign && !gone ? plain(e.originalAmount, e.originalCurrency) : "", foreign && !gone ? e.originalCurrency : "", status(e.deletedAt),
         ],
       });
     }
@@ -238,8 +245,8 @@ export function myDataCsv(
         group: g.name,
         date: p.createdAt,
         cells: [
-          g.name, g.type, dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, "", "", name(p.fromId),
-          plain(p.amount, cur), cur, "", change ? plain(change, cur) : "", "", "", status(p.deletedAt),
+          g.name, g.type, dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, p.deletedAt ? `Deleted (it was ${plain(p.amount, cur)})` : "", "", name(p.fromId),
+          p.deletedAt ? "" : plain(p.amount, cur), cur, "", !p.deletedAt && change ? plain(change, cur) : "", "", "", status(p.deletedAt),
         ],
       });
     }

@@ -33,4 +33,10 @@ describe("a file whose lines don't add up is refused before anything is saved", 
     expect(await importSplitwise({ id: "x" }, { ...input, me: 7 })).toEqual({ ok: false, error: "Pick which person is you." });
     expect(await importSplitwise({ id: "x" }, { ...input, groupName: "   " })).toEqual({ ok: false, error: "Give the group a name." });
   });
+
+  it("MB-8 / LM-4 backstop: an expense with nobody paying (all-zero nets, amount 0) is refused with the usual message, never a crash", async () => {
+    // Hand-worked: nets [0, 0] and cost 0 plan to an expense of 0 with no payers; before, the "main payer" step threw "Reduce of empty array".
+    crafted.parsed = file([row([0, 0], 0)]);
+    expect(await importSplitwise({ id: "acc-not-used" }, input)).toEqual({ ok: false, error: SAFE_TEXT });
+  });
 });

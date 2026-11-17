@@ -5,7 +5,7 @@ import { cleanNames } from "./names";
 import { newInviteCode } from "./group-setup";
 import { logEvent } from "./events";
 import { isGroupType } from "./group-types";
-import { balancesOf, mapCategory, planRow } from "./splitwise-csv";
+import { balanceGapText, balancesOf, mapCategory, planRow } from "./splitwise-csv";
 import { parseImport, type ColumnMap } from "./import-formats";
 
 // Saving a Splitwise export as a new Loopin group (the reading is in splitwise-csv.ts).
@@ -40,10 +40,11 @@ export async function importSplitwise(
   // an amount that was read wrongly) would leave the new group's balances not adding up, so it is refused instead of saved.
   const sumOf = (xs: { a: number }[]) => xs.reduce((t, x) => t + x.a, 0);
   const unsafe =
-    plans.some((p) => (p.type === "payment" ? !(p.amount > 0) || p.from === p.to : sumOf(p.payers) !== p.amount || sumOf(p.shares) !== p.amount)) ||
+    plans.some((p) => (p.type === "payment" ? !(p.amount > 0) || p.from === p.to : !(p.amount > 0) || !p.payers.length || sumOf(p.payers) !== p.amount || sumOf(p.shares) !== p.amount)) ||
     net.reduce((t, x) => t + x, 0) !== 0;
   if (unsafe) return { ok: false, error: "This file couldn’t be read safely, so nothing was brought over. Check the names and amounts in it and try again." };
   const matches = parsed.expected ? parsed.expected.every((x, i) => x === net[i]) : null;
+  const gapText = parsed.expected ? balanceGapText(parsed.expected, net, people, currency) : null;
   const names = cleanNames(people);
   if (names.length !== people.length) return { ok: false, error: "Some names in this file couldn’t be used (two people with the same name?). Rename them in the other app and export again." };
 
@@ -57,6 +58,14 @@ export async function importSplitwise(
   const expenses: Prisma.ExpenseCreateManyInput[] = [];
   const shares: { id: string; expenseId: string; memberId: string; amount: number }[] = [];
   const payments: { id: string; groupId: string; fromId: string; toId: string; amount: number; createdAt: Date; createdById: string }[] = [];
+  // Guessing a category is the slow part of a big file; the same words always give the same answer, so each is worked out once.
+  const guessed = new Map<string, string>();
+  const categoryOf = (category: string, description: string) => {
+    const key = `${category}\u0000${description}`;
+    let c = guessed.get(key);
+    if (c === undefined) guessed.set(key, (c = mapCategory(category, description)));
+    return c;
+  };
   for (const p of plans) {
     const when = valid(dayOf(p.row.date)) ? dayOf(p.row.date) : now;
     if (p.type === "payment") {
@@ -73,7 +82,7 @@ export async function importSplitwise(
       amount: p.amount,
       splitType: "exact",
       forMode: "selected",
-      category: p.kind === "pot" ? "other" : mapCategory(p.row.category, p.row.description),
+      category: p.kind === "pot" ? "other" : categoryOf(p.row.category, p.row.description),
       kind: p.kind ?? "expense",
       originalAmount: p.amount,
       originalCurrency: currency,
@@ -117,7 +126,7 @@ export async function importSplitwise(
         actorId: memberIds[input.me],
         kind: "group_imported",
         text: `brought this group over from ${parsed.format === "loopin" ? "a Loopin spreadsheet" : "another app"} (${expenses.length} expenses, ${payments.length} payments)`,
-        details: matches === false ? ["Balances differ slightly from the file’s own total"] : [],
+        details: matches === false && gapText ? [gapText] : [],
       });
     },
     { timeout: 60_000, maxWait: 10_000 },

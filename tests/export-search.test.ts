@@ -34,7 +34,8 @@ describe("spreadsheet export", () => {
       "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Varun's share (INR),Asha's share (INR)",
     );
     expect(lines[1]).toBe('2026-10-01,Expense,"Dinner, drinks",Tip paid by Asha,Bites & Sips,Varun,1200.50,,,,,cash,,600.25,600.25');
-    expect(lines[2]).toBe("2026-10-03,Expense,Hotel,,Beds & Bunks,Asha,5150.00,2000.00,THB,2.5,150.00,card,Deleted,,5150.00");
+    // LM-9: a deleted line keeps its row, but amount, original amount/currency/rate, markup and shares are empty; what it was goes in Notes.
+    expect(lines[2]).toBe("2026-10-03,Expense,Hotel,Deleted (it was 5150.00),Beds & Bunks,Asha,,,,,,card,Deleted,,");
     expect(lines[3]).toBe("2026-10-04,Payment,Asha paid Varun,,,Asha,600.25,,,,,,,,");
   });
 
