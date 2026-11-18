@@ -77,7 +77,7 @@ describe("SA-5: a bad Origin is refused cleanly", () => {
 
 describe("SA-6: the upload limit counts each person first", () => {
   it("X's 31st upload in an hour gets 429; Y's first from the same network address gets 200", async () => {
-    await seed(`photo:m:${accounts[0].member}`, 30);
+    await seed(`photo:a:${accounts[0].id}`, 30);
     await as(0);
     const blocked = await post(gid);
     expect(blocked.status).toBe(429);
@@ -85,9 +85,9 @@ describe("SA-6: the upload limit counts each person first", () => {
     const ok = await post(gid);
     expect([ok.status, (await ok.json()).ok]).toEqual([200, true]);
     // Hand-worked: Y has made one upload (count 1), and the network address has counted one too (X's refused try stopped at X's own limit).
-    expect((await db.rateLimit.findUnique({ where: { key: `photo:m:${accounts[1].member}` } }))?.count).toBe(1);
+    expect((await db.rateLimit.findUnique({ where: { key: `photo:a:${accounts[1].id}` } }))?.count).toBe(1);
     expect((await db.rateLimit.findUnique({ where: { key: `photo-ip:${ip}` } }))?.count).toBe(1);
-    rateKeys.push(`photo:m:${accounts[1].member}`, `photo-ip:${ip}`);
+    rateKeys.push(`photo:a:${accounts[1].id}`, `photo-ip:${ip}`);
   });
 
   it("the network address has its own, looser cap: with 300 used, even a person with none left uploads is refused", async () => {

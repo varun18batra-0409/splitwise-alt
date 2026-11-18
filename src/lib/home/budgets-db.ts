@@ -5,7 +5,7 @@ import { getCategory } from "../categories";
 import { logEvent } from "../events";
 import { claimJob, finishJob, sendPushTo } from "../push";
 import { DEFAULT_TIME_ZONE } from "../dates";
-import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
+import { coveredByOldGroupRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { BUDGET_CATEGORIES, budgetLevelsCrossed, budgetStatus } from "./budgets";
 import { monthSummary } from "./summary";
 import { monthKey } from "./month";
@@ -106,7 +106,9 @@ export async function checkBudgets(groupId: string, now = new Date(), opts: { le
         if (opts.held) opts.held.deferred = true;
         continue;
       }
-      if (await coveredByOldRecord(oldKey, now, p.id)) continue;
+      // The live code before this change sent this alert to the whole group at once and wrote no per-person marks, whenever
+      // it ran (before or after the zones switch-over), so its finished record covers zoned people too (see coveredByOldGroupRecord).
+      if (await coveredByOldGroupRecord(oldKey, now, p.id)) continue;
       const key = `${oldKey}:m:${p.id}`;
       if (!(await claimJob(key, now))) continue;
       await sendPushTo([p.id], payload, "reminders.budgets");

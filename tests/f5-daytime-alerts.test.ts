@@ -68,6 +68,25 @@ describe("budget alerts wait for daytime", () => {
     expect(held.deferred).toBe(false);
   });
 
+  it("release day: an alert the live (old) code already sent to the whole group is not sent again to zoned people", async () => {
+    const g = await flat("budget-release");
+    await db.budget.create({ data: { groupId: g.id, category: "groceries", amount: 1_000_000 } });
+    await db.expense.create({
+      data: {
+        groupId: g.id, description: "Big shop", category: "groceries", amount: 850_000, paidById: g.asha, createdById: g.asha, splitType: "equal", forMode: "everyone",
+        originalAmount: 850_000, originalCurrency: "INR", baseCurrency: "INR", exchangeRate: "1", rateDate: "2026-11-16", rateSource: "same",
+        convertedAmount: 850_000, paymentMethod: "cash", markupBp: 0, markupAmount: 0, spentAt: RUN1, shares: { create: [{ memberId: g.asha, amount: 850_000 }] },
+      },
+    });
+    // What the live code leaves behind: one finished group record for November's 80% alert, and no per-person marks.
+    // Dated long after any zones switch-over moment, so only the "old group record" rule can cover it.
+    await db.notifyLog.create({ data: { key: `budget:${g.id}:groceries:2026-11:80`, state: "done", createdAt: new Date("2099-01-01T00:00:00Z") } });
+    mocks.sendPushTo.mockClear();
+    expect(await checkBudgets(g.id, RUN2, { held: { deferred: false } })).toEqual([]);
+    expect(sentTo(g.asha)).toEqual([]);
+    expect(sentTo(g.ben)).toEqual([]);
+  });
+
   it("people with no zone yet keep the group's one record (once, to all of them)", async () => {
     const g = await db.group.create({ data: { name: `F5 old ${stamp}`, inviteCode: `f5-old-${stamp}`, members: { create: [{ name: "Old1" }, { name: "Old2" }] }, budgets: { create: [{ category: "food", amount: 100_000 }] } }, include: { members: true } });
     groupIds.push(g.id);

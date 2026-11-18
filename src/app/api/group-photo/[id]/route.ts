@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 async function memberOf(groupId: string) {
   const myId = await getMyMemberId(groupId);
   if (!myId) return null;
-  return db.member.findFirst({ where: { id: myId, groupId, leftAt: null, group: { deletedAt: null } }, select: { id: true } });
+  return db.member.findFirst({ where: { id: myId, groupId, leftAt: null, group: { deletedAt: null } }, select: { id: true, accountId: true } });
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -63,7 +63,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const me = await memberOf(id);
   if (!me) return Response.json({ ok: false, error: "Only people in this group can change its photo." }, { status: 403 });
   // Counted per person (30 an hour), with a looser cap per network (300) so friends on one mobile network don't block each other.
-  if (!(await allow(`photo:m:${me.id}`, 30, 3600)) || !(await allow(`photo-ip:${clientIp(h)}`, 300, 3600))) return Response.json({ ok: false, error: "Lots of photos from here in the last hour. Try again later." }, { status: 429 });
+  // A signed-in person is counted once across all their groups (a member id exists once per group, so it would give 30 per group).
+  const who = me.accountId ? `photo:a:${me.accountId}` : `photo:m:${me.id}`;
+  if (!(await allow(who, 30, 3600)) || !(await allow(`photo-ip:${clientIp(h)}`, 300, 3600))) return Response.json({ ok: false, error: "Lots of photos from here in the last hour. Try again later." }, { status: 429 });
   const bytes = new Uint8Array(await req.arrayBuffer());
   if (bytes.length > MAX_PHOTO_BYTES) return Response.json({ ok: false, error: "That photo is too big." }, { status: 413 });
   const type = photoType(bytes);
