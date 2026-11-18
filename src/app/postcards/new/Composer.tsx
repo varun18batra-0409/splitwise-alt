@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { PostcardBack, PostcardFront } from "@/components/postcards/Card";
 import { PostcardOneSide } from "@/components/postcards/OneSide";
 import { face } from "@/components/postcards/PostcardView";
@@ -93,6 +93,7 @@ const ONE_TOUCHES = ["coffee", "flower", "paravion"];
 // Front, Note and Card are one fixed screen (nothing scrolls but a long list inside its own panel); Send is an ordinary page.
 // Every tap changes the card at once. Send goes to the people you tick.
 export function Composer({ groupId, groups, photos, photosLabel, words: wordOptions, uploads, moments, tripCountry, title, backHref, error, defaults, rare, home, myName, date }: Props) {
+  const [state, action] = useActionState(sendPostcardAction, {} as { error?: string });
   const [tab, setTab] = useState<Step>("front");
   const [format, setFormat] = useState<Format>(formatOf(defaults.format));
   const [fit, setFit] = useState<Fit>(fitOf(defaults.fit));
@@ -323,7 +324,7 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
   })();
 
   return (
-    <form action={sendPostcardAction} data-allow-repeat="1">
+    <form action={action} data-allow-repeat="1">
       <input type="hidden" name="groupId" value={groupId} />
       <input type="hidden" name="front" value={front} />
       <input type="hidden" name="format" value={format} />
@@ -358,13 +359,13 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
 
       {tab === "send" ? (
         <div>
-          <TopBar title={title} steps={steps} step={tab} onStep={toStep} done={done} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} visibleTitle error={error} />
+          <TopBar title={title} steps={steps} step={tab} onStep={toStep} done={done} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} visibleTitle error={state.error ?? error} />
           <SendStep groups={groups} to={to} setTo={setTo} opensOn={opensOn} setOpensOn={setOpensOn} hasMessage={Boolean(message.trim())} onWrite={() => (messageTool(), goStep(oneSide ? "front" : "back"))} front={frontProps} back={backProps} one={oneSide ? oneProps : null} />
         </div>
       ) : (
         // The edit steps are one fixed screen (this gets around the page's bottom padding). A long list scrolls inside its own panel.
         <div className="fixed inset-0 z-30 mx-auto flex max-w-md flex-col gap-2.5 overflow-y-auto bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] max-[359px]:px-4" data-composer data-step-now={tab}>
-          <TopBar title={title} steps={steps} step={tab} onStep={toStep} done={done} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={error} />
+          <TopBar title={title} steps={steps} step={tab} onStep={toStep} done={done} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={state.error ?? error} />
           {tab === "front" && <FormatSwitch format={format} onChange={changeFormat} />}
           <div className="flex flex-none items-center justify-center" data-composer-preview data-typing={typing ? "" : undefined}>
             {preview}

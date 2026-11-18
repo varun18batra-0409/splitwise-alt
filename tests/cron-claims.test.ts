@@ -82,7 +82,7 @@ describe("the time budget", () => {
     mocks.sendPushTo.mockClear();
     const failed: string[] = [];
     const r = await runClaimedParts(T0, () => true, failed);
-    expect(r.deferred).toEqual(["bills", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"]);
+    expect(r.deferred).toEqual(["bills", "bill-asks", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"]);
     expect(failed).toEqual([]);
     expect(mocks.sendPushTo).not.toHaveBeenCalled();
   });
@@ -260,7 +260,7 @@ describe("the evening runs everything when the morning never finished", () => {
     expect(await dailyState(evening)).toEqual({ started: true, finished: false });
     const failed: string[] = [];
     const r = await runDeferredParts(evening, never, failed);
-    expect(Object.keys(r.results)).toEqual(["bills", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"]);
+    expect(Object.keys(r.results)).toEqual(["bills", "bill-asks", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"]);
     expect(r.deferred).toEqual([]);
     expect(await dailyState(evening)).toEqual({ started: true, finished: true });
     expect(await runDeferredParts(evening, never, failed)).toEqual({ results: {}, deferred: [] });

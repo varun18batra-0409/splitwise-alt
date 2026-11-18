@@ -121,11 +121,11 @@ describe("SA-9: the limit counts people, not sends (limit 80 a day)", () => {
     rateKeys.push(k);
     await db.rateLimit.create({ data: { key: k, count: 79, resetAt: new Date(Date.now() + 3_600_000) } });
     await signedInAs(asha);
-    const url = await redirected(() => sendPostcardAction(form({ to: [ben.id, cleo.id], front: "print:beach", message: "hello" })));
-    expect(new URL(url, "https://x").searchParams.get("error")).toBe("That’s a lot of postcards today. Try again tomorrow.");
+    const refused = await sendPostcardAction({}, form({ to: [ben.id, cleo.id], front: "print:beach", message: "hello" }));
+    expect(refused.error).toBe("That’s a lot of postcards today. Try again tomorrow.");
     expect(await db.postcard.count({ where: { fromId: asha.id } })).toBe(0);
     expect(await count(k)).toBe(79);
-    await redirected(() => sendPostcardAction(form({ to: ben.id, front: "print:beach", message: "hello" })));
+    await redirected(() => sendPostcardAction({}, form({ to: ben.id, front: "print:beach", message: "hello" })));
     expect(await db.postcard.count({ where: { fromId: asha.id, toId: ben.id } })).toBe(1);
     expect(await count(k)).toBe(80);
   });
@@ -138,15 +138,36 @@ describe("SA-9: the limit counts people, not sends (limit 80 a day)", () => {
     rateKeys.push(k);
     await signedInAs(asha);
     // A sealed card with a day in the past is refused after the person is picked and the words are written, but before anything is saved.
-    const url = await redirected(() => sendPostcardAction(form({ to: ben.id, front: "print:beach", message: "hello", opensOn: "2020-01-01" })));
-    expect(new URL(url, "https://x").searchParams.get("error")).toBe("Pick a day from tomorrow, up to two years ahead.");
+    const refused = await sendPostcardAction({}, form({ to: ben.id, front: "print:beach", message: "hello", opensOn: "2020-01-01" }));
+    expect(refused.error).toBe("Pick a day from tomorrow, up to two years ahead.");
     expect(await count(k)).toBeUndefined();
     // And a missing message is refused before it too.
-    await redirected(() => sendPostcardAction(form({ to: ben.id, front: "print:beach", message: "" })));
+    expect((await sendPostcardAction({}, form({ to: ben.id, front: "print:beach", message: "" }))).error).toBe("Write a few words on the back.");
     expect(await count(k)).toBeUndefined();
     // A card that goes counts one.
-    await redirected(() => sendPostcardAction(form({ to: ben.id, front: "print:beach", message: "hello" })));
+    await redirected(() => sendPostcardAction({}, form({ to: ben.id, front: "print:beach", message: "hello" })));
     expect(await count(k)).toBe(1);
+  });
+
+  it("SA-8: a card refused for a bad photo returns the error (no redirect) and saves nothing", async () => {
+    const asha = await account("SAsha");
+    const ben = await account("SBen");
+    await group("SFlat", [{ a: asha }, { a: ben }]);
+    await signedInAs(asha);
+    const photosBefore = await db.postcardPhoto.count({ where: { accountId: asha.id } });
+    const refused = await sendPostcardAction({}, form({ to: ben.id, front: "own", photo: Buffer.from("not a photo at all").toString("base64"), message: "Hello from Goa" }));
+    expect(refused).toEqual({ error: "That photo didn’t work. Try another one." });
+    expect(await db.postcard.count({ where: { fromId: asha.id } })).toBe(0);
+    expect(await db.postcardPhoto.count({ where: { accountId: asha.id } })).toBe(photosBefore);
+  });
+
+  it("SA-8: a card that goes still redirects (only refusals are returned)", async () => {
+    const asha = await account("TAsha");
+    const ben = await account("TBen");
+    await group("TFlat", [{ a: asha }, { a: ben }]);
+    await signedInAs(asha);
+    const url = await redirected(() => sendPostcardAction({}, form({ to: ben.id, front: "print:beach", message: "hello" })));
+    expect(url).toMatch(/^\/postcards\/[^?]+\?sent=1$/);
   });
 
   it("the passport action: with 79 used, sending to 2 people is refused (error=limit) and nobody is told", async () => {
@@ -218,7 +239,7 @@ describe("SA-7: a postcard carries a group only when both people are in it", () 
     const goa = await group("AGoa", [{ a: asha }, { a: ben }]);
     await group("AFlat", [{ a: asha }, { a: cleo }]);
     await signedInAs(asha);
-    await redirected(() => sendPostcardAction(form({ to: [ben.id, cleo.id], groupId: goa.id, front: "print:beach", message: "hello" })));
+    await redirected(() => sendPostcardAction({}, form({ to: [ben.id, cleo.id], groupId: goa.id, front: "print:beach", message: "hello" })));
     const cards = await db.postcard.findMany({ where: { fromId: asha.id }, select: { toId: true, groupId: true } });
     expect(Object.fromEntries(cards.map((c) => [c.toId, c.groupId]))).toEqual({ [ben.id]: goa.id, [cleo.id]: "" });
   });

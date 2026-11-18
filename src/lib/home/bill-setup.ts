@@ -2,6 +2,7 @@ import { db } from "../db";
 import { logEvent, type Db } from "../events";
 import { withRetry } from "../once";
 import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
+import { typedZero } from "../zero-amount";
 import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
@@ -75,7 +76,7 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
     if (nature !== "fixed") return { ok: false, error: "Fixed amounts only work for a bill that’s the same each month. Use percentages instead." };
     for (const m of active) {
       const raw = (input.amt?.[m.id] ?? "").trim();
-      if (!raw) continue;
+      if (!raw || typedZero(raw)) continue; // blank or a typed zero: this person is skipped
       const v = parseAmount(raw, group.currency);
       if (v === null || v < 0) return { ok: false, error: `${m.name}’s amount isn’t a number.` };
       if (v > 0) amt[m.id] = v;

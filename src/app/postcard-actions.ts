@@ -18,17 +18,29 @@ import { ownsPostcardPhoto } from "@/lib/postcards/uploads";
 import { myMomentForPostcard } from "@/lib/moments-db";
 import { deliverNotes } from "@/lib/account-notes";
 import { isBlockedEitherWay } from "@/lib/blocks";
-import { flashTo } from "@/lib/flash";
 
 const field = (f: FormData, k: string, max = 200) => String(f.get(k) ?? "").replace(/\r/g, "").slice(0, max);
 
 // Send a postcard to one or more people you've shared a group with. One copy each, so each
 // person's card is theirs (read, kept in their passport). Their phone gets a note in Alerts.
-export async function sendPostcardAction(f: FormData) {
+// A refusal is returned to the composer (which keeps everything written), not redirected to a blank one.
+class Refused extends Error {}
+export async function sendPostcardAction(_prev: { error?: string }, f: FormData): Promise<{ error?: string }> {
+  try {
+    return await sendPostcard(f);
+  } catch (err) {
+    if (err instanceof Refused) return { error: err.message };
+    throw err; // everything else, including Next's redirect, goes on as before
+  }
+}
+
+async function sendPostcard(f: FormData): Promise<{ error?: string }> {
   const me = await getAccount();
   const back = `/postcards/new?${new URLSearchParams({ ...(field(f, "groupId") ? { group: field(f, "groupId") } : {}) })}`;
   if (!me) redirect(`/signin?back=${encodeURIComponent(back)}`);
-  const fail = async (error: string): Promise<never> => redirect(await flashTo("/postcards/new", { error }, field(f, "groupId") ? { group: field(f, "groupId") } : {}));
+  const fail = async (error: string): Promise<never> => {
+    throw new Refused(error);
+  };
 
   const to = await canSendTo(me.id, [...new Set(f.getAll("to").map(String))].slice(0, 60));
   if (!to.size) await fail("Pick who it’s for.");

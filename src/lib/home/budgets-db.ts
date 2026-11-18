@@ -1,9 +1,11 @@
 import { db } from "../db";
 import { parseAmount, formatMoney } from "../money";
+import { typedZero } from "../zero-amount";
 import { getCategory } from "../categories";
 import { logEvent } from "../events";
 import { claimJob, finishJob, sendPushTo } from "../push";
 import { DEFAULT_TIME_ZONE } from "../dates";
+import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { BUDGET_CATEGORIES, budgetLevelsCrossed, budgetStatus } from "./budgets";
 import { monthSummary } from "./summary";
 import { monthKey } from "./month";
@@ -21,7 +23,7 @@ export async function saveBudgetsFor(groupId: string, actorId: string, amounts: 
   const clear: string[] = [];
   for (const [category, raw] of Object.entries(amounts)) {
     if (!BUDGET_CATEGORIES.includes(category)) continue;
-    if (!raw.trim()) {
+    if (!raw.trim() || typedZero(raw)) {
       clear.push(category);
       continue;
     }
@@ -56,7 +58,12 @@ export async function budgetsNow(groupId: string, expenses: Parameters<typeof mo
 
 // Tell everyone when a budget reaches 80% and when it goes over — once per month each.
 // Returns what was sent ("groceries:80").
-export async function checkBudgets(groupId: string, now = new Date()): Promise<string[]> {
+// Like the trip countdowns: people whose phone has told us its time zone are told in their own daytime (06:00-22:00), once each
+// (key ...:m:<member id>); people with no zone yet keep the group's one record and India's daytime.
+// `legacy: false` = it is night in India: the people with no zone are left for a later run. `held.deferred` is set when anyone was
+// left for a later run because it was night where they are (the daily job then asks for the evening run).
+export async function checkBudgets(groupId: string, now = new Date(), opts: { legacy?: boolean; held?: { deferred: boolean } } = {}): Promise<string[]> {
+  const legacyOk = opts.legacy !== false;
   const budgets = await db.budget.findMany({ where: { groupId } });
   if (!budgets.length) return [];
   const month = monthKey(now, DEFAULT_TIME_ZONE);
@@ -70,25 +77,43 @@ export async function checkBudgets(groupId: string, now = new Date()): Promise<s
   if (!group || group.deletedAt) return [];
   const s = monthSummary(group.expenses, "", month, DEFAULT_TIME_ZONE);
   const sent: string[] = [];
-  for (const b of budgetStatus(budgets, s.byCategory)) {
-    for (const level of budgetLevelsCrossed(b.spent, b.amount)) {
-      const key = `budget:${groupId}:${b.category}:${month}:${level}`;
-      if (!(await claimJob(key, now))) continue;
-      const label = getCategory(b.category).label;
-      const money = (n: number) => formatMoney(n, group.currency);
-      await sendPushTo(
-        group.members.map((m) => m.id),
-        {
-          title: `📊 ${group.name}`,
-          body: level === "100" ? `${label} is over budget: ${money(b.spent)} of ${money(b.amount)} this month.` : `${label} is at ${Math.round((b.spent * 100) / b.amount)}% of this month’s budget (${money(b.spent)} of ${money(b.amount)}).`,
-          url: `/groups/${groupId}`,
-          tag: `budget-${groupId}-${b.category}`,
-        },
-        "reminders.budgets",
-      );
-      await finishJob(key);
-      sent.push(`${b.category}:${level}`);
+  const crossed = budgetStatus(budgets, s.byCategory).flatMap((b) => budgetLevelsCrossed(b.spent, b.amount).map((level) => ({ b, level })));
+  if (!crossed.length) return sent;
+  const { legacy, zoned } = splitByZone(group.members.map((m) => m.id), await zonesOf(group.members.map((m) => m.id), now), now);
+  for (const { b, level } of crossed) {
+    const oldKey = `budget:${groupId}:${b.category}:${month}:${level}`;
+    const label = getCategory(b.category).label;
+    const money = (n: number) => formatMoney(n, group.currency);
+    const payload = {
+      title: `📊 ${group.name}`,
+      body: level === "100" ? `${label} is over budget: ${money(b.spent)} of ${money(b.amount)} this month.` : `${label} is at ${Math.round((b.spent * 100) / b.amount)}% of this month’s budget (${money(b.spent)} of ${money(b.amount)}).`,
+      url: `/groups/${groupId}`,
+      tag: `budget-${groupId}-${b.category}`,
+    };
+    let did = false;
+    if (legacy.length) {
+      if (!legacyOk) {
+        if (opts.held) opts.held.deferred = true;
+      } else if (await claimJob(oldKey, now)) {
+        await sendPushTo(legacy, payload, "reminders.budgets");
+        await markSentByOldPath(oldKey, legacy, now);
+        await finishJob(oldKey);
+        did = true;
+      }
     }
+    for (const p of zoned) {
+      if (!p.daytime) {
+        if (opts.held) opts.held.deferred = true;
+        continue;
+      }
+      if (await coveredByOldRecord(oldKey, now, p.id)) continue;
+      const key = `${oldKey}:m:${p.id}`;
+      if (!(await claimJob(key, now))) continue;
+      await sendPushTo([p.id], payload, "reminders.budgets");
+      await finishJob(key);
+      did = true;
+    }
+    if (did) sent.push(`${b.category}:${level}`);
   }
   return sent;
 }

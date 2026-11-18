@@ -4,6 +4,7 @@ import { logEvent, markUndone, expenseState, touchedByExpense, type MoveOutUndo,
 import { openGameFor } from "../pot-db";
 import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
+import { typedZero } from "../zero-amount";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 import { niceDate } from "../format";
 import { createPayment } from "../payments";
@@ -200,23 +201,24 @@ function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[
   return { resplit, credit, before, after, payments: leaverPayments(after, leaverId), daysStayed, monthDays };
 }
 
-// The last day: a real date, not in the future, and this month or last.
-function checkDay(lastDay: string, now: Date): string | null {
+// The last day: a real date, not in the future, and this month or last. "Today" is the person's own day (their time zone).
+// A tampered zone can only move "today" by a day either way.
+export function checkDay(lastDay: string, now: Date, tz: string = DEFAULT_TIME_ZONE): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(lastDay) || Number.isNaN(new Date(`${lastDay}T12:00:00Z`).getTime())) return "Pick the last day in the flat.";
-  const today = dayKey(now, DEFAULT_TIME_ZONE);
+  const today = dayKey(now, tz);
   if (lastDay > today) return "The last day can’t be in the future. Do this on the day they move out (or after).";
   if (lastDay.slice(0, 7) < addMonths(today.slice(0, 7), -1)) return "Pick a last day this month or last month.";
   return null;
 }
 
 // `actorId`: who is confirming it. They take over the leaver's bills if they are staying, exactly as moveOut does.
-export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "") {
+export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "", tz: string = DEFAULT_TIME_ZONE) {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT } as Fail;
   if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
-  const bad = checkDay(lastDay, now);
+  const bad = checkDay(lastDay, now, tz);
   if (bad) return { ok: false, error: bad } as Fail;
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
@@ -266,7 +268,7 @@ export async function moveOut(
   // The move-out screen always sends it.
   input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string; expectKey?: string },
   now = new Date(),
-  opts: { afterRead?: () => Promise<void> } = {}, // tests only: runs after the reads, before the write begins
+  opts: { afterRead?: () => Promise<void>; tz?: string } = {}, // afterRead: tests only, runs after the reads, before the write begins. tz: the person's time zone, for "today"
 ): Promise<{ ok: true; payments: Transfer[]; eventId?: string } | Fail> {
   const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "", input.addDaily ? "daily" : "");
   const ks = await keyState(input.requestKey, fp);
@@ -279,7 +281,7 @@ export async function moveOut(
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const leaver = flat.members.find((m) => m.id === input.leaverId && !m.leftAt);
   if (!leaver) return { ok: false, error: "That person isn’t in the flat." };
-  const bad = checkDay(input.lastDay, now);
+  const bad = checkDay(input.lastDay, now, opts.tz);
   if (bad) return { ok: false, error: bad };
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaver.id);
   if (!others.length) return { ok: false, error: "Someone has to stay in the flat." };
@@ -597,7 +599,7 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
   for (const [memberId, raw] of Object.entries(input.amounts)) {
     const who = flat.members.find((m) => m.id === memberId);
     if (!who) continue;
-    if (!raw.trim()) continue;
+    if (!raw.trim() || typedZero(raw)) continue; // blank or a typed zero: no share (and a cleared box removes a held one)
     // Someone who moved out keeps their deposit on record, but nobody can change it from here.
     if (who.leftAt) return { ok: false, error: LEAVER_DEPOSIT_ERROR };
     const amount = parseAmount(raw, flat.currency);
@@ -661,7 +663,7 @@ export async function returnDepositFor(groupId: string, actorId: string, deducti
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt || !flat.deposit) return { ok: false, error: "There’s no deposit on record." };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
-  const deductions = deductionsText.trim() ? parseAmount(deductionsText, flat.currency) : 0;
+  const deductions = deductionsText.trim() && !typedZero(deductionsText) ? parseAmount(deductionsText, flat.currency) : 0;
   if (deductions === null || deductions < 0) return { ok: false, error: "Enter the deductions as a number, like 8000." };
   const held = flat.deposit.shares.filter((s) => s.status === "held");
   if (!held.length) return { ok: false, error: "Nothing is held any more." };

@@ -19,6 +19,7 @@ import { addRegistered, freeName } from "@/lib/invites";
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { flashTo } from "@/lib/flash";
+import { getTimeZone } from "@/lib/tz";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
@@ -157,7 +158,7 @@ export async function moveOutAction(formData: FormData) {
     addDaily,
     expectKey: String(expectKey),
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-  });
+  }, new Date(), { tz: await getTimeZone() });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "people", leaverId, "move"], { error: r.error }, { day: lastDay }));
   // `did`: the move-out's own line, so the person who moved out (or whoever marked them) gets the Undo bar.
   redirect(`/groups/${groupId}?tab=activity${r.eventId ? `&did=${r.eventId}` : ""}`);

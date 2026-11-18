@@ -150,8 +150,8 @@ describe("a blocked person can't reach the blocker", () => {
     const t = await crew("pa");
     await blockAccount(t.asha.id, t.ben.id);
     await signedInAs(t.ben);
-    const url = await redirected(() => sendPostcardAction(form({ to: t.asha.id, front: "print:beach", message: "hello" })));
-    expect(url).toContain("error=");
+    const refused = await sendPostcardAction({}, form({ to: t.asha.id, front: "print:beach", message: "hello" }));
+    expect(refused.error).toBeTruthy();
     expect(await db.postcard.count({ where: { fromId: t.ben.id, toId: t.asha.id } })).toBe(0);
   });
 

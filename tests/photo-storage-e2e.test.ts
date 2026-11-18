@@ -143,7 +143,8 @@ async function sendCard(from: Person, to: Person[], bytes: Uint8Array, extra: Re
   for (const [k, v] of Object.entries(extra)) f.set(k, v);
   let went = "";
   try {
-    await postcardActions.sendPostcardAction(f);
+    const r = await postcardActions.sendPostcardAction({}, f);
+    if (r.error) went = `/postcards/new?error=${encodeURIComponent(r.error)}`;
   } catch (err) {
     const m = /^NEXT_REDIRECT (.*)$/.exec(String((err as Error).message));
     if (!m) throw err;

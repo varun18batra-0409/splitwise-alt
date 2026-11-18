@@ -2,6 +2,7 @@ import { runAllBills } from "./home/bills-db";
 import { sendReminders } from "./home/reminders-db";
 import { checkBudgets } from "./home/budgets-db";
 import { sendMonthlySummaries } from "./home/insights-db";
+import { sendBillAsks } from "./home/bill-asks";
 import { sendMemoryLane, sendTripCountdowns } from "./countdown-db";
 import { noteOpenedPostcards } from "./postcards/open-db";
 import { db } from "./db";
@@ -26,7 +27,7 @@ export function makeStop(budgetMs = DAILY_BUDGET_MS, nowMs: () => number = Date.
 export type PartsReport = { results: Record<string, unknown>; deferred: string[] };
 
 // The parts, in the order they run.
-export const PART_NAMES = ["bills", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"] as const;
+export const PART_NAMES = ["bills", "bill-asks", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"] as const;
 
 // What the morning run could not finish is written down (one NotifyLog row per part, for that day), so the
 // evening catch-up runs exactly those parts and nothing else: it must not send first-time nudges at 21:30
@@ -147,30 +148,35 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
   };
 
   await part("bills", () => runAllBills(now, stop));
+  await part("bill-asks", () => nudge((legacy) => sendBillAsks(now, stop, { legacy })));
   await part("reminders", () => nudge((legacy) => sendReminders(now, stop, { legacy })));
   await part("countdowns", () => nudge((legacy) => sendTripCountdowns(now, stop, { legacy })));
   // Budgets reached by bills added just now.
-  await part("budgets", async () => {
-    const groups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"], orderBy: { groupId: "asc" } });
-    let sent = 0;
-    let errors = 0;
-    for (const b of groups) {
-      if (stop()) {
-        // Time is up: the rest is deferred as before, but a group that already failed still marks the part as failed.
-        if (errors) throw Object.assign(new Error(`budgets: ${errors} group(s) failed`), { deferred: true });
-        return { sent, deferred: true };
+  await part("budgets", () =>
+    nudge(async (legacy) => {
+      const groups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"], orderBy: { groupId: "asc" } });
+      let sent = 0;
+      let errors = 0;
+      // Set when someone was left for a later run because it was night where they are.
+      const held = { deferred: false };
+      for (const b of groups) {
+        if (stop()) {
+          // Time is up: the rest is deferred as before, but a group that already failed still marks the part as failed.
+          if (errors) throw Object.assign(new Error(`budgets: ${errors} group(s) failed`), { deferred: true });
+          return { sent, deferred: true };
+        }
+        // A group whose check broke is counted (and the part reported as failed), not passed off as "nothing to send".
+        try {
+          sent += (await checkBudgets(b.groupId, now, { legacy, held })).length;
+        } catch (err) {
+          errors++;
+          console.error("daily job: budgets check failed", String(err).slice(0, 200));
+        }
       }
-      // A group whose check broke is counted (and the part reported as failed), not passed off as "nothing to send".
-      try {
-        sent += (await checkBudgets(b.groupId, now)).length;
-      } catch (err) {
-        errors++;
-        console.error("daily job: budgets check failed", String(err).slice(0, 200));
-      }
-    }
-    if (errors) throw new Error(`budgets: ${errors} group(s) failed`);
-    return { sent, deferred: false };
-  });
+      if (errors) throw new Error(`budgets: ${errors} group(s) failed`);
+      return { sent, deferred: held.deferred };
+    }),
+  );
   await part("summaries", () => nudge((legacy) => sendMonthlySummaries(now, stop, { legacy })));
   await part("memories", () => nudge((legacy) => sendMemoryLane(now, stop, { legacy })));
   await part("postcards", () => noteOpenedPostcards(now));

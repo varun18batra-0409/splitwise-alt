@@ -45,7 +45,7 @@ export default async function MoveOutPage({
   const tz = await getTimeZone();
   const today = dayKey(new Date(), tz);
   const lastDay = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? "") ? sp.day! : today;
-  const p = await moveOutPreview(group.id, leaver.id, lastDay, new Date(), myId);
+  const p = await moveOutPreview(group.id, leaver.id, lastDay, new Date(), myId, tz);
   const money = (n: number) => formatMoney(n, group.currency);
   const name = (mid: string) => (mid === myId ? "you" : group.members.find((m) => m.id === mid)?.name ?? "someone");
   const Name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");

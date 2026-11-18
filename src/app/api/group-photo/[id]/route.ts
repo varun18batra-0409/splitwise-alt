@@ -52,10 +52,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Only from Loopin's own pages (another site can't send a photo in your name).
   const origin = h.get("origin");
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!origin || !host || new URL(origin).host !== host) return Response.json({ ok: false, error: "Not allowed." }, { status: 403 });
+  // A bad Origin (like the text "null") is a refusal, not an error.
+  let sameSite = false;
+  try {
+    sameSite = Boolean(origin && host && new URL(origin).host === host);
+  } catch {
+    sameSite = false;
+  }
+  if (!sameSite) return Response.json({ ok: false, error: "Not allowed." }, { status: 403 });
   const me = await memberOf(id);
   if (!me) return Response.json({ ok: false, error: "Only people in this group can change its photo." }, { status: 403 });
-  if (!(await allow(`photo:${clientIp(h)}`, 30, 3600))) return Response.json({ ok: false, error: "Lots of photos from here in the last hour. Try again later." }, { status: 429 });
+  // Counted per person (30 an hour), with a looser cap per network (300) so friends on one mobile network don't block each other.
+  if (!(await allow(`photo:m:${me.id}`, 30, 3600)) || !(await allow(`photo-ip:${clientIp(h)}`, 300, 3600))) return Response.json({ ok: false, error: "Lots of photos from here in the last hour. Try again later." }, { status: 429 });
   const bytes = new Uint8Array(await req.arrayBuffer());
   if (bytes.length > MAX_PHOTO_BYTES) return Response.json({ ok: false, error: "That photo is too big." }, { status: 413 });
   const type = photoType(bytes);

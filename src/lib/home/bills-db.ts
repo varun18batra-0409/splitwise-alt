@@ -2,6 +2,7 @@ import { db } from "../db";
 import { getRate } from "../rate-cache";
 import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense";
 import { sendPushTo } from "../push";
+import { askBill } from "./bill-asks";
 import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
 import { addMonths, daysInMonth, dueKey } from "./month";
@@ -219,13 +220,8 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   const problem = splitProblem(bill.split, active);
   if (problem) return wait(problem);
   if (bill.nature === "varies") {
-    // Ask whoever pays for this month's amount.
-    await sendPushTo([payer], {
-      title: `🧾 ${bill.name}`,
-      body: `${bill.name} is due. Enter the amount when you have the bill.`,
-      url: `/groups/${group.id}/add?bill=${bill.id}&period=${period}`,
-      tag: `bill-${bill.id}-${period}`,
-    }, "reminders.bills");
+    // Ask whoever pays for this month's amount, in their daytime (at night the month just waits: sendBillAsks asks later).
+    await askBill(run.id, payer, { name: bill.name, billId: bill.id, groupId: group.id, period }, now);
     return wait("");
   }
 
