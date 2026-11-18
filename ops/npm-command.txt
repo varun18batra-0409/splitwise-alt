@@ -1,2 +1,2 @@
-# Prisma 7.10.1 (client, libsql adapter, command-line tool)
+# Next 16.4.6 (stage 2)
 npm install

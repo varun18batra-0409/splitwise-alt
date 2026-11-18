@@ -30,7 +30,9 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
-  eslint: { ignoreDuringBuilds: true },
+  // Next 16 changed three picture-service defaults; these keep the old behaviour: the picture sharpness steps in use (75, 80, 90),
+  // the small 16px size, and the 60-second minimum cache time.
+  images: { qualities: [75, 80, 90], imageSizes: [16, 32, 48, 64, 96, 128, 256, 384], minimumCacheTTL: 60 },
   async headers() {
     // Private answers that set no caching of their own are never kept by a
     // browser or the hosting's cache (photo routes set their own, private, rules).

@@ -3,11 +3,12 @@ import { PRIMARY_HOST, shouldMove } from "@/lib/move-rules";
 import { VIEWER_COOKIE, cleanViewer, newViewerId, viewerCookieOptions } from "@/lib/viewer-cookie";
 import { SESSION_COOKIE, SESSION_MAX_AGE, SESSION_RENEW_DAYS, decodeSession, encodeSession, today } from "@/lib/session";
 
+// (Next 16 calls this file "proxy"; it was "middleware" before. Same job, same rules.)
 // Old address → loopinapps.com. Signed-in people go through /api/move, which
 // carries their sign-in across; everyone else goes straight to the same page.
 // On the app itself: a sign-in lasts a year and is quietly renewed while the
 // phone keeps using Loopin (once a month at most).
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
   if (!shouldMove(host, req.method, req.nextUrl.pathname)) return renew(req);
   const to = req.nextUrl.pathname + req.nextUrl.search;
