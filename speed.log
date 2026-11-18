@@ -1,0 +1,22 @@
+Database region: aws-ap-south-1
+server /how-it-works: 213, 146, 44, 14, 14 ms  (iad1)
+server /search: 25, 10, 11, 17, 13 ms  (iad1)
+server /settle: 9, 13, 16, 14, 24 ms  (iad1)
+server /notifications: 10, 13, 9, 16, 13 ms  (iad1)
+server /join/does-not-exist: 11, 14, 9, 15, 9 ms  (iad1)
+static file (network only, no server work): 569, 128, 71, 51, 59 ms
+tap Groups: screen changed after 810 ms, content shown after 831 ms
+   PAGE-DATA    63 →   759 ms  https://www.loopinapps.com/groups?_rsc=FRaV8X8-lhhRe4jw
+tap Settle: screen changed after 829 ms, content shown after 835 ms
+   PAGE-DATA    24 →   361 ms  https://www.loopinapps.com/settle?_rsc=m-NgWU1DJw4pqEfq
+tap You: screen changed after 413 ms, content shown after 432 ms
+   PAGE-DATA    44 →   367 ms  https://www.loopinapps.com/account?_rsc=K7LED_i-aYNIwL-J
+tap Groups: screen changed after 308 ms, content shown after 316 ms
+   PAGE-DATA    21 →   304 ms  https://www.loopinapps.com/groups?_rsc=hVCzEa64mA35725_
+tap Settle: screen changed after 281 ms, content shown after 285 ms
+   PAGE-DATA    20 →   278 ms  https://www.loopinapps.com/settle?_rsc=m-NgWU1DJw4pqEfq
+tap You: screen changed after 302 ms, content shown after 312 ms
+   PAGE-DATA    17 →   305 ms  https://www.loopinapps.com/account?_rsc=K7LED_i-aYNIwL-J
+quick taps: Settle after 328 ms, then Groups after 662 ms
+   PAGE-DATA    21 →   325 ms  https://www.loopinapps.com/settle?_rsc=hVCzEa64mA35725_
+   PAGE-DATA   372 →   660 ms  https://www.loopinapps.com/groups?_rsc=K7LED_i-aYNIwL-J
