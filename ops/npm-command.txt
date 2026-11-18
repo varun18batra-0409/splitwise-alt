@@ -1,2 +1,0 @@
-# Next 16.4.6 (stage 2)
-npm install
