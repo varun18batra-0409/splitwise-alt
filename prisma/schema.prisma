@@ -6,13 +6,13 @@
 // the right values for expenses saved before multi-currency existed.
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"] // lets the hosted app use Turso (online SQLite)
+  provider = "prisma-client-js"
 }
 
+// Prisma 7: the database address is no longer written here; it lives in prisma.config.ts (used by the prisma command-line tool).
+// The app itself connects through a driver adapter (src/lib/db.ts).
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
 }
 
 model Group {

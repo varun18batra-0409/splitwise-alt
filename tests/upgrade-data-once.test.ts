@@ -21,7 +21,7 @@ const run = (url: string) => {
 
 describe("data upgrade runs each finished step once", () => {
   it("first run repairs the old row and remembers the steps; the second run skips them", async () => {
-    const sql = spawnSync("npx", ["prisma", "migrate", "diff", "--from-empty", "--to-schema-datamodel", "prisma/schema.prisma", "--script"], { cwd: process.cwd(), encoding: "utf8" });
+    const sql = spawnSync("npx", ["prisma", "migrate", "diff", "--from-empty", "--to-schema", "prisma/schema.prisma", "--script"], { cwd: process.cwd(), encoding: "utf8" });
     expect(sql.status, sql.stderr).toBe(0);
     const url = `file:${join(mkdtempSync(join(tmpdir(), "lp-upgrade-")), "scratch.db")}`;
     const c = createClient({ url });

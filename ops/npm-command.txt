@@ -1,2 +1,2 @@
-# Step 1: fixes inside the current versions (prisma, @prisma/config, deepmerge-ts). No major versions.
-npm audit fix --omit=dev
+# Prisma 7.10.1 (client, libsql adapter, command-line tool)
+npm install

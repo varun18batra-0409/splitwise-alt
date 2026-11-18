@@ -74,8 +74,8 @@ try {
   const diff = () =>
     execFileSync(
       "npx",
-      ["prisma", "migrate", "diff", "--from-url", `file:${snapshot}`, "--to-schema-datamodel", SCHEMA, "--script"],
-      { encoding: "utf8" },
+      ["prisma", "migrate", "diff", "--from-config-datasource", "--to-schema", SCHEMA, "--script"],
+      { encoding: "utf8", env: { ...process.env, DATABASE_URL: `file:${snapshot}` } }, // prisma.config.ts reads the address from DATABASE_URL
     ).trim();
   const isEmpty = (x) => !x || /^-- This is an empty migration\.?$/.test(x);
   let sql = diff();

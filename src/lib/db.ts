@@ -1,13 +1,14 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaLibSQL } from "@prisma/adapter-libsql";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 
 // On the hosted app the data lives in Turso (online SQLite), set by the
 // TURSO_DATABASE_URL and TURSO_AUTH_TOKEN settings. Without them (in
 // Codespaces and tests) it's the local file prisma/dev.db.
 function create() {
   const url = process.env.TURSO_DATABASE_URL;
-  if (!url) return new PrismaClient();
-  const client = new PrismaClient({ adapter: new PrismaLibSQL({ url, authToken: process.env.TURSO_AUTH_TOKEN }) });
+  // Prisma 7 always needs a driver adapter, so the local file is opened through the same libSQL driver (same file as before: prisma/dev.db).
+  if (!url) return new PrismaClient({ adapter: new PrismaLibSql({ url: `file:${process.cwd()}/prisma/dev.db` }) });
+  const client = new PrismaClient({ adapter: new PrismaLibSql({ url, authToken: process.env.TURSO_AUTH_TOKEN }) });
   // A local database file (the automated browser tests): the app and the test
   // checker share it, so wait for each other's writes instead of timing out,
   // and let reads carry on during a write. Never used for the live database.
