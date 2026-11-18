@@ -18,11 +18,15 @@ export async function assertMomentPhotosDecoded(p: Page, label: string): Promise
   await p.evaluate(async () => {
     const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img[src*="/api/moment-photo/"]'));
     for (const im of imgs) im.loading = "eager";
+    // Everything goes back exactly where it was afterwards: the page and any sideways row (story circles, Memories). A screen that
+    // scrolled on purpose before this check (the emoji picker scrolls the page to fit under the "+") must be captured as it was;
+    // going back to the top here hid the bottom of the picker in the 17 Nov screenshots.
+    const x = window.scrollX;
+    const y = window.scrollY;
+    const rows = Array.from(document.querySelectorAll<HTMLElement>("*")).map((el) => [el, el.scrollLeft] as const);
     for (const im of imgs) im.scrollIntoView({ block: "center" });
-    window.scrollTo(0, 0);
-    // scrollIntoView also slides sideways rows (story circles, Memories) to their last photo; put every row back at its start,
-    // as a person opening the page would see it.
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) if (el.scrollLeft > 0) el.scrollLeft = 0;
+    window.scrollTo(x, y);
+    for (const [el, left] of rows) if (el.scrollLeft !== left) el.scrollLeft = left;
   });
   // No named functions inside the browser code: the script runner adds a helper (__name) that the page doesn't have.
   await p
