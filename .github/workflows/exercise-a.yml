@@ -74,7 +74,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-exa-${{ matrix.profile }}-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - name: Test browser (system packages, then the browser with retries)
-        timeout-minutes: 15
+        timeout-minutes: 35 # a slow Ubuntu mirror took >15 min on 18 Nov
         run: bash scripts/ci-browsers.sh ${{ matrix.profile == 'iphone' && 'webkit' || 'chromium' }}
       - name: Fresh database, then the hosting build (schema sync, data upgrade, build)
         run: |
@@ -197,7 +197,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-exa-e2e-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - name: Test browsers (system packages, then the browsers with retries)
-        timeout-minutes: 15
+        timeout-minutes: 35 # a slow Ubuntu mirror took >15 min on 18 Nov
         run: bash scripts/ci-browsers.sh chromium webkit
       - name: Empty database and app build
         run: |

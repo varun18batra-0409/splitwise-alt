@@ -16,7 +16,7 @@ if [ -n "$pkgs" ]; then
   sudo timeout 240 apt-get $APT update >/dev/null || echo "::warning::apt update was slow or failed; installing anyway"
   ok=""
   for i in 1 2; do
-    if sudo timeout 420 env DEBIAN_FRONTEND=noninteractive apt-get $APT install -y --no-install-recommends $pkgs >/dev/null; then ok=1; break; fi
+    if sudo timeout 900 env DEBIAN_FRONTEND=noninteractive apt-get $APT install -y --no-install-recommends $pkgs >/dev/null; then ok=1; break; fi
     echo "::warning::System packages attempt $i failed or hung, retrying"
   done
   [ -n "$ok" ] || { echo "::error::System packages for the test browsers could not be installed"; exit 1; }
