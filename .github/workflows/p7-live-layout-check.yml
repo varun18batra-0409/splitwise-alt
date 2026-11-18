@@ -1,0 +1,29 @@
+# One-off, ops-p7-livecheck branch only: does the upgraded database toolkit (Prisma 7) read the LIVE database's layout
+# and find nothing to change? Read-only: the read-only key (environment live-read), "--plan" only, and no LOOPIN_DB_TARGET,
+# so nothing can be written (the key itself refuses writes). Prints the plan; never prints data.
+name: Prisma 7 live layout check (ops-p7-livecheck only)
+on:
+  push:
+    branches: [ops-p7-livecheck]
+permissions:
+  contents: read
+jobs:
+  plan:
+    environment: live-read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Plan against the live layout (read-only key)
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
+        run: |
+          set -o pipefail
+          [ -n "$TURSO_AUTH_TOKEN" ] || { echo "::error::No read-only key in live-read. Stopping."; exit 1; }
+          node scripts/turso-sync.mjs --plan 2>&1 | tee plan.log
+          if grep -q "(nothing to change)" plan.log; then echo "::notice title=Prisma 7 vs live::(nothing to change)"; else echo "::error title=Prisma 7 vs live::$(tr '\n' ' ' < plan.log | cut -c1-900)"; exit 1; fi
