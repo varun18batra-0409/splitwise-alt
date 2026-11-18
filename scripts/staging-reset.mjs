@@ -18,10 +18,30 @@ let rows = 0;
 for (const t of tables) rows += Number((await db.execute(`SELECT COUNT(*) AS n FROM "${t}"`)).rows[0].n);
 console.log(`::notice title=Before::${tables.length} tables, ${rows} rows in total`);
 
-await db.execute("PRAGMA foreign_keys=OFF");
-for (const r of all.filter((x) => x.type === "view")) await db.execute(`DROP VIEW IF EXISTS "${r.name}"`);
-for (const r of all.filter((x) => x.type === "trigger")) await db.execute(`DROP TRIGGER IF EXISTS "${r.name}"`);
-for (const t of tables) await db.execute(`DROP TABLE IF EXISTS "${t}"`);
+// Over the network each call is its own request, so a separate PRAGMA doesn't carry over: send it in the same script.
+const drops = [
+  ...all.filter((x) => x.type === "view").map((r) => `DROP VIEW IF EXISTS "${r.name}";`),
+  ...all.filter((x) => x.type === "trigger").map((r) => `DROP TRIGGER IF EXISTS "${r.name}";`),
+  ...tables.map((t) => `DROP TABLE IF EXISTS "${t}";`),
+];
+try {
+  await db.executeMultiple(["PRAGMA foreign_keys=OFF;", ...drops].join("\n"));
+} catch (e) {
+  console.log(`one-go drop stopped (${String(e?.message ?? e).split("\n")[0].slice(0, 120)}); dropping one by one instead`);
+  // Fallback: keep going round, dropping whatever can be dropped, until nothing is left or nothing moves.
+  for (let round = 0; round < 50; round++) {
+    const now = (await db.execute(list)).rows.filter((r) => r.type === "table").map((r) => String(r.name));
+    if (!now.length) break;
+    let moved = false;
+    for (const t of now) {
+      try {
+        await db.executeMultiple(`PRAGMA foreign_keys=OFF;\nDROP TABLE IF EXISTS "${t}";`);
+        moved = true;
+      } catch {}
+    }
+    if (!moved) break;
+  }
+}
 const left = (await db.execute(list)).rows.length;
 console.log(`::notice title=Emptied::${left} objects left`);
 process.exit(left ? 1 : 0);
