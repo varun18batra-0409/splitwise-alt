@@ -65,7 +65,7 @@ async function prismaSql() {
     const local = createClient({ url: `file:${snap}` });
     for (const kind of ["table", "index", "view", "trigger"]) for (const r of rows.filter((x) => x.type === kind)) await local.execute(String(r.sql));
     local.close();
-    const out = execFileSync("npx", ["prisma", "migrate", "diff", "--from-url", `file:${snap}`, "--to-schema-datamodel", "prisma/schema.prisma", "--script"], { encoding: "utf8" }).trim();
+    const out = execFileSync("npx", ["prisma", "migrate", "diff", "--from-config-datasource", "--to-schema", "prisma/schema.prisma", "--script"], { encoding: "utf8", env: { ...process.env, DATABASE_URL: `file:${snap}` } }).trim();
     return /^-- This is an empty migration\.?$/.test(out) || !out ? "" : out;
   } finally {
     rmSync(dir, { recursive: true, force: true });

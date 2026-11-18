@@ -22,7 +22,7 @@ const prisma = (args: string[]) => spawnSync("npx", ["prisma", ...args], { cwd: 
 
 // An "online" database as `from` describes it, with two rows (a, b).
 async function online(from: string) {
-  const sql = prisma(["migrate", "diff", "--from-empty", "--to-schema-datamodel", schemaFile(from), "--script"]).stdout;
+  const sql = prisma(["migrate", "diff", "--from-empty", "--to-schema", schemaFile(from), "--script"]).stdout;
   const file = join(dir, `online-${n++}.db`);
   const c = createClient({ url: `file:${file}` });
   await c.executeMultiple(sql);

@@ -89,8 +89,13 @@ jobs:
           git fetch -q --depth=1 origin main
           mkdir -p /tmp/live-schema
           git show origin/main:prisma/schema.prisma > /tmp/live-schema/schema.prisma
-          npx prisma db push --skip-generate --schema /tmp/live-schema/schema.prisma
-          cp /tmp/live-schema/dev.db /tmp/online-stand-in.db
+          # main's schema still names its database file inside itself (Prisma 6 style); once main is on Prisma 7 it no longer does.
+          if grep -qE '^[[:space:]]*url[[:space:]]*=' /tmp/live-schema/schema.prisma; then
+            npx --yes prisma@6 db push --skip-generate --schema /tmp/live-schema/schema.prisma
+            cp /tmp/live-schema/dev.db /tmp/online-stand-in.db
+          else
+            DATABASE_URL=file:/tmp/online-stand-in.db npx prisma db push --skip-generate --schema /tmp/live-schema/schema.prisma
+          fi
       - name: Hosting build (schema sync, data upgrade, build)
         run: |
           set -o pipefail

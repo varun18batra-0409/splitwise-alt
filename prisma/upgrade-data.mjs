@@ -13,14 +13,10 @@ if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
 }
 
 // Hosted app: Turso (online SQLite). Otherwise: the local file.
+const { PrismaLibSql } = await import("@prisma/adapter-libsql");
 const db = process.env.TURSO_DATABASE_URL
-  ? new PrismaClient({
-      adapter: new (await import("@prisma/adapter-libsql")).PrismaLibSQL({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      }),
-    })
-  : new PrismaClient();
+  ? new PrismaClient({ adapter: new PrismaLibSql({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN }) })
+  : new PrismaClient({ adapter: new PrismaLibSql({ url: `file:${process.cwd()}/prisma/dev.db` }) });
 
 // Finished steps (OA-7). Steps 1, 2, 3 and 5 only repair rows saved by OLD versions of the app, and nothing writes such rows
 // any more, so once a step has found nothing left to repair it is remembered here (AppSetting "data-upgrade:done", for
