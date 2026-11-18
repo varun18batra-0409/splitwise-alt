@@ -40,7 +40,7 @@ test("with a person: pick, add, see who owes what, the other side sees it, and i
   await page.locator("[data-person-row='Ravi']").click();
   await page.waitForURL(/\/groups\/[^/]+\/add/);
   await settled(page);
-  await expect(page.getByText("Add expense with Ravi")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add expense with Ravi" })).toBeVisible();
   await expect(page.locator("main img")).toHaveCount(0); // no place photo for a person
   await page.locator("#expense-name").fill("Lunch");
   await page.getByLabel("Amount", { exact: true }).fill("1200");
