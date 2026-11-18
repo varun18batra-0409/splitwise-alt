@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { LEGACY_T, SESSION_COOKIE, decodeSession, encodeSession, today } from "@/lib/session";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 
 // SEC-06: a signed sign-in is good for 365 days after it was last stamped (t = days since 1970), checked on the server.
 // A stamp more than a day in the future is refused too. A token with no stamp (older releases) counts as stamped on

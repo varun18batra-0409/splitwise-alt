@@ -273,7 +273,7 @@ describe("no free text from the address is shown unsigned", () => {
 });
 
 describe("the browser value (lp_v) is set before any page draws", () => {
-  const mw = readFileSync("src/middleware.ts", "utf8");
+  const mw = readFileSync("src/proxy.ts", "utf8");
   it("the middleware sets lp_v when it is missing, with the same attributes as the actions", () => {
     expect(mw).toContain("VIEWER_COOKIE");
     expect(mw).toContain("res.cookies.set(VIEWER_COOKIE, newViewer, viewerCookieOptions())");
