@@ -9,7 +9,8 @@ import { createClient } from "@libsql/client";
 // the "online" database is built from a small fixture schema, then synced to a changed fixture schema.
 // OB-4, OB-5, OB-11, OB-12, OB-13, OA-10.
 
-const HEAD = 'datasource db {\n  provider = "sqlite"\n  url      = "file:./unused.db"\n}\n';
+// Prisma 7: the schema no longer names a database address.
+const HEAD = 'datasource db {\n  provider = "sqlite"\n}\n';
 const THING = (extra = "", attrs = "") => `${HEAD}model Thing {\n  id   String @id\n  name String\n${extra}${attrs}}\n`;
 const dir = mkdtempSync(join(tmpdir(), "lp-sync-"));
 let n = 0;
