@@ -64,7 +64,7 @@ jobs:
           node -e "(async()=>{const pw=require('@playwright/test');for(const t of ['chromium','webkit']){const b=await pw[t].launch();console.log('::notice title=Browser '+t+'::launched, version '+b.version());await b.close();}})().catch(e=>{console.log('::error title=Browser did not start::'+String(e.message).split('\\n')[0]);process.exit(1)})"
       - name: Empty database and app build
         run: |
-          npx prisma db push --skip-generate
+          npx prisma db push
           cp prisma/dev.db /tmp/e2e.db
           npm run build
       - name: Supplied Splitwise file (if the secret is set)

@@ -91,10 +91,10 @@ jobs:
           git show origin/main:prisma/schema.prisma > /tmp/live-schema/schema.prisma
           # main's schema still names its database file inside itself (Prisma 6 style); once main is on Prisma 7 it no longer does.
           if grep -qE '^[[:space:]]*url[[:space:]]*=' /tmp/live-schema/schema.prisma; then
-            npx --yes prisma@6 db push --skip-generate --schema /tmp/live-schema/schema.prisma
+            (cd /tmp/live-schema && npx --yes prisma@6 db push --skip-generate --schema schema.prisma) # run away from the repo so Prisma 6 does not read the Prisma 7 config file
             cp /tmp/live-schema/dev.db /tmp/online-stand-in.db
           else
-            DATABASE_URL=file:/tmp/online-stand-in.db npx prisma db push --skip-generate --schema /tmp/live-schema/schema.prisma
+            DATABASE_URL=file:/tmp/online-stand-in.db npx prisma db push --schema /tmp/live-schema/schema.prisma
           fi
       - name: Hosting build (schema sync, data upgrade, build)
         run: |
