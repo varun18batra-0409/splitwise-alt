@@ -25,18 +25,10 @@ export function watchConsole(ctx: BrowserContext) {
 
 export const test = base.extend<{ browserLogs: void }>({
   browserLogs: [
-    async ({ context, browser }, use, testInfo) => {
+    async ({ context }, use, testInfo) => {
       watchConsole(context);
       lines.length = 0;
-      // Written to the run log so a slow browser start-up can be traced to windows left open by earlier tests (iPhone, 18 Nov).
-      const before = browser.contexts().length;
-      if (before > 1) console.log(`open browser windows at the start of "${testInfo.title}": ${before - 1} left over`);
       await use();
-      // Windows a test opened itself are closed here, as soon as the test is over, instead of waiting for the end-of-test clean-up
-      // (a failed test keeps them, so its screenshots and trace still show everything). Nothing the test checks is touched.
-      if (testInfo.status === testInfo.expectedStatus) {
-        await Promise.all(browser.contexts().filter((c) => c !== context).map((c) => Promise.race([c.close().catch(() => undefined), new Promise((r) => setTimeout(r, 10_000))])));
-      }
       if (testInfo.status !== testInfo.expectedStatus) {
         await testInfo.attach("browser-console.txt", { body: lines.join("\n") || "(no console messages)", contentType: "text/plain" });
       }
