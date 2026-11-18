@@ -60,7 +60,8 @@ describe("B5 Home lists (real database)", () => {
     // 24 bills due on the 20th–28th (day-of-month), one on the 18th; the old "take 20" with no order could drop it.
     for (let i = 0; i < 24; i++) await db.bill.create({ data: { groupId: i % 2 ? f1 : f2, name: `Bill ${i}`, day: 20 + (i % 9), startMonth: "2026-11" } });
     const due = await db.bill.create({ data: { groupId: f1, name: "Due tomorrow", day: 18, startMonth: "2026-11" } });
-    const got = await homeBills([f1, f2]);
+    // A fixed "today" (17 Nov, India morning): with the real clock, the 18th stops being "tomorrow" after 18 Nov.
+    const got = await homeBills([f1, f2], new Date("2026-11-17T06:30:00Z"));
     expect(got.length).toBe(25);
     expect(got[0].id).toBe(due.id); // soonest first
   });
