@@ -1756,7 +1756,7 @@ if (!hosted) {
     }
   };
   await step("80-us-tour-2", async () => {
-    await p.goto(base + "/", { waitUntil: "networkidle" });
+    await gotoQuiet(p, base + "/");
     await p.getByRole("button", { name: /Next/ }).click();
   }, false);
   await step("81-us-tour-6", async () => {
@@ -1778,14 +1778,14 @@ if (!hosted) {
     await p.waitForTimeout(1500 + 500 * n);
   }
   await step("82-us-home-new", async () => {
-    await p.goto(base + "/", { waitUntil: "networkidle" });
+    await gotoQuiet(p, base + "/");
   });
   let groupPath = "";
   await step("83-us-new-group", async () => {
     // New group needs a signed-in account (signed out it shows "First, a quick sign-in"). If the account was not seen yet (the database
     // was busy a moment ago), open the page again a few times before giving up.
     for (let n = 0; n < 4; n++) {
-      await p.goto(base + "/groups/new", { waitUntil: "networkidle" });
+      await gotoQuiet(p, base + "/groups/new");
       if (await p.getByRole("button", { name: /^Trip/ }).first().isVisible().catch(() => false)) break;
       if (n === 3) throw new Error("New group did not show its choices: the US account is not signed in on this page");
       await p.waitForTimeout(1500);
@@ -1799,7 +1799,7 @@ if (!hosted) {
     groupPath = new URL(p.url()).pathname.replace(/\/invite$/, "");
   });
   await step("85-us-add-expense", async () => {
-    await p.goto(base + groupPath + "/add", { waitUntil: "networkidle" });
+    await gotoQuiet(p, base + groupPath + "/add");
     await p.locator("#expense-name").fill("Pizza dinner");
     await p.getByLabel("Amount", { exact: true }).fill("48.50");
   });
@@ -1808,16 +1808,16 @@ if (!hosted) {
     await p.waitForURL(/tab=activity/);
   });
   await step("87-us-profile", async () => {
-    await p.goto(base + "/account", { waitUntil: "networkidle" });
+    await gotoQuiet(p, base + "/account");
   });
   await step("88-us-profile-edit", async () => {
     await p.getByText("Edit name").click();
   }, false);
   await step("89-us-home", async () => {
-    await p.goto(base + "/", { waitUntil: "networkidle" });
+    await gotoQuiet(p, base + "/");
   });
   await step("90-us-group-settings", async () => {
-    await p.goto(base + groupPath + "/settings", { waitUntil: "networkidle" });
+    await gotoQuiet(p, base + groupPath + "/settings");
   }, false);
   await us.close();
 }
@@ -2022,7 +2022,7 @@ if (!desktop && !hosted) {
       ["recap", "/search"],
     ] as const) {
       try {
-        await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+        await gotoQuiet(p, base + path);
         await p.waitForTimeout(500);
         if (n === "settle-even") await p.getByRole("button", { name: "Clear both" }).first().click().catch(() => undefined);
         await p.waitForTimeout(300);
@@ -2087,14 +2087,14 @@ if (!hosted) {
       console.log("✓", `${pre}${name}`);
     };
     try {
-      await p.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+      await gotoQuiet(p, base + "/");
       await snap("B11-tour-1", false);
       for (let k = 1; k < 7; k++) {
         await p.locator("[data-tour-next]").click();
         await p.waitForTimeout(450);
       }
       await snap("B11-tour-last", false);
-      await p.goto(base + "/account", { waitUntil: "networkidle", timeout: 30_000 });
+      await gotoQuiet(p, base + "/account");
       await snap("B11-you-signed-out");
     } catch (e) {
       console.log("✗ signed-out screens", String(e).split("\n")[0]);

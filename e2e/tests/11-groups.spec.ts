@@ -225,8 +225,14 @@ test("a group's own photo: upload it in settings; it shows on the group and Home
   });
   await page.getByLabel("Upload your own photo").setInputFiles({ name: "beach.png", mimeType: "image/png", buffer: Buffer.from(png) });
   await expect(page.getByText("Saved for the group")).toBeVisible({ timeout: 20_000 });
-
-  await page.goto(g.path);
+  // After saving, the settings page refreshes itself. Leaving while that refresh is still loading cancels it, and on the iPhone engine the app
+  // then reloads settings in full, which cut off the next line's navigation (17 Nov). Let the refresh finish first; if it still lands late, go again.
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+  await page.goto(g.path).catch(async (e) => {
+    if (!/interrupted by another navigation/.test(String(e))) throw e;
+    await page.waitForLoadState("load");
+    await page.goto(g.path);
+  });
   await settled(page);
   const src = await page.locator('header img[src*="/api/group-photo/"]').first().getAttribute("src");
   expect(src, "the group's own photo is at the top of the group").toBeTruthy();
