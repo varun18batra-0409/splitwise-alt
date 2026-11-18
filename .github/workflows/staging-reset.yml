@@ -1,0 +1,62 @@
+# One-off: empties the PRACTICE (staging) database and rebuilds its tables from prisma/schema.prisma.
+# It lives only on the ops-staging-reset branch and runs when that branch is pushed. Never on main.
+# Safety: stops unless the staging address is set, the live address is set, and they are DIFFERENT databases;
+# it never receives the live database's key. The staging tests fill it with demo data again on their next run.
+name: Practice database reset (ops-staging-reset only)
+on:
+  push:
+    branches: [ops-staging-reset]
+permissions:
+  contents: read
+jobs:
+  reset:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.STAGING_TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.STAGING_TURSO_AUTH_TOKEN }}
+      LIVE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Safety check (practice database set, and not the live one)
+        run: |
+          set -euo pipefail
+          [ -n "$TURSO_DATABASE_URL" ] || { echo "::error::STAGING_TURSO_DATABASE_URL is missing. Stopping."; exit 1; }
+          [ -n "$TURSO_AUTH_TOKEN" ] || { echo "::error::STAGING_TURSO_AUTH_TOKEN is missing. Stopping."; exit 1; }
+          [ -n "$LIVE_URL" ] || { echo "::error::The live address is missing, so 'not the live database' can't be checked. Stopping."; exit 1; }
+          node scripts/db-address.mjs differ "$TURSO_DATABASE_URL" "$LIVE_URL" || { echo "::error::The practice database is the LIVE database. Stopping."; exit 1; }
+          echo "::notice title=Safety::practice database is set and is not the live database"
+      - run: npm ci
+      - name: Empty the practice database (counts before, never names)
+        run: |
+          set -euo pipefail
+          node --input-type=module -e '
+            import { createClient } from "@libsql/client";
+            import { sameDb } from "./scripts/db-address.mjs";
+            if (sameDb(process.env.TURSO_DATABASE_URL, process.env.LIVE_URL)) { console.error("live database: stopping"); process.exit(1); }
+            const db = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+            const q = "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name NOT LIKE 'libsql_%' AND name NOT LIKE '_litestream%' AND name NOT LIKE '_cf_%'";
+            const all = (await db.execute(q)).rows;
+            const tables = all.filter((r) => r.type === "table").map((r) => String(r.name));
+            let rows = 0;
+            for (const t of tables) rows += Number((await db.execute(`SELECT COUNT(*) AS n FROM "${t}"`)).rows[0].n);
+            console.log(`::notice title=Before::${tables.length} tables, ${rows} rows in total`);
+            const stmts = ["PRAGMA foreign_keys=OFF"];
+            for (const r of all.filter((x) => x.type === "view")) stmts.push(`DROP VIEW IF EXISTS "${r.name}"`);
+            for (const r of all.filter((x) => x.type === "trigger")) stmts.push(`DROP TRIGGER IF EXISTS "${r.name}"`);
+            for (const t of tables) stmts.push(`DROP TABLE IF EXISTS "${t}"`);
+            for (const s of stmts) await db.execute(s);
+            const left = (await db.execute(q)).rows.length;
+            console.log(`::notice title=Emptied::${left} objects left`);
+            if (left) process.exit(1);
+          '
+      - name: Rebuild the tables from the current design (adds only)
+        run: |
+          set -o pipefail
+          node scripts/turso-sync.mjs 2>&1 | tee sync.log
+          node scripts/turso-sync.mjs --plan 2>&1 | tee plan.log
+          grep -q -E "already matches|nothing to change" plan.log || { echo "::error::The practice database doesn't match the design after the rebuild."; exit 1; }
+          echo "::notice title=Rebuilt::$(grep -c '^CREATE TABLE' sync.log) tables created; a second check says it matches"
