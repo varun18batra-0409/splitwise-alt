@@ -203,8 +203,9 @@ describe("no free text from the address is shown unsigned", () => {
   });
 
   it("the places that build a link with a message use flashTo too", () => {
+    // postcard-actions.ts builds no message link any more: a refused card returns its error to the composer (SA-8), checked below.
+    expect(readFileSync("src/app/postcard-actions.ts", "utf8")).not.toMatch(/[?&](error|notice)=/);
     for (const f of [
-      "src/app/postcard-actions.ts",
       "src/app/safety-actions.ts",
       "src/app/direct-actions.ts",
       "src/app/pay-link-actions.ts",

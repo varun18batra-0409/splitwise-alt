@@ -90,6 +90,20 @@ describe("SA-6: the upload limit counts each person first", () => {
     rateKeys.push(`photo:a:${accounts[1].id}`, `photo-ip:${ip}`);
   });
 
+  it("one signed-in person shares one allowance across all their groups: X, out of uploads, is refused in a second group too", async () => {
+    // X's account already used its 30 (test above). A brand-new group of X's must not give X a fresh 30.
+    const g2 = await db.group.create({
+      data: { name: `GP2 ${stamp}`, inviteCode: `gp2-${stamp}`, members: { create: [{ name: "X", accountId: accounts[0].id, claimedAt: new Date(2026, 0, 1) }] } },
+    });
+    try {
+      await as(0);
+      expect((await post(g2.id)).status).toBe(429);
+      expect(await db.groupPhoto.count({ where: { groupId: g2.id } })).toBe(0);
+    } finally {
+      await db.group.delete({ where: { id: g2.id } });
+    }
+  });
+
   it("the network address has its own, looser cap: with 300 used, even a person with none left uploads is refused", async () => {
     await db.rateLimit.deleteMany({ where: { key: `photo-ip:${ip}` } });
     await seed(`photo-ip:${ip}`, 300);

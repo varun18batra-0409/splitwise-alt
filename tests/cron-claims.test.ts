@@ -272,7 +272,7 @@ describe("the evening runs everything when the morning never finished", () => {
     note("2026-11-26", "finished");
     expect(await dailyState(evening)).toEqual({ started: false, finished: false });
     const r = await runDeferredParts(evening, never, []);
-    expect(Object.keys(r.results).length).toBe(8);
+    expect(Object.keys(r.results).length).toBe(9); // every part, including "bill-asks"
     expect(await dailyState(evening)).toEqual({ started: true, finished: true });
   });
 
@@ -281,7 +281,7 @@ describe("the evening runs everything when the morning never finished", () => {
     note("2026-11-27", "started");
     note("2026-11-27", "finished");
     const r = await runDeferredParts(evening, () => true, []);
-    expect(r.deferred.length).toBe(8);
+    expect(r.deferred.length).toBe(9);
     expect(await dailyState(evening)).toEqual({ started: false, finished: false });
   });
 });

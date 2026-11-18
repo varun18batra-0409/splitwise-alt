@@ -82,7 +82,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-webkit
       - name: Test browsers (system packages, then the browsers with retries)
-        timeout-minutes: 15
+        timeout-minutes: 35 # a slow Ubuntu mirror took >15 min on 18 Nov
         run: bash scripts/ci-browsers.sh chromium webkit
       - name: Start from the live version's tables (so the upgrade itself is tested)
         run: |

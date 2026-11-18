@@ -45,7 +45,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
       - name: Test browsers (system packages, then the browsers with retries)
-        timeout-minutes: 15
+        timeout-minutes: 35 # a slow Ubuntu mirror took >15 min on 18 Nov
         run: bash scripts/ci-browsers.sh chromium
       - name: Tables on the staging database
         run: |

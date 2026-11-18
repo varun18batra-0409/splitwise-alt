@@ -52,7 +52,7 @@ describe("budget alerts wait for daytime", () => {
         convertedAmount: 850_000, paymentMethod: "cash", markupBp: 0, markupAmount: 0, spentAt: RUN1, shares: { create: [{ memberId: g.asha, amount: 850_000 }] },
       },
     });
-    const text = "Groceries is at 85% of this month’s budget (₹8,500 of ₹10,000).";
+    const text = "Pantry Run is at 85% of this month’s budget (₹8,500 of ₹10,000)."; // "groceries" is shown as Pantry Run
     mocks.sendPushTo.mockClear();
     // Through the daily job's part: it must report "deferred" because Ben was left for the evening run.
     const report = await runClaimedParts(RUN1, never, [], ["budgets"]);

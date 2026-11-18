@@ -150,9 +150,9 @@ describe("SA-9: the limit counts people, not sends (limit 80 a day)", () => {
   });
 
   it("SA-8: a card refused for a bad photo returns the error (no redirect) and saves nothing", async () => {
-    const asha = await account("SAsha");
-    const ben = await account("SBen");
-    await group("SFlat", [{ a: asha }, { a: ben }]);
+    const asha = await account("BadAsha");
+    const ben = await account("BadBen");
+    await group("BadFlat", [{ a: asha }, { a: ben }]);
     await signedInAs(asha);
     const photosBefore = await db.postcardPhoto.count({ where: { accountId: asha.id } });
     const refused = await sendPostcardAction({}, form({ to: ben.id, front: "own", photo: Buffer.from("not a photo at all").toString("base64"), message: "Hello from Goa" }));
