@@ -1,8 +1,22 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import fonts from "@/generated/og-fonts.json";
 import map from "@/generated/map.json";
 
 // What the share pictures (passport, Wrapped…) are drawn with: Loopin's own
-// fonts and the world map, fetched from the app's own address.
+// fonts and the world map. Read straight from the app's own files (public/, bundled with these routes: see
+// outputFileTracingIncludes in next.config.ts); only if a file isn't there is it fetched from the app's own address.
+// Reading the file needs no request, so a sign-in wall in front of the site (Vercel's preview lock) can't get in the way.
+
+/** A file under public/ ("/og-fonts/sans-500.woff"), or null when it isn't on disk. */
+async function publicFile(path: string): Promise<Buffer | null> {
+  if (!/^\/[A-Za-z0-9._/-]+$/.test(path) || path.includes("..")) return null;
+  try {
+    return await readFile(join(process.cwd(), "public", path));
+  } catch {
+    return null;
+  }
+}
 
 export type OgFont = { name: string; data: ArrayBuffer; weight: 500 | 600 | 700; style: "normal" };
 
@@ -23,6 +37,11 @@ export async function loadOgFonts(origin: string): Promise<OgFont[]> {
     want.map(async ([key, name, weight]) => {
       const path = (fonts as Record<string, string>)[key];
       if (!path) return;
+      const local = await publicFile(path);
+      if (local) {
+        list.push({ name, data: local.buffer.slice(local.byteOffset, local.byteOffset + local.byteLength) as ArrayBuffer, weight, style: "normal" });
+        return;
+      }
       try {
         // redirect "manual": a site behind a sign-in wall (Vercel's preview lock) answers with a redirect to a login page;
         // only a real font file is used, anything else leaves this font out (the picture maker then uses its own).
@@ -40,9 +59,12 @@ export async function loadOgFonts(origin: string): Promise<OgFont[]> {
 export async function worldMapImage(origin: string, trips: string[], been: string[], colours = { trips: "#26231d", been: "#6f6757" }): Promise<string | null> {
   if (!(map as { ok: boolean }).ok) return null;
   try {
-    const r = await fetch(new URL("/world.svg", origin), { redirect: "manual" });
-    if (!r.ok || !/^image\/svg\+xml\b/.test(r.headers.get("content-type") ?? "")) return null;
-    const svg = await r.text();
+    let svg = (await publicFile("/world.svg"))?.toString("utf8") ?? "";
+    if (!svg) {
+      const r = await fetch(new URL("/world.svg", origin), { redirect: "manual" });
+      if (!r.ok || !/^image\/svg\+xml\b/.test(r.headers.get("content-type") ?? "")) return null;
+      svg = await r.text();
+    }
     const ok = (c: string) => /^[A-Z]{2}$/.test(c);
     const b = been.filter(ok);
     const t = trips.filter(ok);
