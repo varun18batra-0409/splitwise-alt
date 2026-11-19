@@ -61,9 +61,17 @@ export async function openInviteEmails(groupId: string, memberId: string): Promi
 }
 
 // Name rows nobody may take with "That's me" because an email invitation is open for them (for the join page's list).
-export async function invitedNameRows(groupId: string): Promise<Set<string>> {
-  const rows = await db.invite.findMany({ where: { groupId, acceptedAt: null, declinedAt: null }, select: { memberId: true, token: true } });
+// `forGuest`: a visitor with no account (see reservedForGuest): a closed invitation keeps the name reserved too.
+export async function invitedNameRows(groupId: string, opts: { forGuest?: boolean } = {}): Promise<Set<string>> {
+  const rows = await db.invite.findMany({ where: { groupId, acceptedAt: null, ...(opts.forGuest ? {} : { declinedAt: null }) }, select: { memberId: true, token: true } });
   return new Set(rows.map((r) => r.memberId || (r.token.includes(".") ? r.token.split(".")[0] : "")).filter(Boolean));
+}
+
+// A name that was invited by email stays reserved for that email as far as a guest is concerned, even when the invitation is closed
+// (a new link closes every open invitation, and "Not now" closes one): a guest has no email to match, so only a signed-in person with
+// the right address, or the person who looks after the group, can hand the name on. Accepted ones belong to an account already.
+export async function reservedForGuest(groupId: string, memberId: string): Promise<boolean> {
+  return (await db.invite.count({ where: { groupId, acceptedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }] } })) > 0;
 }
 
 // Joining counts as having opened the group: an older pending row (added straight in) stops being pending.
@@ -214,8 +222,8 @@ export async function joinExistingAsGuest(code: string, memberId: string, heldMe
   const member = group.members.find((m) => m.id === memberId);
   if (!member || member.accountId || member.claimedAt || member.removedAt) return { ok: false, reason: "claimed" };
   if (member.leftAt) return { ok: false, reason: "left" };
-  // A guest has no email to match, so ANY open invitation on the name means it is reserved.
-  if ((await openInviteEmails(group.id, member.id)).length) return { ok: false, reason: "claimed" };
+  // A guest has no email to match, so ANY invitation on the name that was never accepted (open or closed) means it is reserved.
+  if (await reservedForGuest(group.id, member.id)) return { ok: false, reason: "claimed" };
   const won = await db.$transaction(async (tx) => {
     const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null, leftAt: null }, data: { claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
     if (w.count === 1) await tx.pushSubscription.deleteMany({ where: { memberId: member.id } });
@@ -264,13 +272,15 @@ export async function releaseGuestName(groupId: string, actorId: string, memberI
   if (!me || me.removedAt) return { ok: false, error: "Only people in this group can do this." };
   if (!target) return { ok: false, error: "That person is no longer in the group." };
   const self = actorId === memberId;
+  if (me.leftAt) return { ok: false, error: "Only people still in this group can do this." }; // someone who has left frees nothing, not even their own name
   if (!self) {
-    if (me.leftAt || !(await isGroupAdmin(groupId, actorId))) return { ok: false, error: "Only the person who looks after this group can free someone else’s name." };
+    if (!(await isGroupAdmin(groupId, actorId))) return { ok: false, error: "Only the person who looks after this group can free someone else’s name." };
     if (me.accountId === null) return { ok: false, error: GUEST_REFUSAL };
+    if (target.leftAt || target.removedAt) return { ok: false, error: "That person has left the group, so their name stays as it is." };
   }
   if (target.accountId || !target.claimedAt) return { ok: false, error: "That name isn’t held by someone without an account." };
   const eventId = await db.$transaction(async (tx) => {
-    const w = await tx.member.updateMany({ where: { id: target.id, accountId: null, claimedAt: { not: null } }, data: { claimedAt: null, grantEpoch: { increment: 1 } } });
+    const w = await tx.member.updateMany({ where: { id: target.id, accountId: null, claimedAt: { not: null }, ...(self ? {} : { leftAt: null, removedAt: null }) }, data: { claimedAt: null, grantEpoch: { increment: 1 } } });
     if (w.count !== 1) return "";
     await tx.pushSubscription.deleteMany({ where: { memberId: target.id } });
     return logEvent(tx, { groupId, actorId, kind: "members_added", text: self ? "freed their name (it was not them)" : `freed the name ${target.name}` });

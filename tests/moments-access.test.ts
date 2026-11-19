@@ -85,6 +85,11 @@ describe("moments: delete (author) and remove (admin)", () => {
   it("the author deletes their own", () => expect(canDeleteMoment(viewer(), mine)).toBe(true));
   it("a plain member can't delete someone else's", () => expect(canDeleteMoment(viewer(), theirs)).toBe(false));
   it("the admin removes anyone's", () => expect(canDeleteMoment(viewer({ isAdmin: true }), theirs)).toBe(true));
+  it("a guest who looks after the group (no account) cannot remove someone else's moment; an admin with an account can; a guest still deletes their own", () => {
+    expect(canDeleteMoment(viewer({ isAdmin: true, accountId: null }), theirs)).toBe(false);
+    expect(canDeleteMoment(viewer({ isAdmin: true, accountId: "a-viewer" }), theirs)).toBe(true);
+    expect(canDeleteMoment(viewer({ accountId: null }), { ...theirs, authorId: "m-viewer", authorAccountId: "x" })).toBe(true);
+  });
   it("the admin can remove a moment from a person they blocked (they just can't see it)", () => expect(canDeleteMoment(viewer({ isAdmin: true, blocked: new Set(["a-author"]) }), theirs)).toBe(true));
   it("the author can still delete after leaving (it was added before they left)", () => {
     expect(canDeleteMoment(viewer({ leftAt: T("12:00:00.000") }), mine)).toBe(true);

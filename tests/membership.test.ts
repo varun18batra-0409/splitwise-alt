@@ -50,7 +50,7 @@ describe("pickAdmin skips pending people", () => {
 describe("the settings page names the right person who looks after the group", () => {
   // The page reads its members with a fixed list of columns. That list must hold addedBy and seenAt,
   // or a force-added person (claimedAt set, never opened the group) is named as the admin.
-  const settingsSelect = { id: true, name: true, leftAt: true, splitWeight: true, claimedAt: true, addedBy: true, seenAt: true } as const;
+  const settingsSelect = { id: true, name: true, leftAt: true, splitWeight: true, claimedAt: true, addedBy: true, seenAt: true, accountId: true } as const;
   it("a pending person created before the real admin is skipped, with the columns the page reads", async () => {
     const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const g = await db.group.create({

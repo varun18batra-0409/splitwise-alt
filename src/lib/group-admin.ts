@@ -8,14 +8,19 @@ import { isPending } from "./membership";
 
 // addedBy / seenAt are optional so callers that don't have them (older code, tests) still work;
 // someone added by another person who has never opened the group can't look after it.
-export type AdminCandidate = { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null };
+export type AdminCandidate = { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId?: string | null };
 
 const pending = (m: AdminCandidate) => isPending({ addedBy: m.addedBy ?? "", seenAt: m.seenAt ?? null });
 
 // `members` in the order they were added (createdAt, then id).
+// Someone who joined without an account (a guest) can't look after the group while anyone with an account is still here: the
+// powers (removing people, new links, freeing names) need a sign-in so everyone can see who did what. Only with nobody with an
+// account left does today's rule apply. A caller that doesn't pass accountId (undefined) is treated as having one.
 export function pickAdmin<T extends AdminCandidate>(members: T[]): T | undefined {
-  const here = members.filter((m) => !pending(m));
-  return here.find((m) => m.claimedAt && !m.leftAt) ?? here.find((m) => !m.leftAt);
+  const here = members.filter((m) => !pending(m) && !m.leftAt);
+  const signedIn = here.filter((m) => m.accountId !== null);
+  const pool = signedIn.length ? signedIn : here;
+  return pool.find((m) => m.claimedAt) ?? pool[0];
 }
 
 // Who may bring a deleted group back (within 30 days): the person who deleted it, or whoever looks
@@ -31,7 +36,7 @@ export async function groupAdminId(groupId: string): Promise<string | undefined>
   const members = await db.member.findMany({
     where: { groupId },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: { id: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true },
+    select: { id: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, accountId: true },
   });
   return pickAdmin(members)?.id;
 }

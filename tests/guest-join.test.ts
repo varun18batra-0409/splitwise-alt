@@ -142,28 +142,53 @@ describe("taking over a name (That's me), with no account", () => {
     expect(await join.joinExistingAsGuest(f.code, f.V)).toMatchObject({ ok: false, reason: "claimed" }); // an account's name
     expect(await join.joinExistingAsGuest(f.code, "no-such-member")).toMatchObject({ ok: false, reason: "claimed" });
   });
-  it("a name an email invitation is reserved for is refused (a guest has no email to match); after a new link it can be claimed", async () => {
+  it("a name an email invitation was sent for stays reserved for guests: open, closed by a new link, or closed by Not now (only that email, or the admin, hands it on)", async () => {
     const f = await party();
     const uma = await account("Uma");
     await inviteByEmail(f.g.id, f.V, uma.email, "https://loopin.test");
     const row = await db.invite.findFirstOrThrow({ where: { groupId: f.g.id, email: uma.email } });
     expect(row.memberId).not.toBe("");
+    expect(await join.reservedForGuest(f.g.id, row.memberId)).toBe(true);
     expect(await join.joinExistingAsGuest(f.code, row.memberId)).toMatchObject({ ok: false, reason: "claimed" });
     expect((await db.member.findUniqueOrThrow({ where: { id: row.memberId } })).claimedAt).toBeNull(); // nothing changed
-    // A new link closes the unanswered invitation: the name is a plain name again.
+    // A new link closes the unanswered invitation, but the name is still reserved for that email: a guest cannot take it.
     const nl = await join.newInviteLink(f.g.id, f.V);
     expect(nl.ok).toBe(true);
     const code = (nl as { code: string }).code;
-    expect(await join.joinExistingAsGuest(code, row.memberId)).toEqual({ ok: true, memberId: row.memberId });
+    expect((await db.invite.findUniqueOrThrow({ where: { id: row.id } })).declinedAt).not.toBeNull();
+    expect(await join.reservedForGuest(f.g.id, row.memberId)).toBe(true);
+    expect(await join.joinExistingAsGuest(code, row.memberId)).toMatchObject({ ok: false, reason: "claimed" });
+    expect((await db.member.findUniqueOrThrow({ where: { id: row.memberId } })).claimedAt).toBeNull();
+    // The join page's list for a signed-out visitor leaves the name out (open or closed); a signed-in person's list is as before (closed = free).
+    expect((await join.invitedNameRows(f.g.id, { forGuest: true })).has(row.memberId)).toBe(true);
+    expect((await join.invitedNameRows(f.g.id)).has(row.memberId)).toBe(false);
+    // An account (the invited email, or anyone with an account) keeps today's rule: the closed invitation no longer blocks.
+    expect(await join.joinExisting(code, { id: uma.id, name: "Uma", email: uma.email }, row.memberId)).toEqual({ ok: true, memberId: row.memberId });
   });
-  it("a name whose invitation was cancelled can be claimed", async () => {
+  it("Not now (declining) keeps the name reserved for guests too", async () => {
+    const f = await party();
+    const uma = await account("Uma");
+    await inviteByEmail(f.g.id, f.V, uma.email, "https://loopin.test");
+    const row = await db.invite.findFirstOrThrow({ where: { groupId: f.g.id, email: uma.email } });
+    const { declineInvitation } = await import("@/lib/invitations");
+    await declineInvitation({ id: uma.id, email: uma.email, name: "Uma" } as Parameters<typeof declineInvitation>[0], row.token);
+    expect((await db.invite.findUniqueOrThrow({ where: { id: row.id } })).declinedAt).not.toBeNull();
+    expect(await join.joinExistingAsGuest(f.code, row.memberId)).toMatchObject({ ok: false, reason: "claimed" });
+  });
+  it("a cancelled invitation (wrong address) also keeps the name reserved for guests: the one thing the admin does is invite the right address", async () => {
     const f = await party();
     const uma = await account("Uma");
     await inviteByEmail(f.g.id, f.V, uma.email, "https://loopin.test");
     const row = await db.invite.findFirstOrThrow({ where: { groupId: f.g.id, email: uma.email } });
     const { cancelInvitation } = await import("@/lib/invites");
     expect((await cancelInvitation(f.g.id, f.V, row.memberId)).ok).toBe(true);
-    expect(await join.joinExistingAsGuest(f.code, row.memberId)).toEqual({ ok: true, memberId: row.memberId });
+    expect(await join.joinExistingAsGuest(f.code, row.memberId)).toMatchObject({ ok: false, reason: "claimed" });
+    expect(await join.joinExisting(f.code, { id: uma.id, name: "Uma", email: uma.email }, row.memberId)).toEqual({ ok: true, memberId: row.memberId }); // an account still can
+  });
+  it("a name that never had an invitation is free to take", async () => {
+    const f = await party();
+    expect(await join.reservedForGuest(f.g.id, f.R)).toBe(false);
+    expect(await join.joinExistingAsGuest(f.code, f.R)).toEqual({ ok: true, memberId: f.R });
   });
 });
 

@@ -399,6 +399,13 @@ describe("the scan: every server action and route is in guest-rules.ts", () => {
     expect(bodyOf(actions, "undoChange")).toContain("guestRules: true");
     expect(bodyOf(actions, "recordCustomPayment")).toContain("guestRules: true");
   });
+  it("deleteMomentAction: the gate's RESULT, not just the word: a guest who looks after the group cannot remove someone else's moment", async () => {
+    const { canDeleteMoment } = await import("@/lib/moments-access");
+    const viewer = (accountId: string | null) => ({ groupId: "g", groupType: "trip" as const, groupDeleted: false, memberId: "m1", accountId, leftAt: null, removedAt: null, pending: false, isAdmin: true, blocked: new Set<string>() });
+    const theirs = { groupId: "g", authorId: "m2", authorAccountId: "acc2", createdAt: new Date() };
+    expect(canDeleteMoment(viewer(null), theirs)).toBe(false);
+    expect(canDeleteMoment(viewer("acc1"), theirs)).toBe(true);
+  });
   it("Smart Settle across groups: every part must include the person (so a guest only settles their own)", () => {
     expect(readFileSync("src/lib/cross-settle-db.ts", "utf8")).toContain("if (!(p.fromId === myId || p.toId === myId)) return \"changed\";");
   });

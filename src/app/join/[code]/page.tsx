@@ -94,7 +94,7 @@ export default async function JoinPage({
   const active = group.members.filter((m) => !m.leftAt);
   const unclaimed = active.filter((m) => !m.accountId && !m.claimedAt);
   // Names someone was invited as by email can only be taken by that email (offered above as "Continue as"), never from this list.
-  const invitedRows = await invitedNameRows(group.id);
+  const invitedRows = await invitedNameRows(group.id, { forGuest: !account });
   const claimable = unclaimed.filter((m) => !invitedRows.has(m.id));
   // Invited by email (this account's own invitation): say who by, and offer the name they were added as.
   const invite = account ? await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email: account.email } } }) : null;
@@ -104,7 +104,9 @@ export default async function JoinPage({
   // A name an email invitation is reserved for is named to a signed-out visitor only when the link carries the very email it was sent to
   // (and it is never offered for taking: there is no claim button there). Anything else signed out comes only from the claimable list.
   const reservedOk = !account && asId && invitedEmail ? (await openInviteEmails(group.id, asId)).includes(invitedEmail.trim().toLowerCase()) : false;
-  const asMember = (account || reservedOk ? unclaimed : claimable).find((m) => m.id === asId) ?? (waiting ? unclaimed.find((m) => m.id === inviteMemberId(waiting)) : undefined) ?? null;
+  // Signed out: ?as= counts only when it is the name that the open invitation for ?e= was sent for; any other value is ignored (a stranger's
+  // link can't be used to read a name off this page).
+  const asMember = (account ? unclaimed.find((m) => m.id === asId) : reservedOk ? unclaimed.find((m) => m.id === asId) : null) ?? (waiting ? unclaimed.find((m) => m.id === inviteMemberId(waiting)) : undefined) ?? null;
   const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
@@ -145,7 +147,7 @@ export default async function JoinPage({
       {!account ? (
         emailInvite ? (
           <>
-            {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
+            {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{publicName(asMember.name)}</strong>. Join to see your share.</p>}
             <hr className="mt-6 border-0 border-t border-fg/15" />
             <p className="mt-5 text-[15px] leading-snug text-fg/80">Sign in to join and keep your groups across devices.</p>
             <div className="mt-4 space-y-2.5">

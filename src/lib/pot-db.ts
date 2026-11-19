@@ -82,7 +82,7 @@ const cleanNote = (s: string) => String(s ?? "").trim().replace(/\s+/g, " ").sli
 async function groupFor(groupId: string, actorId: string) {
   const g = await db.group.findUnique({
     where: { id: groupId },
-    select: { id: true, type: true, currency: true, closed: true, deletedAt: true, joinWeight: true, members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, claimedAt: true, addedBy: true, seenAt: true } } },
+    select: { id: true, type: true, currency: true, closed: true, deletedAt: true, joinWeight: true, members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, claimedAt: true, addedBy: true, seenAt: true, accountId: true } } },
   });
   if (!g || g.deletedAt) return { error: "This group isn’t there any more." };
   const me = g.members.find((m) => m.id === actorId && !m.leftAt);
@@ -97,7 +97,7 @@ async function groupFor(groupId: string, actorId: string) {
 // lastActivityAt: the latest of the newest chip line (made or taken back) and the game's own start or finish (see lastActivity).
 // A game with no activity time is treated as active.
 export const GAME_QUIET_MS = 24 * 60 * 60 * 1000;
-export function canRunGame(game: { hostId: string; lastActivityAt?: Date | null }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null }[], actorId: string, now = new Date()): boolean {
+export function canRunGame(game: { hostId: string; lastActivityAt?: Date | null }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId?: string | null }[], actorId: string, now = new Date()): boolean {
   if (game.hostId === actorId) return true;
   if (pickAdmin(members)?.id !== actorId) return false;
   const host = members.find((m) => m.id === game.hostId);

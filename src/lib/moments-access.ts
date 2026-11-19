@@ -61,7 +61,7 @@ export function canDeleteMoment(v: MomentViewer | null, m: MomentFacts): boolean
   if (!v || v.groupId !== m.groupId || v.groupDeleted || v.pending || v.removedAt) return false;
   const mine = v.accountId !== null ? m.authorAccountId === v.accountId : m.authorId === v.memberId;
   if (mine && canSeeMoment(v, m)) return true;
-  return v.isAdmin && current(v);
+  return v.isAdmin && v.accountId !== null && current(v); // looking after the group needs an account (a guest can't remove others' moments)
 }
 
 // A postcard may carry a photo from a moment you added yourself, while you are still in that trip group (as a signed-in member).

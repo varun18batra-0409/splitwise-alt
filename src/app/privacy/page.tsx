@@ -80,7 +80,7 @@ export default function Privacy() {
           Passport → Who can see it.
         </li>
         <li>
-          <strong>Moments:</strong> only people in that group. Someone who left on their own still sees the moments added before they left, and none added after. Someone who was removed by whoever looks after the group sees none. If you block someone, you stop seeing their moments, and they stop seeing yours. Loopin looks at a moment only if someone reports it.
+          <strong>Moments:</strong> only people in that group. Someone who left on their own still sees the moments added before they left, and none added after. Someone who was removed by whoever looks after the group sees none. If you block someone, you stop seeing their moments, and they stop seeing yours. Blocking works between Loopin accounts: someone in your group who joined without an account isn’t covered by a block (see Reporting and blocking). Loopin looks at a moment only if someone reports it.
         </li>
         <li>
           <strong>Postcards:</strong> only the person who sent a card and the people it was sent to. That includes the photo on it. Your earlier photos can be reused only by you. Cards go only to
@@ -99,7 +99,7 @@ export default function Privacy() {
       <h2 className={h}>Reporting and blocking</h2>
       <ul className={ul}>
         <li>On a postcard you got, on a friend’s passport, on a moment in a group you’re in, or on a person in a group’s People screen, you can <strong>Report</strong> it (spam, abusive or something else, with an optional note). Only Loopin sees a report, and we look at it within 24 hours.</li>
-        <li><strong>Block</strong>: blocking works both ways. Neither of you can find or add the other, invite the other, send postcards, passports or nudges, see the other’s passport, Want to go places or moments, or get notifications about the other. You’ll still both see shared group expenses, because the money has to add up. You can unblock from You → Privacy & sharing.</li>
+        <li><strong>Block</strong>: blocking works both ways. Neither of you can find or add the other, invite the other, send postcards, passports or nudges, see the other’s passport, Want to go places or moments, or get notifications about the other. You’ll still both see shared group expenses, because the money has to add up. Blocking works between Loopin accounts. Someone in your group who joined without an account isn’t covered by a block, so if you need distance from someone, ask whoever looks after the group to remove them. You can unblock from You → Privacy & sharing.</li>
       </ul>
 
       <h2 className={h}>Emails and notifications</h2>
