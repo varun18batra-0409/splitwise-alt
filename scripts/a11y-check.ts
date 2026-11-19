@@ -12,6 +12,7 @@ const out = "a11y";
 mkdirSync(out, { recursive: true });
 
 type Violation = { id: string; impact: string; help: string; count: number; selectors: string[] };
+type Probe = { h1: number; scrollWidth: number; sideways: boolean; cutOff: { selector: string; text: string }[]; unnamed: string[]; unlabelled: string[] };
 type Result = {
   key: string; title: string; path: string; reached: boolean; note: string; finalPath: string;
   violations: Violation[]; h1: number; sideways: boolean; scrollWidth200: number; cutOff: { selector: string; text: string }[];
@@ -22,35 +23,36 @@ const results: Result[] = [];
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, locale: "en-IN", timezoneId: "Asia/Kolkata",
   userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36" };
 
-// Runs in the page. Selector of an element, short.
-function inPage() {
-  const sel = (el: Element) => {
+// Runs in the page, written as plain JavaScript text (tsx adds a helper to compiled functions that the page does not have).
+const inPage = `(() => {
+
+  const sel = (el) => {
     let s = el.tagName.toLowerCase();
-    if (el.id) return `${s}#${el.id}`;
-    const c = (el.getAttribute("class") || "").split(/\s+/).filter(Boolean).slice(0, 3).join(".");
+    if (el.id) return s + "#" + el.id;
+    const c = (el.getAttribute("class") || "").split(/\\s+/).filter(Boolean).slice(0, 3).join(".");
     if (c) s += "." + c;
     return s;
   };
-  const visible = (el: Element) => {
-    const r = (el as HTMLElement).getBoundingClientRect();
+  const visible = (el) => {
+    const r = (el ).getBoundingClientRect();
     const st = getComputedStyle(el);
     return r.width > 0 && r.height > 0 && st.visibility !== "hidden" && st.display !== "none";
   };
-  const cutOff: { selector: string; text: string }[] = [];
+  const cutOff = [];
   for (const el of Array.from(document.body.querySelectorAll("*"))) {
     if (cutOff.length >= 5) break;
-    const h = el as HTMLElement;
+    const h = el;
     const st = getComputedStyle(h);
     const hidden = st.overflowX === "hidden" || st.overflow === "hidden" || st.overflowX === "clip";
     const text = (h.innerText || "").trim();
-    if (hidden && text && visible(h) && h.scrollWidth > h.clientWidth + 1 && h.clientWidth > 0) cutOff.push({ selector: sel(h), text: text.replace(/\s+/g, " ").slice(0, 60) });
+    if (hidden && text && visible(h) && h.scrollWidth > h.clientWidth + 1 && h.clientWidth > 0) cutOff.push({ selector: sel(h), text: text.replace(/\\s+/g, " ").slice(0, 60) });
   }
-  const name = (el: Element) => (el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || el.getAttribute("title") || (el as HTMLElement).innerText || el.querySelector("img[alt]:not([alt=''])") || el.querySelector("svg title") || "").toString().trim();
+  const name = (el) => (el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || el.getAttribute("title") || (el ).innerText || el.querySelector("img[alt]:not([alt=''])") || el.querySelector("svg title") || "").toString().trim();
   const unnamed = Array.from(document.querySelectorAll("button, a[href], [role=button], [role=link]")).filter((e) => visible(e) && !name(e)).slice(0, 5).map(sel);
   const unlabelled = Array.from(document.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea"))
     .filter((e) => {
       if (!visible(e)) return false;
-      const i = e as HTMLInputElement;
+      const i = e;
       return !(i.labels && i.labels.length) && !e.getAttribute("aria-label") && !e.getAttribute("aria-labelledby") && !e.getAttribute("title");
     }).slice(0, 5).map(sel);
   return {
@@ -59,7 +61,7 @@ function inPage() {
     sideways: document.documentElement.scrollWidth > window.innerWidth,
     cutOff, unnamed, unlabelled,
   };
-}
+})()`;
 
 async function openQuiet(p: Page, path: string) {
   const res = await p.goto(base + path, { waitUntil: "load", timeout: 45_000 });
@@ -81,15 +83,16 @@ async function check(ctx: BrowserContext, key: string, title: string, path: stri
     if (!r.reached) r.note = status >= 400 ? `HTTP ${status}` : `redirected to ${r.finalPath}`;
     // a. axe at normal size
     const axe = await new AxeBuilder({ page: p }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    console.log(`  axe ${key}: ${axe.violations.length} violations, ${axe.passes.length} rules passed, ${axe.incomplete.length} need review`);
     r.violations = axe.violations.map((v) => ({ id: v.id, impact: v.impact ?? "none", help: v.help, count: v.nodes.length, selectors: v.nodes.slice(0, 2).map((n) => n.target.join(" ")) }));
     // b/c. normal screenshot, names, labels, h1
     await p.screenshot({ path: `${out}/${key}.png` });
-    const normal = await p.evaluate(inPage);
+    const normal = await p.evaluate(inPage) as Promise<Probe>;
     r.h1 = normal.h1; r.unnamed = normal.unnamed; r.unlabelled = normal.unlabelled;
     // 200% text
     await p.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
     await p.waitForTimeout(500);
-    const big = await p.evaluate(inPage);
+    const big = await p.evaluate(inPage) as Promise<Probe>;
     r.sideways = big.sideways; r.scrollWidth200 = big.scrollWidth; r.cutOff = big.cutOff;
     await p.addStyleTag({ content: "[data-bottom-nav]{display:none !important}" }).catch(() => {});
     await p.screenshot({ path: `${out}/${key}-200pct.png`, fullPage: true }).catch(async (e) => {
