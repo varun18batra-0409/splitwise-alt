@@ -78,7 +78,14 @@ test("a guest joins from the link, adds Taxi, is asked to sign in for Hana's Din
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.locator("[data-guest-sheet]").waitFor();
   await page.locator("[data-guest-move]").click();
-  await page.waitForURL(/signedin=1/);
+  // Wait for the thing that matters (Ben's row now has the account), not for the address: the sign-in hands over with a soft
+  // navigation, and the group page it lands on is free to tidy the address.
+  await expect
+    .poll(async () => (await db.member.findUniqueOrThrow({ where: { id: ben.id } })).accountId, {
+      timeout: 30_000,
+      message: "Ben's row never got the account after Move them and continue",
+    })
+    .not.toBeNull();
 
   // 6. Still Ben: the same member row (now with the account), Taxi still his, the same balances, and the guest card gone.
   const after = await db.member.findUniqueOrThrow({ where: { id: ben.id } });
