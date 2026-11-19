@@ -4,10 +4,11 @@
 // no names, emails, amounts or ids ever leave this file (see safeLine).
 //
 // Safety, in order:
-//   1. refuses if the address is missing, or it runs in GitHub on any branch that is not a live-counts one;
+//   1. refuses if the address is missing, if a remote address has no token, or if it runs in GitHub anywhere but the private ops repo
+//      (or the practice branch ops-live-counts-staging of the public repo). The public repo never reads live;
 //   2. refuses if the token says it can write (when the token carries that claim);
-//   3. guardReadOnly: a harmless write test that is always rolled back; the token must be refused.
-//      Anything it does not recognise also means "refuse".
+//   3. guardReadOnly: a harmless write test that is always rolled back; the token must be refused with a clear read-only message.
+//      Anything it does not recognise (a 401/403 included) also means "refuse".
 import { createClient } from "@libsql/client";
 import { readFileSync, appendFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
@@ -18,6 +19,10 @@ import { parsePayers } from "../src/lib/payers.ts";
 // written until the Batch B release of 11 Nov 2026 (commit time 21:06 UTC); step 4 of the data upgrade stamped "joined" with one
 // fresh time per run, on every deploy, from 15 Oct 2026 until it was removed on 16 Nov 2026.
 export const DEFAULT_CUTOFF = "2026-11-11T21:06:07Z";
+// The window in which that data upgrade step could stamp names as joined. Outside it a stamp is not called "certainly wrong".
+export const BUG_START = Date.parse("2026-10-15T00:00:00Z");
+export const BUG_END = Date.parse("2026-11-16T23:59:59Z");
+export const PUBLIC_REPO = "varun18batra-0409/splitwise-alt";
 
 // ---- Copies of small pure rules from the app. Importing the files they live in would load the database module, so they are copied
 // here and tests/live-counts.test.ts checks every one of them against the app's own version.
@@ -66,7 +71,9 @@ const marks = (n) => Array(n).fill("?").join(",");
 const byTime = (a, b) => (toMs(a.createdAt) ?? 0) - (toMs(b.createdAt) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 // ---- The read-only guard.
-const REFUSED_WRITE = /read.?only|readonly|not allowed|forbidden|unauthori[sz]ed|permission|attempt to write/i;
+// Only a clear read-only refusal counts as proof. A missing or expired token (401/403) proves nothing.
+const REFUSED_WRITE = /read.?only|readonly|read only|not allowed to write|SQLITE_READONLY|attempt to write a readonly/i;
+const AUTH_FAILURE = /\b40[13]\b|unauthori[sz]ed|forbidden/i;
 
 // The access claim in a Turso token ("a": "ro" or "rw"), if the token has one. The token is never printed.
 export function tokenAccess(token) {
@@ -90,7 +97,8 @@ export async function guardReadOnly(client, token) {
     await tx.execute("UPDATE AppSetting SET value = value WHERE 0"); // changes no row even if allowed
     canWrite = true;
   } catch (e) {
-    if (!REFUSED_WRITE.test(String(e?.message ?? ""))) throw new Refusal("REFUSING: could not prove the token is read-only. Nothing was changed.");
+    const msg = String(e?.message ?? "");
+    if (AUTH_FAILURE.test(msg) || !REFUSED_WRITE.test(msg)) throw new Refusal("REFUSING: could not prove the token is read-only. Nothing was changed.");
   } finally {
     try {
       await tx?.rollback();
@@ -132,6 +140,20 @@ export function readSchema(text) {
   return models;
 }
 
+// The email as a whole word: not inside a longer address (a@x.com inside ana@x.com), but a full stop or bracket after it is fine.
+export function hasToken(low, email) {
+  for (let at = low.indexOf(email); at !== -1; at = low.indexOf(email, at + 1)) {
+    const before = at > 0 ? low[at - 1] : "";
+    const end = at + email.length;
+    const after = low[end] ?? "";
+    const next = low[end + 1] ?? "";
+    if (before && /[a-z0-9._%+-]/.test(before)) continue;
+    if (after && (/[a-z0-9_%+-]/.test(after) || (after === "." && /[a-z0-9]/.test(next)))) continue;
+    return true;
+  }
+  return false;
+}
+
 // ================= Item 1: history lines showing an invited person's email =================
 export async function countEmailsInHistory(client, cutoffMs) {
   const cand = await q(client, "SELECT id, groupId, kind, createdAt, text, details, undo FROM GroupEvent WHERE text LIKE '%@%' OR details LIKE '%@%'");
@@ -165,7 +187,7 @@ export async function countEmailsInHistory(client, cutoffMs) {
     const text = String(e.text ?? "");
     const details = String(e.details ?? "");
     const low = `${text}\n${details}`.toLowerCase();
-    const hits = (invites.get(e.groupId) ?? []).filter((i) => i.email.includes("@") && low.includes(i.email));
+    const hits = (invites.get(e.groupId) ?? []).filter((i) => i.email.includes("@") && hasToken(low, i.email));
     const emails = [...new Set(hits.map((h) => h.email))];
     if (!emails.length) {
       if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(`${text} ${details}`)) c.emailLike++;
@@ -178,7 +200,7 @@ export async function countEmailsInHistory(client, cutoffMs) {
     if (e.kind === "member_invited") c.invited++;
     else if (e.kind === "members_added") c.added++;
     else c.other++;
-    if (details.toLowerCase().includes(emails[0]) || emails.some((m) => details.toLowerCase().includes(m))) c.details++;
+    if (emails.some((m) => hasToken(details.toLowerCase(), m))) c.details++;
     const rows = memberRows.get(e.groupId) ?? new Set();
     // Which name row the line is about, when it can be known.
     let who = "";
@@ -283,7 +305,8 @@ export async function countWrongJoined(client) {
       continue;
     }
     const late = r.claimed !== null && r.first !== null && r.claimed > r.first;
-    if (!r.seen && (sameStamp.has(r.id) || burst.has(r.id) || late)) wrong.add(r.id);
+    const inWindow = r.claimed !== null && r.claimed >= BUG_START && r.claimed <= BUG_END;
+    if (!r.seen && inWindow && (sameStamp.has(r.id) || burst.has(r.id) || late)) wrong.add(r.id);
     else unsure++;
   }
   // Payments to wrong-stamped names still waiting for a "Got it".
@@ -327,6 +350,14 @@ export async function countLeaversWithBalance(client) {
     }
     for (const s of await q(client, `SELECT s.expenseId, s.memberId, s.amount, e.groupId FROM ExpenseShare s JOIN Expense e ON e.id = s.expenseId WHERE e.deletedAt IS NULL AND e.groupId IN (${ph})`, part))
       expenses.get(s.groupId)?.get(s.expenseId)?.shares.push({ memberId: String(s.memberId), amount: Number(s.amount) });
+    // Expenses deleted or edited later (no amounts read): so "money changed after they left" also sees them.
+    const touchedExp = new Map();
+    for (const e of await q(client, `SELECT id, groupId, paidById, payers, deletedAt, editedAt FROM Expense WHERE (deletedAt IS NOT NULL OR editedAt IS NOT NULL) AND groupId IN (${ph})`, part)) {
+      if (!touchedExp.has(e.groupId)) touchedExp.set(e.groupId, new Map());
+      touchedExp.get(e.groupId).set(e.id, { paidById: String(e.paidById), payers: e.payers === null ? "" : String(e.payers), deletedAt: toMs(e.deletedAt), editedAt: toMs(e.editedAt), people: [] });
+    }
+    for (const s of await q(client, `SELECT s.expenseId, s.memberId, e.groupId FROM ExpenseShare s JOIN Expense e ON e.id = s.expenseId WHERE (e.deletedAt IS NOT NULL OR e.editedAt IS NOT NULL) AND e.groupId IN (${ph})`, part))
+      touchedExp.get(s.groupId)?.get(s.expenseId)?.people.push(String(s.memberId));
     const payments = new Map();
     for (const p of await q(client, `SELECT groupId, fromId, toId, amount, createdAt, deletedAt FROM Payment WHERE groupId IN (${ph})`, part)) {
       if (!payments.has(p.groupId)) payments.set(p.groupId, []);
@@ -360,6 +391,7 @@ export async function countLeaversWithBalance(client) {
         const id = String(m.id);
         const after =
           exps.some((e) => e.createdAt !== null && left !== null && e.createdAt > left && (e.paidById === id || parsePayers(e.payers).some((p) => p.memberId === id) || e.shares.some((s) => s.memberId === id))) ||
+          [...(touchedExp.get(gid)?.values() ?? [])].some((e) => left !== null && ((e.deletedAt !== null && e.deletedAt > left) || (e.editedAt !== null && e.editedAt > left)) && (e.paidById === id || parsePayers(e.payers).some((p) => p.memberId === id) || e.people.includes(id))) ||
           pays.some((p) => (p.fromId === id || p.toId === id) && left !== null && ((p.live && p.createdAt !== null && p.createdAt > left) || (!p.live && p.deletedAt !== null && p.deletedAt > left)));
         if (after) t.changed++;
         const kind = g?.deletedAt !== null && g?.deletedAt !== undefined ? t.deleted : Number(g?.closed) === 1 ? t.closed : t.open;
@@ -553,12 +585,18 @@ export async function countAll(client, opts = {}) {
 // Prints and returns the exit code (0 ok, 1 refused or failed). `write` is for tests.
 export async function run({ env = process.env, client, write = (s) => console.log(s), summaryFile = env.GITHUB_STEP_SUMMARY } = {}) {
   const say = (s) => write(safeLine(s));
+  let created;
   try {
     if (!env.TURSO_DATABASE_URL) throw new Refusal("REFUSING: TURSO_DATABASE_URL is not set.");
-    if (env.GITHUB_ACTIONS === "true" && !["ops-live-counts", "ops-live-counts-staging"].includes(String(env.GITHUB_REF_NAME))) throw new Refusal("REFUSING: this only runs on a live-counts branch.");
+    if (!/^file:/.test(env.TURSO_DATABASE_URL) && !env.TURSO_AUTH_TOKEN) throw new Refusal("REFUSING: TURSO_AUTH_TOKEN is empty for a remote database.");
+    if (env.GITHUB_ACTIONS === "true") {
+      // In GitHub: only in the private ops repo, or on the practice branch (the rehearsal). Never the public repo's other branches.
+      const inPrivateRepo = !!env.GITHUB_REPOSITORY && env.GITHUB_REPOSITORY.toLowerCase() !== PUBLIC_REPO.toLowerCase();
+      if (!inPrivateRepo && env.GITHUB_REF_NAME !== "ops-live-counts-staging") throw new Refusal("REFUSING: this only runs in the private ops repo (or on the practice branch).");
+    }
     const cutoffMs = Date.parse(env.CUTOFF || DEFAULT_CUTOFF);
     if (Number.isNaN(cutoffMs)) throw new Refusal("REFUSING: CUTOFF is not a date.");
-    const db = client ?? createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN || undefined });
+    const db = client ?? (created = createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN || undefined }));
     await guardReadOnly(db, env.TURSO_AUTH_TOKEN);
     say("Read-only check passed. Counting.");
     const results = await countAll(db, { cutoffMs });
@@ -567,7 +605,7 @@ export async function run({ env = process.env, client, write = (s) => console.lo
     for (const r of results) {
       if (r.failed) code = 1;
       for (const [i, part] of r.text.split("\n").entries()) {
-        const title = r.title === "4 · Orphans" ? `4 · Orphans (${["declared", "money, must be 0", "expected after deletions"][i] ?? "more"})` : r.title;
+        const title = r.title === "4 · Orphans" ? `4 · Orphans (${["declared", "money - must be 0", "expected after deletions"][i] ?? "more"})` : r.title;
         const text = r.title === "4 · Orphans" ? part.replace(/^Orphans \([^)]*\): /, "") : part;
         const line = safeLine(`${title}: ${text}`);
         write(line === "(line withheld)" ? line : `::notice title=${safeLine(title)}::${esc(safeLine(text))}`);
@@ -589,6 +627,12 @@ export async function run({ env = process.env, client, write = (s) => console.lo
     }
     write(`Failed: ${String(e?.code ?? e?.constructor?.name ?? "Error").replace(/[^A-Za-z0-9_]/g, "")}`);
     return 1;
+  } finally {
+    try {
+      created?.close();
+    } catch {
+      /* already closed */
+    }
   }
 }
 

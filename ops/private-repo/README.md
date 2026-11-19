@@ -1,6 +1,6 @@
 # Private ops repo: what to copy where
 
-These three files are templates. They do nothing in this (public) repo. They are the jobs that need the
+These four files are templates. They do nothing in this (public) repo. They are the jobs that need the
 live database's key, moved to a private repo so the backup file, the usage figures and the live counts are
 not on a public page.
 
@@ -18,6 +18,7 @@ not on a public page.
    - `backup.yml` -> `.github/workflows/backup.yml`
    - `usage.yml` -> `.github/workflows/usage.yml`
    - `live-stats.yml` -> `.github/workflows/live-stats.yml`
+   - `live-counts.yml` -> `.github/workflows/live-counts.yml` (run by hand; read-only counts on the live database for the clean-up items)
 4. In each copied file, replace `REPLACE_WITH_40_CHARACTER_COMMIT_ID` with the full commit id of the public repo's
    `main` that you trust. (On the public repo's page, open the latest commit and copy the long id.) The private
    jobs run the public repo's scripts at exactly that commit, so a later change to `main` cannot reach the key

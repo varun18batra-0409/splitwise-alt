@@ -111,7 +111,7 @@ describe("the repository is public, and the comment says so (OA-13)", () => {
 
 describe("the private-repo templates (ops/private-repo)", () => {
   const dir = "ops/private-repo";
-  const templates = ["backup.yml", "usage.yml", "live-stats.yml"];
+  const templates = ["backup.yml", "usage.yml", "live-stats.yml", "live-counts.yml"];
   it("exist, with a plain-English README, and are not under .github", () => {
     for (const f of [...templates, "README.md"]) expect(existsSync(join(dir, f)), f).toBe(true);
     expect(existsSync(join(".github", "workflows", "loopin-ops-backup.yml"))).toBe(false);
@@ -136,6 +136,32 @@ describe("the private-repo templates (ops/private-repo)", () => {
     expect(t).toMatch(/retention-days: 14/);
     expect(t).toContain("restore.mjs --drill");
     expect(t).toContain("secrets.DRILL_DB_TOKEN");
+  });
+});
+
+describe("live counts: never from the public repo", () => {
+  it("the public repo has no live-counts workflow; the rehearsal (practice database only) stays", () => {
+    expect(existsSync(join(DIR, "live-counts.yml"))).toBe(false);
+    expect(existsSync(join(DIR, "live-counts-staging.yml"))).toBe(true);
+    expect(text("live-counts-staging.yml")).not.toMatch(/secrets\.(TURSO_DATABASE_URL|TURSO_AUTH_TOKEN|TURSO_READONLY_TOKEN|LIVE_DB)/);
+  });
+  it("the private template is hand-run only, maps the live secrets on the count step only, and installs tsx pinned without a secret", () => {
+    const t = readFileSync("ops/private-repo/live-counts.yml", "utf8");
+    expect(t).toMatch(/^on:\n {2}workflow_dispatch:\n/m);
+    expect(t).not.toMatch(/^\s+(push|pull_request|schedule):/m);
+    const [before, countStep] = t.split("- name: Counts");
+    expect(before).not.toContain("secrets.");
+    expect(countStep).toContain("TURSO_DATABASE_URL: ${{ secrets.LIVE_DB_URL }}");
+    expect(countStep).toContain("TURSO_AUTH_TOKEN: ${{ secrets.LIVE_DB_READONLY_TOKEN }}");
+    expect(t).toContain("run: npm install --no-save --ignore-scripts tsx@4.19.2 esbuild@0.23.1 get-tsconfig@4.8.1 resolve-pkg-maps@1.0.0");
+    expect(readFileSync("ops/private-repo/README.md", "utf8")).toContain("live-counts.yml");
+  });
+  it("the rehearsal installs the same pinned set, with no token in the install steps, and no checkout keeps credentials", () => {
+    const t = text("live-counts-staging.yml");
+    expect(t).toContain("run: npm install --no-save --ignore-scripts tsx@4.19.2 esbuild@0.23.1 get-tsconfig@4.8.1 resolve-pkg-maps@1.0.0");
+    const installs = t.slice(t.indexOf("steps:"), t.indexOf("- name: With the WRITE key"));
+    expect(installs).not.toContain("secrets.");
+    expect(t.match(/actions\/checkout@[^\n]*\n\s+with:\n\s+persist-credentials: false/g)).toHaveLength(1);
   });
 });
 

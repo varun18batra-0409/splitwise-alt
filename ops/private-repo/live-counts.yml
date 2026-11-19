@@ -1,0 +1,42 @@
+# TEMPLATE (not active here). Copy to the PRIVATE ops repo as .github/workflows/live-counts.yml (see README.md).
+# Read-only counts on the LIVE database for five clean-up items (history lines showing an email, names wrongly marked joined,
+# people who left with a balance, rows pointing at nothing, old "I've paid" notes). It only counts: nothing is fixed.
+# Run by hand. Counts and size bands only, never names, emails, amounts or ids. Shown on the run's summary page, which is private.
+# Uses the READ-ONLY live token. The script refuses to count if the token can write, or if it cannot prove the token is read-only.
+# Secrets in the private repo: LIVE_DB_URL, LIVE_DB_READONLY_TOKEN.
+name: Live counts (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  PUBLIC_REPO: varun18batra-0409/splitwise-alt
+  # Full 40-character commit id of the public repo's main (see README.md).
+  PUBLIC_REPO_SHA: REPLACE_WITH_40_CHARACTER_COMMIT_ID
+jobs:
+  counts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: The pinned commit has been filled in
+        run: |
+          case "$PUBLIC_REPO_SHA" in *[!0-9a-f]*|"") echo "::error title=Not set up::PUBLIC_REPO_SHA must be a full 40-character commit id."; exit 1;; esac
+          [ "${#PUBLIC_REPO_SHA}" -eq 40 ] || { echo "::error title=Not set up::PUBLIC_REPO_SHA must be 40 characters long."; exit 1; }
+      # The GitHub actions below are already pinned to full commit ids (checkout 11d5960a is actions/checkout v4.4.0). Keep them pinned.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ env.PUBLIC_REPO }}
+          ref: ${{ env.PUBLIC_REPO_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      # Installs: no secret in these steps. tsx and everything it needs are pinned exactly.
+      - run: npm ci --ignore-scripts
+      - run: npm install --no-save --ignore-scripts tsx@4.19.2 esbuild@0.23.1 get-tsconfig@4.8.1 resolve-pkg-maps@1.0.0
+      - name: Counts (shown on the summary page, counts only)
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.LIVE_DB_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.LIVE_DB_READONLY_TOKEN }}
+          CUTOFF: "2026-11-11T21:06:07Z" # when the Batch B release (no email in invite history lines) was made
+        run: npx tsx scripts/live-counts.ts

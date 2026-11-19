@@ -146,6 +146,26 @@ describe("item 3: left with a balance (hand-worked, paise)", () => {
     const text = await LC.countLeaversWithBalance(client);
     expect(text).toContain("groups not adding to 0: 1 (must be 0)");
   });
+
+  it("counts money changed after leaving when an expense was edited or deleted later (and not one edited before)", async () => {
+    const { client } = await makeDb();
+    // Each group: Ann pays 4000, split 2000 each; Bo leaves at T0+5000 owing 2000 (Bo: -2000, Ann: +2000).
+    for (const g of ["ed", "del", "before"]) {
+      await group(client, g);
+      await member(client, `ann-${g}`, g, { createdAt: T0 });
+      await member(client, `bo-${g}`, g, { createdAt: T0 + 1, leftAt: T0 + 5000 });
+    }
+    // ed: that expense is edited at T0+9000, after Bo left -> changed.
+    await expense(client, "e-ed", "ed", "ann-ed", 4000, { "ann-ed": 2000, "bo-ed": 2000 }, { editedAt: T0 + 9000 });
+    // del: a second expense of 600 (300 each) is deleted at T0+9000 after Bo left. The live one still leaves Bo at -2000 -> changed.
+    await expense(client, "e-del1", "del", "ann-del", 4000, { "ann-del": 2000, "bo-del": 2000 });
+    await expense(client, "e-del2", "del", "ann-del", 600, { "ann-del": 300, "bo-del": 300 }, { deletedAt: T0 + 9000 });
+    // before: edited at T0+2000, before Bo left -> not changed.
+    await expense(client, "e-bef", "before", "ann-before", 4000, { "ann-before": 2000, "bo-before": 2000 }, { editedAt: T0 + 2000 });
+    const text = await LC.countLeaversWithBalance(client);
+    expect(text).toContain("groups: 3 | people: 3 (owe others 3, are owed 0)");
+    expect(text).toContain("money changed after they left 2");
+  });
 });
 
 // One database holding a planted case for items 1, 2, 4 and 5.
@@ -187,7 +207,7 @@ async function planted() {
   await member(client, "w1", "g2", { createdAt: T0, claimedAt: S }); // wrong: same stamp as w2
   await member(client, "r1", "g2", { createdAt: T0 + 1, claimedAt: T0 + 2_000_000, grantEpoch: 1 }); // real: deleted account
   await member(client, "w2", "g3", { createdAt: T0, claimedAt: S }); // wrong: same stamp
-  await member(client, "wr", "g4", { createdAt: T0, claimedAt: T0 + 10_000_000 }); // wrong: claimed after its first line, which was a repeat bill
+  await member(client, "wr", "g4", { createdAt: T0, claimedAt: T0 + 10_000_000 }); // wrong: claimed (1 Nov, inside the bug window) after its first line, which was a repeat bill
   await event(client, "ev20", "g4", "wr", "expense_added", "paid Rent (₹100) · repeat bill", { createdAt: T0 + 9_500_000 });
   await member(client, "r2", "g5", { createdAt: T0, claimedAt: T0 + 3_000_000 }); // real: phone alerts
   await ins(client, "PushSubscription", { id: "ps1", memberId: "r2", endpoint: "https://push.example.test/1", p256dh: "k", auth: "a" });
@@ -256,18 +276,46 @@ describe("items 1, 2, 4 and 5 on planted rows", () => {
     expect(text).toContain("name rows that are an email 1");
   });
 
+  it("item 1: an email must match as a whole word (a@x.test is not inside ana@x.test)", async () => {
+    const { client } = await makeDb();
+    await group(client, "wt");
+    await member(client, "m1", "wt");
+    await ins(client, "Invite", { id: "iw", groupId: "wt", email: "a@x.test", invitedById: "m1", memberId: "m1", token: "tw", createdAt: T0 });
+    await event(client, "w1", "wt", "m1", "member_invited", "invited ana@x.test to join", { createdAt: T0 + 1000 }); // longer address: no
+    await event(client, "w2", "wt", "m1", "member_invited", "invited a@x.test. Done", { createdAt: T0 + 2000 }); // yes (full stop after)
+    await event(client, "w3", "wt", "m1", "member_invited", "invited (A@x.test) now", { createdAt: T0 + 3000 }); // yes (brackets)
+    await event(client, "w4", "wt", "m1", "member_invited", "invited a@x.test.uk to join", { createdAt: T0 + 4000 }); // longer address: no
+    const text = await LC.countEmailsInHistory(client, T0);
+    expect(text).toContain("lines with an invite's email: 2 ");
+    expect(text).toContain("email-like but no invite 2");
+    expect(LC.hasToken("xa@x.test", "a@x.test")).toBe(false);
+    expect(LC.hasToken("a@x.test", "a@x.test")).toBe(true);
+  });
+
   it("item 2: sorts the claimed-but-no-account names into real, wrong and unsure", async () => {
     const { client } = await planted();
     const text = await LC.countWrongJoined(client);
     // Suspects: w1 w2 wr r1 r2 r3 r4 r5 r6 u1 = 10 (the one with an account is not one).
     expect(text).toContain("claimed but no account: 10");
     expect(text).toContain("certainly real 6 (deleted account 1, phone alerts 1, own actions 1, opened alerts 1, claimed when created 1, reactions 1)");
-    // Wrong: w1 and w2 (same stamp), wr (claimed after a repeat-bill line, which is not an action of theirs).
+    // Wrong: w1 and w2 (same stamp), wr (claimed after a repeat-bill line, which is not an action of theirs). All claimed inside the bug window (15 Oct to 16 Nov 2026).
     expect(text).toContain("certainly wrong 3 (same-stamp groups 1, largest 2, in a burst 0)");
     expect(text).toContain("unsure 1");
     expect(text).toContain("still waiting for OK: 1");
     // g2: w1 is the admin today (claimed, oldest); with its stamp cleared r1 (claimed, real) takes over. g3 and g4 have one person each.
     expect(text).toContain("groups whose admin would change: 1");
+  });
+
+  it("item 2: a late claim from before the bug window is unsure, not wrong (the same shape inside the window is wrong)", async () => {
+    const { client } = await makeDb();
+    await group(client, "pre");
+    const before = Date.parse("2026-09-01T00:00:00Z");
+    await member(client, "old1", "pre", { createdAt: before - 100_000, claimedAt: before + 50_000 });
+    await event(client, "ev-pre", "pre", "old1", "expense_added", "paid Rent (₹100) · repeat bill", { createdAt: before });
+    const text = await LC.countWrongJoined(client);
+    expect(text).toContain("claimed but no account: 1");
+    expect(text).toContain("certainly wrong 0");
+    expect(text).toContain("unsure 1");
   });
 
   it("item 2: three stamps within two minutes across two groups are a burst", async () => {
@@ -324,6 +372,8 @@ describe("items 1, 2, 4 and 5 on planted rows", () => {
     for (const s of secrets) expect(all.toLowerCase(), `output must not contain ${s}`).not.toContain(s.toLowerCase());
     expect(all).not.toMatch(/[A-Za-z0-9]{20,}/);
     expect(all).not.toContain("@");
+    // Notice titles are split on commas by GitHub, so none may hold one.
+    for (const l of out.filter((x) => x.startsWith("::notice title="))) expect(l.slice("::notice title=".length, l.indexOf("::", 10))).not.toContain(",");
     // Only reading was sent to the database.
     expect(sent.length).toBeGreaterThan(20);
     for (const sql of sent) expect(sql.trim()).toMatch(/^(SELECT|PRAGMA foreign_key_check)/);
@@ -354,6 +404,32 @@ describe("the read-only guard", () => {
     await expect(LC.guardReadOnly(fake("fetch failed"), "")).rejects.toThrow(/could not prove/);
   });
 
+  it("refuses when the answer is an auth failure (401, 403, unauthorized, forbidden): that does not prove read-only", async () => {
+    for (const m of ["Server returned HTTP status 401", "HTTP status 403", "Unauthorized", "Forbidden", "401 Unauthorized: not allowed to write"])
+      await expect(LC.guardReadOnly(fake(m), ""), m).rejects.toThrow(/could not prove/);
+  });
+
+  it("accepts each clear read-only refusal", async () => {
+    for (const m of ["database is readonly", "this is a read only token", "read-only transaction", "You are not allowed to write", "SQLITE_READONLY", "attempt to write a readonly database"])
+      await expect(LC.guardReadOnly(fake(m), ""), m).resolves.toBeUndefined();
+  });
+
+  it("refuses a remote address with an empty token, before connecting", async () => {
+    const out: string[] = [];
+    for (const token of [undefined, ""]) {
+      expect(await LC.run({ env: { TURSO_DATABASE_URL: "libsql://example-db.turso.io", TURSO_AUTH_TOKEN: token }, write: (s: string) => out.push(s), summaryFile: "" })).toBe(1);
+    }
+    expect(out.every((l) => l.startsWith("REFUSING") && l.includes("TURSO_AUTH_TOKEN is empty"))).toBe(true);
+  });
+
+  it("closes a client it made itself (not one it was given)", async () => {
+    const { url } = await makeDb(); // a writable file: it refuses, and the client it opened must still be closed
+    const out: string[] = [];
+    expect(await LC.run({ env: { TURSO_DATABASE_URL: url }, write: (s: string) => out.push(s), summaryFile: "" })).toBe(1);
+    const src = readFileSync(resolve(process.cwd(), "scripts/live-counts.ts"), "utf8");
+    expect(src).toMatch(/finally \{\s+try \{\s+created\?\.close\(\)/);
+  });
+
   it("refuses a token that says it is not read-only, without trying anything", async () => {
     let tried = false;
     const spy = { transaction: async () => { tried = true; throw new Error("SQLITE_READONLY"); } } as unknown as Client;
@@ -369,6 +445,10 @@ describe("the read-only guard", () => {
     expect(await LC.run({ env: {}, write: w, summaryFile: "" })).toBe(1);
     expect(await LC.run({ env: { TURSO_DATABASE_URL: "file:x", GITHUB_ACTIONS: "true", GITHUB_REF_NAME: "ops-live-counts-dev" }, write: w, summaryFile: "" })).toBe(1);
     expect(await LC.run({ env: { TURSO_DATABASE_URL: "file:x", GITHUB_ACTIONS: "true", GITHUB_REF_NAME: "main" }, write: w, summaryFile: "" })).toBe(1);
+    // The public repo never reads live, even on the old live-counts branch name.
+    const pub = "Varun18Batra-0409/splitwise-alt";
+    expect(await LC.run({ env: { TURSO_DATABASE_URL: "file:x", GITHUB_ACTIONS: "true", GITHUB_REF_NAME: "ops-live-counts", GITHUB_REPOSITORY: pub }, write: w, summaryFile: "" })).toBe(1);
+    expect(await LC.run({ env: { TURSO_DATABASE_URL: "file:x", GITHUB_ACTIONS: "true", GITHUB_REF_NAME: "main", GITHUB_REPOSITORY: "" }, write: w, summaryFile: "" })).toBe(1);
     expect(await LC.run({ env: { TURSO_DATABASE_URL: "file:x", CUTOFF: "not a date" }, write: w, summaryFile: "" })).toBe(1);
     expect(out.every((l) => l.startsWith("REFUSING"))).toBe(true);
   });
@@ -420,6 +500,19 @@ describe("the output filter and small rules", () => {
     expect(models.get("Expense").links).toContainEqual({ col: "paidById", target: "Member", ref: "id" });
     expect(models.get("ExpenseShare").links.map((l: { col: string }) => l.col).sort()).toEqual(["expenseId", "memberId"]);
     expect(models.get("Member").cols.has("claimedAt")).toBe(true);
+  });
+
+  it("in GitHub it runs in the private ops repo, or on the practice branch of the public repo", async () => {
+    const { client } = await makeDb();
+    const { wrapped } = readOnly(client);
+    for (const env of [
+      { GITHUB_REPOSITORY: "someone/loopin-ops", GITHUB_REF_NAME: "main" },
+      { GITHUB_REPOSITORY: "varun18batra-0409/splitwise-alt", GITHUB_REF_NAME: "ops-live-counts-staging" },
+    ]) {
+      const out: string[] = [];
+      await LC.run({ env: { TURSO_DATABASE_URL: "file:x", GITHUB_ACTIONS: "true", ...env }, client: wrapped, write: (s: string) => out.push(s), summaryFile: "" });
+      expect(out[0], JSON.stringify(env)).toBe("Read-only check passed. Counting.");
+    }
   });
 
   it("the script can only read: no database client calls, and the only write words are the rolled-back test", () => {

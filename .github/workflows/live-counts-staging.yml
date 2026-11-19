@@ -19,10 +19,14 @@ jobs:
       HAS_RO: ${{ secrets.STAGING_TURSO_READONLY_TOKEN != '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - run: npm ci --ignore-scripts && npm install --no-save --ignore-scripts tsx@4.19.2
+      # Installs: no token in these steps. tsx and everything it needs are pinned exactly.
+      - run: npm ci --ignore-scripts
+      - run: npm install --no-save --ignore-scripts tsx@4.19.2 esbuild@0.23.1 get-tsconfig@4.8.1 resolve-pkg-maps@1.0.0
       - name: With the WRITE key (the script must refuse, so this step is expected to fail)
         id: write
         continue-on-error: true
