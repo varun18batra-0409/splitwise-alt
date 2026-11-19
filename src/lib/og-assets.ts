@@ -4,9 +4,9 @@ import fonts from "@/generated/og-fonts.json";
 import map from "@/generated/map.json";
 
 // What the share pictures (passport, Wrapped…) are drawn with: Loopin's own
-// fonts and the world map. Read straight from the app's own files (public/, bundled with these routes: see
-// outputFileTracingIncludes in next.config.ts); only if a file isn't there is it fetched from the app's own address.
-// Reading the file needs no request, so a sign-in wall in front of the site (Vercel's preview lock) can't get in the way.
+// fonts and the world map. Read from the app's own files (public/) when they are on disk where the picture is drawn
+// (a local or CI server); otherwise fetched from the app's own address (on Vercel, public/ is served separately).
+// Only real font and SVG files are used, so a sign-in wall in front of the site can't break the picture.
 
 /** A file under public/ ("/og-fonts/sans-500.woff"), or null when it isn't on disk. */
 async function publicFile(path: string): Promise<Buffer | null> {
