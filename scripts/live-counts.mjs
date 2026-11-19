@@ -34,7 +34,7 @@ const memberOfToken = (token) => (token.includes(".") ? token.split(".")[0] : ""
 export const inviteMemberId = (inv) => inv.memberId || memberOfToken(inv.token);
 
 // ---- Output filter: nothing but counts and plain words may be printed.
-const ALLOWED = /^[A-Za-z0-9 .,:;|()<>≤≥·–—'’/+=%-]*$/;
+const ALLOWED = /^[A-Za-z0-9_ .,:;|()<>≤≥·–—'’/+=%-]*$/; // _ for kind names (member_invited)
 export function safeLine(s) {
   const t = String(s);
   if (t.includes("@") || /[A-Za-z0-9]{20,}/.test(t) || !ALLOWED.test(t)) return "(line withheld)";
