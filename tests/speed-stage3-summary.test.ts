@@ -312,7 +312,8 @@ describe("the new method equals the full method on 50 random groups", () => {
         const shareIds = ids.filter(() => chance(0.6));
         const who = shareIds.length ? shareIds : [ids[int(size)]];
         const shares: [string, number][] = allocateByWeights(amount, who.map((memberId) => ({ memberId, weight: 1 + int(5) }))).map((s) => [s.memberId, s.amount]);
-        if (chance(0.1)) shares.push([ids[int(size)], 0]); // a person with a share of 0
+        const outside = ids.filter((id) => !who.includes(id));
+        if (outside.length && chance(0.15)) shares.push([outside[int(outside.length)], 0]); // a person with a share of 0 (once: a person listed twice makes it fall back, tested above)
         const more: Partial<Prisma.ExpenseUncheckedCreateInput> = { description: `E${i}`, category: ["food", "transport", "accommodation", "activities", "shopping"][int(5)], createdById: ids[int(size)] };
         if (chance(0.25) && size > 1) {
           // several payers; sometimes a list that does not add up (the full method keeps the proportions)

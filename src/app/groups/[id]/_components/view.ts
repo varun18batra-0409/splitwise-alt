@@ -148,7 +148,8 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string, opt
   const acrossNames = new Map([...acrossParts].map(([pid, gids]) => [pid, gids.map((gid) => acrossGroups.find((x) => x.id === gid)?.name).filter((n): n is string => Boolean(n))] as [string, string[]]));
   const moveOutIds = opts.moveOuts === false ? new Set<string>() : await moveOutPaymentIds(db, [group.id]);
 
-  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })), guest: group.members.find((m) => m.id === myId)?.accountId === null, claimedAt: group.members.find((m) => m.id === myId)?.claimedAt ?? null }; // pickAdmin on the members just loaded (same order, no second read)
+  // (isAdmin from the members just loaded, in the same order: no second read)
+  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })), guest: group.members.find((m) => m.id === myId)?.accountId === null, claimedAt: group.members.find((m) => m.id === myId)?.claimedAt ?? null };
   return {
     ...data,
     tz,

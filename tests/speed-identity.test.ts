@@ -73,7 +73,7 @@ describe("getMemberships for a signed-in person", () => {
     const mine = (g: { members: { name: string; id: string }[] }, name = "Ada") => g.members.find((m) => m.name === name)!.id;
 
     // G4: she added an expense herself. G6: only a repeat-bill line in her name.
-    const e = await db.expense.create({ data: { groupId: g4.id, description: "Tea", amount: 100, originalAmount: 100, convertedAmount: 100, paidById: mine(g4), createdById: mine(g4), shares: { create: [{ memberId: mine(g4), amount: 100 }] } } });
+    const e = await db.expense.create({ data: { groupId: g4.id, description: "Tea", splitType: "equal", amount: 100, originalAmount: 100, convertedAmount: 100, paidById: mine(g4), createdById: mine(g4), shares: { create: [{ memberId: mine(g4), amount: 100 }] } } });
     await db.groupEvent.create({ data: { groupId: g4.id, actorId: mine(g4), kind: "expense_added", text: "added Tea (₹1.00)", expenseId: e.id, details: "[]", undo: "" } });
     await db.groupEvent.create({ data: { groupId: g6.id, actorId: mine(g6), kind: "expense_added", text: "added Rent (₹1.00) · repeat bill", details: "[]", undo: "" } });
 
