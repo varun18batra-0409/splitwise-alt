@@ -96,10 +96,10 @@ describe("WebP: strict size checks", () => {
 describe("who looks after a group", () => {
   const d = new Date();
   it("is the person who started it", () => {
-    expect(pickAdmin([{ id: "a", claimedAt: d, leftAt: null }, { id: "b", claimedAt: d, leftAt: null }])?.id).toBe("a");
+    expect(pickAdmin([{ id: "a", claimedAt: d, leftAt: null, accountId: "acct" }, { id: "b", claimedAt: d, leftAt: null, accountId: "acct" }])?.id).toBe("a");
   });
   it("names added by hand (never joined) don't count, and if the starter left the next person takes over", () => {
-    expect(pickAdmin([{ id: "ravi", claimedAt: null, leftAt: null }, { id: "me", claimedAt: d, leftAt: null }])?.id).toBe("me");
-    expect(pickAdmin([{ id: "a", claimedAt: d, leftAt: d }, { id: "b", claimedAt: d, leftAt: null }])?.id).toBe("b");
+    expect(pickAdmin([{ id: "ravi", claimedAt: null, leftAt: null, accountId: "acct" }, { id: "me", claimedAt: d, leftAt: null, accountId: "acct" }])?.id).toBe("me");
+    expect(pickAdmin([{ id: "a", claimedAt: d, leftAt: d, accountId: "acct" }, { id: "b", claimedAt: d, leftAt: null, accountId: "acct" }])?.id).toBe("b");
   });
 });

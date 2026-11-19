@@ -90,6 +90,14 @@ describe("moments: delete (author) and remove (admin)", () => {
     expect(canDeleteMoment(viewer({ isAdmin: true, accountId: "a-viewer" }), theirs)).toBe(true);
     expect(canDeleteMoment(viewer({ accountId: null }), { ...theirs, authorId: "m-viewer", authorAccountId: "x" })).toBe(true);
   });
+  it("a guest deletes only the moments added since THEY took the name (a freed name does not hand over the earlier holder's); no claimedAt known: none", () => {
+    const own = { ...theirs, authorId: "m-viewer", authorAccountId: "" }; // added at 10:00
+    expect(canDeleteMoment(viewer({ accountId: null, claimedAt: T("09:59:59.999") }), own)).toBe(true);
+    expect(canDeleteMoment(viewer({ accountId: null, claimedAt: T("10:00:00.000") }), own)).toBe(true); // the very instant counts as theirs
+    expect(canDeleteMoment(viewer({ accountId: null, claimedAt: T("10:00:00.001") }), own)).toBe(false); // took the name 1 ms after it was added
+    expect(canDeleteMoment(viewer({ accountId: null, claimedAt: null }), own)).toBe(false);
+    expect(canDeleteMoment(viewer({ accountId: null }), own)).toBe(false);
+  });
   it("the admin can remove a moment from a person they blocked (they just can't see it)", () => expect(canDeleteMoment(viewer({ isAdmin: true, blocked: new Set(["a-author"]) }), theirs)).toBe(true));
   it("the author can still delete after leaving (it was added before they left)", () => {
     expect(canDeleteMoment(viewer({ leftAt: T("12:00:00.000") }), mine)).toBe(true);

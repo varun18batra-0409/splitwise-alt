@@ -34,16 +34,16 @@ describe("isPending", () => {
 describe("pickAdmin skips pending people", () => {
   it("a force-added person with a claimedAt can't become the admin", () => {
     const rows = [
-      { id: "creator", claimedAt: null, leftAt: d, addedBy: "", seenAt: null }, // started the group, has left
-      { id: "forced", claimedAt: d, leftAt: null, addedBy: "creator", seenAt: null }, // put in, never opened
-      { id: "joined", claimedAt: d, leftAt: null, addedBy: "creator", seenAt: d },
+      { id: "creator", claimedAt: null, leftAt: d, addedBy: "", seenAt: null, accountId: "a" }, // started the group, has left
+      { id: "forced", claimedAt: d, leftAt: null, addedBy: "creator", seenAt: null, accountId: "a" }, // put in, never opened
+      { id: "joined", claimedAt: d, leftAt: null, addedBy: "creator", seenAt: d, accountId: "a" },
     ];
     expect(pickAdmin(rows)?.id).toBe("joined");
     // Without the pending row's problem: the older rule would have picked "forced".
     expect(pickAdmin(rows.slice(0, 2))).toBeUndefined();
   });
   it("rows without the new fields work as before", () => {
-    expect(pickAdmin([{ id: "a", claimedAt: d, leftAt: d }, { id: "b", claimedAt: d, leftAt: null }])?.id).toBe("b");
+    expect(pickAdmin([{ id: "a", claimedAt: d, leftAt: d, accountId: "acct" }, { id: "b", claimedAt: d, leftAt: null, accountId: "acct" }])?.id).toBe("b");
   });
 });
 

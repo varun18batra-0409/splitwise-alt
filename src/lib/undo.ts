@@ -798,17 +798,26 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     await markUndone(tx, mark);
     // The "is this person used anywhere" check again, inside the write: a deposit, goal entry, game or bill added since must not be orphaned.
     for (const m of members) if (await memberInUse(tx, groupId, m.id)) throw new MemberInUse(m.name);
+    // A name a guest holds (claimed, no account) is never deleted: it is marked removed instead (the same mark "Remove person" leaves), so
+    // the same phone can't walk back in through the link. Its epoch goes up and its notification rows go.
+    const held = members.filter((m) => !m.accountId && m.claimedAt);
+    const gone = members.filter((m) => !held.includes(m));
+    for (const m of held) {
+      const w = await tx.member.updateMany({ where: { id: m.id, groupId, accountId: null, removedAt: null }, data: { leftAt: m.leftAt ?? new Date(), removedAt: new Date(), removedById: actorId, grantEpoch: { increment: 1 } } });
+      if (w.count === 1) await tx.pushSubscription.deleteMany({ where: { memberId: m.id } });
+      else if (!(await tx.member.count({ where: { id: m.id, groupId, removedAt: { not: null } } }))) throw new MembersMoved(); // already removed is fine; changed some other way is not
+    }
     // The "account holder who left or was removed" check again, inside the write: a leave racing this undo can't get the row deleted.
-    const del = await tx.member.deleteMany({ where: { id: { in: members.map((m) => m.id) }, groupId, OR: [{ accountId: null }, { leftAt: null, removedAt: null }] } });
-    if (del.count !== members.length) throw new MembersMoved();
+    const del = gone.length ? await tx.member.deleteMany({ where: { id: { in: gone.map((m) => m.id) }, groupId, OR: [{ accountId: null }, { leftAt: null, removedAt: null }] } }) : { count: 0 };
+    if (del.count !== gone.length) throw new MembersMoved();
     return logEvent(tx, {
       groupId,
       actorId,
       kind: "members_removed",
       text: `removed ${members.map((m) => m.name).join(", ")}${undoing ? " (undo)" : " from the group"}`,
-      undo: {
+      undo: gone.length === 0 ? undefined : {
         type: "members_restore",
-        members: members.map((m) => ({
+        members: gone.map((m) => ({
           id: m.id,
           name: m.name,
           phone: m.phone,

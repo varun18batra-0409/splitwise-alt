@@ -6,16 +6,16 @@ import { isPending } from "./membership";
 // group, change its currency or remove other people; everything else stays
 // open to everyone.
 
-// addedBy / seenAt are optional so callers that don't have them (older code, tests) still work;
+// addedBy / seenAt are optional so callers that don't have them (older code, tests) still work; accountId is not (see pickAdmin).
 // someone added by another person who has never opened the group can't look after it.
-export type AdminCandidate = { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId?: string | null };
+export type AdminCandidate = { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId: string | null };
 
 const pending = (m: AdminCandidate) => isPending({ addedBy: m.addedBy ?? "", seenAt: m.seenAt ?? null });
 
 // `members` in the order they were added (createdAt, then id).
 // Someone who joined without an account (a guest) can't look after the group while anyone with an account is still here: the
 // powers (removing people, new links, freeing names) need a sign-in so everyone can see who did what. Only with nobody with an
-// account left does today's rule apply. A caller that doesn't pass accountId (undefined) is treated as having one.
+// account left does today's rule apply. accountId is required (not optional) so a caller that forgets to load it fails to compile rather than silently using the old rule.
 export function pickAdmin<T extends AdminCandidate>(members: T[]): T | undefined {
   const here = members.filter((m) => !pending(m) && !m.leftAt);
   const signedIn = here.filter((m) => m.accountId !== null);

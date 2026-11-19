@@ -586,10 +586,10 @@ describe("10b. MB-4 is not a trap: whoever looks after the group can run a game 
     expect(await adjustGap(gameId, A, { mode: "spread" })).toEqual({ ok: false, error: "Only the host can fix the difference" + SOON });
     expect(await removeMove(line.id, A)).toEqual({ ok: false, error: "Only whoever added it, or the host, can take it back" + SOON });
     expect(await db.potMove.count({ where: { gameId, deletedAt: null } })).toBe(3);
-    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(1) }, [{ id: A, claimedAt: null, leftAt: null }, { id: R, claimedAt: null, leftAt: null }], A)).toBe(false);
-    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(25) }, [{ id: A, claimedAt: null, leftAt: null }, { id: R, claimedAt: null, leftAt: null }], A)).toBe(true);
-    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(1) }, [{ id: A, claimedAt: null, leftAt: null }, { id: R, claimedAt: null, leftAt: new Date() }], A)).toBe(true); // host gone
-    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(1) }, [{ id: A, claimedAt: null, leftAt: null }, { id: R, claimedAt: null, leftAt: null }], R)).toBe(true); // the host always
+    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(1) }, [{ id: A, claimedAt: null, leftAt: null, accountId: "acct" }, { id: R, claimedAt: null, leftAt: null, accountId: "acct" }], A)).toBe(false);
+    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(25) }, [{ id: A, claimedAt: null, leftAt: null, accountId: "acct" }, { id: R, claimedAt: null, leftAt: null, accountId: "acct" }], A)).toBe(true);
+    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(1) }, [{ id: A, claimedAt: null, leftAt: null, accountId: "acct" }, { id: R, claimedAt: null, leftAt: new Date(), accountId: "acct" }], A)).toBe(true); // host gone
+    expect(canRunGame({ hostId: R, lastActivityAt: hoursAgo(1) }, [{ id: A, claimedAt: null, leftAt: null, accountId: "acct" }, { id: R, claimedAt: null, leftAt: null, accountId: "acct" }], R)).toBe(true); // the host always
   });
 
   it("taking back a line someone else recorded writes an Activity line; taking back your own does not", async () => {

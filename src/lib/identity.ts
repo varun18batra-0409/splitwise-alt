@@ -256,7 +256,7 @@ async function linkConfirmed(accountId: string, entries: { id: string; epoch: nu
   const acc = await db.account.findUnique({ where: { id: accountId }, select: { email: true } });
   for (const e of entries) {
     if (!ok.has(e.id)) continue;
-    const row = await db.member.findUnique({ where: { id: e.id }, select: { groupId: true } });
+    const row = await db.member.findUnique({ where: { id: e.id }, select: { groupId: true, claimedAt: true } });
     if (row) {
       // This account already has a row in that group (it was removed from it, or joined it another way): linking would leave two
       // rows on one account, or bring a removed person back. The guest name stays a guest name on this phone, and is reported as skipped.
@@ -271,7 +271,8 @@ async function linkConfirmed(accountId: string, entries: { id: string; epoch: nu
     if (r.count === 1) {
       nowLinked.push(e.id);
       // Moments added as a guest carry no account yet: they become the account's, so "delete my own" and postcards keep working.
-      await db.moment.updateMany({ where: { authorId: e.id, authorAccountId: "" }, data: { authorAccountId: accountId } });
+      // Only the ones this holder added: since they took the name (a name freed and taken again keeps the earlier holder's moments out).
+      if (row?.claimedAt) await db.moment.updateMany({ where: { authorId: e.id, authorAccountId: "", createdAt: { gte: row.claimedAt } }, data: { authorAccountId: accountId } });
     }
   }
   return nowLinked;

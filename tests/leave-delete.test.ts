@@ -51,7 +51,7 @@ describe("what stays and what goes", () => {
 });
 
 describe("who can bring a deleted group back", () => {
-  const m = (id: string, extra: { claimedAt?: Date; leftAt?: Date } = {}) => ({ id, claimedAt: extra.claimedAt ?? null, leftAt: extra.leftAt ?? null, addedBy: "", seenAt: null });
+  const m = (id: string, extra: { claimedAt?: Date; leftAt?: Date } = {}) => ({ id, claimedAt: extra.claimedAt ?? null, leftAt: extra.leftAt ?? null, addedBy: "", seenAt: null, accountId: "acct" as string | null });
   const members = [m("asha", { claimedAt: new Date() }), m("ravi", { claimedAt: new Date() }), m("sam", { claimedAt: new Date() })];
 
   it("the person who deleted it, or whoever looks after the group", () => {

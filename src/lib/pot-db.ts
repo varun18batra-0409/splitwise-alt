@@ -97,7 +97,7 @@ async function groupFor(groupId: string, actorId: string) {
 // lastActivityAt: the latest of the newest chip line (made or taken back) and the game's own start or finish (see lastActivity).
 // A game with no activity time is treated as active.
 export const GAME_QUIET_MS = 24 * 60 * 60 * 1000;
-export function canRunGame(game: { hostId: string; lastActivityAt?: Date | null }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId?: string | null }[], actorId: string, now = new Date()): boolean {
+export function canRunGame(game: { hostId: string; lastActivityAt?: Date | null }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId: string | null }[], actorId: string, now = new Date()): boolean {
   if (game.hostId === actorId) return true;
   if (pickAdmin(members)?.id !== actorId) return false;
   const host = members.find((m) => m.id === game.hostId);

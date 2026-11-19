@@ -39,6 +39,11 @@ const { pickAdmin, groupAdminId, isGroupAdmin } = await import("@/lib/group-admi
 const { encodeSession, today } = await import("@/lib/session");
 const { GUEST_REFUSAL } = await import("@/lib/guest-words");
 const { eraseGroups } = await import("@/lib/purge");
+const { undoEvent } = await import("@/lib/undo");
+const { saveMoment } = await import("@/lib/moments-db");
+const { canDeleteMoment, canUseMomentOnPostcard, loadMomentViewer } = await import("@/lib/moments-access");
+const { signInAs, parseConfirmed } = await import("@/lib/identity");
+const pause = () => new Promise((r) => setTimeout(r, 15));
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 process.env.MAIL_OUTBOX = "1";
@@ -80,7 +85,7 @@ async function go(fn: (fd: FormData) => Promise<void>, fields: Record<string, st
 // ---------------------------------------------------------------------------------------------------------------
 describe("M2: who looks after the group prefers someone with an account", () => {
   const d = new Date(2026, 0, 1);
-  it("pickAdmin: the earliest joined member WITH an account; guests only if nobody with an account is left; rows that don't say count as having one", () => {
+  it("pickAdmin: the earliest joined member WITH an account; guests only if nobody with an account is left", () => {
     const rows = [
       { id: "cy", claimedAt: d, leftAt: d, accountId: "a1" }, // started it, left
       { id: "gus", claimedAt: d, leftAt: null, accountId: null }, // next to join, a guest
@@ -88,7 +93,8 @@ describe("M2: who looks after the group prefers someone with an account", () => 
     ];
     expect(pickAdmin(rows)?.id).toBe("ana");
     expect(pickAdmin(rows.filter((r) => r.id !== "ana"))?.id).toBe("gus"); // nobody with an account is left: today's rule
-    expect(pickAdmin([{ id: "x", claimedAt: d, leftAt: null }, { id: "y", claimedAt: d, leftAt: null, accountId: null }])?.id).toBe("x"); // no accountId given: as before
+    expect(pickAdmin([{ id: "x", claimedAt: d, leftAt: null, accountId: "a1" }, { id: "y", claimedAt: d, leftAt: null, accountId: null }])?.id).toBe("x"); // an account first, whatever the order
+    expect(pickAdmin([{ id: "y", claimedAt: d, leftAt: null, accountId: null }, { id: "x", claimedAt: d, leftAt: null, accountId: "a1" }])?.id).toBe("x");
     expect(pickAdmin([{ id: "g1", claimedAt: null, leftAt: null, accountId: null }, { id: "g2", claimedAt: d, leftAt: null, accountId: null }])?.id).toBe("g2"); // today's claimed-first rule among guests
   });
 
@@ -131,6 +137,12 @@ describe("M2: who looks after the group prefers someone with an account", () => 
     await db.member.update({ where: { id: id("Ana") }, data: { leftAt: new Date() } });
     expect(await groupAdminId(g.id)).toBe(id("Gus"));
     expect(await join.releaseGuestName(g.id, id("Gus"), id("Gus"))).toMatchObject({ ok: true }); // his own name: always his
+  });
+
+  it("accountId is a required field of what pickAdmin takes, so a caller that forgets it fails to compile", () => {
+    expect(readFileSync("src/lib/group-admin.ts", "utf8")).toContain("seenAt?: Date | null; accountId: string | null };");
+    expect(readFileSync("src/lib/group-admin.ts", "utf8")).not.toContain("accountId?:");
+    expect(readFileSync("src/lib/pot-db.ts", "utf8")).not.toContain("accountId?:");
   });
 
   it("every place that picks the person who looks after a group passes accountId (the People, Settings, Invite, Move, Pot, Restore and Moments lookups)", () => {
@@ -282,5 +294,113 @@ describe("L1: a signed-out visitor never reads a full name on the join page", ()
   });
   it("the list of names for a signed-out visitor leaves out every name that was ever invited by email, closed or not", () => {
     expect(src).toContain("invitedNameRows(group.id, { forGuest: !account })");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+describe("undoing a join (or an add) of a name a guest holds marks it removed instead of deleting it", () => {
+  it("the real undo path: the admin undoes Ben's 'joined the group'; the row stays, marked removed; the same phone is refused on both ways in", async () => {
+    const varun = await account("Varun");
+    const g = await db.group.create({
+      data: { name: `U1 ${++n} ${stamp}`, inviteCode: `u1-${n}-${stamp}`, members: { create: [{ name: "Varun", accountId: varun.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) }, { name: "Ravi", createdAt: new Date(2026, 0, 2) }] } },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const ravi = g.members.find((m) => m.name === "Ravi")!.id;
+    const V = g.members.find((m) => m.name === "Varun")!.id;
+    const r = (await join.joinNewAsGuest(g.inviteCode, "Ben")) as { memberId: string };
+    const line = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, actorId: r.memberId, text: "joined the group" } });
+    const epoch = (await db.member.findUniqueOrThrow({ where: { id: r.memberId } })).grantEpoch;
+    await db.pushSubscription.create({ data: { memberId: r.memberId, endpoint: `https://push.test/${stamp}-${++n}`, p256dh: "k", auth: "a" } });
+
+    expect((await undoEvent(line.id, V)).ok).toBe(true);
+    const row = await db.member.findUniqueOrThrow({ where: { id: r.memberId } }); // still there
+    expect(row.removedAt).not.toBeNull();
+    expect(row.leftAt).not.toBeNull();
+    expect(row.removedById).toBe(V);
+    expect(row.grantEpoch).toBe(epoch + 1);
+    expect(await db.pushSubscription.count({ where: { memberId: r.memberId } })).toBe(0);
+    expect(await db.groupEvent.count({ where: { groupId: g.id, kind: "members_removed" } })).toBe(1);
+
+    // The same phone (it still holds the name) is refused as a new name and on "That's me".
+    expect(await join.joinNewAsGuest(g.inviteCode, "Ben", r.memberId)).toMatchObject({ ok: false, reason: "removed", adminName: "Varun" });
+    expect(await join.joinExistingAsGuest(g.inviteCode, ravi, r.memberId)).toMatchObject({ ok: false, reason: "removed" });
+    expect((await db.member.findUniqueOrThrow({ where: { id: ravi } })).claimedAt).toBeNull();
+  });
+
+  it("a name nobody holds (added by an admin, never claimed) is still deleted by the undo, as before", async () => {
+    const varun = await account("Varun");
+    const g = await db.group.create({
+      data: { name: `U2 ${++n} ${stamp}`, inviteCode: `u2-${n}-${stamp}`, members: { create: [{ name: "Varun", accountId: varun.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) }, { name: "Ravi", createdAt: new Date(2026, 0, 2) }] } },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const ravi = g.members.find((m) => m.name === "Ravi")!.id;
+    const { removeMembers } = await import("@/lib/undo");
+    expect((await removeMembers(g.id, g.members.find((m) => m.name === "Varun")!.id, [ravi])).ok).toBe(true);
+    expect(await db.member.count({ where: { id: ravi } })).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+describe("L9: a freed name does not hand the earlier holder's moments to whoever takes it next", () => {
+  const photo = (groupId: string, memberId: string) => ({
+    groupId, memberId, accountId: null as string | null, caption: "", takenOn: "", type: "image/webp", width: 1, height: 1, blobKey: "", thumbKey: "", data: new Uint8Array(3) as Uint8Array<ArrayBuffer>, thumbData: new Uint8Array(3) as Uint8Array<ArrayBuffer>,
+  });
+  it("Ben adds a moment; Varun frees the name; Cat takes it: she cannot delete Ben's moment, can delete her own, and after she signs in only hers is hers (postcards included)", async () => {
+    const varun = await account("Varun");
+    const g = await db.group.create({
+      data: { name: `L9 ${++n} ${stamp}`, inviteCode: `l9-${n}-${stamp}`, type: "trip", tripStart: "2026-03-10", tripEnd: "2026-03-14", members: { create: [{ name: "Varun", accountId: varun.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) }] } },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const V = g.members[0].id;
+    const ben = (await join.joinNewAsGuest(g.inviteCode, "Ben")) as { memberId: string };
+    await pause();
+    expect((await saveMoment(photo(g.id, ben.memberId))).ok).toBe(true);
+    const old = await db.moment.findFirstOrThrow({ where: { authorId: ben.memberId } });
+    const factsOf = (m: { groupId: string; authorId: string; authorAccountId: string; createdAt: Date }) => ({ groupId: m.groupId, authorId: m.authorId, authorAccountId: m.authorAccountId, createdAt: m.createdAt });
+    // Ben can delete his own while he holds the name.
+    expect(canDeleteMoment(await loadMomentViewer(g.id, ben.memberId), factsOf(old))).toBe(true);
+
+    await pause();
+    expect((await join.releaseGuestName(g.id, V, ben.memberId)).ok).toBe(true);
+    await pause();
+    // Cat takes the freed name through "That's me".
+    expect(await join.joinExistingAsGuest(g.inviteCode, ben.memberId)).toEqual({ ok: true, memberId: ben.memberId });
+    await pause();
+    expect(canDeleteMoment(await loadMomentViewer(g.id, ben.memberId), factsOf(old))).toBe(false); // the earlier holder's moment is not hers
+    expect((await saveMoment(photo(g.id, ben.memberId))).ok).toBe(true);
+    const mine = await db.moment.findFirstOrThrow({ where: { authorId: ben.memberId, id: { not: old.id } } });
+    expect(canDeleteMoment(await loadMomentViewer(g.id, ben.memberId), factsOf(mine))).toBe(true);
+    expect(canDeleteMoment(await loadMomentViewer(g.id, V), factsOf(old))).toBe(true); // whoever looks after the group still can
+
+    // She signs in: only the moment she added becomes hers.
+    const cat = await account("Cat");
+    const epoch = (await db.member.findUniqueOrThrow({ where: { id: ben.memberId } })).grantEpoch;
+    await asGuest(g.id, ben.memberId, epoch);
+    await signInAs(cat.id, { confirmed: parseConfirmed([ben.memberId]) });
+    expect((await db.member.findUniqueOrThrow({ where: { id: ben.memberId } })).accountId).toBe(cat.id);
+    expect((await db.moment.findUniqueOrThrow({ where: { id: old.id } })).authorAccountId).toBe(""); // still the earlier holder's: no account on it
+    expect((await db.moment.findUniqueOrThrow({ where: { id: mine.id } })).authorAccountId).toBe(cat.id);
+    const catViewer = await loadMomentViewer(g.id, ben.memberId);
+    expect(canUseMomentOnPostcard(catViewer, { groupId: g.id, authorId: old.authorId, authorAccountId: "", createdAt: old.createdAt })).toBe(false);
+    expect(canUseMomentOnPostcard(catViewer, { groupId: g.id, authorId: mine.authorId, authorAccountId: cat.id, createdAt: mine.createdAt })).toBe(true);
+    expect(canDeleteMoment(catViewer, factsOf(old))).toBe(false); // an account matches by account: the old moment has none
+  });
+
+  it("a guest who never lost the name still gets every moment they added when they sign in", async () => {
+    const varun = await account("Varun");
+    const g = await db.group.create({
+      data: { name: `L9b ${++n} ${stamp}`, inviteCode: `l9b-${n}-${stamp}`, type: "trip", tripStart: "2026-03-10", tripEnd: "2026-03-14", members: { create: [{ name: "Varun", accountId: varun.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) }] } },
+    });
+    groupIds.push(g.id);
+    const ben = (await join.joinNewAsGuest(g.inviteCode, "Ben")) as { memberId: string };
+    await pause();
+    expect((await saveMoment(photo(g.id, ben.memberId))).ok).toBe(true);
+    const bea = await account("Bea");
+    await asGuest(g.id, ben.memberId, 0);
+    await signInAs(bea.id, { confirmed: parseConfirmed([ben.memberId]) });
+    expect((await db.moment.findFirstOrThrow({ where: { authorId: ben.memberId } })).authorAccountId).toBe(bea.id);
   });
 });

@@ -24,6 +24,7 @@ export type MomentViewer = {
   removedAt: Date | null; // taken out by the person who looks after the group
   pending: boolean; // added by someone, never opened the group
   isAdmin: boolean; // looks after the group (pickAdmin)
+  claimedAt?: Date | null; // when this person took their name (a guest's moments before that were someone else's: the name was freed and taken again)
   blocked: ReadonlySet<string>; // accounts with a block between them and this person, either way
 };
 
@@ -59,7 +60,9 @@ export function canReactToMoment(v: MomentViewer | null, m: MomentFacts): boolea
 // The author (while they can still see it, even after leaving), or whoever looks after the group (while they are in it).
 export function canDeleteMoment(v: MomentViewer | null, m: MomentFacts): boolean {
   if (!v || v.groupId !== m.groupId || v.groupDeleted || v.pending || v.removedAt) return false;
-  const mine = v.accountId !== null ? m.authorAccountId === v.accountId : m.authorId === v.memberId;
+  // A guest's own moments are the ones added since THEY took the name: a name that was freed and taken again does not hand over what the
+  // earlier holder added (no claimedAt known = not theirs). An account matches by account, as always.
+  const mine = v.accountId !== null ? m.authorAccountId === v.accountId : m.authorId === v.memberId && Boolean(v.claimedAt) && m.createdAt.getTime() >= v.claimedAt!.getTime();
   if (mine && canSeeMoment(v, m)) return true;
   return v.isAdmin && v.accountId !== null && current(v); // looking after the group needs an account (a guest can't remove others' moments)
 }
@@ -82,7 +85,7 @@ export async function loadMomentViewer(groupId: string, memberId?: string): Prom
   if (!myId) return null;
   const m = await db.member.findFirst({
     where: { id: myId, groupId },
-    select: { id: true, accountId: true, leftAt: true, removedAt: true, addedBy: true, seenAt: true, group: { select: { type: true, deletedAt: true } } },
+    select: { id: true, accountId: true, claimedAt: true, leftAt: true, removedAt: true, addedBy: true, seenAt: true, group: { select: { type: true, deletedAt: true } } },
   });
   if (!m) return null;
   const isCurrent = !m.leftAt && !m.removedAt && !m.group.deletedAt;
@@ -96,6 +99,7 @@ export async function loadMomentViewer(groupId: string, memberId?: string): Prom
     removedAt: m.removedAt ?? null,
     pending: isPending({ addedBy: m.addedBy, seenAt: m.seenAt }),
     isAdmin: isCurrent && (await groupAdminId(groupId)) === m.id,
+    claimedAt: m.claimedAt,
     blocked: m.accountId ? await blockedEitherWay(m.accountId) : new Set<string>(),
   };
 }
