@@ -7,18 +7,18 @@ import { settleHeadline } from "@/lib/settle-ui";
 import { foreignPartLine } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
-import type { GroupView } from "./view";
+import type { BalancesData, LiteView } from "./view";
 import { WhyPanel } from "./WhyPanel";
 import { funTitles } from "@/lib/wrapped";
 import { peopleShown } from "@/lib/left-view";
-import { explainAll } from "@/lib/explain";
 
 // Balances answers one question: who owes what, and why.
 // Paying (Mark paid, Part, Remind, Settle everything) lives on Settle up,
 // so it's in one place only. The group's details (other currencies, totals,
 // card fee) sit here rather than crowding the top of the group.
-export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; why?: string }) {
-  const { group, myId, net, transfers, nameOf, money, expenses, payments, ledgers, hasMarkup, signed, eq, spent } = v;
+// `data`: the totals and rows it draws (see view.ts): worked out from every expense, or from the database's one statement. Same numbers either way.
+export function BalancesTab({ v, data, paid, why }: { v: LiteView; data: BalancesData; paid?: boolean; why?: string }) {
+  const { group, myId, net, transfers, nameOf, money, payments, ledgers, hasMarkup, eq, spent } = v;
   const mine = net[myId] ?? 0;
   // Head count as the viewer knows the group: a leaver counts themselves and the people there on the day they left, not later joiners.
   const people = peopleShown(group.members, myId, v.leaver?.leftAt);
@@ -27,10 +27,10 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
   // The "By person" lines: if any has paise, every line keeps its two decimals so they line up.
   const listFmt = listMoney(group.members.map((m) => Math.abs(net[m.id] ?? 0)), group.currency);
   const words = settleHeadline({ leaver: Boolean(leaver) });
-  const titles = group.type === "pot" || leaver ? [] : funTitles(expenses, people.map((m) => m.id), v.tz, group.currency);
+  const titles = group.type === "pot" || leaver ? [] : funTitles(data.titleExpenses, people.map((m) => m.id), v.tz, group.currency);
 
-  // Everyone's "Why?" totals in one pass; only the open one gets its item list.
-  const whyTotals = explainAll(group.members.map((m) => m.id), expenses, payments);
+  // Everyone's "Why?" totals (in data); only the open one gets its item list.
+  const whyTotals = data.whyTotals;
 
   return (
     <div className="space-y-10">
@@ -41,7 +41,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           <SquareSeal size={56} className="mx-auto" />
           <p className="mt-3 font-display text-xl font-semibold">{words.headline}</p>
           <p className="mt-1 text-sm text-gray-500">{leaver ? words.line : "Nobody owes anybody in this group."}</p>
-          {expenses.length > 0 && (
+          {data.count > 0 && (
             <Link href={`/groups/${group.id}/square`} className="mt-4 inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg">
               Share the moment
             </Link>
@@ -108,7 +108,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                         <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
                       </Link>
                     )}
-                    <WhyPanel v={v} memberId={m.id} open={why === m.id} summary={whyTotals[m.id]} />
+                    <WhyPanel v={v} memberId={m.id} open={why === m.id} summary={whyTotals[m.id]} rows={data.whyRows} />
                     {theirs.length === 0 ? (
                       <p className="text-sm text-gray-500">Nothing due between {m.id === myId ? "you" : m.name} and anyone.</p>
                     ) : (
@@ -167,7 +167,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       <section className="space-y-1 text-sm text-gray-500">
         <p>
           <span className="whitespace-nowrap tabular-nums" title={money(spent)} data-exact={money(spent)}>{money(spent)}</span>
-          {eq(spent) && ` (${eq(spent)})`} spent across {expenses.length} {expenses.length === 1 ? "expense" : "expenses"} by {people.length}{" "}
+          {eq(spent) && ` (${eq(spent)})`} spent across {data.count} {data.count === 1 ? "expense" : "expenses"} by {people.length}{" "}
           {people.length === 1 ? "person" : "people"}.
         </p>
         <p className="text-xs text-gray-400">

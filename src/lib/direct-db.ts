@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { db } from "./db";
+import { groupBasics } from "./group-basics";
 import { allow } from "./rate-limit";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
@@ -163,7 +164,7 @@ export async function prepareDirectSave(groupId: string, myId: string, currency:
 // For pages a pair must not show: one small read, then the person's page instead (see redirectIfDirect).
 // Messages in the address were signed for the screen they arrived on (`fromPath`), so they are signed again for the person's page.
 export async function bounceIfDirect(groupId: string, query: Record<string, string | string[] | undefined> = {}, fromPath = `/groups/${groupId}`): Promise<void> {
-  const g = await db.group.findUnique({ where: { id: groupId }, select: { id: true, type: true } });
+  const g = await groupBasics(groupId);
   if (!g || !isDirect(g)) return;
   const signed = await readSignedNotes(query, fromPath);
   const rest: Record<string, string> = {};

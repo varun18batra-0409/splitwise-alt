@@ -5,10 +5,10 @@ import { setGroupClosed } from "@/app/actions";
 import { exactMoney } from "@/lib/money-display";
 import { leaverMoneyLine, settleHeadline } from "@/lib/settle-ui";
 import type { GroupFacts } from "@/lib/home/money-card";
-import type { GroupView } from "./view";
+import type { LiteView } from "./view";
 
 // The closed banner: on every tab of a group that was closed.
-export function ClosedBanner({ v }: { v: GroupView }) {
+export function ClosedBanner({ v }: { v: LiteView }) {
   const { group, expenses } = v;
   if (!group.closed) return null;
   return (
@@ -39,7 +39,7 @@ export function ClosedBanner({ v }: { v: GroupView }) {
 // one rounded card with "You're owed" (or "You owe" / "Your balance"), the exact amount in green or orange, ONE cream Settle up on the
 // right, and one plain line under it: who owes whom and how many payments clear everything, with "Why?". No boarding pass here.
 // The amount is exact, paise included: the same figure Settle up and the People tab show. Nothing is worked out here.
-export function MoneyTicket({ v, facts: _facts }: { v: GroupView; facts?: GroupFacts }) {
+export function MoneyTicket({ v, facts: _facts }: { v: LiteView; facts?: GroupFacts }) {
   const { group, myId, net, expenses, money } = v;
   const mine = net[myId] ?? 0;
   const hasHistory = expenses.length > 0 || v.payments.length > 0;
@@ -78,7 +78,7 @@ export function MoneyTicket({ v, facts: _facts }: { v: GroupView; facts?: GroupF
 }
 
 // One plain line under the balance: who owes you (or whom you owe), and how many payments clear it all.
-function summaryLine(v: GroupView): string {
+function summaryLine(v: LiteView): string {
   const { myId, transfers, nameOf } = v;
   const first = (id: string) => nameOf(id).trim().split(/\s+/)[0];
   const list = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);

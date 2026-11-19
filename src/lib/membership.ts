@@ -38,7 +38,11 @@ export const PAY_LINK_MARK = "(from the reminder link)";
 export const SELF_ACTION_KINDS = ["expense_added", "payment_recorded", "payment_confirmed", "group_settled_closed", "pot_started", "pot_finished", "pot_reopened"];
 
 export async function confirmUsedPending(accountId: string): Promise<string[]> {
-  const pending = await db.member.findMany({ where: { accountId, addedBy: { not: "" }, seenAt: null }, select: { id: true, groupId: true } });
+  return confirmUsedAmong(await db.member.findMany({ where: { accountId, addedBy: { not: "" }, seenAt: null }, select: { id: true, groupId: true } }));
+}
+
+// The same check for pending rows the caller already has (it read the account's rows once and picked out the pending ones).
+export async function confirmUsedAmong(pending: { id: string; groupId: string }[]): Promise<string[]> {
   if (!pending.length) return [];
   const ids = pending.map((p) => p.id);
   const did = await db.groupEvent.findMany({

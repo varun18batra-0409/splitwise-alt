@@ -5,7 +5,7 @@ import { parseDetails } from "@/lib/events";
 import { COPY_DAYS } from "@/lib/left-view";
 import { LEAVER_BLOCKED_TEXT, type CanUndo } from "@/lib/undo";
 import { undoChange } from "@/app/actions";
-import type { GroupView } from "./view";
+import type { LiteView } from "./view";
 
 // The person's own move-out (from ownMoveOut in undo.ts): the line, and whether the server would let them undo it now.
 export type OwnMoveOut = { event: { id: string }; check: CanUndo };
@@ -35,7 +35,7 @@ export function UndoMoveOutButton({ groupId, eventId, back }: { groupId: string;
 
 // What someone who left (or was removed) sees at the top of the group: the day it stopped, and what
 // has moved their own share since. The rest of the page is the group as it was up to that day.
-export function LeftBanner({ v, ownMoveOut = null }: { v: GroupView; ownMoveOut?: OwnMoveOut | null }) {
+export function LeftBanner({ v, ownMoveOut = null }: { v: LiteView; ownMoveOut?: OwnMoveOut | null }) {
   const { leaver, tz } = v;
   if (!leaver) return null;
   const day = niceDate(dayKey(leaver.leftAt, tz));
@@ -62,7 +62,7 @@ export function LeftBanner({ v, ownMoveOut = null }: { v: GroupView; ownMoveOut?
 }
 
 // On Activity: first what moved their share after they left, then the group up to that day.
-export function LeftSections({ v }: { v: GroupView }) {
+export function LeftSections({ v }: { v: LiteView }) {
   const { leaver, group, tz } = v;
   if (!leaver) return null;
   const day = niceDate(dayKey(leaver.leftAt, tz));
@@ -98,7 +98,7 @@ export function LeftSections({ v }: { v: GroupView }) {
 }
 
 // The note under the group for someone who left.
-export function LeftFootnote({ v }: { v: GroupView }) {
+export function LeftFootnote({ v }: { v: LiteView }) {
   const { leaver, group } = v;
   if (!leaver) return null;
   const canDownload = Date.now() - leaver.leftAt.getTime() <= COPY_DAYS * 86_400_000;

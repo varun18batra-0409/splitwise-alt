@@ -7,14 +7,14 @@ import { googleConfigured } from "@/lib/google";
 import { invitationFor } from "@/lib/invitations";
 import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
-import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
+import { eventsFrom, loadBalancesSummary, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
 import { receiptsFor } from "@/lib/receipts-db";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { canUndo, originAtDb, ownMoveOut } from "@/lib/undo";
 import { passportZone } from "@/lib/passport";
 import { UndoBar } from "@/components/UndoBar";
-import { buildGroupView, type GroupEvent } from "./_components/view";
+import { balancesDataFull, balancesDataSummary, buildGroupView, buildSummaryView, type GroupEvent, type LiteView } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
 import { ClosedBanner, MoneyTicket } from "./_components/GroupSummary";
@@ -107,26 +107,41 @@ export default async function GroupPage({
   // Only Expenses shows the history (up to 500 rows); every other tab skips it. An Undo bar loads just what it needs below.
   const raw = (sp.tab ?? "").toLowerCase();
   const noHistory = raw !== "activity" && raw !== "expenses";
-  const [data, tz, switchTo, account] = await Promise.all([loadGroupView(id, noHistory ? { viewer: myId, events: false } : { viewer: myId }), getTimeZone(), loadSwitchList(memberships, id), getAccount()]);
+  // People (the Balances tab): for someone still in the group the database adds the balances up and no share is loaded (loadBalancesSummary).
+  // It says "use the full method" (null) for a card night, someone who left, or anything odd in the numbers; then it is loaded as before.
+  const wantsSummary = raw === "balances" || raw === "people";
+  const [summary, firstFull, tz, switchTo, account] = await Promise.all([
+    wantsSummary ? loadBalancesSummary(id, myId, { why: sp.why }) : Promise.resolve(null),
+    wantsSummary ? Promise.resolve(null) : loadGroupView(id, noHistory ? { viewer: myId, events: false } : { viewer: myId }),
+    getTimeZone(),
+    loadSwitchList(memberships, id),
+    getAccount(),
+  ]);
+  const full = summary ? null : wantsSummary ? await loadGroupView(id, { viewer: myId, events: false }) : firstFull;
+  const data = summary ?? full;
   if (!data) notFound();
   // Still in it? (A removed person's phone can remember the group.)
   if (!data.group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
-  const v = await buildGroupView(data, myId, tz);
+  // Which tab opens (the loaded group already says its type and whether you left), so the view below only reads what that tab shows.
+  const leaver = data.leaver;
+  // A group that isn't a trip shows Memories only once you have a postcard in it.
+  const hasPostcards = data.group.type !== "trip" && !leaver?.removed && account ? (await db.postcard.count({ where: { groupId: data.group.id, OR: [{ fromId: account.id }, { toId: account.id }] } })) > 0 : false;
+  const tabs = groupTabs({ type: data.group.type, leaver: leaver ? { removed: Boolean(leaver.removed) } : null, hasPostcards });
+  const tab: TabId = resolveTab(sp.tab, tabs, { type: data.group.type, leaver: leaver ? { removed: Boolean(leaver.removed) } : null });
+  // `fv`: the full view (every screen but the summary Balances). `v`: what the parts every tab shares read (a full view is one too).
+  const fv = full ? await buildGroupView(full, myId, tz, { moveOuts: tab === "activity" || tab === "overview" }) : null;
+  const v: LiteView = fv ?? (await buildSummaryView(summary!, myId, tz));
   const { group } = v;
   const guestHere = group.members.find((m) => m.id === myId)?.accountId === null; // my row here has no account
   // Someone who left (or was removed) sees Overview (their own money), Expenses and People, and Memories read-only (not if removed).
-  const leaver = v.leaver;
   const home = !leaver && (group.type === "home" || group.type === "couple");
   const pot = !leaver && group.type === "pot";
-  // A group that isn't a trip shows Memories only once you have a postcard in it.
-  const hasPostcards = group.type !== "trip" && !leaver?.removed && account ? (await db.postcard.count({ where: { groupId: group.id, OR: [{ fromId: account.id }, { toId: account.id }] } })) > 0 : false;
-  const tabs = groupTabs({ type: group.type, leaver: leaver ? { removed: Boolean(leaver.removed) } : null, hasPostcards });
-  const tab: TabId = resolveTab(sp.tab, tabs, { type: group.type, leaver: leaver ? { removed: Boolean(leaver.removed) } : null });
 
   // Home & Couple: everything This month / Bills / List need, fetched together.
   const monthTab = home && tab === "month";
-  const active = group.expenses.filter((e) => !e.deletedAt);
+  const active = fv ? fv.group.expenses.filter((e) => !e.deletedAt) : [];
+  const activeCount = fv ? active.length : v.expenses.length; // (the summary's slim list holds only the ones that count)
   const [bills, budgets, depositShares, heads, goalRows, list, games, shopRows] = await Promise.all([
     home && (tab === "month" || tab === "bills") ? billStatuses(group.id) : Promise.resolve<Awaited<ReturnType<typeof billStatuses>>>([]),
     monthTab ? budgetsNow(group.id, active, myId, v.tz) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
@@ -198,7 +213,8 @@ export default async function GroupPage({
   const ownMove = leaver && !leaver.removed ? await ownMoveOut(group.id, v.undoViewer, new Date()) : null;
 
   // "Our moments" (trip groups only): the small strip on Overview, and the whole list on Memories, as far as this person may see them.
-  const momentViewer = group.type === "trip" ? await loadMomentViewer(group.id, myId) : null;
+  // (Only Overview and Memories use it, so the other tabs skip its three reads.)
+  const momentViewer = group.type === "trip" && (tab === "overview" || tab === "memories") ? await loadMomentViewer(group.id, myId) : null;
   const strip = momentViewer && tab === "overview" ? { ...(await momentStrip(momentViewer)), canAdd: canAddMoment(momentViewer) } : null;
   const memories =
     tab === "memories"
@@ -209,6 +225,8 @@ export default async function GroupPage({
           return { cards, postcards, stamp };
         })()
       : null;
+  // The Balances tab's totals: from the database's one statement, or worked out from every expense (the full method).
+  const balances = tab === "balances" ? (summary ? balancesDataSummary(summary) : fv ? balancesDataFull(fv) : null) : null;
   // What has built up since the group's last payment: the pass's Since and Items fields (worked out from the rows already loaded).
   const facts = tab === "overview" || pot ? sinceLastPayment(group.expenses, group.payments, (d) => dayKey(d, v.tz)) : { since: null, items: 0 };
 
@@ -256,9 +274,9 @@ export default async function GroupPage({
       )}
 
       {tab === "activity" && <LeftSections v={v} />}
-      {tab === "activity" && (
+      {tab === "activity" && fv && (
         <ActivityTab
-          v={v}
+          v={fv}
           filter={{
             q: sp.q?.slice(0, 80),
             cat: sp.cat,
@@ -280,30 +298,30 @@ export default async function GroupPage({
           signin={guestHere ? { groups: await guestGroupsOnPhone(), google: googleConfigured(), back: `/groups/${group.id}?tab=activity` } : undefined}
         />
       )}
-      {tab === "overview" && <OverviewTab v={v} facts={facts} strip={strip} />}
-      {tab === "month" && (
+      {tab === "overview" && fv && <OverviewTab v={fv} facts={facts} strip={strip} />}
+      {tab === "month" && fv && (
         <>
-          <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />
+          <ThisMonthTab v={fv} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />
           <div className="mt-6">
             <GroupFooter groupId={group.id} type={group.type} settings={false} />
           </div>
         </>
       )}
-      {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} forecast={heads?.forecast ?? null} />}
-      {tab === "list" && list && (
-        <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
+      {tab === "bills" && fv && <BillsTab v={fv} bills={bills} saved={sp.saved === "bill"} forecast={heads?.forecast ?? null} />}
+      {tab === "list" && list && fv && (
+        <ListTab v={fv} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
       )}
-      {tab === "games" && <GamesTab v={v} games={games} toSettle={toSettle} />}
-      {tab === "balances" && <PeopleTab v={v} paid={sp.paid === "1"} why={sp.why} canUndoMoveOut={group.type === "home" && Boolean(ownMove?.check.ok)} />}
-      {tab === "recap" && <RecapTab v={v} />}
-      {tab === "memories" && memories && (
-        <MemoriesTab v={v} cards={memories.cards} stamp={memories.stamp} postcards={memories.postcards} today={today} canAdd={canAddMoment(momentViewer)} guest={Boolean(momentViewer) && momentViewer!.accountId === null} removed={sp.removed === "1"} />
+      {tab === "games" && fv && <GamesTab v={fv} games={games} toSettle={toSettle} />}
+      {tab === "balances" && balances && <PeopleTab v={v} data={balances} paid={sp.paid === "1"} why={sp.why} canUndoMoveOut={group.type === "home" && Boolean(ownMove?.check.ok)} />}
+      {tab === "recap" && fv && <RecapTab v={fv} />}
+      {tab === "memories" && memories && fv && (
+        <MemoriesTab v={fv} cards={memories.cards} stamp={memories.stamp} postcards={memories.postcards} today={today} canAdd={canAddMoment(momentViewer)} guest={Boolean(momentViewer) && momentViewer!.accountId === null} removed={sp.removed === "1"} />
       )}
 
       <LeftFootnote v={v} />
 
       {/* A brand-new flat, couple or card night: what's special about it, once on this device. */}
-      {offersTypeSheet({ type: group.type, closed: group.closed, left: Boolean(leaver), activeCount: active.length }) && <GroupTypeSheet groupId={group.id} type={group.type} showNote={!(pot && tab === "games")} />}
+      {offersTypeSheet({ type: group.type, closed: group.closed, left: Boolean(leaver), activeCount }) && <GroupTypeSheet groupId={group.id} type={group.type} showNote={!(pot && tab === "games")} />}
 
       {showUndo && (
         <UndoBar

@@ -4,7 +4,7 @@ import { moneyLines } from "./payers";
 // "Why?" for a balance: every expense and payment that moved one person's
 // balance, and by how much. The lines always add up to their balance.
 
-type ExpenseLike = {
+export type ExpenseLike = {
   id: string;
   description: string;
   category: string;

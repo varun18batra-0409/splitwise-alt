@@ -2,7 +2,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
-import { JOINED, confirmUsedPending } from "./membership";
+import { confirmUsedAmong, isPending } from "./membership";
 import { coverFor } from "./covers";
 import { removedByEmail } from "./removal-marks";
 import { PUSH_RESYNC_COOKIE, PUSH_RESYNC_MAX_AGE } from "./push-resync";
@@ -91,12 +91,15 @@ export async function bumpGrantEpochs(tx: Pick<Prisma.TransactionClient, "member
 // cookie is signed in as that very account), and with the same epoch the cookie was written with.
 const resolveMemberships = cache(async (): Promise<{ out: Record<string, string>; linkedAway: string[] }> => {
   const s = await readSession();
-  const acc = s.a ? await readAccount() : null;
   const out: Record<string, string> = {};
   const linkedAway: string[] = [];
   const entries = Object.entries(s.m).map(([groupId, v]) => ({ groupId, ...parseGrant(v) }));
+  // The account and the names in the cookie don't depend on each other: read them side by side.
+  const [acc, rows] = await Promise.all([
+    s.a ? readAccount() : Promise.resolve(null),
+    entries.length ? db.member.findMany({ where: { id: { in: entries.map((e) => e.id) } }, select: { id: true, groupId: true, accountId: true, grantEpoch: true } }) : Promise.resolve([] as { id: string; groupId: string; accountId: string | null; grantEpoch: number }[]),
+  ]);
   if (entries.length) {
-    const rows = await db.member.findMany({ where: { id: { in: entries.map((e) => e.id) } }, select: { id: true, groupId: true, accountId: true, grantEpoch: true } });
     const byId = new Map(rows.map((r) => [r.id, r]));
     for (const e of entries) {
       const m = byId.get(e.id);
@@ -110,9 +113,11 @@ const resolveMemberships = cache(async (): Promise<{ out: Record<string, string>
   if (acc) {
     // Only groups they have really joined: someone added straight in who hasn't answered yet (Join / Not now) isn't in it.
     // (An older person who has added an expense or payment there themselves has plainly joined: they stay in, and it is remembered.)
-    await confirmUsedPending(acc.id);
-    const mine = await db.member.findMany({ where: { accountId: acc.id, ...JOINED }, select: { id: true, groupId: true } });
-    for (const m of mine) if (!out[m.groupId]) out[m.groupId] = m.id;
+    // One read of the account's rows (it used to be two: the pending ones, then the joined ones). Pending = added by someone else and never
+    // opened (isPending); the history check runs only when there is a pending row, and a row it confirms counts as joined.
+    const all = await db.member.findMany({ where: { accountId: acc.id }, select: { id: true, groupId: true, addedBy: true, seenAt: true } });
+    const used = new Set(await confirmUsedAmong(all.filter((m) => isPending(m))));
+    for (const m of all) if ((!isPending(m) || used.has(m.id)) && !out[m.groupId]) out[m.groupId] = m.id;
   }
   return { out, linkedAway: linkedAway.filter((g) => !out[g]) };
 });

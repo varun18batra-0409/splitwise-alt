@@ -18,19 +18,19 @@ import { PageHeader, primaryButtonClass, secondaryButtonClass } from "@/componen
 // nothing is written twice on this page.
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string }> }) {
   const { name: nameState, groups: renamed } = await searchParams;
-  const account = await getAccount();
-  const postcardsNew = account ? await unreadPostcards(account.id) : 0;
-  const memberships = await getMemberships();
-  const groupCount = await countMyGroups(memberships); // (only the number is shown here)
-  const deletedCount = (await loadDeletedGroups(memberships)).length;
+  // Who you are, then everything that doesn't depend on the others, all at once.
+  const [account, memberships] = await Promise.all([getAccount(), getMemberships()]);
+  const [postcardsNew, groupCount, deleted, sameNameRows] = await Promise.all([
+    account ? unreadPostcards(account.id) : Promise.resolve(0),
+    countMyGroups(memberships), // (only the number is shown here)
+    loadDeletedGroups(memberships),
+    account?.name ? db.member.findMany({ where: { accountId: account.id, leftAt: null, group: { deletedAt: null } }, select: { name: true } }) : Promise.resolve([] as { name: string }[]),
+  ]);
+  const deletedCount = deleted.length;
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
   const isAdmin = Boolean(account && admins.includes(account.email));
   // Groups where you still go by your profile name: renamed with it if you like.
-  const sameNameGroups = account?.name
-    ? (await db.member.findMany({ where: { accountId: account.id, leftAt: null, group: { deletedAt: null } }, select: { name: true } })).filter((m) =>
-        sameName(m.name, account.name),
-      ).length
-    : 0;
+  const sameNameGroups = account?.name ? sameNameRows.filter((m) => sameName(m.name, account.name)).length : 0;
   const shown = account?.name || "";
 
   return (

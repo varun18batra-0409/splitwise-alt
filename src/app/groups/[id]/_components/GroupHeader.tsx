@@ -4,7 +4,7 @@ import { GroupCover } from "@/components/GroupCover";
 import { avatarTone } from "@/components/ui";
 import { tripPhotoSrc } from "@/lib/places";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";
-import type { GroupView } from "./view";
+import type { LiteView } from "./view";
 import { countdownWords, headerTripLine, placeOf, tripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { climateFor, tripMonth, weatherWords } from "@/lib/climate";
@@ -16,7 +16,7 @@ type SwitchItem = { id: string; name: string; pic?: { kind: CoverChoice; src?: s
 // Trips and other groups (the founder's mockup 03): back, the group's name (tap to switch group), a ⋯ menu, the picture as a rounded card,
 // "6 people · Starts in 36 days", the faces and a labelled Invite pill. Flats and couples (mockup 10) keep the picture edge to edge.
 // Home, Search and Settle also live in the bottom bar.
-export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchItem[] }) {
+export function GroupHeader({ v, switchTo }: { v: LiteView; switchTo: SwitchItem[] }) {
   const { group, myId } = v;
   const me = group.members.find((m) => m.id === myId);
   const cover = coverOf(group);

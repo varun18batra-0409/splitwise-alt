@@ -84,7 +84,7 @@ describe("the page wires it", () => {
     expect(page).toContain("groupTabs(");
     expect(page).toContain("resolveTab(");
     expect(page).toContain('raw !== "activity" && raw !== "expenses"');
-    expect(page).toContain('{tab === "overview" && <OverviewTab');
+    expect(page).toContain('{tab === "overview" && fv && <OverviewTab');
     expect(page).toContain("{pot && !subTitle && <MoneyTicket");
   });
   it("notices and the closed banner show on every tab", () => {

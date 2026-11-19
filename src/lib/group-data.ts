@@ -10,6 +10,7 @@ import { asOfFixes, laterRowEvents, leaverEvents, readableWhere, touchedAfter } 
 import { netBalancesDb, settleDataDb } from "./balances-db";
 import type { Prisma } from "@prisma/client";
 import { isDirect, NOT_DIRECT } from "./direct";
+import { finishBalances, readBalancesRows } from "./balances-view-db";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
 const active = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r) => !r.deletedAt);
@@ -76,7 +77,8 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
     where: { id },
     omit: { inviteCode: true, joinWeight: true },
     include: {
-      members: { omit: { notify: true, addedBy: true, seenAt: true, removedById: true, seenEventsAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      // (addedBy and seenAt stay: they say who looks after the group, see pickAdmin)
+      members: { omit: { notify: true, removedById: true, seenEventsAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { orderBy: { createdAt: "desc" }, include: { shares: true } }, // Activity shows each saved rate's source and day
       payments: { orderBy: { createdAt: "desc" } },
       events: { orderBy: { createdAt: "desc" }, take: opts.events === false ? 0 : 500 },
@@ -115,6 +117,61 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
     leaver: cut as LeaverCut | null,
     // The people as they were the day this viewer left (the filters, charts and Wrapped use these; names on rows still use group.members).
     people: membersAsOf(group.members, me.id, cut.leftAt),
+  };
+}
+
+// The expense columns the Balances tab still needs from the rows themselves: the fun titles (habits) read these, nothing else does.
+// No shares, which is what makes this read small.
+const SLIM_EXPENSE = { id: true, description: true, amount: true, kind: true, category: true, paidById: true, payers: true, spentAt: true, createdAt: true, createdById: true, deletedAt: true } as const;
+export type SlimExpense = Prisma.ExpenseGetPayload<{ select: typeof SLIM_EXPENSE }>;
+
+// The Balances tab's loader, for someone who is still in the group: the same people, payments, balances and Smart Settle plan as
+// loadGroupView, but the expenses and shares are not loaded. The database adds up the balances, the "Why?" totals, what was spent and
+// the other-currency parts in one statement (balances-view-db.ts); the group read keeps the members and payments and only a slim list of
+// expenses (no shares). The two run side by side: two calls. With `why` (a person's id from the address), one more read brings that
+// person's own expenses, for their item-by-item list.
+//
+// Returns null when the full method has to be used instead (the caller then calls loadGroupView): the group is missing or deleted,
+// it is a card night, the viewer has left or isn't in it, or the statement's safety nets tripped (see balances-view-db.ts).
+// Nothing is kept between requests.
+export async function loadBalancesSummary(id: string, viewer: string, opts: { why?: string } = {}) {
+  const [group, rows] = await Promise.all([
+    db.group.findUnique({
+      where: { id },
+      omit: { inviteCode: true, joinWeight: true },
+      include: {
+        members: { omit: { notify: true, removedById: true, seenEventsAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+        expenses: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: SLIM_EXPENSE },
+        payments: { orderBy: { createdAt: "desc" } },
+      },
+    }),
+    readBalancesRows(id),
+  ]);
+  if (!group || group.deletedAt || group.type === "pot") return null;
+  const me = group.members.find((m) => m.id === viewer);
+  if (!me || leaverCut(me)) return null;
+  const memberIds = group.members.map((m) => m.id);
+  const stmt = finishBalances(id, rows, memberIds, group.currency);
+  if (!stmt) return null;
+  const why = opts.why && memberIds.includes(opts.why) ? opts.why : undefined;
+  // Everything explainBalance needs for one person: any expense they paid, share in or are named a payer in (a few more are harmless: it skips the ones that don't involve them).
+  const openRows = why
+    ? await db.expense.findMany({
+        where: { groupId: id, deletedAt: null, OR: [{ paidById: why }, { payers: { contains: why } }, { shares: { some: { memberId: why } } }] },
+        orderBy: { createdAt: "desc" },
+        include: { shares: true },
+      })
+    : [];
+  return {
+    group: { ...group, events: [] as NonNullable<Awaited<ReturnType<typeof loadGroupView>>>["group"]["events"] },
+    expenses: group.expenses,
+    payments: active(group.payments),
+    net: stmt.net,
+    transfers: smartSettle(stmt.net),
+    leaver: null as LeaverCut | null,
+    people: group.members,
+    stmt,
+    openRows,
   };
 }
 
@@ -468,11 +525,14 @@ export async function loadDeletedGroups(memberships: Record<string, string>, now
 export async function loadSwitchList(memberships: Record<string, string>, currentId: string) {
   const ids = Object.keys(memberships).filter((id) => id !== currentId);
   if (ids.length === 0) return [];
-  const groups = await db.group.findMany({
-    where: { id: { in: ids }, closed: false, deletedAt: null, ...NOT_DIRECT, members: { some: { id: { in: Object.values(memberships) } } } },
-    select: { id: true, name: true, createdAt: true, type: true, cover: true, coverAt: true, members: { where: { id: { in: Object.values(memberships) } }, select: { leftAt: true, removedAt: true } } },
-  });
-  const latest = await db.groupEvent.groupBy({ by: ["groupId"], where: { groupId: { in: groups.map((g) => g.id) } }, _max: { createdAt: true } });
+  // The groups and the latest change in each of my other groups, side by side (the dates of groups that turn out not to be listed are simply not used).
+  const [groups, latest] = await Promise.all([
+    db.group.findMany({
+      where: { id: { in: ids }, closed: false, deletedAt: null, ...NOT_DIRECT, members: { some: { id: { in: Object.values(memberships) } } } },
+      select: { id: true, name: true, createdAt: true, type: true, cover: true, coverAt: true, members: { where: { id: { in: Object.values(memberships) } }, select: { leftAt: true, removedAt: true } } },
+    }),
+    db.groupEvent.groupBy({ by: ["groupId"], where: { groupId: { in: ids } }, _max: { createdAt: true } }),
+  ]);
   const last = new Map(latest.map((l) => [l.groupId, l._max.createdAt?.getTime() ?? 0]));
   return groups
     .sort((a, b) => (last.get(b.id) ?? b.createdAt.getTime()) - (last.get(a.id) ?? a.createdAt.getTime()))

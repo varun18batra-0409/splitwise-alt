@@ -263,16 +263,22 @@ async function passportFrom(
     const { loadMomentViewer } = await import("./moments-access");
     const { momentStrip } = await import("./moments-db");
     const newest = [...trips].sort((a, b) => b.start.localeCompare(a.start)).slice(0, 12);
-    for (const t of newest) {
-      const mine = groups.find((g) => g.id === t.groupId)?.members[0];
-      if (!mine || mine.removedAt) continue;
-      try {
-        const n = (await momentStrip(await loadMomentViewer(t.groupId, mine.id))).count;
-        if (n > 0) (extras[t.groupId] ??= { names: [] }).moments = n;
-      } catch {
-        // a card must never break the page: no count means "Relive trip"
-      }
-    }
+    // All at once (each check is a few trips to the database; one trip after another they added up). The rules are unchanged.
+    const counts = await Promise.all(
+      newest.map(async (t) => {
+        const mine = groups.find((g) => g.id === t.groupId)?.members[0];
+        if (!mine || mine.removedAt) return null;
+        try {
+          return (await momentStrip(await loadMomentViewer(t.groupId, mine.id))).count;
+        } catch {
+          return null; // a card must never break the page: no count means "Relive trip"
+        }
+      }),
+    );
+    newest.forEach((t, i) => {
+      const n = counts[i];
+      if (n !== null && n > 0) (extras[t.groupId] ??= { names: [] }).moments = n;
+    });
   }
   return { ...passport, home, unplaced, trips, extras };
 }
