@@ -43,9 +43,9 @@ const nextConfig: NextConfig = {
     ];
   },
   // The share pictures read their fonts and the world map from public/ (lib/og-assets.ts): bundle those files with
-  // exactly these routes, so they are on disk where the picture is drawn.
+  // exactly these routes, so they are on disk where the picture is drawn. (Route keys are patterns: [ ] escaped, as Next's docs show.)
   outputFileTracingIncludes: Object.fromEntries(
-    ["/passport/image", "/groups/[id]/square-image", "/groups/[id]/wrapped-image", "/groups/[id]/countdown-image", "/join/[code]/card"].map((r) => [r, ["./public/og-fonts/**/*", "./public/world.svg"]]),
+    ["/passport/image", "/groups/\\[id\\]/square-image", "/groups/\\[id\\]/wrapped-image", "/groups/\\[id\\]/countdown-image", "/join/\\[code\\]/card"].map((r) => [r, ["./public/og-fonts/**/*", "./public/world.svg"]]),
   ),
   // The online-database driver uses native code; load it as-is instead of bundling.
   serverExternalPackages: ["@prisma/adapter-libsql", "@libsql/client", "libsql", "nodemailer"],
