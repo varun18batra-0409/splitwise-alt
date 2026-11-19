@@ -1,0 +1,64 @@
+# One-off accessibility check (report only, changes nothing in the app). Runs the app locally in CI on a throwaway
+# database with demo data, opens the main screens as a phone, runs axe, and tries each screen at 200% text size.
+name: A11y check
+on:
+  push:
+    branches: [ops-a11y-check]
+jobs:
+  a11y:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      TURSO_DATABASE_URL: file:/tmp/online-stand-in.db
+      MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
+      GOOGLE_CLIENT_ID: uat-test.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: uat-not-a-secret
+      CRON_SECRET: uat-only-not-a-real-secret
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm install --no-save tsx@4.19.2 @axe-core/playwright@4.10.2
+      - name: Playwright version (from the lockfile)
+        id: pw
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+      - name: Browser cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
+      - name: Test browsers
+        timeout-minutes: 35
+        run: bash scripts/ci-browsers.sh chromium
+      - name: Start from the live version's tables
+        run: |
+          git fetch -q --depth=1 origin main
+          mkdir -p /tmp/live-schema
+          git show origin/main:prisma/schema.prisma > /tmp/live-schema/schema.prisma
+          npx prisma db push --skip-generate --schema /tmp/live-schema/schema.prisma
+          cp /tmp/live-schema/dev.db /tmp/online-stand-in.db
+      - name: Hosting build (schema sync, data upgrade, build)
+        run: |
+          set -o pipefail
+          npm run vercel-build 2>&1 | tee vb.log || { echo "::error title=Hosting build failed::$(tail -60 vb.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+      - name: Demo data
+        run: |
+          set -o pipefail
+          npx tsx scripts/seed-demo.ts 2>&1 | tee seed.log || { echo "::error title=Seed failed::$(tail -40 seed.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+      - name: Accessibility check
+        run: |
+          set -o pipefail
+          (npm run start > server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 60000 http://localhost:3000
+          npx tsx scripts/a11y-check.ts 2>&1 | tee a11y.log || { echo "::error title=A11y check failed::$(tail -40 a11y.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')%0A--- server ---%0A$(tail -20 server.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: a11y-report
+          path: a11y/
+          if-no-files-found: warn
