@@ -1,0 +1,51 @@
+# Rehearsal of the live counts against the PRACTICE database (never the live one). Runs ONLY when ops-live-counts-staging is pushed.
+#   1. with the practice database's WRITE key: the script must refuse (exit 1, "REFUSING"), and print no counts;
+#   2. with a practice READ-ONLY key, if that secret exists: the counts must print.
+name: Live counts rehearsal (staging)
+on:
+  push:
+    branches: [ops-live-counts-staging]
+permissions:
+  contents: read
+concurrency:
+  group: live-counts-staging
+jobs:
+  rehearse:
+    if: github.ref == 'refs/heads/ops-live-counts-staging'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.STAGING_TURSO_DATABASE_URL }}
+      HAS_RO: ${{ secrets.STAGING_TURSO_READONLY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts && npm install --no-save --ignore-scripts tsx@4.19.2
+      - name: With the WRITE key (the script must refuse, so this step is expected to fail)
+        id: write
+        continue-on-error: true
+        env:
+          TURSO_AUTH_TOKEN: ${{ secrets.STAGING_TURSO_AUTH_TOKEN }}
+        run: |
+          set -o pipefail
+          npx tsx scripts/live-counts.mjs 2>&1 | tee write-run.log
+      - name: Check that the write key was refused
+        run: |
+          if [ "${{ steps.write.outcome }}" != "failure" ]; then echo "::error title=Guard::the write key was NOT refused"; exit 1; fi
+          grep -q "^REFUSING" write-run.log || { echo "::error title=Guard::no refusal text"; exit 1; }
+          if grep -q "::notice title=[1-5] " write-run.log; then echo "::error title=Guard::counts were printed"; exit 1; fi
+          echo "::notice title=Rehearsal write key::refused as expected: $(grep '^REFUSING' write-run.log | head -1)"
+      - name: With the READ-ONLY key (the counts must print)
+        if: env.HAS_RO == 'true'
+        env:
+          TURSO_AUTH_TOKEN: ${{ secrets.STAGING_TURSO_READONLY_TOKEN }}
+        run: |
+          set -o pipefail
+          npx tsx scripts/live-counts.mjs 2>&1 | tee ro-run.log
+          for n in 1 2 3 4 5; do grep -q "::notice title=$n " ro-run.log || { echo "::error title=Rehearsal::notice $n missing"; exit 1; }; done
+          echo "::notice title=Rehearsal read-only key::counts printed"
+      - name: No read-only key for staging
+        if: env.HAS_RO != 'true'
+        run: echo "::warning title=Rehearsal::no STAGING_TURSO_READONLY_TOKEN secret, so the read-only path was not run here"
