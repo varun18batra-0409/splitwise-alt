@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { startTransition, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { cancelGuestMove, confirmGuestMove, moveGuestGroups } from "@/app/actions";
 import { GroupCover } from "@/components/GroupCover";
@@ -140,21 +140,24 @@ export function GoogleSignInLink({ href, groups, className, children }: { href: 
 export function GuardedCodeForm({ action, groups, className, children }: { action: (fd: FormData) => void | Promise<void>; groups: GuestGroupRow[]; className?: string; children: ReactNode }) {
   const { ask, sheet } = useGuestCheck(groups);
   const form = useRef<HTMLFormElement>(null);
-  const move = useRef<HTMLInputElement>(null);
-  const sure = useRef(false);
   function onSubmit(e: FormEvent<HTMLFormElement>) {
-    if (!groups.length || sure.current) return;
+    if (!groups.length) return; // nothing on this phone to move: the form's own action runs as usual
     e.preventDefault();
+    // Read what was typed now (the code), then, once the person confirms, send it with the confirmed groups straight to the
+    // server action. (A second, script-made submit of the same form did not reliably reach the action.)
+    const typed = form.current ? new FormData(form.current) : null;
     ask((ids) => {
-      if (move.current) move.current.value = ids.join(",");
-      sure.current = true;
-      form.current?.requestSubmit();
+      if (!typed) return;
+      typed.set("move", ids.join(","));
+      startTransition(async () => {
+        await action(typed);
+      });
     });
   }
   return (
     <>
       <form ref={form} action={action} onSubmit={onSubmit} className={className}>
-        <input ref={move} type="hidden" name="move" defaultValue="" />
+        <input type="hidden" name="move" defaultValue="" />
         {children}
       </form>
       {sheet}

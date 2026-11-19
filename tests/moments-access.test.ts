@@ -88,7 +88,7 @@ describe("moments: delete (author) and remove (admin)", () => {
   it("a guest who looks after the group (no account) cannot remove someone else's moment; an admin with an account can; a guest still deletes their own", () => {
     expect(canDeleteMoment(viewer({ isAdmin: true, accountId: null }), theirs)).toBe(false);
     expect(canDeleteMoment(viewer({ isAdmin: true, accountId: "a-viewer" }), theirs)).toBe(true);
-    expect(canDeleteMoment(viewer({ accountId: null }), { ...theirs, authorId: "m-viewer", authorAccountId: "x" })).toBe(true);
+    expect(canDeleteMoment(viewer({ accountId: null, claimedAt: T("09:00:00.000") }), { ...theirs, authorId: "m-viewer", authorAccountId: "x" })).toBe(true);
   });
   it("a guest deletes only the moments added since THEY took the name (a freed name does not hand over the earlier holder's); no claimedAt known: none", () => {
     const own = { ...theirs, authorId: "m-viewer", authorAccountId: "" }; // added at 10:00
@@ -115,7 +115,7 @@ describe("moments: delete (author) and remove (admin)", () => {
     expect(canDeleteMoment(viewer({ groupId: "g2", isAdmin: true }), theirs)).toBe(false);
   });
   it("a guest author (no account) is matched by their name in the group", () => {
-    expect(canDeleteMoment(viewer({ accountId: null }), { ...theirs, authorId: "m-viewer" })).toBe(true);
+    expect(canDeleteMoment(viewer({ accountId: null, claimedAt: T("09:00:00.000") }), { ...theirs, authorId: "m-viewer" })).toBe(true); // took the name before adding it
     expect(canDeleteMoment(viewer({ accountId: null }), theirs)).toBe(false);
   });
 });
