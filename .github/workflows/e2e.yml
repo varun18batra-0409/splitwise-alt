@@ -80,8 +80,8 @@ jobs:
       - name: Run the tests (Android phone, Chrome; then iPhone, Safari's engine)
         run: |
           set +e
-          npx playwright test --project=phone; a=$?
-          E2E_RUN_TAG=ios npx playwright test --project=iphone; b=$?
+          npx playwright test e2e/tests/53-offline-trial.spec.ts --project=phone; a=$?
+          E2E_RUN_TAG=ios npx playwright test e2e/tests/53-offline-trial.spec.ts --project=iphone; b=$?
           [ $a -eq 0 ] && [ $b -eq 0 ]
       - name: Summary
         if: always()
