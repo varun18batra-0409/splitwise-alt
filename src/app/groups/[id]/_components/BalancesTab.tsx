@@ -108,7 +108,7 @@ export function BalancesTab({ v, data, paid, why }: { v: LiteView; data: Balance
                         <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
                       </Link>
                     )}
-                    <WhyPanel v={v} memberId={m.id} open={why === m.id} summary={whyTotals[m.id]} rows={data.whyRows} />
+                    <WhyPanel v={v} memberId={m.id} open={why === m.id} summary={whyTotals[m.id]} whyRows={data.whyRows} />
                     {theirs.length === 0 ? (
                       <p className="text-sm text-gray-500">Nothing due between {m.id === myId ? "you" : m.name} and anyone.</p>
                     ) : (

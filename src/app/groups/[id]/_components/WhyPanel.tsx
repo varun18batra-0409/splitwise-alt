@@ -8,13 +8,13 @@ const LINES = 60;
 
 // "Why?" under a person's balance: the totals that make it up, then every
 // expense and payment behind it. Always adds up to the balance shown.
-// `summary` (from explainAll) gives the totals for everyone in one pass; only the open panel works out its item list, from `rows`
+// `summary` (from explainAll) gives the totals for everyone in one pass; only the open panel works out its item list, from `whyRows`
 // (every expense, or just the open person's, which gives the same list).
-export function WhyPanel({ v, memberId, open, summary, rows }: { v: LiteView; memberId: string; open?: boolean; summary?: WhySummary; rows: ExpenseLike[] }) {
+export function WhyPanel({ v, memberId, open, summary, whyRows }: { v: LiteView; memberId: string; open?: boolean; summary?: WhySummary; whyRows: ExpenseLike[] }) {
   const { payments, money, myId, tz } = v;
   const isMe = memberId === myId;
   const name = (id: string) => (id === memberId ? (isMe ? "you" : "them") : id === myId ? "you" : v.nameOf(id));
-  const w: Why = open || !summary ? explainBalance(memberId, rows, payments, name) : { ...summary, lines: [] };
+  const w: Why = open || !summary ? explainBalance(memberId, whyRows, payments, name) : { ...summary, lines: [] };
   const count = open || !summary ? w.lines.length : summary.count;
   if (count === 0) return null;
   const sign = (n: number) => (n > 0 ? `+${money(n)}` : n < 0 ? `−${money(-n)}` : money(0));
