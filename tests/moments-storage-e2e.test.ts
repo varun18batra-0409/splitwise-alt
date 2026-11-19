@@ -300,14 +300,17 @@ describe("adding a moment and opening its photo", () => {
     expect(gone.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
-  it("a guest member (a name with no email) can open the photo, and cannot add one", async () => {
+  it("a guest member (a name with no email) can open the photo, and can add one (saved with no account on it)", async () => {
     const w = await world("guest");
     const m = await added(w);
     await asGuest(w.id, w.gus);
     expect((await getPhoto(m.id)).status).toBe(200);
     const r = await upload({ group: w.id });
-    expect(r.status).toBe(401);
-    expect(await db.moment.count({ where: { groupId: w.id } })).toBe(1);
+    expect(r.status).toBe(200);
+    expect(await db.moment.count({ where: { groupId: w.id } })).toBe(2);
+    // The new moment is the guest's: their member id, and an empty account (filled in when they sign in).
+    const mine = await db.moment.findFirstOrThrow({ where: { groupId: w.id, authorId: w.gus } });
+    expect(mine.authorAccountId).toBe("");
     expect(await leftovers()).toEqual(CLEAN);
   });
 
@@ -439,9 +442,9 @@ describe("who can open a moment's photo: every refusal is the same 404, and stor
 
 // ---------------------------------------------------------------------------------------------------------------
 describe("who can add, and what the upload checks", () => {
-  it("non-members, signed-out visitors, people who left, were removed or never opened the group get nothing stored", async () => {
+  it("non-members, signed-out visitors (not in the group on that phone: not found), people who left, were removed or never opened the group get nothing stored", async () => {
     const w = await world("add-refused");
-    for (const [who, expected] of [[P.cal, 404], [null, 401], [P.lou, 404], [P.rex, 404], [P.pam, 404]] as const) {
+    for (const [who, expected] of [[P.cal, 404], [null, 404], [P.lou, 404], [P.rex, 404], [P.pam, 404]] as const) {
       await as(who);
       const r = await upload({ group: w.id });
       expect(r.status, who?.name ?? "signed out").toBe(expected);

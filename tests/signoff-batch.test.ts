@@ -90,7 +90,8 @@ describe("AS-3 review fixes", () => {
     expect(src("src/lib/identity.ts")).toContain("export async function guestGroupsOnPhone(): Promise<GuestGroup[]>");
     for (const f of ["src/app/signin/page.tsx", "src/app/signin/verify/page.tsx", "src/app/join/[code]/page.tsx", "src/app/actions.ts"]) expect(src(f), f).not.toMatch(/guestGroupsOnPhone\(\s*\d/);
     expect(src("src/lib/identity.ts")).not.toContain(".slice(0, 50)");
-    expect(sheet).toContain("overflow-y-auto"); // the list scrolls
+    expect(src("src/components/Sheet.tsx")).toContain("overflow-y-auto"); // the list scrolls (the shared sheet shell)
+    expect(sheet).toContain('from "@/components/Sheet"');
   });
   it("a failed confirmation does not carry on to Google: the sheet stays with 'Something went wrong. Try again.'", () => {
     expect(sheet).toContain("Something went wrong. Try again.");

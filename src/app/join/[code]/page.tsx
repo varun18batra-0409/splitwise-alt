@@ -11,12 +11,13 @@ import { joinAsExisting, joinAsNew } from "@/app/actions";
 import { Avatar, ErrorNote, inputClass, primaryButtonClass } from "@/components/ui";
 import { GoogleG } from "@/components/GoogleG";
 import { googleConfigured } from "@/lib/google";
+import { publicName } from "@/lib/names";
 import { coverFor } from "@/lib/covers";
 import Image from "next/image";
 import { GroupCover } from "@/components/GroupCover";
 import { tripPhotoSrc } from "@/lib/places";
 import { inviteMemberId } from "@/lib/invites";
-import { invitedNameRows, NAME_NEEDED } from "@/lib/join";
+import { invitedNameRows, NAME_NEEDED, openInviteEmails } from "@/lib/join";
 import { removedByEmail } from "@/lib/removal-marks";
 import type { Metadata } from "next";
 import { ChevronDown, GroupIcon } from "@/components/icons";
@@ -34,17 +35,17 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 }
 
 // Where invitations land (group link, QR, contact message or email).
-// Joining needs a verified email, so new people sign up first (30 seconds,
-// no password); then one tap to join.
+// Anyone with the link can join, with or without an account. Without one, the person taps Join, picks their name from the list (shown as
+// "Asha K.") or adds a new one, and this phone remembers them. With an account it is one tap, as before.
 export default async function JoinPage({
   params,
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ error?: string; e?: string; as?: string }>;
+  searchParams: Promise<{ error?: string; e?: string; as?: string; step?: string }>;
 }) {
   const { code } = await params;
-  const { error, e: invitedEmail, as: asId } = await searchParams;
+  const { error, e: invitedEmail, as: asId, step } = await searchParams;
   const group = await db.group.findUnique({
     where: { inviteCode: code },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
@@ -63,11 +64,14 @@ export default async function JoinPage({
   }
 
   const account = await getAccount();
-  // Signing in with Google from here also moves the guest groups this phone holds, so it lists them first (like /signin).
-  const guestGroups = account ? [] : await guestGroupsOnPhone();
+  // A personal email invitation's link (?e=…&as=…): the person signs in with that email, so the old sign-in buttons stay for it.
+  // Signing in with Google from there also moves the guest groups this phone holds, so it lists them first (like /signin).
+  const emailInvite = !account && Boolean(invitedEmail);
+  const guestGroups = emailInvite ? await guestGroupsOnPhone() : [];
   const memberships = await getMemberships();
   // Taken out of this group by whoever looks after it: the link doesn't bring them back in.
-  const removedMe = account ? group.members.find((m) => m.accountId === account.id && m.removedAt) : undefined;
+  // (A guest taken out of the group: the name this phone still holds says so, instead of sending them into the group.)
+  const removedMe = account ? group.members.find((m) => m.accountId === account.id && m.removedAt) : group.members.find((m) => memberships[group.id] === m.id && !m.accountId && m.removedAt);
   // Removed, then deleted their account and signed up again with the same email: the group kept a scrambled note, so it is the same screen.
   const removedNote = account && !removedMe && !group.members.some((m) => m.accountId === account.id) ? await removedByEmail(group.id, account.email) : null;
   if (removedMe || removedNote) {
@@ -97,7 +101,10 @@ export default async function JoinPage({
   const waiting = invite && !invite.acceptedAt ? invite : null;
   const invitedBy = waiting ? group.members.find((m) => m.id === waiting.invitedById)?.name : undefined;
   // Invited by email to take over a name: offer that name first.
-  const asMember = unclaimed.find((m) => m.id === asId) ?? (waiting ? unclaimed.find((m) => m.id === inviteMemberId(waiting)) : undefined) ?? null;
+  // A name an email invitation is reserved for is named to a signed-out visitor only when the link carries the very email it was sent to
+  // (and it is never offered for taking: there is no claim button there). Anything else signed out comes only from the claimable list.
+  const reservedOk = !account && asId && invitedEmail ? (await openInviteEmails(group.id, asId)).includes(invitedEmail.trim().toLowerCase()) : false;
+  const asMember = (account || reservedOk ? unclaimed : claimable).find((m) => m.id === asId) ?? (waiting ? unclaimed.find((m) => m.id === inviteMemberId(waiting)) : undefined) ?? null;
   const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
@@ -105,6 +112,9 @@ export default async function JoinPage({
   // The place photo for a trip (never the group's own photo: outsiders don't see it).
   const placeSrc = tripPhotoSrc(group);
   const invitedFirst = invitedBy ? invitedBy.trim().split(/\s+/)[0] || invitedBy : "";
+  // Whoever looks after the group (pickAdmin): "Varun added these names". Their first name.
+  const adminName = pickAdmin(group.members)?.name ?? "";
+  const adminFirst = adminName.trim().split(/\s+/)[0] ?? "";
 
   return (
     <>
@@ -128,29 +138,85 @@ export default async function JoinPage({
       {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
       {error === "name" && <ErrorNote>{NAME_NEEDED}</ErrorNote>}
       {error === "left" && <ErrorNote>That name has left this group, so it can’t be taken over. Join as yourself instead.</ErrorNote>}
+      {error === "removed" && !account && <ErrorNote>You were taken out of this group, so this link can’t bring you back. Ask the person who looks after it.</ErrorNote>}
+      {error === "full" && <ErrorNote>This group has no room for more people joining this way. Ask the person who looks after it.</ErrorNote>}
       {error === "claimed" && <ErrorNote>That name is already taken by someone else. Join as yourself instead.</ErrorNote>}
 
       {!account ? (
-        <>
-          {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
-          <hr className="mt-6 border-0 border-t border-fg/15" />
-          <p className="mt-5 text-[15px] leading-snug text-fg/80">Sign in to join and keep your groups across devices.</p>
-          <div className="mt-4 space-y-2.5">
-            {googleConfigured() && (
-              <GoogleSignInLink href={`/api/auth/google/start?${new URLSearchParams({ back })}`} groups={guestGroups} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
-                <GoogleG />
-                Continue with Google
-              </GoogleSignInLink>
+        emailInvite ? (
+          <>
+            {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
+            <hr className="mt-6 border-0 border-t border-fg/15" />
+            <p className="mt-5 text-[15px] leading-snug text-fg/80">Sign in to join and keep your groups across devices.</p>
+            <div className="mt-4 space-y-2.5">
+              {googleConfigured() && (
+                <GoogleSignInLink href={`/api/auth/google/start?${new URLSearchParams({ back })}`} groups={guestGroups} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
+                  <GoogleG />
+                  Continue with Google
+                </GoogleSignInLink>
+              )}
+              <Link
+                href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`}
+                className={googleConfigured() ? "flex h-14 w-full items-center justify-center rounded-full border border-fg/25 bg-transparent text-base font-semibold text-fg transition-transform active:scale-[0.97]" : "pop flex h-14 w-full items-center justify-center bg-fg text-base font-semibold text-canvas"}
+              >
+                Continue with email
+              </Link>
+            </div>
+            <p className="mt-3 text-center text-[13px] text-fg/50">About 30 seconds, no password. Your groups follow you to any device.</p>
+          </>
+        ) : step === "name" ? (
+          <>
+            <hr className="mt-6 border-0 border-t border-fg/15" />
+            {claimable.length > 0 && (
+              <section className="mt-5" data-claim-names>
+                <h2 className="font-display text-[22px] font-semibold leading-tight tracking-tight">Which one is you?</h2>
+                {adminFirst && <p className="mb-3 mt-1 text-sm text-fg/65">{adminFirst} added these names</p>}
+                <ul className="space-y-2">
+                  {claimable.map((m) => (
+                    <li key={m.id}>
+                      <form action={joinAsExisting}>
+                        <input type="hidden" name="code" value={code} />
+                        <input type="hidden" name="memberId" value={m.id} />
+                        <button type="submit" className="flex w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left active:bg-mist">
+                          <Avatar name={m.name} />
+                          <span className="font-medium">{publicName(m.name)}</span>
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
-            <Link
-              href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`}
-              className={googleConfigured() ? "flex h-14 w-full items-center justify-center rounded-full border border-fg/25 bg-transparent text-base font-semibold text-fg transition-transform active:scale-[0.97]" : "pop flex h-14 w-full items-center justify-center bg-fg text-base font-semibold text-canvas"}
-            >
-              Continue with email
-            </Link>
-          </div>
-          <p className="mt-3 text-center text-[13px] text-fg/50">About 30 seconds, no password. Your groups follow you to any device.</p>
-        </>
+            <form action={joinAsNew} className={`space-y-4 ${claimable.length > 0 ? "mt-8" : "mt-5"}`}>
+              <input type="hidden" name="code" value={code} />
+              {claimable.length > 0 && <h2 className="font-display text-[22px] font-semibold leading-tight tracking-tight">Not on the list?</h2>}
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-gray-600">Your name in this group</span>
+                <input name="name" required placeholder="Your name" autoComplete="given-name" maxLength={40} className={inputClass} />
+              </label>
+              <button type="submit" className={primaryButtonClass}>
+                Join as someone new
+              </button>
+              <p className="text-center text-xs text-gray-400">This phone remembers you, so you don’t need an account.</p>
+            </form>
+          </>
+        ) : (
+          <>
+            {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{publicName(asMember.name)}</strong>. Join to see your share.</p>}
+            <hr className="mt-6 border-0 border-t border-fg/15" />
+            <div className="mt-5 space-y-3">
+              <Link href={`/join/${code}?${new URLSearchParams({ step: "name", ...(asMember ? { as: asMember.id } : {}) })}`} className={primaryButtonClass} data-join-start>
+                Join {group.name}
+              </Link>
+              <p className="text-center text-sm text-fg/65">
+                Have a Loopin account?{" "}
+                <Link href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`} className="font-semibold text-fg underline underline-offset-4">
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          </>
+        )
       ) : (
         <>
           <hr className="mt-6 border-0 border-t border-fg/15" />
@@ -204,7 +270,7 @@ export default async function JoinPage({
         </>
       )}
 
-      <p className="mt-6 text-center text-[13px] text-fg/50" data-join-footnote>{invitedFirst ? "No amounts are shown before you join." : "No names or amounts are shown before you join."}</p>
+      <p className="mt-6 text-center text-[13px] text-fg/50" data-join-footnote>{account ? (invitedFirst ? "No amounts are shown before you join." : "No names or amounts are shown before you join.") : "No amounts are shown before you join."}</p>
       <p className="mt-8 text-center text-xs text-gray-400">Loopin keeps count. It never touches your money.</p>
       <GetAppButton variant="card" className="mt-6" />
     </>

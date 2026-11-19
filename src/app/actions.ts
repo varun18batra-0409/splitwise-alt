@@ -42,7 +42,8 @@ import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { CLOSED_PAY_ERROR, hasLeft, LEFT_ERROR } from "@/lib/active";
 import { parseWas, saveAllSettings } from "@/lib/settings-save";
-import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
+import { guestJoinAllowed, joinExisting, joinExistingAsGuest, joinNew, joinNewAsGuest, newInviteLink, releaseGuestName, type JoinFail } from "@/lib/join";
+import { GUEST_REFUSAL, gateGuest, isGuestMember, refusalNotes, renameRefusal } from "@/lib/guest-rules";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 import { flashTo, type Notes } from "@/lib/flash";
 
@@ -155,6 +156,9 @@ async function memberContext(groupId: string) {
   if (!me) redirect("/private");
   // Adding and inviting people is for people still in the group.
   if (me.leftAt) redirect(await flashTo(["groups", group.id, "people"], { error: "You left this group. Rejoin it to add or invite people." }));
+  // Adding and inviting people needs an account (a guest gets the sign-in sheet).
+  const refused = await gateGuest(me.id);
+  if (refused) redirect(await flashTo(["groups", group.id, "people"], refusalNotes(refused)));
   return { group, me };
 }
 
@@ -200,53 +204,71 @@ export async function invitePeople(formData: FormData) {
   redirect(await flashTo(["groups", group.id, "invite"], notes));
 }
 
-// Joining from an invitation (link, QR, contact message or email). Needs a
-// verified email: the join page asks people to sign up first. The rules live in lib/join.ts.
+// Joining from an invitation (link, QR, contact message or email). With an account it is one tap; without one (a guest) the person
+// picks their name and the phone remembers it (a signed note, see identity.ts). The rules live in lib/join.ts.
 async function joinContext(code: string) {
   const account = await getAccount();
-  if (!account) redirect(`/join/${code}`);
   return { account };
 }
 
-async function finishJoin(groupId: string, memberId: string, accountId: string, email: string) {
-  await db.invite.updateMany({ where: { groupId, email, acceptedAt: null }, data: { acceptedAt: new Date() } });
-  await setMyMemberId(groupId, memberId);
-  await copyPushTo(accountId, memberId);
+async function finishJoin(groupId: string, memberId: string, account: { id: string; email: string } | null) {
+  // Only an account has email invitations to close and phones to copy; a guest just gets the name written on this phone.
+  if (account) {
+    await db.invite.updateMany({ where: { groupId, email: account.email, acceptedAt: null }, data: { acceptedAt: new Date() } });
+    await setMyMemberId(groupId, memberId);
+    await copyPushTo(account.id, memberId);
+  } else {
+    await setMyMemberId(groupId, memberId);
+  }
   redirect(`/groups/${groupId}`);
 }
 
 // Where a refused join goes: the join page says it calmly.
-function joinRefused(code: string, r: JoinFail): never {
-  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : r.reason === "name" ? "?error=name" : r.reason === "left" ? "?error=left" : ""}`);
+function joinRefused(code: string, r: JoinFail, step = ""): never {
+  const base = `/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : r.reason === "name" ? "?error=name" : r.reason === "left" ? "?error=left" : r.reason === "full" ? "?error=full" : ""}`;
+  // Someone not signed in goes back to the list of names they were on.
+  redirect(step ? `${base}${base.includes("?") ? "&" : "?"}${step}` : base);
 }
 
-// "That's me": claim a name someone added before invitations existed.
+// A guest's two limits (per network an hour, per link a day): "busy" is the same calm note the account join uses.
+async function guestJoinBusy(code: string, ip: string): Promise<boolean> {
+  const g = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
+  return !(await guestJoinAllowed(ip, g?.id ?? `code:${code.slice(0, 40)}`));
+}
+
+// "That's me": claim a name someone added before invitations existed (with or without an account).
 export async function joinAsExisting(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   const { account } = await joinContext(code);
-  const r = await joinExisting(code, account, String(formData.get("memberId") ?? ""));
-  if (!r.ok) joinRefused(code, r);
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
-  await finishJoin(group.id, r.memberId, account.id, account.email);
+  const ip = (await originAndIp()).ip;
+  if (!account && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
+  const memberId = String(formData.get("memberId") ?? "");
+  const r = account ? await joinExisting(code, account, memberId) : await joinExistingAsGuest(code, memberId, await getMyMemberId(group.id));
+  if (!r.ok) joinRefused(code, r, account ? "" : "step=name");
+  await finishJoin(group.id, r.memberId, account);
 }
 
-// Join as yourself (your verified account).
+// Join as yourself (your verified account), or as a new name with no account.
 export async function joinAsNew(formData: FormData) {
   const code = String(formData.get("code") ?? "");
+  const ip = (await originAndIp()).ip;
   // Generous per network: a whole party can join on one venue's Wi-Fi.
-  if (!(await allow(`join:${(await originAndIp()).ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
+  if (!(await allow(`join:${ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
   const { account } = await joinContext(code);
-  const r = await joinNew(code, account, String(formData.get("name") ?? ""));
+  if (!account && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
+  const groupRow = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
+  const r = account ? await joinNew(code, account, String(formData.get("name") ?? "")) : await joinNewAsGuest(code, String(formData.get("name") ?? ""), groupRow ? await getMyMemberId(groupRow.id) : undefined);
   // Someone whose move-out can still be undone is not quietly put back in: People explains and offers Undo my move-out.
   if (!r.ok && r.reason === "moved_out" && r.groupId && r.memberId) {
     await setMyMemberId(r.groupId, r.memberId);
     redirect(await flashTo(["groups", r.groupId, "people"], { error: MOVED_OUT_REJOIN_TEXT }));
   }
-  if (!r.ok) joinRefused(code, r);
+  if (!r.ok) joinRefused(code, r, account ? "" : "step=name");
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
-  await finishJoin(group.id, r.memberId, account.id, account.email);
+  await finishJoin(group.id, r.memberId, account);
 }
 
 // The Join / Not now buttons on an invitation (Home, Alerts and the group's own screen).
@@ -270,11 +292,25 @@ export async function answerInvitation(formData: FormData) {
   redirect("/");
 }
 
+// People → "Free this name": the admin (with an account) on a name held with no account, or a guest on their own name ("Not me").
+export async function releaseGuestNameAction(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const memberId = String(formData.get("memberId") ?? "");
+  const myId = await getMyMemberId(groupId);
+  if (!myId) redirect("/private");
+  const r = await releaseGuestName(groupId, myId, memberId);
+  // The guest who freed their own name is no longer that person: their phone is told so at once, and goes back to the join page.
+  if (r.ok && memberId === myId) redirect("/");
+  redirect(await flashTo(["groups", groupId, "people"], r.ok ? {} : refusalNotes(r.error), r.ok && r.eventId ? { did: r.eventId } : {}));
+}
+
 // Add people → "Make a new invite link": the old link (and email invites not yet accepted) stop working.
 export async function makeNewInviteLink(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const myId = await getMyMemberId(groupId);
   if (!myId) redirect("/private");
+  const refusedGuest = await gateGuest(myId); // admin only, and a guest admin needs an account too
+  if (refusedGuest) redirect(await flashTo(["groups", groupId, "invite"], refusalNotes(refusedGuest)));
   const r = await newInviteLink(groupId, myId);
   redirect(await flashTo(["groups", groupId, "invite"], r.ok ? {} : { error: r.error }, r.ok ? { newlink: "1" } : {}));
 }
@@ -297,6 +333,11 @@ export async function addExpense(
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
   if (g && input.currency !== g.currency && input.rateMode === "auto") await getRate(input.currency, g.currency).catch(() => null);
   const me = await getMyMemberId(input.groupId);
+  // A waiting bill is Home-group money setup: it needs an account. (An ordinary new expense is open to a guest; changing one is own-only, below.)
+  if (input.billRun) {
+    const refused = await gateGuest(me);
+    if (refused) return { error: refused };
+  }
   const requestKey = cleanKey(input.requestKey);
   // The bill's item lines and photo are saved in the same step as the expense: all or nothing
   // (a photo that expired stops the save, and the form keeps what was typed).
@@ -305,7 +346,7 @@ export async function addExpense(
   const result =
     input.billRun && !input.expenseId
       ? await addWaitingBill(input, me, getRate, input.billRun, requestKey, attach)
-      : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach });
+      : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach, guestRules: true });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
   // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
   after(() => checkBudgets(input.groupId).catch(() => []));
@@ -325,8 +366,8 @@ export async function restoreExpense(formData: FormData) {
 async function toggleExpense(formData: FormData, deleted: boolean) {
   const groupId = String(formData.get("groupId") ?? "");
   const expenseId = String(formData.get("expenseId") ?? "");
-  const r = await setExpenseDeleted(expenseId, await getMyMemberId(groupId), deleted);
-  redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
+  const r = await setExpenseDeleted(expenseId, await getMyMemberId(groupId), deleted, { guestRules: true });
+  redirect(await flashTo(["groups", groupId], r.ok ? {} : refusalNotes(r.error), { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
 }
 
 // Delete a settle-up payment. Only the payer and the person paid can (even if they have left: they come back owing it). History keeps it.
@@ -359,8 +400,8 @@ export async function undoChange(formData: FormData) {
   // Undoing or redoing a payment change is a payment change too: the same limit, checked before anything is written.
   const ev = /^[A-Za-z0-9_-]{6,40}$/.test(eventId) ? await db.groupEvent.findUnique({ where: { id: eventId }, select: { groupId: true, kind: true, paymentId: true, undo: true } }) : null;
   const limited = Boolean(ev && ev.groupId === groupId && isPaymentChangeEvent(ev) && memberships[groupId] && !(await payChangeOk(memberships[groupId])));
-  const r: Awaited<ReturnType<typeof undoEvent>> = limited ? { ok: false, error: PAY_CHANGE_LIMIT_TEXT } : await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships });
-  const notes: Notes = r.ok ? {} : { error: r.error };
+  const r: Awaited<ReturnType<typeof undoEvent>> = limited ? { ok: false, error: PAY_CHANGE_LIMIT_TEXT } : await undoEvent(eventId, memberships[groupId], await getTimeZone(), { memberships, guestRules: true });
+  const notes: Notes = r.ok ? {} : refusalNotes(r.error);
   const done: Record<string, string> = r.ok ? { undone: "1", ...(r.eventId ? { did: r.eventId } : {}) } : {};
   if (back === "home") redirect(await flashTo("/", notes, { ...done, g: groupId }));
   if (back === "people") redirect(await flashTo(["groups", groupId, "people"], notes, done));
@@ -399,6 +440,7 @@ export async function updateSharingSettings(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const myId = await getMyMemberId(groupId);
   if (!myId) redirect("/private");
+  await signinIfGuest(groupId, myId);
   const weights: Record<string, string> = {};
   for (const [k, v] of formData.entries()) if (k.startsWith("w_")) weights[k.slice(2)] = String(v);
   const r = await updateSharing(groupId, myId, { type: String(formData.get("type") ?? ""), weights });
@@ -416,6 +458,7 @@ export async function updateGroupSettings(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people`); // left: read-only
+  await signinIfGuest(group.id, myId);
 
   const back = `/groups/${group.id}/settings`;
 
@@ -475,6 +518,7 @@ export async function saveGroupSettings(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people`); // left: read-only
+  await signinIfGuest(group.id, myId);
   const back = `/groups/${group.id}/settings`;
   const str = (k: string) => String(formData.get(k) ?? "");
   const weights: Record<string, string> = {};
@@ -516,6 +560,7 @@ export async function convertGroupCurrency(formData: FormData) {
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  await signinIfGuest(group.id, myId); // admin only, and a guest admin needs an account too
   if (!(await isGroupAdmin(group.id, myId))) redirect(`/groups/${group.id}/settings?error=admin`);
   const r = await changeGroupCurrency(group.id, myId, currency, rate);
   if (!r.ok) redirect(await flashTo(["groups", group.id, "settings"], { error: r.error }, { convert: currency }));
@@ -532,6 +577,7 @@ export async function setGroupClosed(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (await hasLeft(group.id, myId)) redirect(await flashTo(["groups", group.id], { error: LEFT_ERROR }));
+  await signinIfGuest(group.id, myId);
 
   let did = "";
   if (group.closed !== closed) {
@@ -590,10 +636,10 @@ export async function recordCustomPayment(formData: FormData) {
   const back = async (error: string): Promise<never> =>
     redirect(
       await (potGame
-        ? flashTo(["groups", group.id, "pot", potGame], { error })
+        ? flashTo(["groups", group.id, "pot", potGame], refusalNotes(error))
         : fromSettle
-        ? flashTo(["groups", group.id, "settle"], { error })
-        : flashTo(["groups", group.id, "pay"], { error }, { from: fromId, to: toId, amount: amountText })),
+        ? flashTo(["groups", group.id, "settle"], refusalNotes(error))
+        : flashTo(["groups", group.id, "pay"], refusalNotes(error), { from: fromId, to: toId, amount: amountText })),
     );
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name;
   if (!nameOf(fromId) || !nameOf(toId)) await back("Pick who paid and who they paid.");
@@ -609,7 +655,7 @@ export async function recordCustomPayment(formData: FormData) {
 
   if (!(await payChangeOk(myId))) await back(PAY_CHANGE_LIMIT_TEXT);
   // More than they (or the person paid) can owe each other (often a typo with an extra zero): asked once, checked inside the write.
-  const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && !(formData.get("over") === "1" && formData.get("overFor") === overKey(fromId, toId, amount!)) });
+  const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && !(formData.get("over") === "1" && formData.get("overFor") === overKey(fromId, toId, amount!)), guestRules: true });
   if (r.kind === "refused") await back(r.error);
   if (r.kind === "over") redirect(overpayHref(group.id, { from: fromId, to: toId, amount: amountText, owes: String(r.limit), side: r.side }, fromSettle));
   redirect(r.kind === "done" && r.did ? `${done}&did=${r.did}` : done);
@@ -625,27 +671,39 @@ async function peopleContext(formData: FormData) {
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
-  return { groupId, memberId, myId };
+  return { groupId, memberId, myId, guest: await isGuestMember(myId) };
+}
+
+// A guest asking for something that needs an account: back to the group with the sign-in note (the sheet opens there).
+async function signinIfGuest(groupId: string, myId: string | undefined): Promise<void> {
+  const refused = await gateGuest(myId);
+  if (refused) redirect(await flashTo(["groups", groupId], refusalNotes(refused)));
 }
 
 async function backToPeople(groupId: string, r: { ok: true; eventId?: string } | { ok: false; error: string }): Promise<never> {
-  redirect(await flashTo(["groups", groupId, "people"], r.ok ? {} : { error: r.error }, r.ok && r.eventId ? { did: r.eventId } : {}));
+  redirect(await flashTo(["groups", groupId, "people"], r.ok ? {} : refusalNotes(r.error), r.ok && r.eventId ? { did: r.eventId } : {}));
 }
 
 export async function renamePerson(formData: FormData) {
-  const { groupId, memberId, myId } = await peopleContext(formData);
+  const { groupId, memberId, myId, guest } = await peopleContext(formData);
+  const noRename = renameRefusal(guest, myId, memberId); // your own name is yours; someone else's needs an account
+  if (noRename) await backToPeople(groupId, { ok: false, error: noRename });
   await backToPeople(groupId, await renameMember(groupId, myId, memberId, String(formData.get("name") ?? "")));
 }
 
 export async function removePerson(formData: FormData) {
-  const { groupId, memberId, myId } = await peopleContext(formData);
+  const { groupId, memberId, myId, guest } = await peopleContext(formData);
   if (await isPairGroup(groupId)) redirect(`/people/${groupId}`); // a pair always keeps its two people (the lib refuses too)
+  if (guest) await backToPeople(groupId, { ok: false, error: GUEST_REFUSAL }); // admin only, and a guest admin needs an account too
   if (!(await isGroupAdmin(groupId, myId))) await backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
   await backToPeople(groupId, await removeOrKeepPerson(groupId, myId, memberId));
 }
 
 export async function setPersonLeft(formData: FormData) {
-  const { groupId, memberId, myId } = await peopleContext(formData);
+  const { groupId, memberId, myId, guest } = await peopleContext(formData);
+  // Leaving or rejoining yourself is open to a guest; anything about someone else needs an account.
+  const noOthers = renameRefusal(guest, myId, memberId);
+  if (noOthers) await backToPeople(groupId, { ok: false, error: noOthers });
   // Someone with their own account is never put back by somebody else: they get an invitation and rejoin when they accept.
   // (Rejoining yourself, and bringing back a name nobody has claimed, are direct.)
   if (memberId !== myId && formData.get("left") !== "1") {
@@ -676,6 +734,7 @@ export async function settleEverything(formData: FormData) {
   if (group.type === "direct") redirect(`/people/${group.id}`); // a pair is never closed (the lib refuses too)
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  await signinIfGuest(group.id, myId); // it closes the group for everyone
   if (!(await payChangeOk(myId))) redirect(await flashTo(["groups", group.id], { error: PAY_CHANGE_LIMIT_TEXT }, { tab: "balances" }));
   const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
   if (!r.ok) redirect(await flashTo(["groups", group.id], { error: r.error }, { tab: "balances" }));
@@ -743,10 +802,11 @@ export async function cancelGuestMove(): Promise<{ ok: boolean }> {
 
 // Already signed in, with guest groups still only on this phone ("N groups are only on this phone"): move exactly the ones
 // the person confirmed (and that this phone still holds) into the account.
-export async function moveGuestGroups(ids: string[]): Promise<{ ok: boolean; moved: number }> {
+export async function moveGuestGroups(ids: string[]): Promise<{ ok: boolean; moved: number; skipped?: number }> {
   if (!(await getAccount())) return { ok: false, moved: 0 };
-  const moved = await moveGuestsToAccount(await confirmedGuestIds(ids));
-  return { ok: true, moved };
+  const skipped: string[] = []; // names this account already has a row for (or was removed from): left as guest names, and said so
+  const moved = await moveGuestsToAccount(await confirmedGuestIds(ids), { skipped });
+  return { ok: true, moved, skipped: skipped.length };
 }
 
 export async function verifyCode(formData: FormData) {
@@ -842,6 +902,7 @@ export async function deleteGroup(formData: FormData) {
   if (group.type === "direct") redirect(`/people/${group.id}`); // no delete for a pair in this version (blocking is the safety valve)
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  await signinIfGuest(group.id, myId); // admin only, and a guest admin needs an account too
   if (!(await isGroupAdmin(group.id, myId))) redirect(`/groups/${group.id}/settings?error=admin`);
   await db.$transaction(async (tx) => {
     await tx.group.update({ where: { id: group.id }, data: { deletedAt: new Date(), deletedById: myId } });
@@ -859,6 +920,7 @@ export async function restoreGroup(formData: FormData) {
   if (group.type === "direct") redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/");
+  if (await gateGuest(myId)) redirect("/"); // admin only, and a guest admin needs an account too (a deleted group has no page for the sheet)
   // Bringing a deleted group back is for whoever deleted it or looks after it, and not for someone who left.
   if (!canRestoreGroup(group, group.members, myId)) redirect("/");
   // One conditional write limited to the 30-day window: if the daily erase got there first (or the window just closed), nothing comes back.

@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { JOINED, confirmUsedPending } from "./membership";
 import { coverFor } from "./covers";
+import { removedByEmail } from "./removal-marks";
 import { PUSH_RESYNC_COOKIE, PUSH_RESYNC_MAX_AGE } from "./push-resync";
 import { SESSION_COOKIE, SESSION_MAX_AGE, decodeSession, encodeSession, signText, today, verifyText, type Session } from "./session";
 
@@ -249,13 +250,29 @@ export async function moveFromAttempt(state: string, token: string | undefined, 
 
 // Links the confirmed guest names this phone really holds to the account (a name still unlinked and at the epoch this phone's
 // cookie carries). Linking raises the epoch, so any other phone still holding the guest name loses it. Returns the ids linked.
-async function linkConfirmed(accountId: string, entries: { id: string; epoch: number }[], agreed: ConfirmedIds): Promise<string[]> {
+async function linkConfirmed(accountId: string, entries: { id: string; epoch: number }[], agreed: ConfirmedIds, skipped?: string[]): Promise<string[]> {
   const ok = new Set(agreed);
   const nowLinked: string[] = [];
+  const acc = await db.account.findUnique({ where: { id: accountId }, select: { email: true } });
   for (const e of entries) {
     if (!ok.has(e.id)) continue;
+    const row = await db.member.findUnique({ where: { id: e.id }, select: { groupId: true } });
+    if (row) {
+      // This account already has a row in that group (it was removed from it, or joined it another way): linking would leave two
+      // rows on one account, or bring a removed person back. The guest name stays a guest name on this phone, and is reported as skipped.
+      const already = await db.member.count({ where: { groupId: row.groupId, accountId } });
+      const marked = !already && acc ? await removedByEmail(row.groupId, acc.email) : null;
+      if (already || marked) {
+        skipped?.push(e.id);
+        continue;
+      }
+    }
     const r = await db.member.updateMany({ where: { id: e.id, accountId: null, grantEpoch: e.epoch }, data: { accountId, grantEpoch: { increment: 1 } } });
-    if (r.count === 1) nowLinked.push(e.id);
+    if (r.count === 1) {
+      nowLinked.push(e.id);
+      // Moments added as a guest carry no account yet: they become the account's, so "delete my own" and postcards keep working.
+      await db.moment.updateMany({ where: { authorId: e.id, authorAccountId: "" }, data: { authorAccountId: accountId } });
+    }
   }
   return nowLinked;
 }
@@ -269,11 +286,11 @@ async function cookieWithoutLinked(accountId: string, m: Record<string, string>)
 
 // Already signed in, and this phone still holds guest groups (the check was skipped, or they came after): the same linking, for
 // exactly the groups the person confirmed on the "only on this phone" notice. Returns how many moved.
-export async function moveGuestsToAccount(agreed: ConfirmedIds, opts: { keepEndpoint?: string } = {}): Promise<number> {
+export async function moveGuestsToAccount(agreed: ConfirmedIds, opts: { keepEndpoint?: string; skipped?: string[] } = {}): Promise<number> {
   const acc = await readAccount();
   if (!acc) return 0;
   const s = await readSession();
-  const nowLinked = await linkConfirmed(acc.id, Object.values(s.m).map(parseGrant), agreed);
+  const nowLinked = await linkConfirmed(acc.id, Object.values(s.m).map(parseGrant), agreed, opts.skipped);
   if (nowLinked.length) await dropPush(nowLinked, opts.keepEndpoint);
   await writeSession({ ...s, m: await cookieWithoutLinked(acc.id, s.m) });
   return nowLinked.length;

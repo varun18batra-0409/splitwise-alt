@@ -50,6 +50,7 @@ export default function Privacy() {
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
         <li>If you turn on fingerprint / face sign-in, a key your device made for Loopin. Your fingerprint or face never leaves your device.</li>
         <li>A small cookie on your device that remembers which person you are in each group.</li>
+        <li>If you join without an account, we keep only the name you pick and a signed note on that phone saying which person you are.</li>
         <li>If you switch on notifications, a browser address to send them to.</li>
         <li>Your time zone, sent by your device, so reminders arrive in the daytime where you are.</li>
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
@@ -71,8 +72,7 @@ export default function Privacy() {
       <h2 className={h}>Who can see what</h2>
       <ul className={ul}>
         <li>
-          <strong>A group:</strong> only the people in it. Anyone with its invite link or QR code can ask to join after signing up, so share it only with
-          the people who should be in it.
+          <strong>A group:</strong> only the people in it. Anyone with its invite link or QR code can join, with or without an account, by picking their name from the group’s list or adding a new one, so share it only with people you trust.
         </li>
         <li>
           <strong>Your Trip passport:</strong> hidden until you say yes. Loopin asks you once, the first time you open your passport. If you choose Show, anyone who is or was in a group with you can open it (not someone removed from a group).

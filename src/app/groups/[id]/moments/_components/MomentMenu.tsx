@@ -34,8 +34,9 @@ export function MomentMenu({ card, back, canDelete, canReport, guest, openHref }
             </ConfirmButton>
           </form>
         )}
-        {canReport && <SafetyLinks kind="moment" targetId={card.id} accountId={card.authorAccountId} name={first || "them"} back={back} rows />}
-        {!canReport && guest && !card.authorIsMe && (
+        {/* A guest's moment has no account on it yet, so there is nobody to block: Report only (whoever looks after the group can remove it). */}
+        {canReport && card.authorAccountId && <SafetyLinks kind="moment" targetId={card.id} accountId={card.authorAccountId} name={first || "them"} back={back} rows />}
+        {((canReport && !card.authorAccountId) || (!canReport && guest && !card.authorIsMe)) && (
           <Link href={`/report?${new URLSearchParams({ kind: "moment", id: card.id, back })}`} className={quiet}>
             Report this moment
           </Link>

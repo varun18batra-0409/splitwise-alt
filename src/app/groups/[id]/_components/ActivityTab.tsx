@@ -24,6 +24,7 @@ import type { GroupEvent, GroupView } from "./view";
 import { DateField } from "@/components/DateField";
 import { SelectField } from "@/components/SelectField";
 import { FilterSheet } from "@/components/FilterSheet";
+import { SignInTrigger, type SignInContext } from "@/components/SignInSheet";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
 const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Only some", one: "One person" };
@@ -38,7 +39,7 @@ const whenIn = (tz: string) => {
 // Busy groups show the latest PAGE items first, with "Show more".
 const PAGE = 60;
 
-export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], receipts = [], gameResultIds = [] }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; receipts?: { id: string; expenseId: string }[]; gameResultIds?: string[] }) {
+export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], receipts = [], gameResultIds = [], signin }: { signin?: SignInContext; v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; receipts?: { id: string; expenseId: string }[]; gameResultIds?: string[] }) {
   const receiptOf = new Map(receipts.map((r) => [r.expenseId, r.id]));
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
@@ -281,12 +282,38 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               const reacted = reactionSummary(reactions.filter((r) => r.expenseId === e.id), myId);
               const isPot = gameResultIds.includes(e.id); // a finished game's result changes through the game, so no swipe Delete (an imported card-game row is ordinary)
               const swipeable = !deleted && canChange && !isPot;
+              // Without an account you change only what you added: on someone else's expense the buttons open the sign-in sheet
+              // (the server refuses too, with the same sentence).
+              const gate = signin && v.undoViewer.guest && !(e.createdById && e.createdById === myId) ? `expense:${(group.members.find((m) => m.id === e.createdById)?.name ?? "").trim().split(/\s+/)[0] ?? ""}` : null;
+              const gateKey = gate && gate !== "expense:" ? gate : "general";
               const wrap = (node: ReactNode) =>
                 swipeable ? (
                     <SwipeRow
                       count={2}
                       actions={
                         <>
+                          {gate ? (
+                            <>
+                          <SignInTrigger
+                            signin={gateKey}
+                            ctx={signin!}
+                            marker="swipe-edit"
+                            className="flex flex-1 flex-col items-center justify-center gap-1 bg-mist text-[12px] font-semibold text-fg"
+                          >
+                            <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+                            </svg>
+                            Edit
+                          </SignInTrigger>
+                          <SignInTrigger signin={gateKey} ctx={signin!} marker="swipe-delete" className="flex flex-1 flex-col items-center justify-center gap-1 bg-[#4a1e1e] text-[12px] font-semibold text-red-600">
+                              <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+                              </svg>
+                              Delete
+                            </SignInTrigger>
+                            </>
+                          ) : (
+                            <>
                           <Link
                             href={`/groups/${group.id}/expenses/${e.id}/edit`}
                             data-swipe-edit
@@ -312,6 +339,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                               Delete
                             </button>
                           </form>
+                            </>
+                          )}
                         </>
                       }
                     >
@@ -443,6 +472,10 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                             <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">
                               Open the game
                             </Link>
+                          ) : deleted && gate ? (
+                            <SignInTrigger signin={gateKey} ctx={signin!} marker="restore" className="text-sm font-medium text-accent">
+                              Restore
+                            </SignInTrigger>
                           ) : deleted ? (
                             <form action={restoreExpense}>
                               <input type="hidden" name="groupId" value={group.id} />
@@ -453,9 +486,15 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                             </form>
                           ) : (
                             <span className="flex gap-5">
-                              <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">
-                                Edit or delete
-                              </Link>
+                              {gate ? (
+                                <SignInTrigger signin={gateKey} ctx={signin!} marker="edit" className="text-sm font-medium text-accent">
+                                  Edit or delete
+                                </SignInTrigger>
+                              ) : (
+                                <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">
+                                  Edit or delete
+                                </Link>
+                              )}
                               <Link href={`/groups/${group.id}/add?from=${e.id}`} className="text-sm font-medium text-accent">
                                 Repeat
                               </Link>

@@ -1,0 +1,35 @@
+// The words of a sign-in refusal, and the small functions that read and write them. No database here, so the sign-in sheet (a screen
+// component) can use it. The rules themselves are in guest-rules.ts.
+
+export const SIGNIN_TITLE = "Sign in to do this";
+export const SIGNIN_BODY = "Changing things for the whole group needs a sign-in, so everyone can see who changed what. Your own expenses you can change any time.";
+export const GUEST_REFUSAL = `${SIGNIN_TITLE}. ${SIGNIN_BODY}`;
+
+const EXPENSE_PREFIX = "Sign in to change ";
+const EXPENSE_SUFFIX = "’s expense";
+export const expenseTitle = (name: string) => `${EXPENSE_PREFIX}${name}${EXPENSE_SUFFIX}`;
+export const expenseRefusal = (name: string) => `${expenseTitle(name)}. ${SIGNIN_BODY}`;
+
+// The short code that travels in the signed note ("general", or "expense:<name>"), or null when the text is not a sign-in refusal.
+export function signinKeyOf(error: string | undefined | null): string | null {
+  if (!error) return null;
+  if (error === GUEST_REFUSAL) return "general";
+  if (error.startsWith(EXPENSE_PREFIX) && error.endsWith(`. ${SIGNIN_BODY}`)) {
+    const name = error.slice(EXPENSE_PREFIX.length, error.length - `. ${SIGNIN_BODY}`.length);
+    if (name.endsWith(EXPENSE_SUFFIX)) return `expense:${name.slice(0, -EXPENSE_SUFFIX.length)}`;
+  }
+  return null;
+}
+
+// The words for the sheet's title and body, from the code in the note. Anything unknown reads as the general line.
+export function signinWords(key: string | undefined | null): { title: string; body: string } {
+  const m = /^expense:(.{1,60})$/.exec(key ?? "");
+  return { title: m ? expenseTitle(m[1]) : SIGNIN_TITLE, body: SIGNIN_BODY };
+}
+
+// The notes for a redirect after a refusal: the plain sentence (every screen can show it) plus the code that opens the sheet.
+export function refusalNotes(error: string): { error: string; signin?: string } {
+  const signin = signinKeyOf(error);
+  return signin ? { error, signin } : { error };
+}
+

@@ -17,6 +17,7 @@ import { findLikelyDuplicate } from "./duplicates";
 import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText } from "./home/charge-lock";
+import { expenseEditRefusal } from "./guest-rules";
 import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -59,6 +60,9 @@ export type SaveOpts = {
   alsoInTx?: (tx: Prisma.TransactionClient, expenseId: string) => Promise<void>;
   // Tests only: runs after everything has been read and before the transaction begins (the gap in which another server can commit).
   afterRead?: () => Promise<void>;
+  // Set by the server actions: a person who joined without an account may change only the expenses they added themselves
+  // (guest-rules.ts). Off for the tests and scripts that call this directly with a bare member.
+  guestRules?: boolean;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -194,7 +198,7 @@ async function saveExpenseOnce(
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, accountId: true } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (group.deletedAt) return { ok: false, error: "This group was deleted." };
@@ -218,6 +222,12 @@ async function saveExpenseOnce(
   if (input.expenseId) {
     if (!existing) return { ok: false, error: "That expense no longer exists." };
     if (existing.deletedAt) return { ok: false, error: "This expense was deleted. Restore it before changing it." };
+    // Without an account you change only what you added yourself (nothing is written when this refuses).
+    if (opts.guestRules) {
+      const guest = group.members.find((m) => m.id === actingMemberId)?.accountId === null;
+      const no = expenseEditRefusal(guest, actingMemberId, existing, group.members.find((m) => m.id === existing.createdById)?.name);
+      if (no) return { ok: false, error: no };
+    }
     // A card game's result is worked out from the game: it can't be edited into ordinary spending.
     if (await isGameResult(existing.id)) return { ok: false, error: POT_EDIT_ERROR };
     // Someone else saved a change while this person was editing: don't overwrite it silently.
@@ -432,14 +442,20 @@ function snapshot(x: Omit<ExpenseSnapshot, "shares"> & { shares: { memberId: str
 // Delete or restore an expense. Deleted expenses stay in history (crossed out)
 // but stop counting towards balances, Smart Settle and charts.
 // `opts.afterRead` is for tests only: it runs after the reads and before the write begins.
-export async function setExpenseDeleted(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean; mark?: UndoMark } = {}): Promise<Result> {
+export async function setExpenseDeleted(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean; mark?: UndoMark; guestRules?: boolean } = {}): Promise<Result> {
   return withRetry(() => setExpenseDeletedOnce(expenseId, actingMemberId, deleted, opts));
 }
-async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean; mark?: UndoMark }): Promise<Result> {
-  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, group: { include: { members: { select: { id: true } } } } } });
+async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean; mark?: UndoMark; guestRules?: boolean }): Promise<Result> {
+  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, group: { include: { members: { select: { id: true, name: true, accountId: true } } } } } });
   if (!expense) return { ok: false, error: "That expense no longer exists." };
   if (!actingMemberId || !expense.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete or restore its expenses." };
+  }
+  // Without an account you delete or restore only what you added yourself (nothing is written when this refuses).
+  if (opts.guestRules) {
+    const guest = expense.group.members.find((m) => m.id === actingMemberId)?.accountId === null;
+    const no = expenseEditRefusal(guest, actingMemberId, expense, expense.group.members.find((m) => m.id === expense.createdById)?.name);
+    if (no) return { ok: false, error: no };
   }
   if (await hasLeft(expense.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };
   if (expense.group.deletedAt) return { ok: false, error: "This group was deleted." };

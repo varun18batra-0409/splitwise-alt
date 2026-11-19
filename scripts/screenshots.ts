@@ -1712,6 +1712,79 @@ if (!desktop) {
     }
   }
 
+  // GJ: joining without an account (the founder's four screens), at 320, 360 and 390 wide. Local copy only: it makes one small trip group
+  // (Varun with an account, Asha K. a name nobody has taken, Ben a guest holding the name on this phone) and removes it again.
+  //   GJ-join-1       signed out, the invite link: Join, "Have a Loopin account? Sign in"
+  //   GJ-join-2       after tapping Join: "Which one is you?" (names as "Asha K."), "Not on the list?"
+  //   GJ-guest-card   the group as Ben sees it: the quiet card "You're Ben, on this phone"
+  //   GJ-signin-sheet Ben taps Edit or delete on Asha's expense: "Sign in to change Asha's expense"
+  // To compare against: 16-join (the signed-in join page), AS3-only-here-sheet (the sheet this one shares its shell with), 26-signin,
+  // and the group overview without the card (n320-activity, n360-activity).
+  if (!hosted) {
+    const db = patient((await import("../src/lib/db")).db);
+    const stamp = Date.now();
+    let groupId = "";
+    const gjWidths = [320, 360, 390] as const;
+    const gjDims = (w: number) => ({ width: w, height: w === 320 ? 640 : w === 360 ? 780 : 844 });
+    const gjSnap = async (c: Awaited<ReturnType<typeof fresh>>, name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) => {
+      const p = await c.newPage();
+      try {
+        for (const w of gjWidths) {
+          await p.setViewportSize(gjDims(w));
+          await gotoQuiet(p, base + path, hosted);
+          await p.waitForTimeout(700);
+          if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          await p.screenshot({ path: `${out}/${name}-${w}.png`, fullPage });
+          console.log("✓", `${name}-${w}`);
+        }
+      } catch (e) {
+        console.log("✗", name, String(e).split("\n")[0]);
+      } finally {
+        await p.close();
+      }
+    };
+    try {
+      const varun = await dbRetry("GJ account", () => db.account.create({ data: { email: `gj-varun-${stamp}@uat.loopin.test`, name: "Varun Batra" } }));
+      const g = await dbRetry("GJ group", () => db.group.create({
+        data: {
+          name: "Goa trip", type: "trip", inviteCode: `gj-${stamp}`, currency: "INR",
+          members: {
+            create: [
+              { name: "Varun Batra", accountId: varun.id, claimedAt: new Date(), createdAt: new Date(stamp - 5000) },
+              { name: "Asha Kumar", createdAt: new Date(stamp - 4000) },
+              { name: "Ben", claimedAt: new Date(), seenAt: new Date(), createdAt: new Date(stamp - 3000) },
+            ],
+          },
+        },
+        include: { members: true },
+      }));
+      groupId = g.id;
+      const id = (name: string) => g.members.find((m) => m.name === name)!.id;
+      // Dinner 1,200.00 added by Asha, split three ways (40000 paise each): Asha's expense for the sheet.
+      const dinner = await dbRetry("GJ expense", () => db.expense.create({
+        data: { groupId: g.id, description: "Dinner", amount: 120000, originalAmount: 120000, convertedAmount: 120000, splitType: "equal", forMode: "everyone", paidById: id("Asha Kumar"), createdById: id("Asha Kumar"), shares: { create: ["Varun Batra", "Asha Kumar", "Ben"].map((n) => ({ memberId: id(n), amount: 40000 })) } },
+      }));
+      const signedOut = await fresh({ locale: "en-IN", cookies: [{ name: "lp_tour", value: "1" }] });
+      await gjSnap(signedOut, "GJ-join-1", `/join/${g.inviteCode}`);
+      await gjSnap(signedOut, "GJ-join-2", `/join/${g.inviteCode}?step=name`);
+      await signedOut.close();
+      const guest = await fresh({ locale: "en-IN", cookies: [{ name: "lp_tour", value: "1" }, { name: SESSION_COOKIE, value: await encodeSession({ m: { [g.id]: `${id("Ben")}~0` } }) }] });
+      await gjSnap(guest, "GJ-guest-card", `/groups/${g.id}`);
+      await gjSnap(guest, "GJ-signin-sheet", `/groups/${g.id}?tab=activity&open=${dinner.id}`, async (p) => {
+        await p.locator('[data-signin-open="edit"]').first().click();
+        await p.locator("[data-signin-sheet]").waitFor({ timeout: 5000 });
+        await p.waitForTimeout(400);
+      }, false);
+      await guest.close();
+      await dbRetry("GJ clean-up account", () => db.group.deleteMany({ where: { id: g.id } }));
+      await db.account.delete({ where: { id: varun.id } }).catch(() => undefined);
+      groupId = "";
+    } catch (e) {
+      console.log("✗ GJ- shots (set-up failed)", String(e).split("\n").filter((l) => l.trim()).slice(-2).join(" | ").slice(0, 300));
+      if (groupId) await db.group.deleteMany({ where: { id: groupId } }).catch(() => undefined);
+    }
+  }
+
   // VA1-48 and CB-17 / VA2-37: the trip report with its plain labels, and the organiser's collection page with 44 px taps (demo person's phone).
   await signBackIn(); // the main browser was signed out above (clearCookies): the report needs the demo person
   for (const w of widths) {

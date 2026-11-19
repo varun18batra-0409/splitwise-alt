@@ -26,11 +26,12 @@ const members = async () => {
   return db.member.findMany({ where: { groupId: id }, select: { id: true, name: true, accountId: true } });
 };
 
-test("an invite link: without signing in you can't join (no name box); after signing in, Join adds you", async ({ browser, page, context }) => {
+test("an invite link: signed out you see Join and Sign in (no name box until you tap Join); with an account, Join adds you", async ({ browser, page, context }) => {
   await allowTestCopy(context);
   await page.goto(g.invite);
   await settled(page);
-  await expect(page.getByRole("link", { name: /^Continue with email$/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Join / })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
   await expect(page.locator('input[name="name"]')).toHaveCount(0);
 
   const ivan = await signUp("Ivan", testEmail("ivan"));

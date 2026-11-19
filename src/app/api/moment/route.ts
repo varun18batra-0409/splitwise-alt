@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
-import { getAccount } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { MOMENTS_PER_GROUP, MOMENTS_PER_PERSON_PER_DAY, MOMENT_FULL_MAX, MOMENT_FULL_SIDE, MOMENT_THUMB_MAX, MOMENT_THUMB_SIDE, photoType } from "@/lib/covers";
 import { cleanPhoto } from "@/lib/strip-meta";
@@ -32,8 +31,6 @@ export async function POST(req: Request) {
   }
   if (!sameSite) return fail("Not allowed.", 403);
 
-  const account = await getAccount();
-  if (!account) return fail("Sign in to add a moment.", 401);
   if (Number(h.get("content-length") ?? 0) > 1_400_000) return fail("That photo is too big.", 413);
   let form: FormData;
   try {
@@ -44,14 +41,15 @@ export async function POST(req: Request) {
   const groupId = String(form.get("group") ?? "");
   // The group comes from the form, but only a current, joined member of a trip group gets any further (and it's checked again when saving).
   const viewer = await loadMomentViewer(groupId);
-  if (!canAddMoment(viewer) || viewer.accountId !== account.id) return notFoundResponse();
-
-  if (!(await allow(`moment:${account.id}`, 30, 3600)) || !(await allow(`moment-ip:${clientIp(h)}`, 60, 3600))) return fail("Lots of moments from here in the last hour. Try again later.", 429);
+  if (!canAddMoment(viewer)) return notFoundResponse();
+  // The limits are per person (the member, whether or not they have an account).
+  const accountId = viewer.accountId; // null for a guest
+  if (!(await allow(`moment:${viewer.memberId}`, 30, 3600)) || !(await allow(`moment-ip:${clientIp(h)}`, 60, 3600))) return fail("Lots of moments from here in the last hour. Try again later.", 429);
   const rid = cleanKey(form.get("rid"));
   const prev = await previousResult(rid);
   if (prev) return Response.json({ ok: true, id: prev });
   if ((await db.moment.count({ where: { groupId } })) >= MOMENTS_PER_GROUP) return fail(`This group has ${MOMENTS_PER_GROUP} moments. Delete an old one to add more.`, 409);
-  if ((await db.moment.count({ where: { groupId, authorAccountId: account.id, createdAt: { gt: new Date(Date.now() - 86_400_000) } } })) >= MOMENTS_PER_PERSON_PER_DAY) {
+  if ((await db.moment.count({ where: { groupId, ...(accountId ? { authorAccountId: accountId } : { authorId: viewer.memberId, authorAccountId: "" }), createdAt: { gt: new Date(Date.now() - 86_400_000) } } })) >= MOMENTS_PER_PERSON_PER_DAY) {
     return fail(`You’ve added ${MOMENTS_PER_PERSON_PER_DAY} moments in the last day. Try again tomorrow.`, 429);
   }
 
@@ -95,7 +93,7 @@ export async function POST(req: Request) {
   let saved: Awaited<ReturnType<typeof saveMoment>>;
   try {
     saved = await saveMoment({
-      groupId, memberId: viewer.memberId, accountId: account.id, caption, takenOn, type: full.type, width: full.size.width, height: full.size.height,
+      groupId, memberId: viewer.memberId, accountId, caption, takenOn, type: full.type, width: full.size.width, height: full.size.height,
       blobKey: stored[0].blobKey, thumbKey: stored[1].blobKey, data: stored[0].data, thumbData: stored[1].data, rid,
     });
   } catch (err) {

@@ -1,59 +1,45 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { cancelGuestMove, confirmGuestMove, moveGuestGroups } from "@/app/actions";
 import { GroupCover } from "@/components/GroupCover";
 import type { CoverChoice } from "@/lib/covers";
-import { trapFocus } from "@/lib/focus-trap";
+import { Sheet } from "@/components/Sheet";
 
 // "These groups will move to this account": the check before signing in on a phone that holds guest groups, for every
 // way in (Google, fingerprint or face, a typed code, the email link). Cancel closes the sheet and nothing else happens:
 // no sign-in, nothing moved. "Move them and continue" hands the listed groups on (their ids) and carries on.
 export type GuestGroupRow = { memberId: string; groupId: string; name: string; people: number; cover: { kind: string; src?: string }; letter: string };
 
-function Sheet({ groups, onMove, onCancel, busy, error, signedIn }: { groups: GuestGroupRow[]; onMove: () => void; onCancel: () => void; busy: boolean; error: string; signedIn: boolean }) {
-  const box = useRef<HTMLElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
-  // onCancel only clears a ref and a flag, so the first copy is always right; keeping the focus trap from restarting on every render.
-  useEffect(() => trapFocus(box.current, { onEscape: onCancel, start: heading.current }), []); // eslint-disable-line react-hooks/exhaustive-deps
+// The rows of groups that will move (the same markup is used by the sign-in sheet).
+export function GuestGroupList({ groups }: { groups: GuestGroupRow[] }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60" onClick={onCancel} data-guest-sheet>
-      <section
-        ref={box}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="guest-sheet-title"
-        onClick={(e) => e.stopPropagation()}
-        className="sheet-enter flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-[28px] border border-b-0 border-line bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3"
-      >
-        <span aria-hidden className="mx-auto block h-1 w-10 shrink-0 rounded-full bg-fg/20" />
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <h2 id="guest-sheet-title" ref={heading} tabIndex={-1} className="mt-4 font-display text-[26px] font-semibold leading-tight tracking-tight outline-none">
-            {signedIn ? "Move these groups to your account?" : "These groups will move to this account"}
-          </h2>
-          <p className="mt-2 text-[15px] leading-snug text-fg/65">{signedIn ? "This device holds these groups only as a guest. If you carry on, they join your account." : "This device already holds these groups as a guest. If you carry on, they join the account you sign in with."}</p>
-          <ul className="mt-4 divide-y divide-line rounded-2xl border border-line" data-guest-list>
-            {groups.map((g) => (
-              <li key={g.memberId} className="flex items-center gap-3 px-3.5 py-3">
-                <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-mist">
-                  <GroupCover kind={g.cover.kind as CoverChoice} src={g.cover.src} uid={`gs-${g.memberId}`} letter={g.letter} small sizes="48px" />
-                </span>
-                <span className="min-w-0">
-                  <b className="block break-words font-display text-[17px] font-semibold leading-snug">{g.name}</b>
-                  <span className="block text-sm text-fg/65">{g.people === 1 ? "1 person" : `${g.people} people`}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-sm leading-snug text-fg/65">Not your groups? Tap Cancel and hand the device back.</p>
-          {error && (
-            <p className="mt-3 text-sm text-red-600" role="alert" data-guest-error>
-              {error}
-            </p>
-          )}
-        </div>
-        <div className="mt-4 space-y-2">
+    <ul className="mt-4 divide-y divide-line rounded-2xl border border-line" data-guest-list>
+      {groups.map((g) => (
+        <li key={g.memberId} className="flex items-center gap-3 px-3.5 py-3">
+          <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-mist">
+            <GroupCover kind={g.cover.kind as CoverChoice} src={g.cover.src} uid={`gs-${g.memberId}`} letter={g.letter} small sizes="48px" />
+          </span>
+          <span className="min-w-0">
+            <b className="block break-words font-display text-[17px] font-semibold leading-snug">{g.name}</b>
+            <span className="block text-sm text-fg/65">{g.people === 1 ? "1 person" : `${g.people} people`}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function MoveSheet({ groups, onMove, onCancel, busy, error, signedIn }: { groups: GuestGroupRow[]; onMove: () => void; onCancel: () => void; busy: boolean; error: string; signedIn: boolean }) {
+  return (
+    <Sheet
+      titleId="guest-sheet-title"
+      title={signedIn ? "Move these groups to your account?" : "These groups will move to this account"}
+      onClose={onCancel}
+      guestMarker
+      footer={
+        <>
           <button type="button" onClick={onMove} disabled={busy} className="pop block min-h-12 w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas disabled:opacity-60" data-guest-move>
             {busy ? "One moment…" : signedIn ? "Move them" : "Move them and continue"}
           </button>
@@ -65,9 +51,18 @@ function Sheet({ groups, onMove, onCancel, busy, error, signedIn }: { groups: Gu
           >
             Cancel
           </button>
-        </div>
-      </section>
-    </div>
+        </>
+      }
+    >
+      <p className="mt-2 text-[15px] leading-snug text-fg/65">{signedIn ? "This device holds these groups only as a guest. If you carry on, they join your account." : "This device already holds these groups as a guest. If you carry on, they join the account you sign in with."}</p>
+      <GuestGroupList groups={groups} />
+      <p className="mt-3 text-sm leading-snug text-fg/65">Not your groups? Tap Cancel and hand the device back.</p>
+      {error && (
+        <p className="mt-3 text-sm text-red-600" role="alert" data-guest-error>
+          {error}
+        </p>
+      )}
+    </Sheet>
   );
 }
 
@@ -107,7 +102,7 @@ export function useGuestCheck(groups: GuestGroupRow[], opts: { signedIn?: boolea
       setBusy(false);
     }
   };
-  const sheet = open ? <Sheet groups={groups} onMove={move} onCancel={cancel} busy={busy} error={error} signedIn={Boolean(opts.signedIn)} /> : null;
+  const sheet = open ? <MoveSheet groups={groups} onMove={move} onCancel={cancel} busy={busy} error={error} signedIn={Boolean(opts.signedIn)} /> : null;
   return { ask, sheet };
 }
 

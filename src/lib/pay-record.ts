@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { paymentPartyRefusal } from "./guest-rules";
 import { db } from "./db";
 import { claimKey, isDuplicateKey, retryOnceIfBusy } from "./once";
 import { logEvent } from "./events";
@@ -66,12 +67,17 @@ export type PayInput = {
   key?: string;
   fp: string;
   warnOver: boolean; // ask first when it is more than the limit
+  guestRules?: boolean; // set by the server action: a person without an account records only a payment they are in (guest-rules.ts)
 };
 
 class LeftOut extends Error {}
 export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => Promise<void> } = {}): Promise<PayOutcome> {
-  const group = await db.group.findUnique({ where: { id: i.groupId }, select: { name: true, currency: true, type: true, members: { select: { id: true, name: true } } } });
+  const group = await db.group.findUnique({ where: { id: i.groupId }, select: { name: true, currency: true, type: true, members: { select: { id: true, name: true, accountId: true } } } });
   if (!group) return { kind: "refused", error: groupChangedText(new GroupChanged("gone")) };
+  if (i.guestRules) {
+    const no = paymentPartyRefusal(group.members.find((m) => m.id === i.myId)?.accountId === null, i.myId, i.fromId, i.toId);
+    if (no) return { kind: "refused", error: no };
+  }
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   await opts.afterRead?.();
   try {

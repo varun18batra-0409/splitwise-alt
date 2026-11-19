@@ -7,6 +7,8 @@ import { newInviteCode } from "./group-setup";
 import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { ownMoveOut, undoViewerFor } from "./undo";
 import { removedByEmail } from "./removal-marks";
+import { allow } from "./rate-limit";
+import { GUEST_REFUSAL } from "./guest-rules";
 
 // Joining a group from its invite link, and making a new link. Pure database
 // work, no redirects, so it can be tested. The actions in app/actions.ts turn
@@ -18,7 +20,7 @@ import { removedByEmail } from "./removal-marks";
 // - Someone who left on their own can rejoin from the link, as before.
 
 // "moved_out": they moved out with Loopin and can still undo it, so the link doesn't quietly put them back (groupId and memberId say where to send them).
-export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name" | "moved_out" | "left"; adminName?: string; groupId?: string; memberId?: string };
+export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name" | "moved_out" | "left" | "full";  adminName?: string; groupId?: string; memberId?: string };
 export const NAME_NEEDED = "Add your name so the group knows who you are.";
 export type JoinOk = { ok: true; memberId: string };
 export type JoinAccount = { id: string; name: string; email: string };
@@ -108,6 +110,34 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   return { ok: true, memberId: member.id };
 }
 
+// Someone who already has a row in this group and comes back through the link (an account, or a guest name this phone holds).
+// Returns an answer to hand back, or null when they are simply in (the caller marks them seen and says ok).
+async function rejoinHeld(group: Loaded, mine: Loaded["members"][number], afterRead?: () => Promise<void>): Promise<JoinFail | null> {
+  // (Only while the move-out can really still be undone: if it can't, nothing is left to protect and the link rejoins as before.)
+  if (mine.leftAt && (await ownMoveOut(group.id, await undoViewerFor(group.id, mine.id), new Date()))?.check.ok) {
+    return { ok: false, reason: "moved_out", groupId: group.id, memberId: mine.id };
+  }
+  // Only if they are still not removed (a removal landing a moment ago must not be undone by this write).
+  // Coming back through the link is a line in the history like every other way back (people.ts, invitations.ts): it says when the
+  // stay began again, and its undo puts them back as they were. Clearing leftAt and writing that line are ONE write: if the line
+  // fails, leftAt is not cleared (a stay with no line would otherwise be counted as starting later than it did).
+  if (mine.leftAt) {
+    const leftAt = mine.leftAt;
+    await afterRead?.();
+    // The write only matches the row as it was read (still left on that same day): a second tap, or another phone, finds it already back
+    // and writes no second line. Back already (and not removed) is the answer they wanted; anything else is "try again".
+    const back = await db.$transaction(async (tx) => {
+      if ((await tx.member.updateMany({ where: { id: mine.id, removedAt: null, leftAt }, data: { leftAt: null } })).count !== 1) {
+        return (await tx.member.count({ where: { id: mine.id, removedAt: null, leftAt: null } })) === 1;
+      }
+      await logEvent(tx, { groupId: group.id, actorId: mine.id, kind: "member_rejoined", text: "rejoined the group", undo: { type: "member_set", memberId: mine.id, data: { leftAt: leftAt.toISOString() } } });
+      return true;
+    });
+    if (!back) return { ok: false, reason: "retry" };
+  }
+  return null;
+}
+
 // Join as yourself (your verified account), or come back after leaving on your own.
 // (`opts.afterRead` is for tests only, like the other money and membership writes: it runs between the read and the write. No caller
 // passes it from a request.)
@@ -122,28 +152,8 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
   }
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
-    // (Only while the move-out can really still be undone: if it can't, nothing is left to protect and the link rejoins as before.)
-    if (mine.leftAt && (await ownMoveOut(group.id, await undoViewerFor(group.id, mine.id), new Date()))?.check.ok) {
-      return { ok: false, reason: "moved_out", groupId: group.id, memberId: mine.id };
-    }
-    // Only if they are still not removed (a removal landing a moment ago must not be undone by this write).
-    // Coming back through the link is a line in the history like every other way back (people.ts, invitations.ts): it says when the
-    // stay began again, and its undo puts them back as they were. Clearing leftAt and writing that line are ONE write: if the line
-    // fails, leftAt is not cleared (a stay with no line would otherwise be counted as starting later than it did).
-    if (mine.leftAt) {
-      const leftAt = mine.leftAt;
-      await opts.afterRead?.();
-      // The write only matches the row as it was read (still left on that same day): a second tap, or another phone, finds it already back
-      // and writes no second line. Back already (and not removed) is the answer they wanted; anything else is "try again".
-      const back = await db.$transaction(async (tx) => {
-        if ((await tx.member.updateMany({ where: { id: mine.id, removedAt: null, leftAt }, data: { leftAt: null } })).count !== 1) {
-          return (await tx.member.count({ where: { id: mine.id, removedAt: null, leftAt: null } })) === 1;
-        }
-        await logEvent(tx, { groupId: group.id, actorId: mine.id, kind: "member_rejoined", text: "rejoined the group", undo: { type: "member_set", memberId: mine.id, data: { leftAt: leftAt.toISOString() } } });
-        return true;
-      });
-      if (!back) return { ok: false, reason: "retry" };
-    }
+    const back = await rejoinHeld(group, mine, opts.afterRead);
+    if (back) return back;
     await markSeen(mine.id);
     return { ok: true, memberId: mine.id };
   }
@@ -167,6 +177,107 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
     undo: { type: "members_remove", memberIds: [member.id] },
   });
   return { ok: true, memberId: member.id };
+}
+
+
+// ---------- Joining without an account (a "guest") ----------
+// The same rules as above, for a person with no account: the name is held by a signed note on their phone (setMyMemberId writes it),
+// and the group's own people see it on People ("no account yet"). `heldMemberId` is the name this phone already holds in the group, if any.
+
+// Most people a guest join can bring a group to (guests only; an account holder is not counted against it).
+export const GUEST_GROUP_CAP = 60;
+export const GUEST_JOIN_PER_IP = 20; // an hour (the account join keeps its own, looser 120 for a whole party on one Wi-Fi)
+export const GUEST_JOIN_PER_LINK = 30; // a day
+
+// The limits a guest join must pass (both actions): false means "busy".
+export async function guestJoinAllowed(ip: string, groupId: string, now = new Date()): Promise<boolean> {
+  return (await allow(`join-guest-ip:${ip}`, GUEST_JOIN_PER_IP, 3600, now)) && (await allow(`join-guest-link:${groupId}`, GUEST_JOIN_PER_LINK, 86400, now));
+}
+
+// The phone's own name in this group, if it is still a way in: a removed name is refused (the cookie still holds it).
+function heldRow(group: Loaded, heldMemberId?: string) {
+  return heldMemberId ? group.members.find((m) => m.id === heldMemberId && !m.accountId) ?? null : null;
+}
+
+// "That's me" with no account: take over a name nobody has joined as. Reserved (an open email invitation), left, removed or already
+// taken names are refused. One conditional write decides between two phones; the winner's epoch goes up, so any old copy is refused.
+export async function joinExistingAsGuest(code: string, memberId: string, heldMemberId?: string): Promise<JoinOk | JoinFail> {
+  const group = await loadByCode(code);
+  if (!group) return { ok: false, reason: "gone" };
+  const held = heldRow(group, heldMemberId);
+  if (held?.removedAt) return { ok: false, reason: "removed", adminName: removedBy(group, held) };
+  // This phone already holds a name here: that is who they are (no second name).
+  if (held && !held.leftAt) {
+    await markSeen(held.id);
+    return { ok: true, memberId: held.id };
+  }
+  const member = group.members.find((m) => m.id === memberId);
+  if (!member || member.accountId || member.claimedAt || member.removedAt) return { ok: false, reason: "claimed" };
+  if (member.leftAt) return { ok: false, reason: "left" };
+  // A guest has no email to match, so ANY open invitation on the name means it is reserved.
+  if ((await openInviteEmails(group.id, member.id)).length) return { ok: false, reason: "claimed" };
+  const won = await db.$transaction(async (tx) => {
+    const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null, leftAt: null }, data: { claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
+    if (w.count === 1) await tx.pushSubscription.deleteMany({ where: { memberId: member.id } });
+    return w.count;
+  });
+  if (won !== 1) return { ok: false, reason: "claimed" };
+  await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
+  return { ok: true, memberId: member.id };
+}
+
+// Join as someone new with no account (or come back, on the phone that holds the name, after leaving on your own).
+export async function joinNewAsGuest(code: string, typedName: string, heldMemberId?: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<JoinOk | JoinFail> {
+  const group = await loadByCode(code);
+  if (!group) return { ok: false, reason: "gone" };
+  const held = heldRow(group, heldMemberId);
+  if (held?.removedAt) return { ok: false, reason: "removed", adminName: removedBy(group, held) };
+  if (held) {
+    const back = await rejoinHeld(group, held, opts.afterRead);
+    if (back) return back;
+    await markSeen(held.id);
+    return { ok: true, memberId: held.id };
+  }
+  const typed = cleanNames([typedName])[0];
+  if (!typed) return { ok: false, reason: "name" };
+  if (group.members.filter((m) => !m.leftAt).length >= GUEST_GROUP_CAP) return { ok: false, reason: "full" };
+  const name = freeName(group.members.map((m) => m.name), typed);
+  let member;
+  try {
+    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), seenAt: new Date(), accountId: null, splitWeight: group.joinWeight } });
+  } catch {
+    return { ok: false, reason: "retry" };
+  }
+  await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group", undo: { type: "members_remove", memberIds: [member.id] } });
+  return { ok: true, memberId: member.id };
+}
+
+// "Free this name": a name held with no account (the wrong person took it, or the phone was lost) goes back to "Which one is you?".
+// Who may: whoever looks after the group (with an account), or the guest on their own name ("Not me"). One write clears claimedAt,
+// raises the epoch (the old phone is refused) and drops that name's notification rows; the history gets a line. Balances do not change.
+export async function releaseGuestName(groupId: string, actorId: string, memberId: string): Promise<{ ok: true; eventId?: string } | { ok: false; error: string }> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: "This is just between two people." };
+  const me = group.members.find((m) => m.id === actorId);
+  const target = group.members.find((m) => m.id === memberId);
+  if (!me || me.removedAt) return { ok: false, error: "Only people in this group can do this." };
+  if (!target) return { ok: false, error: "That person is no longer in the group." };
+  const self = actorId === memberId;
+  if (!self) {
+    if (me.leftAt || !(await isGroupAdmin(groupId, actorId))) return { ok: false, error: "Only the person who looks after this group can free someone else’s name." };
+    if (me.accountId === null) return { ok: false, error: GUEST_REFUSAL };
+  }
+  if (target.accountId || !target.claimedAt) return { ok: false, error: "That name isn’t held by someone without an account." };
+  const eventId = await db.$transaction(async (tx) => {
+    const w = await tx.member.updateMany({ where: { id: target.id, accountId: null, claimedAt: { not: null } }, data: { claimedAt: null, grantEpoch: { increment: 1 } } });
+    if (w.count !== 1) return "";
+    await tx.pushSubscription.deleteMany({ where: { memberId: target.id } });
+    return logEvent(tx, { groupId, actorId, kind: "members_added", text: self ? "freed their name (it was not them)" : `freed the name ${target.name}` });
+  });
+  if (!eventId) return { ok: false, error: "That name was already freed." };
+  await setPushResyncCookie();
+  return { ok: true, eventId };
 }
 
 // How many email invites are still waiting (they stop working with a new link).

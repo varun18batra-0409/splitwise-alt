@@ -132,7 +132,7 @@ export type SaveMomentResult = { ok: true; id: string; duplicate?: boolean } | {
 export async function saveMoment(o: {
   groupId: string;
   memberId: string;
-  accountId: string;
+  accountId: string | null; // null: a guest (no account); the moment is saved with no account and gets it when they sign in
   caption: string;
   takenOn: string;
   type: string;
@@ -154,11 +154,11 @@ export async function saveMoment(o: {
       });
       if (!me) return { ok: false as const, reason: "gone" as const };
       if ((await tx.moment.count({ where: { groupId: o.groupId } })) >= MOMENTS_PER_GROUP) return { ok: false as const, reason: "group-full" as const };
-      const recent = await tx.moment.count({ where: { groupId: o.groupId, authorAccountId: o.accountId, createdAt: { gt: new Date(now.getTime() - 86_400_000) } } });
+      const recent = await tx.moment.count({ where: { groupId: o.groupId, ...(o.accountId ? { authorAccountId: o.accountId } : { authorId: o.memberId, authorAccountId: "" }), createdAt: { gt: new Date(now.getTime() - 86_400_000) } } });
       if (recent >= MOMENTS_PER_PERSON_PER_DAY) return { ok: false as const, reason: "slow-down" as const };
       const row = await tx.moment.create({
         data: {
-          groupId: o.groupId, authorId: o.memberId, authorAccountId: o.accountId, caption: o.caption, takenOn: o.takenOn, type: o.type, width: o.width, height: o.height,
+          groupId: o.groupId, authorId: o.memberId, authorAccountId: o.accountId ?? "", caption: o.caption, takenOn: o.takenOn, type: o.type, width: o.width, height: o.height,
           blobKey: o.blobKey, thumbKey: o.thumbKey, data: o.data, thumbData: o.thumbData, createdAt: now,
         },
         select: { id: true },

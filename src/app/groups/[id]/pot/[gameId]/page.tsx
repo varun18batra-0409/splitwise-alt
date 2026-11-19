@@ -24,6 +24,7 @@ import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
 import { SelectField } from "@/components/SelectField";
 import { readNotes } from "@/lib/flash";
+import { SigninPrompt } from "@/components/SigninPrompt";
 
 // One game of Game night: chips in and took home, live; then who came out ahead,
 // who came out behind and who pays whom. Settling up happens in the group, as always.
@@ -163,7 +164,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   return (
     <>
       <PageHeader title={neutralGameText(game.name)} back={`/groups/${group.id}?tab=games`} />
-      {notes.error && <ErrorNote>{notes.error.slice(0, 200)}</ErrorNote>}
+      {notes.error && !notes.signin && <ErrorNote>{notes.error.slice(0, 200)}</ErrorNote>}
+      <SigninPrompt notes={notes} back={`/groups/${id}/pot/${gameId}`} />
       {sp.started && (
         <Notice tone="success" params={["started"]} className="mb-4">
           Game on! Put chips in for everyone below. Anyone in the group can add to it.

@@ -8,6 +8,7 @@ import { PAY_CHANGE_LIMIT_TEXT, payChangeOk } from "@/lib/pay-limit";
 import { getTimeZone } from "@/lib/tz";
 import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 import { flashTo } from "@/lib/flash";
+import { gateGuest, isGuestMember, ownPlayerRefusal, refusalNotes } from "@/lib/guest-rules";
 
 // The Pot's buttons. Every one checks you're in the group (and the host
 // rules in pot-db.ts), then goes back to the game with a note.
@@ -15,11 +16,20 @@ import { flashTo } from "@/lib/flash";
 const field = (f: FormData, k: string) => String(f.get(k) ?? "");
 const okId = (s: string) => (/^[A-Za-z0-9_-]{6,40}$/.test(s) ? s : "");
 
-async function me(groupId: string) {
+async function meOwn(groupId: string) {
   const id = okId(groupId);
   const myId = id ? await getMyMemberId(id) : undefined;
   if (!myId) redirect("/private");
   return { groupId: id, myId };
+}
+
+// Host actions (start, finish, reopen, delete, adjust, add or rename a player, count out, mark paid) need an account: a guest is sent
+// to the group with the sign-in note. Buy-in and cash-out for yourself use meOwn and check the players below.
+async function me(groupId: string) {
+  const r = await meOwn(groupId);
+  const refused = await gateGuest(r.myId);
+  if (refused) redirect(await flashTo(["groups", r.groupId], refusalNotes(refused)));
+  return r;
 }
 
 async function gameGroup(gameId: string) {
@@ -30,9 +40,9 @@ async function gameGroup(gameId: string) {
 
 const back = (groupId: string, gameId: string, q: Record<string, string>) => `/groups/${groupId}/pot/${gameId}?${new URLSearchParams(q)}`;
 // The same page with a message: the message is signed for this game's page, and the rest of the link is plain.
-const flashBack = (groupId: string, gameId: string, q: Record<string, string>) => {
-  const { error, ...rest } = q;
-  return flashTo(["groups", groupId, "pot", gameId], error !== undefined ? { error } : {}, rest);
+const flashBack = (groupId: string, gameId: string, q: Record<string, string | undefined>) => {
+  const { error, signin, ...rest } = q;
+  return flashTo(["groups", groupId, "pot", gameId], { ...(error !== undefined ? { error } : {}), ...(signin !== undefined ? { signin } : {}) }, rest);
 };
 
 export async function startGameAction(f: FormData) {
@@ -89,7 +99,9 @@ export async function addPlayerAction(f: FormData) {
 // Buy-in: one amount for everyone ticked.
 export async function buyInAction(f: FormData) {
   const gameId = field(f, "gameId");
-  const { groupId, myId } = await me(await gameGroup(gameId));
+  const { groupId, myId } = await meOwn(await gameGroup(gameId));
+  const noBuyIn = ownPlayerRefusal(await isGuestMember(myId), myId, f.getAll("memberIds").map(String).slice(0, 60));
+  if (noBuyIn) redirect(await flashBack(groupId, gameId, refusalNotes(noBuyIn)));
   const r = await buyIn(gameId, myId, { memberIds: f.getAll("memberIds").map(String).slice(0, 60), amount: field(f, "amount"), note: field(f, "note"), requestKey: cleanKey(f.get("rid")) });
   redirect(await flashBack(groupId, gameId, r.ok ? { bought: String(r.count) } : { error: r.error }));
 }
@@ -97,7 +109,10 @@ export async function buyInAction(f: FormData) {
 // Cash out (and maybe someone new takes the seat).
 export async function cashOutAction(f: FormData) {
   const gameId = field(f, "gameId");
-  const { groupId, myId } = await me(await gameGroup(gameId));
+  const { groupId, myId } = await meOwn(await gameGroup(gameId));
+  // A guest cashes out only themselves, and cannot seat a new player (that is the host's job).
+  const noCashOut = ownPlayerRefusal(await isGuestMember(myId), myId, [field(f, "memberId")]) ?? (field(f, "newName").trim() && (await isGuestMember(myId)) ? ownPlayerRefusal(true, myId, []) : null);
+  if (noCashOut) redirect(await flashBack(groupId, gameId, refusalNotes(noCashOut)));
   const r = await cashOut(gameId, myId, { memberId: field(f, "memberId"), amount: field(f, "amount"), newName: field(f, "newName").slice(0, 80), newAmount: field(f, "newAmount") });
   redirect(await flashBack(groupId, gameId, r.ok ? { cashed: "1", ...(field(f, "newName").trim() ? { seat: "1" } : {}) } : { error: r.error }));
 }

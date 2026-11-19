@@ -54,7 +54,7 @@ describe("moments: opening the list", () => {
 
 describe("moments: who can add", () => {
   it("a current, signed-in member of a trip group can, also when the group is closed (closing isn't a block)", () => expect(canAddMoment(viewer())).toBe(true));
-  it("a guest (no email) can't: they are asked to sign in", () => expect(canAddMoment(viewer({ accountId: null }))).toBe(false));
+  it("a guest (no email) can too: the moment is saved with no account on it, and gets it when they sign in", () => expect(canAddMoment(viewer({ accountId: null }))).toBe(true));
   it("someone who left, was removed, or is pending can't", () => {
     expect(canAddMoment(viewer({ leftAt: T("09:00:00.000") }))).toBe(false);
     expect(canAddMoment(viewer({ removedAt: T("09:00:00.000") }))).toBe(false);

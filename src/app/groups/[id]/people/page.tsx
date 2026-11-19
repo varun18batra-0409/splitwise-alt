@@ -11,7 +11,7 @@ import { canUndo, leaverUndoChecks, ownMoveOut } from "@/lib/undo";
 import { UNDO_MOVE_OUT_EXPLAINER, UndoMoveOutButton, leaverBlockedText } from "../_components/LeftBanner";
 import { formatMoney } from "@/lib/money";
 import { listMoney } from "@/lib/money-display";
-import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
+import { cancelInvite, invitePersonByEmail, releaseGuestNameAction, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { Notice } from "@/components/Notice";
 import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
@@ -32,6 +32,7 @@ import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
 import { DateField } from "@/components/DateField";
 import { readNotes } from "@/lib/flash";
+import { SigninPrompt } from "@/components/SigninPrompt";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -150,6 +151,9 @@ export default async function PeoplePage({
             {!me && !m.accountId && !m.claimedAt && !m.leftAt && (
               <span className="ml-2 rounded-full border border-line px-2 py-0.5 align-middle text-[10px] font-normal text-gray-500">not on Loopin yet</span>
             )}
+            {!m.accountId && m.claimedAt && !m.leftAt && !m.removedAt && (
+              <span className="ml-2 rounded-full border border-line px-2 py-0.5 align-middle text-[10px] font-normal text-gray-500" data-no-account>no account yet</span>
+            )}
           </span>
           <span className="block text-xs text-gray-400">
             {mine ? ownStatus : m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : bal > 0 ? (
@@ -193,6 +197,16 @@ export default async function PeoplePage({
             )}
             {viewer && m.accountId && !me && m.accountId !== viewer.id && (
               <SafetyLinks kind="person" targetId={m.accountId} accountId={m.accountId} name={m.name} back={`/groups/${group.id}/people`} className="!justify-start -ml-2" />
+            )}
+            {/* A name held with no account (someone joined from the link): the admin with an account, or the person on their own name, can free it. */}
+            {!leaver && !m.accountId && m.claimedAt && !m.leftAt && !m.removedAt && (me || (isAdmin && viewer)) && (
+              <form action={releaseGuestNameAction} data-free-name>
+                {hidden}
+                <button type="submit" className={small}>
+                  {me ? "Not me" : "Free this name"}
+                </button>
+                <p className="mt-2 text-xs text-gray-400">{me ? `This phone stops being ${m.name}.` : `Whoever holds ${m.name} stops being them.`} The name goes back on the list at the invite link. Nothing is spent or changed.</p>
+              </form>
             )}
             {!leaver && !m.accountId && !m.claimedAt && !m.leftAt && waiting.has(m.id) && (
               <div className="space-y-2" data-invited-row>
@@ -352,7 +366,8 @@ export default async function PeoplePage({
   return (
     <>
       <PageHeader title="People" back={`/groups/${group.id}?tab=balances`} />
-      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
+      {notes.error && !notes.signin && <ErrorNote>{notes.error}</ErrorNote>}
+      <SigninPrompt notes={notes} back={`/groups/${group.id}/people`} />
       {sp.cancelled && (
         <Notice tone="success" params={["cancelled"]} className="mb-4">
           Invitation cancelled. The name stays in the group, and can be claimed with “That’s me” or invited again.

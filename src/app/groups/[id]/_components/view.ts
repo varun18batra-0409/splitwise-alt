@@ -71,7 +71,7 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
   const acrossNames = new Map([...acrossParts].map(([pid, gids]) => [pid, gids.map((gid) => acrossGroups.find((x) => x.id === gid)?.name).filter((n): n is string => Boolean(n))] as [string, string[]]));
   const moveOutIds = await moveOutPaymentIds(db, [group.id]);
 
-  const undoViewer: UndoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })) };
+  const undoViewer: UndoViewer = { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })), guest: group.members.find((m) => m.id === myId)?.accountId === null };
   return {
     ...data,
     tz,

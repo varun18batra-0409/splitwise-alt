@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
+import { gateGuest } from "@/lib/guest-rules";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoAfterCut, photoType } from "@/lib/covers";
 import { cleanPhoto } from "@/lib/strip-meta";
@@ -62,6 +63,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!sameSite) return Response.json({ ok: false, error: "Not allowed." }, { status: 403 });
   const me = await memberOf(id);
   if (!me) return Response.json({ ok: false, error: "Only people in this group can change its photo." }, { status: 403 });
+  // The group's photo is for the whole group: it needs an account (the sign-in sheet's sentence comes back).
+  const refusedGuest = await gateGuest(me.id);
+  if (refusedGuest) return Response.json({ ok: false, error: refusedGuest }, { status: 403 });
   // Counted per person (30 an hour), with a looser cap per network (300) so friends on one mobile network don't block each other.
   // A signed-in person is counted once across all their groups (a member id exists once per group, so it would give 30 per group).
   const who = me.accountId ? `photo:a:${me.accountId}` : `photo:m:${me.id}`;

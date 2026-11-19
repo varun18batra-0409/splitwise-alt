@@ -10,14 +10,13 @@ import { MomentForm } from "./MomentForm";
 export const metadata = { title: "Add your moment", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
-// Add a moment. Only a current member of a trip group with an account gets the form: a guest is asked to sign in, someone who left
+// Add a moment. Only a current member of a trip group gets the form (with or without an account): someone who left
 // goes back to the list, and anyone else gets "not found". (The upload is checked again on the server.)
 export default async function NewMomentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
   const viewer = await loadMomentViewer(id);
   if (!canOpenMoments(viewer) || viewer.groupType !== "trip") notFound();
-  if (viewer.accountId === null) redirect(`/signin?${new URLSearchParams({ back: `/groups/${id}/moments/new` })}`);
   if (!canAddMoment(viewer)) redirect(`/groups/${id}/moments`);
   const group = await db.group.findUnique({ where: { id }, select: { tripStart: true, tripEnd: true } });
   const days = tripDays(group?.tripStart ?? "", group?.tripEnd ?? "").map((value, i) => ({ value, label: `Day ${i + 1}` }));

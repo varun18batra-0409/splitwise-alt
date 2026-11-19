@@ -17,6 +17,7 @@ import { isGroupAdmin } from "./group-admin";
 import { MOVE_OUT_GONE_FOR_GOOD, MOVE_OUT_LEAVER_FIXABLE, moveOutUndoBlock, setMoveInFor, undoMoveOut } from "./home/moving-db";
 import { lateMoveText, lateRecreateText, lateRemovalText, putBackOpen } from "./put-back";
 import { DEFAULT_TIME_ZONE } from "./dates";
+import { undoRefusal } from "./guest-rules";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks, moneySig, peopleInExpense } from "./money-guard";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
@@ -106,6 +107,9 @@ export type UndoViewer = {
   // The group's payments (when the screen has them): lets the Undo check see WHO took a payment off, as the server does (setPaymentDeleted).
   // fromId and toId: Only the payer and the person paid can undo a payment (the Undo for someone who recorded it for others lasts 10 minutes).
   payments?: { id: string; fromId: string; toId: string; deletedById: string | null }[];
+  // A person with no account in this group: they may undo only their own lines (guest-rules.ts). The screens fill it from the member
+  // row; undoEvent fills it only when its caller asks (guestRules), so the screen and the server agree.
+  guest?: boolean;
 };
 
 // Who may use Undo at all: someone in the group. Someone who left can't change the group, except to undo their OWN "left the group"
@@ -234,6 +238,8 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
 // put them back in. The only undo of that kind allowed to someone else is the admin's own removal action (the event is the admin's).
 // The person who took someone with an account out can undo that, but only for 10 minutes (put-back.ts); after that the person is invited back.
 export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, originAt?: Date): string | null {
+  const guestNo = undoRefusal(Boolean(viewer.guest), viewer.id, ev.actorId);
+  if (guestNo) return guestNo;
   const payload = parsed(ev);
   if (!payload) return null;
   const actorId = viewer.id;
@@ -442,11 +448,11 @@ export function blockedMessage(check: Extract<CanUndo, { ok: false }>, ctx: { na
 type UndoResult = { ok: true; eventId?: string } | { ok: false; error: string };
 
 // `memberships`: group id -> my member id (the pages pass getMemberships()), so a payment across several groups finds who I am in each.
-export async function undoEvent(eventId: string, actorId: string | undefined, tz: string = DEFAULT_TIME_ZONE, opts: { memberships?: Record<string, string> } = {}): Promise<UndoResult> {
+export async function undoEvent(eventId: string, actorId: string | undefined, tz: string = DEFAULT_TIME_ZONE, opts: { memberships?: Record<string, string>; guestRules?: boolean } = {}): Promise<UndoResult> {
   return withRetry(() => undoOnce(eventId, actorId, tz, opts));
 }
 
-async function undoOnce(eventId: string, actorId: string | undefined, tz: string, opts: { memberships?: Record<string, string> }): Promise<UndoResult> {
+async function undoOnce(eventId: string, actorId: string | undefined, tz: string, opts: { memberships?: Record<string, string>; guestRules?: boolean }): Promise<UndoResult> {
   const now = new Date();
   const ev = await db.groupEvent.findUnique({ where: { id: eventId } });
   if (!ev) return { ok: false, error: "That change no longer exists." };
@@ -461,7 +467,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // who may use Undo at all, then whether anything newer stands in the way, then what only some people may do.
   // The payments this change is about, so the party-only rule reads who is in each (the screens fill the same list).
   const payRows = await paymentsForUndo(ev.groupId, ev.undo);
-  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members, ...(payRows.length ? { payments: payRows } : {}) };
+  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members, ...(payRows.length ? { payments: payRows } : {}), ...(opts.guestRules && group.members.find((m) => m.id === actorId)?.accountId === null ? { guest: true } : {}) };
   const actorLeft = Boolean(group.members.find((m) => m.id === actorId)?.leftAt);
   const refused = viewerRefusal(ev, viewer);
   if (refused) return { ok: false, error: refused };

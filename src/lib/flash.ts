@@ -14,7 +14,8 @@ export { VIEWER_COOKIE, cleanViewer, newViewerId, viewerCookieOptions };
 // The page (a path, or its pieces) and the message are always given SEPARATELY. A link is never taken apart to find a
 // message in it: anything typed into an id could otherwise make Loopin sign text for a page of the attacker's choosing.
 
-export const NOTE_KEYS = ["error", "skipped", "invited", "payError", "inviteError"] as const;
+// "signin": the short code of a sign-in refusal (guest-rules.ts); the page opens the sign-in sheet for it.
+export const NOTE_KEYS = ["error", "skipped", "invited", "payError", "inviteError", "signin"] as const;
 export type NoteKey = (typeof NOTE_KEYS)[number];
 export type Notes = Partial<Record<NoteKey, string>>;
 type Extra = Record<string, string | undefined> | URLSearchParams;

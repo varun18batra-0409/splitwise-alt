@@ -2,7 +2,8 @@ import { neutralGameText } from "@/lib/game-words";
 import { peopleShown } from "@/lib/left-view";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
-import { getAccount, getMemberships, privatePath } from "@/lib/identity";
+import { getAccount, getMemberships, guestGroupsOnPhone, privatePath } from "@/lib/identity";
+import { googleConfigured } from "@/lib/google";
 import { invitationFor } from "@/lib/invitations";
 import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
@@ -18,6 +19,8 @@ import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
 import { ClosedBanner, MoneyTicket } from "./_components/GroupSummary";
 import { GroupNotices } from "./_components/GroupNotices";
+import { GuestCard } from "./_components/GuestCard";
+import { SigninPrompt } from "@/components/SigninPrompt";
 import { readNotes } from "@/lib/flash";
 import { ActivityTab } from "./_components/ActivityTab";
 import { PeopleTab } from "./_components/PeopleTab";
@@ -111,6 +114,7 @@ export default async function GroupPage({
 
   const v = await buildGroupView(data, myId, tz);
   const { group } = v;
+  const guestHere = group.members.find((m) => m.id === myId)?.accountId === null; // my row here has no account
   // Someone who left (or was removed) sees Overview (their own money), Expenses and People, and Memories read-only (not if removed).
   const leaver = v.leaver;
   const home = !leaver && (group.type === "home" || group.type === "couple");
@@ -215,13 +219,19 @@ export default async function GroupPage({
     <>
       {subTitle ? <SubPageHeader title={subTitle} groupId={group.id} groupName={group.name} /> : <GroupHeader v={v} switchTo={switchTo} />}
       <LeftBanner v={v} ownMoveOut={ownMove} />
+      {/* A refusal that needs an account opens the sign-in sheet; its sentence is the sheet, so the plain banner is not repeated. */}
       <GroupNotices sp={sp} notes={notes} />
+      <SigninPrompt notes={notes} back={`/groups/${group.id}`} />
       {sp.undone === "1" && !showUndo && (
         <Notice tone="success" params={["undone"]} className="mb-5 text-sm">
           Undone.
         </Notice>
       )}
       <ClosedBanner v={v} />
+      {(() => {
+        const me = group.members.find((m) => m.id === myId);
+        return me && me.accountId === null && !me.leftAt && !leaver && group.type !== "direct" ? <GuestCard name={me.name} groupName={group.name} groupId={group.id} /> : null;
+      })()}
       {/* Card nights keep their ticket above their tabs; trips and other groups show it on the Overview only; flats show it on This month. */}
       {pot && !subTitle && <MoneyTicket v={v} facts={facts} />}
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
@@ -267,6 +277,7 @@ export default async function GroupPage({
           reactions={reactions}
           receipts={receipts}
           gameResultIds={gameResultIds}
+          signin={guestHere ? { groups: await guestGroupsOnPhone(), google: googleConfigured(), back: `/groups/${group.id}?tab=activity` } : undefined}
         />
       )}
       {tab === "overview" && <OverviewTab v={v} facts={facts} strip={strip} />}

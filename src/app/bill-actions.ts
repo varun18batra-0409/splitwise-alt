@@ -20,14 +20,23 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 import { flashTo } from "@/lib/flash";
 import { getTimeZone } from "@/lib/tz";
+import { gateGuest, refusalNotes } from "@/lib/guest-rules";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
 
 // Who's acting: must still be in the group (not just carry its cookie).
-async function me(groupId: string) {
+// Bills, budgets, deposits, goals and moving out are group-wide money setup: they need an account, so a guest is sent to the group
+// with the sign-in note (the sheet opens there). The shopping list uses meOpen: a guest may use it.
+async function meOpen(groupId: string) {
   const id = await getMyMemberId(groupId);
   if (!id || !(await db.member.findFirst({ where: { id, groupId, leftAt: null }, select: { id: true } }))) redirect("/private");
+  return id;
+}
+async function me(groupId: string) {
+  const id = await meOpen(groupId);
+  const refused = await gateGuest(id);
+  if (refused) redirect(await flashTo(["groups", groupId], refusalNotes(refused)));
   return id;
 }
 
@@ -79,33 +88,33 @@ export async function toggleMissedDay(formData: FormData) {
 
 export async function listAdd(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  const r = await addListItem(groupId, await me(groupId), String(formData.get("text") ?? ""));
+  const r = await addListItem(groupId, await meOpen(groupId), String(formData.get("text") ?? ""));
   redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "list" }));
 }
 
 export async function listToggle(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  const r = await toggleListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  const r = await toggleListItem(groupId, await meOpen(groupId), String(formData.get("itemId") ?? ""));
   redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "list" }));
 }
 
 export async function listRemove(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  const r = await removeListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  const r = await removeListItem(groupId, await meOpen(groupId), String(formData.get("itemId") ?? ""));
   redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "list" }));
 }
 
 export async function listBuy(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const key = cleanKey(formData.get("rid")) ?? `buy-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const r = await buyListItems(groupId, await me(groupId), String(formData.get("amount") ?? ""), key);
+  const r = await buyListItems(groupId, await meOpen(groupId), String(formData.get("amount") ?? ""), key);
   if (!r.ok) redirect(await flashTo(["groups", groupId], { error: r.error }, { tab: "list" }));
   redirect(`/groups/${groupId}?tab=list&bought=1`);
 }
 
 export async function listGoingShopping(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  const r = await goingShopping(groupId, await me(groupId));
+  const r = await goingShopping(groupId, await meOpen(groupId));
   redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "list", ...(r.ok ? { told: "1" } : {}) }));
 }
 

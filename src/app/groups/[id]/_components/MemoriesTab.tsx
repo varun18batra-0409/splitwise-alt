@@ -7,7 +7,7 @@ import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
 import { SendPostcardCard } from "@/components/postcards/SendCard";
 import { POSTCARD_FONTS_URL } from "@/lib/postcards/catalog";
 import { cardProps } from "@/lib/postcards/view";
-import { CREAM, OUTLINE } from "@/components/HomeMoney";
+import { CREAM } from "@/components/HomeMoney";
 import { dayGroups, type GroupPostcard, type TripStamp } from "@/lib/group-memories";
 import type { MomentCard } from "@/lib/moments-db";
 import { placePhoto } from "@/lib/places";
@@ -58,11 +58,6 @@ export function MemoriesTab({
         <Link href={`/groups/${group.id}/moments/new`} className={`${CREAM} w-full gap-2.5`} data-add-moment>
           <CameraPlusIcon size={22} />
           Add a moment
-        </Link>
-      )}
-      {trip && !canAdd && guest && (
-        <Link href={`/signin?${new URLSearchParams({ back: `/groups/${group.id}?tab=memories` })}`} className={`${OUTLINE} w-full`}>
-          Sign in to add a moment
         </Link>
       )}
 

@@ -609,16 +609,17 @@ async function main() {
     invite = `/join/${m[1]}`;
     return invite;
   });
-  await step(null, "Joining", "Someone opening the link without signing up can't join (no name box)", async () => {
+  await step(null, "Joining", "Someone opening the link sees Join and “Have a Loopin account? Sign in”, and no name box until they tap Join", async () => {
     const x = await person(browser);
     await go(x.page, invite);
-    await x.page.getByRole("link", { name: "Continue with email" }).waitFor();
-    assert((await x.page.locator('input[name="name"]').count()) === 0, "a name box is offered before sign-up");
+    await x.page.getByRole("link", { name: /^Join / }).waitFor();
+    await x.page.getByRole("link", { name: "Sign in", exact: true }).waitFor();
+    assert((await x.page.locator('input[name="name"]').count()) === 0, "a name box is offered before tapping Join");
     await x.ctx.close();
   });
   await step(A, "Joining", "Asha opens the link, signs up with her email, and joins", async () => {
     await go(A, invite);
-    await A.getByRole("link", { name: "Continue with email" }).click();
+    await A.getByRole("link", { name: "Sign in", exact: true }).click();
     await signup(A, "Asha", email("asha"));
     await A.waitForURL(new RegExp(invite));
     await A.getByRole("button", { name: /^Join / }).click();
@@ -626,7 +627,7 @@ async function main() {
   });
   await step(R, "Joining", "Ravi does the same from a WhatsApp message", async () => {
     await go(R, invite);
-    await R.getByRole("link", { name: "Continue with email" }).click();
+    await R.getByRole("link", { name: "Sign in", exact: true }).click();
     await signup(R, "Ravi", email("ravi"));
     await R.waitForURL(new RegExp(invite));
     await R.getByRole("button", { name: /^Join / }).click();

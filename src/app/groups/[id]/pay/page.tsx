@@ -13,6 +13,7 @@ import { groupMark } from "@/lib/home/money-card";
 import { FreshKey } from "@/components/FreshKey";
 import { ErrorNote, PageHeader } from "@/components/ui";
 import { readNotes } from "@/lib/flash";
+import { SigninPrompt } from "@/components/SigninPrompt";
 import { OUTLINE } from "@/components/HomeMoney";
 import { payBlocked } from "@/lib/pay-blocked";
 
@@ -80,7 +81,8 @@ export default async function RecordPayment({
   return (
     <>
       <PageHeader title="Record a payment" back={fromSettle ? `/groups/${group.id}/settle` : `/groups/${group.id}?tab=balances`} />
-      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
+      {notes.error && !notes.signin && <ErrorNote>{notes.error}</ErrorNote>}
+      <SigninPrompt notes={notes} back={`/groups/${id}/pay`} />
 
       <RecordPaymentForm
         groupId={group.id}

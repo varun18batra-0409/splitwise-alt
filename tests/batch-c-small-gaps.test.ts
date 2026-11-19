@@ -28,21 +28,26 @@ const A = await import("@/app/actions");
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let counter = 0;
 const groups: string[] = [];
+const accounts: string[] = [];
 afterAll(async () => {
   state.cookie = "";
   await eraseGroups(groups);
+  await db.account.deleteMany({ where: { id: { in: accounts } } });
 });
 
 async function world() {
   const n = ++counter;
+  // Asha has an account: closing a group is for people with one (a guest is asked to sign in, see guest-rules.test.ts).
+  const acct = await db.account.create({ data: { email: `cg-${n}-${stamp}@example.test`, name: "Asha" } });
+  accounts.push(acct.id);
   const g = await db.group.create({
-    data: { name: `C gaps ${n} ${stamp}`, currency: "INR", inviteCode: `cg-${n}-${stamp}`, members: { create: [{ name: "Asha", claimedAt: new Date() }, { name: "Ravi", claimedAt: new Date() }] } },
+    data: { name: `C gaps ${n} ${stamp}`, currency: "INR", inviteCode: `cg-${n}-${stamp}`, members: { create: [{ name: "Asha", accountId: acct.id, claimedAt: new Date() }, { name: "Ravi", claimedAt: new Date() }] } },
     include: { members: true },
   });
   groups.push(g.id);
   const a = g.members.find((m) => m.name === "Asha")!.id;
   const r = g.members.find((m) => m.name === "Ravi")!.id;
-  state.cookie = await encodeSession({ m: { [g.id]: a }, t: today() });
+  state.cookie = await encodeSession({ m: {}, a: acct.id, v: 0, t: today() });
   return { gid: g.id, a, r };
 }
 const form = (o: Record<string, string>) => {

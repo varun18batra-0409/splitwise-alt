@@ -18,6 +18,16 @@ export function sameName(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+// A name as the public join page shows it: the first name and the first letter of the surname ("Asha Kumar" -> "Asha K."), so two
+// Rahuls can still be told apart. One word is shown as it is. (The surname is the last word.)
+export function publicName(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return words[0] ?? "";
+  const last = words[words.length - 1];
+  const initial = Array.from(last)[0] ?? "";
+  return `${words[0]} ${initial.toUpperCase()}.`;
+}
+
 export type Person = { name: string; phone: string };
 
 // Keeps only digits and a leading +, e.g. "+91 98765-43210" → "+919876543210".

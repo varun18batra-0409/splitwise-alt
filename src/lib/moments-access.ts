@@ -46,9 +46,10 @@ export function canSeeMoment(v: MomentViewer | null, m: MomentFacts): boolean {
   return true;
 }
 
-// Adding needs an account (a guest is asked to sign in) and a trip group they are still in. Closed groups are fine.
+// Adding needs a trip group they are still in: with or without an account (a guest's moment is saved with no account on it, and gets
+// the account when they sign in). Closed groups are fine.
 export function canAddMoment(v: MomentViewer | null): v is MomentViewer {
-  return Boolean(v) && current(v!) && v!.groupType === "trip" && v!.accountId !== null;
+  return Boolean(v) && current(v!) && v!.groupType === "trip";
 }
 
 export function canReactToMoment(v: MomentViewer | null, m: MomentFacts): boolean {

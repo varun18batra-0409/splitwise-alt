@@ -37,6 +37,7 @@ import { listMoney } from "@/lib/money-display";
 import { leaverMoneyLine, settledPercent, settleHeadline, settlePaymentsHeadline } from "@/lib/settle-ui";
 import { confirmPaymentAction, markAllPaidAction, rejectPaymentAction } from "@/app/pay-actions";
 import { readNotes } from "@/lib/flash";
+import { SigninPrompt } from "@/components/SigninPrompt";
 
 // Settle up inside one group: the fewest payments that clear every debt.
 // Each can be recorded in full with one tap, or for a smaller amount
@@ -225,7 +226,8 @@ export default async function GroupSettle({
         {paymentCount + transfers.length > 0 && <SettleProgress pct={settledPct} />}
       </div>
 
-      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
+      {notes.error && !notes.signin && <ErrorNote>{notes.error}</ErrorNote>}
+      <SigninPrompt notes={notes} back={`/groups/${id}/settle`} />
       {sp.paid === "all" && !sp.undone && <Notice params={["paid"]} className="mb-4">All marked paid ✓ The group stays open.</Notice>}
       {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-4">Payment recorded. Balances updated, and they’re told.</Notice>}
       {group.closed && <div className="mb-4 rounded-[20px] border border-line bg-white px-4 py-3 text-sm text-fg/70">This group is closed. Reopen it to record payments.</div>}
