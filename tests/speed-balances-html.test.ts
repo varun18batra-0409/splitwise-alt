@@ -22,10 +22,12 @@ afterAll(async () => {
 });
 
 const d = (n: number, h = 10) => new Date(Date.UTC(2026, 10, n, h));
+let seq = 0;
 async function trip() {
+  seq += 1;
   const g = await db.group.create({
     data: {
-      name: `HTML ${stamp}`, inviteCode: `html-${stamp}`, currency: "INR", cardMarkupBp: 300,
+      name: `HTML ${stamp}-${seq}`, inviteCode: `html-${stamp}-${seq}`, currency: "INR", cardMarkupBp: 300,
       members: { create: ["A", "B", "C", "D"].map((name, i) => ({ name, createdAt: new Date(Date.UTC(2026, 9, 1, 10, i)) })) },
     },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
