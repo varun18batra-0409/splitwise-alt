@@ -25,6 +25,10 @@ test.afterAll(async () => hostCtx?.close());
 test("a guest joins from the link, adds Taxi, is asked to sign in for Hana's Dinner, signs in, and is still Ben with the same money", async ({ context, page }) => {
   await allowTestCopy(context);
   const groupId = g.path.split("/").pop()!;
+  const consoleErrors: string[] = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(m.text().slice(0, 200));
+  });
 
   // 1. Open the link signed out: Join, and the sign-in link; no name box yet, and no amounts.
   await page.goto(g.invite);
@@ -80,12 +84,25 @@ test("a guest joins from the link, adds Taxi, is asked to sign in for Hana's Din
   await page.locator("[data-guest-move]").click();
   // Wait for the thing that matters (Ben's row now has the account), not for the address: the sign-in hands over with a soft
   // navigation, and the group page it lands on is free to tidy the address.
-  await expect
-    .poll(async () => (await db.member.findUniqueOrThrow({ where: { id: ben.id } })).accountId, {
-      timeout: 30_000,
-      message: "Ben's row never got the account after Move them and continue",
-    })
-    .not.toBeNull();
+  const linked = await expect
+    .poll(async () => (await db.member.findUniqueOrThrow({ where: { id: ben.id } })).accountId, { timeout: 30_000 })
+    .not.toBeNull()
+    .then(() => true)
+    .catch(() => false);
+  if (!linked) {
+    // Say exactly what happened, so a failure shows its cause (no secrets: ids are test data on the throwaway copy).
+    const acc = await db.account.findFirst({ where: { email } });
+    const row = await db.member.findUniqueOrThrow({ where: { id: ben.id } });
+    const onAcc = acc ? await db.member.findMany({ where: { accountId: acc.id }, select: { groupId: true, name: true } }) : [];
+    const alerts = await page.locator('[role="alert"]').allInnerTexts().catch(() => []);
+    const sheetOpen = await page.locator("[data-guest-sheet]").count();
+    throw new Error(
+      `Ben's row never got the account after Move them and continue. url=${page.url()} | account made=${Boolean(acc)} | ` +
+        `Ben row: accountId=${row.accountId} claimedAt=${Boolean(row.claimedAt)} grantEpoch=${row.grantEpoch} removedAt=${Boolean(row.removedAt)} | ` +
+        `rows on the account=${JSON.stringify(onAcc.map((r) => [r.groupId === groupId ? "this group" : "other", r.name]))} | ` +
+        `sheet still open=${sheetOpen} | alerts=${JSON.stringify(alerts)} | console errors=${JSON.stringify(consoleErrors.slice(-5))}`,
+    );
+  }
 
   // 6. Still Ben: the same member row (now with the account), Taxi still his, the same balances, and the guest card gone.
   const after = await db.member.findUniqueOrThrow({ where: { id: ben.id } });
