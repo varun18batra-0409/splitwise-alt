@@ -30,7 +30,7 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.STAGING_TURSO_AUTH_TOKEN }}
         run: |
           set -o pipefail
-          npx tsx scripts/live-counts.mjs 2>&1 | tee write-run.log
+          npx tsx scripts/live-counts.ts 2>&1 | tee write-run.log
       - name: Check that the write key was refused
         run: |
           if [ "${{ steps.write.outcome }}" != "failure" ]; then echo "::error title=Guard::the write key was NOT refused"; exit 1; fi
@@ -43,7 +43,7 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.STAGING_TURSO_READONLY_TOKEN }}
         run: |
           set -o pipefail
-          npx tsx scripts/live-counts.mjs 2>&1 | tee ro-run.log
+          npx tsx scripts/live-counts.ts 2>&1 | tee ro-run.log
           for n in 1 2 3 4 5; do grep -q "::notice title=$n " ro-run.log || { echo "::error title=Rehearsal::notice $n missing"; exit 1; }; done
           echo "::notice title=Rehearsal read-only key::counts printed"
       - name: No read-only key for staging

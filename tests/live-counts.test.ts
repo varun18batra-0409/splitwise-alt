@@ -9,11 +9,11 @@ import { smartSettle } from "@/lib/settle";
 import { pickAdmin as appPickAdmin } from "@/lib/group-admin";
 import { SELF_ACTION_KINDS as APP_KINDS, REPEAT_BILL_MARK as APP_REPEAT, PAY_LINK_MARK as APP_PAYLINK } from "@/lib/membership";
 
-// The read-only live counts (scripts/live-counts.mjs), run on throwaway local database files only.
+// The read-only live counts (scripts/live-counts.ts), run on throwaway local database files only.
 // Money is in paise; the hand-worked numbers are written out beside each group.
 // The script is loaded by path so the type checker does not follow it.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const LC: any = await import(/* @vite-ignore */ resolve(process.cwd(), "scripts/live-counts.mjs"));
+const LC: any = await import(/* @vite-ignore */ resolve(process.cwd(), "scripts/live-counts.ts"));
 const SCHEMA_TEXT = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
 
 let schemaSql = "";
@@ -423,7 +423,7 @@ describe("the output filter and small rules", () => {
   });
 
   it("the script can only read: no database client calls, and the only write words are the rolled-back test", () => {
-    const src = readFileSync(resolve(process.cwd(), "scripts/live-counts.mjs"), "utf8");
+    const src = readFileSync(resolve(process.cwd(), "scripts/live-counts.ts"), "utf8");
     const code = src.split("\n").map((l) => l.replace(/\s\/\/ .*$/, "")).filter((l) => !l.trim().startsWith("//")).join("\n");
     expect(code).not.toMatch(/\bdb\.(\w+)\.(create|update|delete|upsert)/);
     expect(code).not.toMatch(/\b(INSERT|DELETE|CREATE|DROP|ALTER|REPLACE|VACUUM|ATTACH)\b/);

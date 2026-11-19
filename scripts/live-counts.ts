@@ -1,5 +1,5 @@
 // Read-only counts on the live database, for five clean-up items. It only counts: nothing is fixed here.
-// Run with tsx (it reads the app's own money working from src/lib):  npx tsx scripts/live-counts.mjs
+// Run with tsx (it reads the app's own money working from src/lib):  npx tsx scripts/live-counts.ts
 // Needs TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (a READ-ONLY token). Prints counts and size bands only:
 // no names, emails, amounts or ids ever leave this file (see safeLine).
 //
