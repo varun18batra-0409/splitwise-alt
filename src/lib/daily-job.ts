@@ -6,6 +6,7 @@ import { sendBillAsks } from "./home/bill-asks";
 import { sendMemoryLane, sendTripCountdowns } from "./countdown-db";
 import { noteOpenedPostcards } from "./postcards/open-db";
 import { db } from "./db";
+import { keyStarting } from "./key-range";
 import { DEFAULT_TIME_ZONE, dayKey } from "./dates";
 import { isNudgeHour } from "./local-time";
 
@@ -88,7 +89,7 @@ export async function dailyState(now: Date): Promise<{ started: boolean; finishe
 
 export async function deferredToday(now: Date): Promise<string[]> {
   const prefix = deferredPrefix(dayKey(now, DEFAULT_TIME_ZONE));
-  const rows = await db.notifyLog.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } });
+  const rows = await db.notifyLog.findMany({ where: { key: keyStarting(prefix) }, select: { key: true } });
   const noted = new Set(rows.map((r) => r.key.slice(prefix.length)));
   return PART_NAMES.filter((p) => noted.has(p));
 }

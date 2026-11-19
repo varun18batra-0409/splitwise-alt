@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { keyStarting } from "./key-range";
 import { isDuplicateKey, previousResult } from "./once";
 import { RESTORE_DAYS } from "./group-data";
 
@@ -28,7 +29,7 @@ export async function tripFromGoalOnce<T extends { id: string }>(goalId: string,
   // Before anything else: a goal that already became a trip (the old claim, or the durable record) never makes a second one,
   // unless that trip is gone for good, in which case the old record is released and a fresh trip can be made.
   const logged = await db.notifyLog.findUnique({ where: { key }, select: { key: true } });
-  const made = logged ? await db.notifyLog.findFirst({ where: { key: { startsWith: madeKey } }, select: { key: true } }) : null;
+  const made = logged ? await db.notifyLog.findFirst({ where: { key: keyStarting(madeKey) }, select: { key: true } }) : null;
   const prev = await previousResult(key);
   const knownId = made ? made.key.slice(madeKey.length) : prev || "";
   if (logged || prev !== null) {
@@ -37,7 +38,7 @@ export async function tripFromGoalOnce<T extends { id: string }>(goalId: string,
     if (s === "live") return { existing: knownId };
     if (s === "deleted") return { deleted: knownId };
     // Erased: release every record of the old trip so a new one can be made (and the person isn't bounced back forever).
-    await db.notifyLog.deleteMany({ where: { OR: [{ key }, { key: { startsWith: madeKey } }] } });
+    await db.notifyLog.deleteMany({ where: { OR: [{ key }, { key: keyStarting(madeKey) }] } });
     // Only the old trip's own record: a tap arriving at the same moment that already claimed the key keeps its claim.
     await db.requestKey.deleteMany({ where: { key, result: knownId } });
   }

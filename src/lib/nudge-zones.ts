@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { keyStarting } from "./key-range";
 import { NUDGE_LAST_HOUR, cleanTimeZone, isNudgeHour, localDays, localHour } from "./local-time";
 
 // Who gets a nudge when, by their own time zone.
@@ -62,7 +63,7 @@ export async function coveredByOldGroupRecord(oldKey: string, now: Date = new Da
   if (await coveredByOldRecord(oldKey, now, memberId)) return true;
   const row = await db.notifyLog.findUnique({ where: { key: oldKey }, select: { state: true } });
   if (row?.state !== "done") return false;
-  return !(await db.notifyLog.findFirst({ where: { key: { startsWith: `${oldKey}:sent:` } }, select: { key: true } }));
+  return !(await db.notifyLog.findFirst({ where: { key: keyStarting(`${oldKey}:sent:`) }, select: { key: true } }));
 }
 
 // member id -> zone ("" = not known). Never throws (a failure reads as "not known", i.e. today's behaviour).
