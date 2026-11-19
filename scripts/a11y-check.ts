@@ -58,7 +58,7 @@ const inPage = `(() => {
   return {
     h1: document.querySelectorAll("h1").length,
     scrollWidth: document.documentElement.scrollWidth,
-    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    sideways: document.documentElement.scrollWidth > 390, // not innerWidth: a phone browser widens its window to fit a too-wide page
     cutOff, unnamed, unlabelled,
   };
 })()`;
@@ -168,7 +168,7 @@ function report() {
     } else md.push("No axe violations.");
     md.push("", `At 200% text: sideways scroll ${r.sideways ? "YES" : "no"} (page width ${r.scrollWidth200}px, window 390px). Cut-off text: ${r.cutOff.length ? "" : "none"}`);
     for (const c of r.cutOff) md.push(`- \`${c.selector}\`: "${c.text}"`);
-    md.push(`Buttons/links with no name: ${r.unnamed.length ? r.unnamed.map((s) => "`" + s + "`").join(", ") : "none"}. Fields with no label: ${r.unlabelled.length ? r.unlabelled.map((s) => "`" + s + "`").join(", ") : "none"}.`, "", `Pictures: \`${r.key}.png\`, \`${r.key}-200pct.png\``, "");
+    md.push(`Buttons/links with no name (simple own check, axe has the final say): ${r.unnamed.length ? r.unnamed.map((s) => "`" + s + "`").join(", ") : "none"}. Fields with no label: ${r.unlabelled.length ? r.unlabelled.map((s) => "`" + s + "`").join(", ") : "none"}.`, "", `Pictures: \`${r.key}.png\`, \`${r.key}-200pct.png\``, "");
   }
   const rules = new Map<string, { impact: string; help: string; screens: string[] }>();
   for (const r of results) for (const v of r.violations) { const e = rules.get(v.id) ?? { impact: v.impact, help: v.help, screens: [] }; e.screens.push(r.key); rules.set(v.id, e); }
