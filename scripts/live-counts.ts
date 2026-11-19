@@ -10,7 +10,7 @@
 //      Anything it does not recognise also means "refuse".
 import { createClient } from "@libsql/client";
 import { readFileSync, appendFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { resolve as resolvePath } from "node:path";
 import { netBalances } from "../src/lib/balances.ts";
 import { parsePayers } from "../src/lib/payers.ts";
 
@@ -530,7 +530,7 @@ export async function countClaims(client, nowMs) {
 // ---- Putting it together.
 export async function countAll(client, opts = {}) {
   const cutoffMs = opts.cutoffMs ?? Date.parse(DEFAULT_CUTOFF);
-  const schemaText = opts.schemaText ?? readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
+  const schemaText = opts.schemaText ?? readFileSync(resolvePath(process.cwd(), "prisma/schema.prisma"), "utf8");
   const sections = [
     ["1 · Emails in history", () => countEmailsInHistory(client, cutoffMs)],
     ["2 · Names marked joined (OA-1)", () => countWrongJoined(client)],
@@ -592,6 +592,10 @@ export async function run({ env = process.env, client, write = (s) => console.lo
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await run();
+// Run directly with tsx (this repo's .ts scripts run as CommonJS, so no top-level await and no import.meta here).
+declare const require: any, module: any;
+if (typeof require !== "undefined" && typeof module !== "undefined" && require.main === module) {
+  run().then((code: number) => {
+    process.exitCode = code;
+  });
 }
