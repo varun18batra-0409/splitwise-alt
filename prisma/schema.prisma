@@ -144,6 +144,7 @@ model Expense {
   payers      String         @default("") // more than one payer: JSON [{"m": memberId, "a": paise}] adding up to amount; "" = just paidById
   kind        String         @default("expense") // "expense" | "refund" (money back: whoever got it owes the people it's shared with)
   @@index([groupId])
+  @@index([groupId, createdAt]) // per-group loads in date order, Home's "latest" per group (add-only index)
 }
 
 model ExpenseShare {
@@ -177,6 +178,9 @@ model Payment {
   needsOk     Boolean   @default(false)
   okAt        DateTime?
   @@index([groupId])
+  @@index([groupId, createdAt]) // per-group loads in date order, Home's latest payment (add-only index)
+  @@index([toId]) // payments waiting for my OK (add-only index)
+  @@index([fromId]) // whether a member has any payment (add-only index)
 }
 
 // Everything that happens in a group: the change history and the source of
@@ -199,6 +203,7 @@ model GroupEvent {
   touches   String   @default("") // member ids whose balance this change moved, comma-separated (expense and payment changes); "" = not recorded
 
   @@index([groupId, createdAt])
+  @@index([groupId, kind]) // move-out lines, member history (add-only index)
   @@index([expenseId])
   @@index([paymentId])
 }
@@ -336,6 +341,7 @@ model Invite {
   fromAccount Boolean   @default(false)
 
   @@unique([groupId, email])
+  @@index([email]) // invitations waiting for an email address on every Home and Alerts open (add-only index)
 }
 
 // Emails that would have been sent, kept instead of sending when MAIL_OUTBOX=1
