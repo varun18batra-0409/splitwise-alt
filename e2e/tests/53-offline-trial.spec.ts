@@ -7,7 +7,7 @@ import { contextFor, createGroup, settled } from "../helpers/app";
 // TRIAL (branch phase-offline-trial, never released): can one saved, generic offline screen open with no signal?
 // Uses context.setOffline on Android (Chromium) and iPhone (WebKit). See the offline plan, steps 2a and 2d.
 const VALUE = "trial-value-4242";
-const EXPECTED_FAILURE = /Failed to load resource|net::ERR|Failed to fetch|NetworkError|Load failed|fetch failed|The Internet connection appears to be offline|network connection was lost|ERR_INTERNET_DISCONNECTED/i;
+const EXPECTED_FAILURE = /Failed to load resource|net::ERR|Failed to fetch|NetworkError|Load failed|Beacon API cannot load|fetch failed|The Internet connection appears to be offline|network connection was lost|ERR_INTERNET_DISCONNECTED/i;
 
 async function setup(browser: Browser, tag: string, testInfo: { project: { name: string } }) {
   const user = await signUp("Asha", testEmail(`off-${tag}`));
@@ -67,6 +67,7 @@ async function setup(browser: Browser, tag: string, testInfo: { project: { name:
 function watchErrors(page: Page) {
   const bad: string[] = [];
   page.on("console", (m) => {
+    if (m.type() === "error" || m.type() === "warning") console.log(`TRIAL console ${m.type()}: ${m.text().slice(0, 160)}`);
     if (m.type() === "error" && !EXPECTED_FAILURE.test(m.text())) bad.push(`console: ${m.text().slice(0, 200)}`);
   });
   page.on("pageerror", (e) => {
@@ -109,13 +110,26 @@ test("offline screen: saved by the service worker, reached from a full load and 
 
   // 1. A Link tap on the real group page (Add expense).
   bad.length = 0;
+  await page.evaluate(() => ((window as unknown as { __marker: number }).__marker = 1));
   await page.locator("[data-add-expense]").click();
   await expect(page.locator("[data-offline-app]"), "Link tap ends on the offline screen").toBeVisible({ timeout: 25_000 });
   console.log(`TRIAL link tap -> ${page.url()}`);
   expect(page.url()).toContain("/offline-app");
   await expectOfflineScreen(page, bad, /g=/);
-  const afterTap = await page.evaluate(() => ({ url: location.pathname + location.search, nav: performance.getEntriesByType("navigation").length }));
-  console.log(`TRIAL after tap ${JSON.stringify(afterTap)}`);
+  const afterTap = await page.evaluate(() => ({ url: location.pathname + location.search, markerSurvived: (window as unknown as { __marker?: number }).__marker === 1 }));
+  console.log(`TRIAL after tap ${JSON.stringify(afterTap)} (markerSurvived false = a full page load, not an in-page switch)`);
+  // What the saved copy carries: its page rule and whether the page's scripts match it.
+  const saved = await page.evaluate(async () => {
+    const name = (await caches.keys()).filter((k) => k.startsWith("loopin-shell-")).sort().pop()!;
+    const c = await caches.open(name);
+    const r = (await c.match("/offline-app"))!;
+    const html = await r.text();
+    const csp = r.headers.get("content-security-policy") ?? "";
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1] ?? "";
+    return { files: (await c.keys()).length, cspHasNonce: !!nonce, htmlUsesNonce: !!nonce && html.includes(`nonce="${nonce}"`), cspHeaders: csp.slice(0, 80) };
+  });
+  console.log(`TRIAL saved copy ${JSON.stringify(saved)}`);
+  expect(saved.cspHasNonce && saved.htmlUsesNonce, "the saved page keeps its own matching script key").toBe(true);
 
   // 2. Full page load of the add screen, then the group.
   for (const [path, want] of [
