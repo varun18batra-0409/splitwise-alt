@@ -916,7 +916,8 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
   });
 
   it("N4 (A5): 'Not received' on B's ₹300 move-out payment to C once B has left works: B is brought back at -30000, C +30000", async () => {
-    const g = await make(["B", "C"]);
+    // C answers with an account: a guest only answers payments made after they took the name (tests/guest-rules.test.ts).
+    const g = await make(["B", "C"], { accounts: { C: await raceAccount("C") } });
     await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi"); // B owes C 30000
     const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // B pays: 0 / 0
     await markAsMoveOut(g.id, g.ids.B, [pay.id]); // Not received exists only for a flat move-out's final payment
@@ -929,7 +930,7 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
   });
 
   it("N4: an ordinary payment has no 'Not received' any more; C (the person paid) deletes it instead: B owes C 30000 again", async () => {
-    const g = await make(["B", "C"]);
+    const g = await make(["B", "C"], { accounts: { C: await raceAccount("C") } }); // signed in, as above
     await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi");
     const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // counts at once: 0 / 0
     expect(await rejectPayment(pay.id, g.ids.C)).toEqual({ ok: false, error: "This payment already counts. If it’s wrong, delete it from the activity." });
