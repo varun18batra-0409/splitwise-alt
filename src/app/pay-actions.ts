@@ -32,7 +32,7 @@ export async function confirmPaymentAction(f: FormData) {
   const paymentId = field(f, "paymentId");
   const groupId = await paymentGroup(paymentId);
   const r = await confirmPayment(paymentId, await getMyMemberId(groupId));
-  redirect(await flashTo(["groups", groupId, "settle"], r.ok ? {} : { error: r.error }, r.ok ? { ok: "1" } : {}));
+  redirect(await flashTo(["groups", groupId, "settle"], r.ok ? {} : refusalNotes(r.error), r.ok ? { ok: "1" } : {}));
 }
 
 export async function rejectPaymentAction(f: FormData) {
@@ -41,7 +41,7 @@ export async function rejectPaymentAction(f: FormData) {
   const myId = await getMyMemberId(groupId);
   if (myId && !(await payChangeOk(myId))) redirect(await flashTo(["groups", groupId, "settle"], { error: PAY_CHANGE_LIMIT_TEXT }));
   const r = await rejectPayment(paymentId, myId);
-  redirect(await flashTo(["groups", groupId, "settle"], r.ok ? {} : { error: r.error }, r.ok ? { notgot: "1", ...(r.eventId ? { did: r.eventId } : {}), ...(r.back.length ? { back: r.back.map((b) => b.id).join(",") } : {}) } : {}));
+  redirect(await flashTo(["groups", groupId, "settle"], r.ok ? {} : refusalNotes(r.error), r.ok ? { notgot: "1", ...(r.eventId ? { did: r.eventId } : {}), ...(r.back.length ? { back: r.back.map((b) => b.id).join(",") } : {}) } : {}));
 }
 
 // Settle up → "Mark all N paid": every payment shown that someone else makes, recorded at once; the group stays open.

@@ -204,7 +204,7 @@ export async function guestAttemptAllowed(ip: string, now = new Date()): Promise
   return allow(`join-guest-ip:${ip}`, GUEST_JOIN_PER_IP, 3600, now);
 }
 const linkKey = (code: string) => `join-guest-link:${code.slice(0, 60)}`;
-// Is the link still under its daily limit? Only looks, uses nothing.
+// Is the link still under its daily limit? Only looks, uses nothing. (Simultaneous joins can overshoot 30 slightly: accepted, it is a soft cap, and the 20 an hour per network keeps it small.)
 export async function guestLinkOpen(code: string, now = new Date()): Promise<boolean> {
   try {
     const row = await db.rateLimit.findUnique({ where: { key: linkKey(code) } });

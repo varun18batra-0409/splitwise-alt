@@ -230,11 +230,11 @@ function joinRefused(code: string, r: JoinFail, step = ""): never {
   redirect(step ? `${base}${base.includes("?") ? "&" : "?"}${step}` : base);
 }
 
-// The name this phone already holds in the group (no account, not removed), if any: such a phone is sent straight to the group, uncounted.
+// The name this phone already holds in the group (no account, not removed, not left), if any: such a phone is sent straight to the group, uncounted.
 async function heldGuestName(groupId: string | undefined): Promise<string | undefined> {
   const id = groupId ? await getMyMemberId(groupId) : undefined;
   if (!groupId || !id) return undefined;
-  return (await db.member.findFirst({ where: { id, groupId, accountId: null, removedAt: null }, select: { id: true } }))?.id;
+  return (await db.member.findFirst({ where: { id, groupId, accountId: null, removedAt: null, leftAt: null }, select: { id: true } }))?.id;
 }
 
 // A guest's two limits (per network an hour for every attempt, per link a day for successful new joins): "busy" is the same calm note the account join uses.

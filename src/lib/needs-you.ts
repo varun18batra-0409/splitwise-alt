@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { moveOutPaymentIds } from "./payment-change";
+import { guestMayAnswer } from "./payment-ok";
 import { formatMoney } from "./money";
 import { billStatuses } from "./home/bills-db";
 import { billHold } from "./home/bills";
@@ -41,7 +42,7 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
   if (myIds.length) {
     const members = await db.member.findMany({
       where: { id: { in: myIds } },
-      select: { id: true, groupId: true, leftAt: true, removedAt: true, group: { select: { id: true, name: true, type: true, currency: true, closed: true, deletedAt: true } } },
+      select: { id: true, groupId: true, leftAt: true, removedAt: true, accountId: true, claimedAt: true, group: { select: { id: true, name: true, type: true, currency: true, closed: true, deletedAt: true } } },
     });
     // Only the member row this phone really is, in groups that still run. (Someone who left can still answer money paid to them.)
     const live = members.filter((m) => memberships[m.groupId] === m.id && !m.group.deletedAt && !m.group.closed);
@@ -52,7 +53,7 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     const asking = answering.length ? await db.payment.findMany({ where: { toId: { in: answering }, needsOk: true, okAt: null, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
     // Only a flat move-out's final payments still ask (older rows flagged by the earlier rule are not asked about).
     const moveOut = asking.length ? await moveOutPaymentIds(db, [...new Set(asking.map((p) => p.groupId))]) : new Set<string>();
-    const payments = asking.filter((p) => moveOut.has(p.id));
+    const payments = asking.filter((p) => moveOut.has(p.id) && guestMayAnswer(live.find((m) => m.id === p.toId), p)); // (a guest never sees a payment from before they took the name)
     const nameIds = [...new Set(payments.map((p) => p.fromId))];
     const names = nameIds.length ? await db.member.findMany({ where: { id: { in: nameIds } }, select: { id: true, name: true } }) : [];
     const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";

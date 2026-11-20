@@ -78,7 +78,18 @@ test("a guest joins from the link, adds Taxi, is asked to sign in for Hana's Din
   const since = new Date(Date.now() - 2_000);
   await page.getByRole("button", { name: "Email me a code" }).click();
   await page.waitForURL(/sent=1/);
-  await page.locator('input[name="code"]').fill(await latestCode(email, since));
+  const code = await latestCode(email, since);
+  // 5a. A wrong code first: the same check opens, and after "Move them and continue" the sign-in page says the code isn't right.
+  // Ben's row stays a guest (nothing was moved, nobody signed in).
+  const wrong = code === "000000" ? "111111" : "000000";
+  await page.locator('input[name="code"]').fill(wrong);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("[data-guest-sheet]").waitFor();
+  await page.locator("[data-guest-move]").click();
+  await expect(page.getByText("That code isn't right. Check the email and try again.")).toBeVisible({ timeout: 30_000 });
+  expect((await db.member.findUniqueOrThrow({ where: { id: ben.id } })).accountId).toBeNull();
+  // 5b. The right code, the same flow.
+  await page.locator('input[name="code"]').fill(code);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.locator("[data-guest-sheet]").waitFor();
   await page.locator("[data-guest-move]").click();
@@ -103,6 +114,9 @@ test("a guest joins from the link, adds Taxi, is asked to sign in for Hana's Din
         `sheet still open=${sheetOpen} | alerts=${JSON.stringify(alerts)} | console errors=${JSON.stringify(consoleErrors.slice(-5))}`,
     );
   }
+
+  // The sign-in hands back to the group page (the real redirect is back + "signedin=1"; the page may tidy the address afterwards).
+  await page.waitForURL(new RegExp(`${g.path}(\\?.*)?$`), { timeout: 30_000 });
 
   // 6. Still Ben: the same member row (now with the account), Taxi still his, the same balances, and the guest card gone.
   const after = await db.member.findUniqueOrThrow({ where: { id: ben.id } });

@@ -35,6 +35,9 @@ const rules = await import("@/lib/guest-rules");
 const { saveExpense, setExpenseDeleted, setPaymentDeleted } = await import("@/lib/save-expense");
 type SaveInput = import("@/lib/save-expense").SaveExpenseInput;
 const { recordPaymentCore } = await import("@/lib/pay-record");
+const { confirmPayment, rejectPayment, waitingForMe } = await import("@/lib/payment-ok");
+const { createPayment } = await import("@/lib/payments");
+const { markAsMoveOut } = await import("./helpers/move-out-marks");
 const { undoEvent, actorRefusal } = await import("@/lib/undo");
 const { netBalances } = await import("@/lib/balances");
 const { publicName } = await import("@/lib/names");
@@ -312,6 +315,45 @@ describe("a freed-then-retaken name does not inherit what the earlier holder add
     expect((await setExpenseDeleted(taxi, f.V, true, { guestRules: true })).ok).toBe(true);
     // The old payment is still removable by the OTHER person in it (Varun has an account).
     expect((await setPaymentDeleted(payment.id, f.V, true, { guestRules: true })).ok).toBe(true);
+  });
+});
+
+describe("Got it / Not received on a move-out payment to a guest", () => {
+  const wait = () => new Promise((r) => setTimeout(r, 25));
+  // Varun moves out; his final payment to Ben (20000 = 200.00 rupees) waits for Ben's answer.
+  async function moveOutTo(f: Goa) {
+    const pay = await db.$transaction((tx) => createPayment(tx, { groupId: f.g.id, fromId: f.V, toId: f.B, amount: 20000, createdById: f.A, asksReceiver: true }));
+    await markAsMoveOut(f.g.id, f.A, [pay.id]);
+    return pay;
+  }
+  it("the name is freed and retaken after the payment: the new holder can neither say Not received nor Got it, and does not see it waiting; nothing changes", async () => {
+    const f = await goa();
+    const pay = await moveOutTo(f);
+    await wait();
+    await db.member.update({ where: { id: f.B }, data: { claimedAt: new Date() } });
+    const before = await snapshot(f);
+    expect(await rejectPayment(pay.id, f.B)).toEqual({ ok: false, error: GUEST_REFUSAL });
+    expect(await confirmPayment(pay.id, f.B)).toEqual({ ok: false, error: GUEST_REFUSAL });
+    expect(await waitingForMe(f.g.id, f.B)).toEqual([]);
+    expect(await snapshot(f)).toEqual(before);
+    expect((await db.payment.findUniqueOrThrow({ where: { id: pay.id } })).okAt).toBeNull();
+  });
+  it("a payment made after the guest took the name still works for them: listed, Got it counts, Not received takes it off", async () => {
+    const f = await goa();
+    const one = await moveOutTo(f);
+    const two = await moveOutTo(f);
+    expect((await waitingForMe(f.g.id, f.B)).map((p) => p.id).sort()).toEqual([one.id, two.id].sort());
+    expect((await confirmPayment(one.id, f.B)).ok).toBe(true);
+    expect((await db.payment.findUniqueOrThrow({ where: { id: one.id } })).okAt).not.toBeNull();
+    expect((await rejectPayment(two.id, f.B)).ok).toBe(true);
+    expect((await db.payment.findUniqueOrThrow({ where: { id: two.id } })).deletedAt).not.toBeNull();
+  });
+  it("a person with an account is unchanged, and both actions pass refusals through refusalNotes", () => {
+    const src = readFileSync("src/app/pay-actions.ts", "utf8");
+    for (const name of ["confirmPaymentAction", "rejectPaymentAction"]) {
+      const at = src.indexOf(`export async function ${name}`);
+      expect(src.slice(at, src.indexOf("\n}\n", at))).toContain("refusalNotes(r.error)");
+    }
   });
 });
 

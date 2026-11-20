@@ -193,8 +193,8 @@ export const ACTION_RULES: Record<string, RuleEntry> = {
   planTogetherAction: { rule: "done" },
   // pay-actions.ts
   savePayWays: { rule: "done" },
-  confirmPaymentAction: { rule: "open", note: "only the person paid" },
-  rejectPaymentAction: { rule: "open", note: "only the person paid" },
+  confirmPaymentAction: { rule: "own", marks: ["refusalNotes("], note: "only the person paid; a guest only on a payment made after they took the name (guestMayAnswer in payment-ok.ts)" },
+  rejectPaymentAction: { rule: "own", marks: ["refusalNotes("], note: "only the person paid; a guest only on a payment made after they took the name (guestMayAnswer in payment-ok.ts)" },
   markAllPaidAction: { rule: "acct", marks: ["gateGuest("] },
   // bill-actions.ts
   saveBill: { rule: "acct", via: "me" },

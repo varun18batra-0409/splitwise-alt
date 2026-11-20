@@ -243,6 +243,8 @@ describe("the limits on guest joins", () => {
     const body = (name: string) => src.slice(src.indexOf(`export async function ${name}`), src.indexOf("\n}\n", src.indexOf(`export async function ${name}`)));
     expect(body("joinAsNew")).toContain("guestJoinBusy(");
     expect(body("joinAsExisting")).toContain("guestJoinBusy(");
+    // Only a phone holding a name it has NOT left skips the checks (one that left would otherwise claim a different name unchecked).
+    expect(src.slice(src.indexOf("async function heldGuestName"), src.indexOf("\n}\n", src.indexOf("async function heldGuestName")))).toContain("leftAt: null");
     // A phone that already holds a name goes straight in, uncounted; only a new guest join is counted against the link.
     for (const name of ["joinAsNew", "joinAsExisting"]) {
       expect(body(name)).toContain("heldGuestName(");
