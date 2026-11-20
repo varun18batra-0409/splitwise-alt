@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   if (!canAddMoment(viewer)) return notFoundResponse();
   // The limits are per person: the account when there is one (so it follows them across groups), the member otherwise.
   const accountId = viewer.accountId; // null for a guest
-  const who = accountId ? `moment:a:${accountId}` : `moment:m:${viewer.memberId}`;
+  const who = accountId ? `moment:${accountId}` : `moment:m:${viewer.memberId}`; // the account's key is the one the live version uses
   if (!(await allow(who, 30, 3600)) || !(await allow(`moment-ip:${clientIp(h)}`, 60, 3600))) return fail("Lots of moments from here in the last hour. Try again later.", 429);
   const rid = cleanKey(form.get("rid"));
   const prev = await previousResult(rid);

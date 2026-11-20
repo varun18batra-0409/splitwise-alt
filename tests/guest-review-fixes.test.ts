@@ -418,7 +418,7 @@ describe("L9: a freed name does not hand the earlier holder's moments to whoever
 describe("the moment upload limit is per person: the account when there is one, the member otherwise", () => {
   it("the route keys the limit like the group photo route does", () => {
     const src = readFileSync("src/app/api/moment/route.ts", "utf8");
-    expect(src).toContain("accountId ? `moment:a:${accountId}` : `moment:m:${viewer.memberId}`");
+    expect(src).toContain("accountId ? `moment:${accountId}` : `moment:m:${viewer.memberId}`");
     expect(src).not.toContain("allow(`moment:${viewer.memberId}`");
   });
 });
