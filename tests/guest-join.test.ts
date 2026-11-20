@@ -220,16 +220,22 @@ describe("someone who left, or was removed, coming back through the link as a gu
 
 describe("the limits on guest joins", () => {
   const T = new Date("2026-11-19T10:00:00.000Z");
-  it("20 an hour from one address pass and the 21st is busy; another address is not affected", async () => {
+  it("20 attempts an hour from one address pass and the 21st is busy; another address is not affected", async () => {
     const ip = `ip-${stamp}-1`;
-    for (let i = 1; i <= 20; i++) expect(await join.guestJoinAllowed(ip, `grp-${stamp}-a${i}`, T), `join ${i}`).toBe(true);
-    expect(await join.guestJoinAllowed(ip, `grp-${stamp}-a21`, T)).toBe(false);
-    expect(await join.guestJoinAllowed(`ip-${stamp}-2`, `grp-${stamp}-a22`, T)).toBe(true);
+    for (let i = 1; i <= 20; i++) expect(await join.guestJoinAllowed(ip, `code-${stamp}-a${i}`, T), `join ${i}`).toBe(true);
+    expect(await join.guestJoinAllowed(ip, `code-${stamp}-a21`, T)).toBe(false);
+    expect(await join.guestJoinAllowed(`ip-${stamp}-2`, `code-${stamp}-a22`, T)).toBe(true);
   });
-  it("30 a day for one link, from different addresses; the 31st is busy", async () => {
-    const link = `grp-${stamp}-link`;
-    for (let i = 1; i <= 30; i++) expect(await join.guestJoinAllowed(`ip-${stamp}-L${i}`, link, T), `join ${i}`).toBe(true);
+  it("30 successful joins a day for one link (the invite code), from different addresses; the 31st attempt is busy; a new link starts fresh", async () => {
+    const link = `code-${stamp}-link`;
+    // Attempts alone use nothing from the link: 15 attempts, none joined, the link stays open.
+    for (let i = 1; i <= 15; i++) expect(await join.guestJoinAllowed(`ip-${stamp}-A${i}`, link, T)).toBe(true);
+    expect(await join.guestLinkOpen(link, T)).toBe(true);
+    for (let i = 1; i <= 30; i++) await join.countGuestJoin(link, T);
+    expect(await join.guestLinkOpen(link, T)).toBe(false);
     expect(await join.guestJoinAllowed(`ip-${stamp}-L31`, link, T)).toBe(false);
+    expect(await join.guestJoinAllowed(`ip-${stamp}-L32`, `${link}-new`, T)).toBe(true); // a new link starts fresh
+    expect(await join.guestLinkOpen(link, new Date(T.getTime() + 86400 * 1000 + 1000))).toBe(true); // the next day
   });
   it("the actions run both limits for a guest, and 'That's me' has them too", async () => {
     const { readFileSync } = await import("node:fs");
@@ -237,6 +243,11 @@ describe("the limits on guest joins", () => {
     const body = (name: string) => src.slice(src.indexOf(`export async function ${name}`), src.indexOf("\n}\n", src.indexOf(`export async function ${name}`)));
     expect(body("joinAsNew")).toContain("guestJoinBusy(");
     expect(body("joinAsExisting")).toContain("guestJoinBusy(");
+    // A phone that already holds a name goes straight in, uncounted; only a new guest join is counted against the link.
+    for (const name of ["joinAsNew", "joinAsExisting"]) {
+      expect(body(name)).toContain("heldGuestName(");
+      expect(body(name)).toContain("countGuestJoin(code)");
+    }
     expect(join.GUEST_JOIN_PER_IP).toBe(20);
     expect(join.GUEST_JOIN_PER_LINK).toBe(30);
   });

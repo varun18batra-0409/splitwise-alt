@@ -197,9 +197,29 @@ export const GUEST_GROUP_CAP = 60;
 export const GUEST_JOIN_PER_IP = 20; // an hour (the account join keeps its own, looser 120 for a whole party on one Wi-Fi)
 export const GUEST_JOIN_PER_LINK = 30; // a day
 
-// The limits a guest join must pass (both actions): false means "busy".
-export async function guestJoinAllowed(ip: string, groupId: string, now = new Date()): Promise<boolean> {
-  return (await allow(`join-guest-ip:${ip}`, GUEST_JOIN_PER_IP, 3600, now)) && (await allow(`join-guest-link:${groupId}`, GUEST_JOIN_PER_LINK, 86400, now));
+// The limits on guest joins (both actions); false means "busy".
+// Every attempt counts against the network (20 an hour). Only a SUCCESSFUL new guest join counts against the link (30 a day), and the
+// link is the invite code, so a new link starts fresh. A phone that already holds a name in the group is sent straight in, uncounted.
+export async function guestAttemptAllowed(ip: string, now = new Date()): Promise<boolean> {
+  return allow(`join-guest-ip:${ip}`, GUEST_JOIN_PER_IP, 3600, now);
+}
+const linkKey = (code: string) => `join-guest-link:${code.slice(0, 60)}`;
+// Is the link still under its daily limit? Only looks, uses nothing.
+export async function guestLinkOpen(code: string, now = new Date()): Promise<boolean> {
+  try {
+    const row = await db.rateLimit.findUnique({ where: { key: linkKey(code) } });
+    return !(row && row.resetAt > now && row.count >= GUEST_JOIN_PER_LINK);
+  } catch {
+    return true; // never block people because the counter itself failed
+  }
+}
+// A new guest really joined through this link: one more for today.
+export async function countGuestJoin(code: string, now = new Date()): Promise<void> {
+  await allow(linkKey(code), GUEST_JOIN_PER_LINK, 86400, now);
+}
+// Both checks together, before the join (nothing is counted against the link yet).
+export async function guestJoinAllowed(ip: string, code: string, now = new Date()): Promise<boolean> {
+  return (await guestAttemptAllowed(ip, now)) && (await guestLinkOpen(code, now));
 }
 
 // The phone's own name in this group, if it is still a way in: a removed name is refused (the cookie still holds it).
@@ -256,7 +276,8 @@ export async function joinNewAsGuest(code: string, typedName: string, heldMember
   } catch {
     return { ok: false, reason: "retry" };
   }
-  await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group", undo: { type: "members_remove", memberIds: [member.id] } });
+  // No Undo on a guest's own "joined the group" line: undoing it would mark them removed by themselves and lock them out.
+  await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
   return { ok: true, memberId: member.id };
 }
 

@@ -83,22 +83,22 @@ async function go(fn: (fd: FormData) => Promise<void>, fields: Record<string, st
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-describe("M2: who looks after the group prefers someone with an account", () => {
+describe("M2: who looks after the group is the live rule; a guest admin is asked to sign in", () => {
   const d = new Date(2026, 0, 1);
-  it("pickAdmin: the earliest joined member WITH an account; guests only if nobody with an account is left", () => {
+  it("pickAdmin: the first claimed person still here, else the first still here; an account is NOT preferred", () => {
     const rows = [
       { id: "cy", claimedAt: d, leftAt: d, accountId: "a1" }, // started it, left
       { id: "gus", claimedAt: d, leftAt: null, accountId: null }, // next to join, a guest
       { id: "ana", claimedAt: d, leftAt: null, accountId: "a2" },
     ];
-    expect(pickAdmin(rows)?.id).toBe("ana");
-    expect(pickAdmin(rows.filter((r) => r.id !== "ana"))?.id).toBe("gus"); // nobody with an account is left: today's rule
-    expect(pickAdmin([{ id: "x", claimedAt: d, leftAt: null, accountId: "a1" }, { id: "y", claimedAt: d, leftAt: null, accountId: null }])?.id).toBe("x"); // an account first, whatever the order
-    expect(pickAdmin([{ id: "y", claimedAt: d, leftAt: null, accountId: null }, { id: "x", claimedAt: d, leftAt: null, accountId: "a1" }])?.id).toBe("x");
-    expect(pickAdmin([{ id: "g1", claimedAt: null, leftAt: null, accountId: null }, { id: "g2", claimedAt: d, leftAt: null, accountId: null }])?.id).toBe("g2"); // today's claimed-first rule among guests
+    expect(pickAdmin(rows)?.id).toBe("gus"); // admin does NOT pass to the later account holder
+    expect(pickAdmin(rows.filter((r) => r.id !== "gus"))?.id).toBe("ana");
+    expect(pickAdmin([{ id: "y", claimedAt: d, leftAt: null, accountId: null }, { id: "x", claimedAt: d, leftAt: null, accountId: "a1" }])?.id).toBe("y");
+    expect(pickAdmin([{ id: "g1", claimedAt: null, leftAt: null, accountId: null }, { id: "g2", claimedAt: d, leftAt: null, accountId: null }])?.id).toBe("g2"); // claimed first
+    expect(pickAdmin([{ id: "g1", claimedAt: null, leftAt: null, accountId: null }, { id: "g2", claimedAt: null, leftAt: null, accountId: null }])?.id).toBe("g1"); // nobody claimed: the first still here
   });
 
-  it("creator leaves, next to join is a guest, then a member with an account: the account member looks after the group and can remove people, make a link and free names", async () => {
+  it("creator leaves, next to join is a guest: the guest looks after the group but every admin action is refused with the sign-in message", async () => {
     const ana = await account("Ana");
     const g = await db.group.create({
       data: {
@@ -116,33 +116,24 @@ describe("M2: who looks after the group prefers someone with an account", () => 
     });
     groupIds.push(g.id);
     const id = (name: string) => g.members.find((m) => m.name === name)!.id;
-    expect(await groupAdminId(g.id)).toBe(id("Ana"));
-    expect(await isGroupAdmin(g.id, id("Ana"))).toBe(true);
-    expect(await isGroupAdmin(g.id, id("Gus"))).toBe(false);
-
-    // The guest who joined earlier cannot do the admin things (here: a new link, and freeing a name).
-    expect(await join.newInviteLink(g.id, id("Gus"))).toEqual({ ok: false, error: join.NEW_LINK_ADMIN_ONLY });
-    expect(await join.releaseGuestName(g.id, id("Gus"), id("Rin"))).toMatchObject({ ok: false });
-    expect((await db.member.findUniqueOrThrow({ where: { id: id("Rin") } })).claimedAt).not.toBeNull();
-
-    // Ana, with an account, can: free a name, make a new link, and remove a person (through the real action).
-    expect((await join.releaseGuestName(g.id, id("Ana"), id("Rin"))).ok).toBe(true);
-    expect((await db.member.findUniqueOrThrow({ where: { id: id("Rin") } })).claimedAt).toBeNull();
-    expect((await join.newInviteLink(g.id, id("Ana"))).ok).toBe(true);
-    await asAccount(ana.id);
-    await go(A.removePerson, { groupId: g.id, memberId: id("Rin") });
-    expect(await db.member.count({ where: { id: id("Rin") } })).toBe(0); // never used and never claimed: deleted completely, as before
-
-    // With Ana gone too, only guests are left: today's rule picks Gus, but his powers still need an account.
-    await db.member.update({ where: { id: id("Ana") }, data: { leftAt: new Date() } });
     expect(await groupAdminId(g.id)).toBe(id("Gus"));
-    expect(await join.releaseGuestName(g.id, id("Gus"), id("Gus"))).toMatchObject({ ok: true }); // his own name: always his
+    expect(await isGroupAdmin(g.id, id("Gus"))).toBe(true);
+    expect(await isGroupAdmin(g.id, id("Ana"))).toBe(false);
+
+    // The guest admin cannot do the admin things (here: a new link, and freeing a name): refused with the sign-in message.
+    expect(await join.releaseGuestName(g.id, id("Gus"), id("Rin"))).toEqual({ ok: false, error: GUEST_REFUSAL });
+    expect((await db.member.findUniqueOrThrow({ where: { id: id("Rin") } })).claimedAt).not.toBeNull();
+    // ...and through the real action (remove a person) he is sent to sign in; nothing changes.
+    await asGuest(g.id, id("Gus"));
+    const removed = await go(A.removePerson, { groupId: g.id, memberId: id("Rin") });
+    expect(removed).toContain("signin=general"); // the sign-in sheet note
+    expect(await db.member.count({ where: { id: id("Rin") } })).toBe(1);
+    await go(A.makeNewInviteLink, { groupId: g.id });
+    expect((await db.group.findUniqueOrThrow({ where: { id: g.id } })).inviteCode).toBe(g.inviteCode);
   });
 
-  it("accountId is a required field of what pickAdmin takes, so a caller that forgets it fails to compile", () => {
-    expect(readFileSync("src/lib/group-admin.ts", "utf8")).toContain("seenAt?: Date | null; accountId: string | null };");
-    expect(readFileSync("src/lib/group-admin.ts", "utf8")).not.toContain("accountId?:");
-    expect(readFileSync("src/lib/pot-db.ts", "utf8")).not.toContain("accountId?:");
+  it("pickAdmin does not read accountId (no account preference)", () => {
+    expect(readFileSync("src/lib/group-admin.ts", "utf8")).not.toMatch(/filter\(\(m\) => m\.accountId/);
   });
 
   it("every place that picks the person who looks after a group passes accountId (the People, Settings, Invite, Move, Pot, Restore and Moments lookups)", () => {
@@ -309,7 +300,9 @@ describe("undoing a join (or an add) of a name a guest holds marks it removed in
     const ravi = g.members.find((m) => m.name === "Ravi")!.id;
     const V = g.members.find((m) => m.name === "Varun")!.id;
     const r = (await join.joinNewAsGuest(g.inviteCode, "Ben")) as { memberId: string };
-    const line = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, actorId: r.memberId, text: "joined the group" } });
+    // A guest's own join line no longer carries an undo (see the next describe); this line is written the way an older one was.
+    const line0 = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, actorId: r.memberId, text: "joined the group" } });
+    const line = await db.groupEvent.update({ where: { id: line0.id }, data: { undo: JSON.stringify({ type: "members_remove", memberIds: [r.memberId] }) } });
     const epoch = (await db.member.findUniqueOrThrow({ where: { id: r.memberId } })).grantEpoch;
     await db.pushSubscription.create({ data: { memberId: r.memberId, endpoint: `https://push.test/${stamp}-${++n}`, p256dh: "k", auth: "a" } });
 
@@ -326,6 +319,22 @@ describe("undoing a join (or an add) of a name a guest holds marks it removed in
     expect(await join.joinNewAsGuest(g.inviteCode, "Ben", r.memberId)).toMatchObject({ ok: false, reason: "removed", adminName: "Varun" });
     expect(await join.joinExistingAsGuest(g.inviteCode, ravi, r.memberId)).toMatchObject({ ok: false, reason: "removed" });
     expect((await db.member.findUniqueOrThrow({ where: { id: ravi } })).claimedAt).toBeNull();
+  });
+
+  it("a guest's own 'joined the group' line has no undo, so no Undo is offered and they cannot mark themselves removed", async () => {
+    const varun = await account("Varun");
+    const g = await db.group.create({
+      data: { name: `U3 ${++n} ${stamp}`, inviteCode: `u3-${n}-${stamp}`, members: { create: [{ name: "Varun", accountId: varun.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) }] } },
+    });
+    groupIds.push(g.id);
+    const r = (await join.joinNewAsGuest(g.inviteCode, "Ben")) as { memberId: string };
+    const line = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, actorId: r.memberId, text: "joined the group" } });
+    expect(line.undo).toBe("");
+    const res = await undoEvent(line.id, r.memberId, undefined, { guestRules: true });
+    expect(res.ok).toBe(false);
+    const row = await db.member.findUniqueOrThrow({ where: { id: r.memberId } });
+    expect(row.removedAt).toBeNull();
+    expect(row.leftAt).toBeNull();
   });
 
   it("a name nobody holds (added by an admin, never claimed) is still deleted by the undo, as before", async () => {
@@ -402,5 +411,14 @@ describe("L9: a freed name does not hand the earlier holder's moments to whoever
     await asGuest(g.id, ben.memberId, 0);
     await signInAs(bea.id, { confirmed: parseConfirmed([ben.memberId]) });
     expect((await db.moment.findFirstOrThrow({ where: { authorId: ben.memberId } })).authorAccountId).toBe(bea.id);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+describe("the moment upload limit is per person: the account when there is one, the member otherwise", () => {
+  it("the route keys the limit like the group photo route does", () => {
+    const src = readFileSync("src/app/api/moment/route.ts", "utf8");
+    expect(src).toContain("accountId ? `moment:a:${accountId}` : `moment:m:${viewer.memberId}`");
+    expect(src).not.toContain("allow(`moment:${viewer.memberId}`");
   });
 });

@@ -33,3 +33,9 @@ export function refusalNotes(error: string): { error: string; signin?: string } 
   return signin ? { error, signin } : { error };
 }
 
+// "Since they took the name": a guest's name can be freed and picked up by someone else, and that new person must not inherit what the
+// earlier holder added. So an item is theirs only if it was made at or after the moment this person claimed the name (no claimedAt known
+// = not theirs). The same rule canDeleteMoment uses (moments-access.ts).
+export function madeSinceClaim(claimedAt: Date | null | undefined, createdAt: Date | null | undefined): boolean {
+  return Boolean(claimedAt) && Boolean(createdAt) && createdAt!.getTime() >= claimedAt!.getTime();
+}

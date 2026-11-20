@@ -24,6 +24,7 @@ import type { GroupEvent, GroupView } from "./view";
 import { DateField } from "@/components/DateField";
 import { SelectField } from "@/components/SelectField";
 import { FilterSheet } from "@/components/FilterSheet";
+import { madeSinceClaim } from "@/lib/guest-words";
 import { SignInTrigger, type SignInContext } from "@/components/SignInSheet";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
@@ -232,6 +233,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               if (item.kind === "payment") {
                 const live = item.deletedById === null;
                 const isParty = item.fromId === myId || item.toId === myId;
+                // Without an account you change only a payment recorded after you took your name: on an earlier one the buttons open the sign-in sheet.
+                const payGate = signin && v.undoViewer.guest && isParty && !madeSinceClaim(v.undoViewer.claimedAt, group.payments.find((x) => x.id === item.id)?.createdAt) ? "general" : null;
                 return (
                   <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                     <details open={openId === item.id}>
@@ -242,7 +245,17 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
                         {/* Only the payer and the person paid can delete or restore a payment (the server refuses everyone else, the admin too).
                             Not shown to anyone but the person paid, once they took it off themselves. */}
-                        {isParty && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
+                        {payGate && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
+                          <SignInTrigger signin={payGate} ctx={signin!} marker="payment-restore" className="text-sm font-medium text-accent">
+                            Restore payment
+                          </SignInTrigger>
+                        )}
+                        {payGate && live && canChange && (
+                          <SignInTrigger signin={payGate} ctx={signin!} marker="payment-delete" className="text-sm font-medium text-red-700">
+                            Delete payment
+                          </SignInTrigger>
+                        )}
+                        {!payGate && isParty && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
                           <form action={restorePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />
@@ -251,7 +264,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                             </button>
                           </form>
                         )}
-                        {isParty && live && canChange && (
+                        {!payGate && isParty && live && canChange && (
                           <form action={removePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />
@@ -284,7 +297,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               const swipeable = !deleted && canChange && !isPot;
               // Without an account you change only what you added: on someone else's expense the buttons open the sign-in sheet
               // (the server refuses too, with the same sentence).
-              const gate = signin && v.undoViewer.guest && !(e.createdById && e.createdById === myId) ? `expense:${(group.members.find((m) => m.id === e.createdById)?.name ?? "").trim().split(/\s+/)[0] ?? ""}` : null;
+              const gate = signin && v.undoViewer.guest && !(e.createdById && e.createdById === myId && madeSinceClaim(v.undoViewer.claimedAt, e.createdAt)) ? `expense:${(group.members.find((m) => m.id === e.createdById)?.name ?? "").trim().split(/\s+/)[0] ?? ""}` : null;
               const gateKey = gate && gate !== "expense:" ? gate : "general";
               const wrap = (node: ReactNode) =>
                 swipeable ? (

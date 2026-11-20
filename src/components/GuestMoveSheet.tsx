@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { cancelGuestMove, confirmGuestMove, moveGuestGroups } from "@/app/actions";
 import { GroupCover } from "@/components/GroupCover";
@@ -136,6 +136,12 @@ export function GoogleSignInLink({ href, groups, className, children }: { href: 
   );
 }
 
+// Next.js ends a server action that redirects by throwing a special error; that is a success, not a failure.
+function isRedirect(err: unknown): boolean {
+  const digest = (err as { digest?: unknown } | null)?.digest;
+  return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
+}
+
 // The typed-code form: the check shows when "Sign in" is pressed; the confirmed ids travel in the form's "move" field.
 export function GuardedCodeForm({ action, groups, className, children }: { action: (fd: FormData) => void | Promise<void>; groups: GuestGroupRow[]; className?: string; children: ReactNode }) {
   const { ask, sheet } = useGuestCheck(groups);
@@ -146,12 +152,17 @@ export function GuardedCodeForm({ action, groups, className, children }: { actio
     // Read what was typed now (the code), then, once the person confirms, send it with the confirmed groups straight to the
     // server action. (A second, script-made submit of the same form did not reliably reach the action.)
     const typed = form.current ? new FormData(form.current) : null;
-    ask((ids) => {
+    // The callback waits for the action, so the sheet shows "One moment…" meanwhile and "Something went wrong. Try again." if it fails.
+    // A redirect (the normal way the action ends) is not a failure.
+    ask(async (ids) => {
       if (!typed) return;
       typed.set("move", ids.join(","));
-      startTransition(async () => {
+      try {
         await action(typed);
-      });
+      } catch (err) {
+        if (isRedirect(err)) return;
+        throw err;
+      }
     });
   }
   return (

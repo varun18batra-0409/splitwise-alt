@@ -5,6 +5,7 @@ import { formatMoney } from "./money";
 import { withRetry } from "./once";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, leaversOffZero } from "./money-guard";
 import { RestoreRefused, restorePayments } from "./payments";
+import { paymentChangeRefusal } from "./guest-rules";
 import { onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
 import { partyMessages, pushAllToReceivers, tellBroughtBack, tellParties } from "./payment-claims";
 import type { Prisma } from "@prisma/client";
@@ -114,6 +115,7 @@ export type ChangeOpts = {
   mark?: UndoMark; // when this is an Undo: the change being undone, marked in the same transaction
   undoing?: boolean;
   recorderOk?: boolean; // the caller checked: this person recorded it for others and is inside the 10-minute Undo window
+  guestRules?: boolean; // set by the server action: a person without an account changes only a payment they are in AND recorded after they took the name (guest-rules.ts)
   noLeavers?: boolean; // the sign-in-free pay link: refuse (inside the same transaction) if either person has left or been removed, so it never brings anyone back
   afterRead?: () => Promise<void>; // tests only: runs after the reads and before the write begins
   inside?: (tx: Tx) => Promise<void>; // runs in the SAME transaction, only once this payment really was changed (one payment, not across groups)
@@ -141,6 +143,11 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
   if (!opts.noLeavers && (await wasRemoved(payment.groupId, actorId))) return { ok: false, error: removedText(payment.group.name) };
   // A payment the person paid took off can only be brought back by them: anyone else (even a non-party) is told that, in those words.
   if (!deleted && payment.deletedAt && onlyReceiverCanBringBack(payment, actorId)) return { ok: false, error: receiverOnlyText(payment.to.name) };
+  if (opts.guestRules) {
+    const me = await db.member.findUnique({ where: { id: actorId }, select: { accountId: true, claimedAt: true } });
+    const no = paymentChangeRefusal(me?.accountId === null, actorId, payment, me?.claimedAt);
+    if (no) return { ok: false, error: no };
+  }
   if (!opts.recorderOk) {
     const no = partyRefusal({ fromId: payment.fromId, toId: payment.toId, fromName: payment.from.name, toName: payment.to.name }, actorId);
     if (no) return { ok: false, error: no };
@@ -259,6 +266,15 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
   for (const r of rows) {
     const mine = actorIn.get(r.groupId);
     if (mine && (await wasRemoved(r.groupId, mine))) return { ok: false, error: removedText(r.group.name) };
+  }
+  // A guest (no account) changes only a payment recorded after they took their name, in each group.
+  if (opts.guestRules) {
+    for (const r of rows) {
+      const mine = actorIn.get(r.groupId);
+      const me = mine ? await db.member.findUnique({ where: { id: mine }, select: { accountId: true, claimedAt: true } }) : null;
+      const no = me ? paymentChangeRefusal(me.accountId === null, mine!, r, me.claimedAt) : null;
+      if (no) return { ok: false, error: no };
+    }
   }
   // Said to anyone who asks, so it never names a group they may not be in.
   if (!rows.every((r) => actorIn.get(r.groupId) === r.fromId || actorIn.get(r.groupId) === r.toId)) {

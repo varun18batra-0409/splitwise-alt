@@ -15,7 +15,7 @@ import { db } from "./db";
 // request still gets a calm answer. A refusal changes nothing.
 
 export * from "./guest-words";
-import { GUEST_REFUSAL, expenseRefusal } from "./guest-words";
+import { GUEST_REFUSAL, expenseRefusal, madeSinceClaim } from "./guest-words";
 
 export async function isGuestMember(memberId: string | undefined | null): Promise<boolean> {
   if (!memberId) return false;
@@ -28,10 +28,16 @@ export async function gateGuest(memberId: string | undefined | null): Promise<st
   return (await isGuestMember(memberId)) ? GUEST_REFUSAL : null;
 }
 
-// Own expenses: "own" = createdById is the acting member (not paidById: "Dinner, paid by Ben", added by Asha, is Asha's).
-// Older rows have createdById "" and count as not-own. `ownerName` is who added it, when known.
-export function expenseEditRefusal(guest: boolean, actingMemberId: string, expense: { createdById: string }, ownerName?: string): string | null {
-  if (!guest || (expense.createdById && expense.createdById === actingMemberId)) return null;
+// Own expenses: "own" = createdById is the acting member (not paidById: "Dinner, paid by Ben", added by Asha, is Asha's) AND it was added
+// after this person took the name. Older rows have createdById "" and count as not-own. `ownerName` is who added it, when known.
+export function expenseEditRefusal(
+  guest: boolean,
+  actingMemberId: string,
+  expense: { createdById: string; createdAt: Date },
+  ownerName?: string,
+  claimedAt?: Date | null,
+): string | null {
+  if (!guest || (expense.createdById && expense.createdById === actingMemberId && madeSinceClaim(claimedAt, expense.createdAt))) return null;
   // The first name ("Asha Kumar" -> "Asha"): "Sign in to change Asha’s expense".
   const first = ownerName?.trim().split(/\s+/)[0];
   return first ? expenseRefusal(first) : GUEST_REFUSAL;
@@ -53,9 +59,17 @@ export function ownPlayerRefusal(guest: boolean, actingMemberId: string, memberI
   return !guest || (memberIds.length > 0 && memberIds.every((id) => id === actingMemberId)) ? null : GUEST_REFUSAL;
 }
 
-// The same rule for Undo: a guest may undo only their own lines.
-export function undoRefusal(guest: boolean, actingMemberId: string, eventActorId: string | undefined): string | null {
-  return !guest || (eventActorId !== undefined && eventActorId === actingMemberId) ? null : GUEST_REFUSAL;
+// Deleting or restoring a payment: a guest may do it only for a payment they are in AND that was recorded after they took the name
+// (recording a NEW payment they are in stays allowed: paymentPartyRefusal above).
+export function paymentChangeRefusal(guest: boolean, actingMemberId: string, payment: { fromId: string; toId: string; createdAt: Date }, claimedAt?: Date | null): string | null {
+  if (!guest) return null;
+  const inIt = payment.fromId === actingMemberId || payment.toId === actingMemberId;
+  return inIt && madeSinceClaim(claimedAt, payment.createdAt) ? null : GUEST_REFUSAL;
+}
+
+// The same rule for Undo: a guest may undo only their own lines, made after they took the name (`eventCreatedAt` is when the line was written).
+export function undoRefusal(guest: boolean, actingMemberId: string, eventActorId: string | undefined, eventCreatedAt?: Date | null, claimedAt?: Date | null): string | null {
+  return !guest || (eventActorId !== undefined && eventActorId === actingMemberId && madeSinceClaim(claimedAt, eventCreatedAt)) ? null : GUEST_REFUSAL;
 }
 
 export type Rule = "open" | "own" | "acct" | "done";
@@ -79,8 +93,8 @@ export const ACTION_RULES: Record<string, RuleEntry> = {
   addExpense: { rule: "own", marks: ["guestRules"], note: "new is open; editing is own" },
   deleteExpense: { rule: "own", via: "toggleExpense" },
   restoreExpense: { rule: "own", via: "toggleExpense" },
-  removePayment: { rule: "open", note: "already only the payer or the person paid" },
-  restorePayment: { rule: "open", note: "already only the payer or the person paid" },
+  removePayment: { rule: "own", marks: ["guestRules"], note: "the payer or the person paid, and only a payment recorded after the guest took the name (paymentChangeRefusal)" },
+  restorePayment: { rule: "own", marks: ["guestRules"], note: "the payer or the person paid, and only a payment recorded after the guest took the name (paymentChangeRefusal)" },
   undoChange: { rule: "own", marks: ["guestRules"] },
   lookupRate: { rule: "open" },
   saveNotifyPrefs: { rule: "open", note: "just me" },

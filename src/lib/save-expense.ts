@@ -198,7 +198,7 @@ async function saveExpenseOnce(
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, accountId: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, accountId: true, claimedAt: true } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (group.deletedAt) return { ok: false, error: "This group was deleted." };
@@ -224,8 +224,8 @@ async function saveExpenseOnce(
     if (existing.deletedAt) return { ok: false, error: "This expense was deleted. Restore it before changing it." };
     // Without an account you change only what you added yourself (nothing is written when this refuses).
     if (opts.guestRules) {
-      const guest = group.members.find((m) => m.id === actingMemberId)?.accountId === null;
-      const no = expenseEditRefusal(guest, actingMemberId, existing, group.members.find((m) => m.id === existing.createdById)?.name);
+      const actor = group.members.find((m) => m.id === actingMemberId);
+      const no = expenseEditRefusal(actor?.accountId === null, actingMemberId, existing, group.members.find((m) => m.id === existing.createdById)?.name, actor?.claimedAt);
       if (no) return { ok: false, error: no };
     }
     // A card game's result is worked out from the game: it can't be edited into ordinary spending.
@@ -446,15 +446,15 @@ export async function setExpenseDeleted(expenseId: string, actingMemberId: strin
   return withRetry(() => setExpenseDeletedOnce(expenseId, actingMemberId, deleted, opts));
 }
 async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean; mark?: UndoMark; guestRules?: boolean }): Promise<Result> {
-  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, group: { include: { members: { select: { id: true, name: true, accountId: true } } } } } });
+  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, group: { include: { members: { select: { id: true, name: true, accountId: true, claimedAt: true } } } } } });
   if (!expense) return { ok: false, error: "That expense no longer exists." };
   if (!actingMemberId || !expense.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete or restore its expenses." };
   }
   // Without an account you delete or restore only what you added yourself (nothing is written when this refuses).
   if (opts.guestRules) {
-    const guest = expense.group.members.find((m) => m.id === actingMemberId)?.accountId === null;
-    const no = expenseEditRefusal(guest, actingMemberId, expense, expense.group.members.find((m) => m.id === expense.createdById)?.name);
+    const actor = expense.group.members.find((m) => m.id === actingMemberId);
+    const no = expenseEditRefusal(actor?.accountId === null, actingMemberId, expense, expense.group.members.find((m) => m.id === expense.createdById)?.name, actor?.claimedAt);
     if (no) return { ok: false, error: no };
   }
   if (await hasLeft(expense.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };

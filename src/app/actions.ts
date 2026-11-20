@@ -42,7 +42,7 @@ import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { CLOSED_PAY_ERROR, hasLeft, LEFT_ERROR } from "@/lib/active";
 import { parseWas, saveAllSettings } from "@/lib/settings-save";
-import { guestJoinAllowed, joinExisting, joinExistingAsGuest, joinNew, joinNewAsGuest, newInviteLink, releaseGuestName, type JoinFail } from "@/lib/join";
+import { countGuestJoin, guestJoinAllowed, joinExisting, joinExistingAsGuest, joinNew, joinNewAsGuest, newInviteLink, releaseGuestName, type JoinFail } from "@/lib/join";
 import { GUEST_REFUSAL, gateGuest, isGuestMember, refusalNotes, renameRefusal } from "@/lib/guest-rules";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 import { flashTo, type Notes } from "@/lib/flash";
@@ -230,10 +230,16 @@ function joinRefused(code: string, r: JoinFail, step = ""): never {
   redirect(step ? `${base}${base.includes("?") ? "&" : "?"}${step}` : base);
 }
 
-// A guest's two limits (per network an hour, per link a day): "busy" is the same calm note the account join uses.
+// The name this phone already holds in the group (no account, not removed), if any: such a phone is sent straight to the group, uncounted.
+async function heldGuestName(groupId: string | undefined): Promise<string | undefined> {
+  const id = groupId ? await getMyMemberId(groupId) : undefined;
+  if (!groupId || !id) return undefined;
+  return (await db.member.findFirst({ where: { id, groupId, accountId: null, removedAt: null }, select: { id: true } }))?.id;
+}
+
+// A guest's two limits (per network an hour for every attempt, per link a day for successful new joins): "busy" is the same calm note the account join uses.
 async function guestJoinBusy(code: string, ip: string): Promise<boolean> {
-  const g = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
-  return !(await guestJoinAllowed(ip, g?.id ?? `code:${code.slice(0, 40)}`));
+  return !(await guestJoinAllowed(ip, code));
 }
 
 // "That's me": claim a name someone added before invitations existed (with or without an account).
@@ -243,10 +249,12 @@ export async function joinAsExisting(formData: FormData) {
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
   const ip = (await originAndIp()).ip;
-  if (!account && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
+  const held = account ? undefined : await heldGuestName(group.id);
+  if (!account && !held && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
   const memberId = String(formData.get("memberId") ?? "");
   const r = account ? await joinExisting(code, account, memberId) : await joinExistingAsGuest(code, memberId, await getMyMemberId(group.id));
   if (!r.ok) joinRefused(code, r, account ? "" : "step=name");
+  if (!account && r.memberId !== held) await countGuestJoin(code); // a new guest really joined: one more for this link today
   await finishJoin(group.id, r.memberId, account);
 }
 
@@ -254,11 +262,13 @@ export async function joinAsExisting(formData: FormData) {
 export async function joinAsNew(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   const ip = (await originAndIp()).ip;
-  // Generous per network: a whole party can join on one venue's Wi-Fi.
-  if (!(await allow(`join:${ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
   const { account } = await joinContext(code);
-  if (!account && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
   const groupRow = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
+  // A phone that already holds a name in this group goes straight to it, without counting against any limit.
+  const held = account ? undefined : await heldGuestName(groupRow?.id);
+  // Generous per network: a whole party can join on one venue's Wi-Fi.
+  if (!held && !(await allow(`join:${ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
+  if (!account && !held && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
   const r = account ? await joinNew(code, account, String(formData.get("name") ?? "")) : await joinNewAsGuest(code, String(formData.get("name") ?? ""), groupRow ? await getMyMemberId(groupRow.id) : undefined);
   // Someone whose move-out can still be undone is not quietly put back in: People explains and offers Undo my move-out.
   if (!r.ok && r.reason === "moved_out" && r.groupId && r.memberId) {
@@ -266,6 +276,7 @@ export async function joinAsNew(formData: FormData) {
     redirect(await flashTo(["groups", r.groupId, "people"], { error: MOVED_OUT_REJOIN_TEXT }));
   }
   if (!r.ok) joinRefused(code, r, account ? "" : "step=name");
+  if (!account && r.memberId !== held) await countGuestJoin(code); // a new guest really joined: one more for this link today
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
   await finishJoin(group.id, r.memberId, account);
@@ -377,8 +388,8 @@ export async function removePayment(formData: FormData) {
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
   if (memberships[groupId] && !(await payChangeOk(memberships[groupId]))) redirect(await flashTo(["groups", groupId], { error: PAY_CHANGE_LIMIT_TEXT }, { tab: "activity" }));
-  const r = await deletePayment(paymentId, memberships[groupId], { memberships });
-  redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
+  const r = await deletePayment(paymentId, memberships[groupId], { memberships, guestRules: true });
+  redirect(await flashTo(["groups", groupId], r.ok ? {} : refusalNotes(r.error), { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
 }
 
 // Bring back a deleted settle-up payment (the payer or the person paid; the person paid alone if they took it off themselves).
@@ -387,8 +398,8 @@ export async function restorePayment(formData: FormData) {
   const paymentId = String(formData.get("paymentId") ?? "");
   const memberships = await getMemberships();
   if (memberships[groupId] && !(await payChangeOk(memberships[groupId]))) redirect(await flashTo(["groups", groupId], { error: PAY_CHANGE_LIMIT_TEXT }, { tab: "activity" }));
-  const r = await setPaymentDeleted(paymentId, memberships[groupId], false, { memberships });
-  redirect(await flashTo(["groups", groupId], r.ok ? {} : { error: r.error }, { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
+  const r = await setPaymentDeleted(paymentId, memberships[groupId], false, { memberships, guestRules: true });
+  redirect(await flashTo(["groups", groupId], r.ok ? {} : refusalNotes(r.error), { tab: "activity", ...(r.ok && r.eventId ? { did: r.eventId } : {}) }));
 }
 
 // Undo (or redo) any change in a group. `back` says which page to return to.

@@ -110,6 +110,8 @@ export type UndoViewer = {
   // A person with no account in this group: they may undo only their own lines (guest-rules.ts). The screens fill it from the member
   // row; undoEvent fills it only when its caller asks (guestRules), so the screen and the server agree.
   guest?: boolean;
+  // When this person took their name: a guest's own lines are only those written after that (a freed and retaken name starts clean).
+  claimedAt?: Date | null;
 };
 
 // Who may use Undo at all: someone in the group. Someone who left can't change the group, except to undo their OWN "left the group"
@@ -238,7 +240,7 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
 // put them back in. The only undo of that kind allowed to someone else is the admin's own removal action (the event is the admin's).
 // The person who took someone with an account out can undo that, but only for 10 minutes (put-back.ts); after that the person is invited back.
 export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, originAt?: Date): string | null {
-  const guestNo = undoRefusal(Boolean(viewer.guest), viewer.id, ev.actorId);
+  const guestNo = undoRefusal(Boolean(viewer.guest), viewer.id, ev.actorId, ev.createdAt, viewer.claimedAt);
   if (guestNo) return guestNo;
   const payload = parsed(ev);
   if (!payload) return null;
@@ -467,7 +469,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // who may use Undo at all, then whether anything newer stands in the way, then what only some people may do.
   // The payments this change is about, so the party-only rule reads who is in each (the screens fill the same list).
   const payRows = await paymentsForUndo(ev.groupId, ev.undo);
-  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members, ...(payRows.length ? { payments: payRows } : {}), ...(opts.guestRules && group.members.find((m) => m.id === actorId)?.accountId === null ? { guest: true } : {}) };
+  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members, ...(payRows.length ? { payments: payRows } : {}), ...(opts.guestRules && group.members.find((m) => m.id === actorId)?.accountId === null ? { guest: true, claimedAt: group.members.find((m) => m.id === actorId)?.claimedAt ?? null } : {}) };
   const actorLeft = Boolean(group.members.find((m) => m.id === actorId)?.leftAt);
   const refused = viewerRefusal(ev, viewer);
   if (refused) return { ok: false, error: refused };

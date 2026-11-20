@@ -42,9 +42,10 @@ export async function POST(req: Request) {
   // The group comes from the form, but only a current, joined member of a trip group gets any further (and it's checked again when saving).
   const viewer = await loadMomentViewer(groupId);
   if (!canAddMoment(viewer)) return notFoundResponse();
-  // The limits are per person (the member, whether or not they have an account).
+  // The limits are per person: the account when there is one (so it follows them across groups), the member otherwise.
   const accountId = viewer.accountId; // null for a guest
-  if (!(await allow(`moment:${viewer.memberId}`, 30, 3600)) || !(await allow(`moment-ip:${clientIp(h)}`, 60, 3600))) return fail("Lots of moments from here in the last hour. Try again later.", 429);
+  const who = accountId ? `moment:a:${accountId}` : `moment:m:${viewer.memberId}`;
+  if (!(await allow(who, 30, 3600)) || !(await allow(`moment-ip:${clientIp(h)}`, 60, 3600))) return fail("Lots of moments from here in the last hour. Try again later.", 429);
   const rid = cleanKey(form.get("rid"));
   const prev = await previousResult(rid);
   if (prev) return Response.json({ ok: true, id: prev });

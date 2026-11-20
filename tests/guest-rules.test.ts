@@ -32,7 +32,7 @@ vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), c
 
 const { db } = await import("@/lib/db");
 const rules = await import("@/lib/guest-rules");
-const { saveExpense, setExpenseDeleted } = await import("@/lib/save-expense");
+const { saveExpense, setExpenseDeleted, setPaymentDeleted } = await import("@/lib/save-expense");
 type SaveInput = import("@/lib/save-expense").SaveExpenseInput;
 const { recordPaymentCore } = await import("@/lib/pay-record");
 const { undoEvent, actorRefusal } = await import("@/lib/undo");
@@ -135,12 +135,30 @@ describe("the refusal sentences", () => {
 });
 
 describe("the pure rules, row by row: guest on their own, guest on another's, a person with an account", () => {
-  it("changing an expense: own (createdById is the person, not paidById)", () => {
-    expect(rules.expenseEditRefusal(true, "ben", { createdById: "ben" })).toBeNull(); // guest-own
-    expect(rules.expenseEditRefusal(true, "ben", { createdById: "asha" }, "Asha")).toBe(rules.expenseRefusal("Asha")); // guest-other
-    expect(rules.expenseEditRefusal(false, "varun", { createdById: "asha" }, "Asha")).toBeNull(); // account
-    expect(rules.expenseEditRefusal(true, "ben", { createdById: "" })).toBe(GUEST_REFUSAL); // an older row has no owner: not own
-    expect(rules.expenseEditRefusal(true, "ben", { createdById: "asha" })).toBe(GUEST_REFUSAL); // owner's name unknown: the general line
+  const took = new Date(2026, 5, 10); // Ben took his name on 10 June
+  const before = new Date(2026, 5, 1); // an item from before that: the earlier holder's
+  const after = new Date(2026, 5, 20);
+  it("changing an expense: own (createdById is the person, not paidById) and added after he took the name", () => {
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "ben", createdAt: after }, undefined, took)).toBeNull(); // guest-own
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "ben", createdAt: took }, undefined, took)).toBeNull(); // the very moment: still his
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "asha", createdAt: after }, "Asha", took)).toBe(rules.expenseRefusal("Asha")); // guest-other
+    expect(rules.expenseEditRefusal(false, "varun", { createdById: "asha", createdAt: before }, "Asha", null)).toBeNull(); // account
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "", createdAt: after }, undefined, took)).toBe(GUEST_REFUSAL); // an older row has no owner: not own
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "asha", createdAt: after }, undefined, took)).toBe(GUEST_REFUSAL); // owner's name unknown: the general line
+  });
+  it("a freed-then-retaken name: the earlier holder's expense is not the new holder's (the first name is still shown)", () => {
+    // Ben added Taxi on 1 June; his name was freed and someone took "Ben" on 10 June.
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "ben", createdAt: before }, "Ben", took)).toBe(rules.expenseRefusal("Ben"));
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "ben", createdAt: before }, "Ben", null)).toBe(rules.expenseRefusal("Ben")); // no claim time known: not theirs
+    expect(rules.expenseEditRefusal(true, "ben", { createdById: "ben", createdAt: before }, "Ben", undefined)).toBe(rules.expenseRefusal("Ben"));
+  });
+  it("deleting or restoring a payment: a party to it, recorded after he took the name", () => {
+    const pay = (createdAt: Date) => ({ fromId: "ben", toId: "asha", createdAt });
+    expect(rules.paymentChangeRefusal(true, "ben", pay(after), took)).toBeNull();
+    expect(rules.paymentChangeRefusal(true, "ben", pay(before), took)).toBe(GUEST_REFUSAL); // the earlier holder's payment
+    expect(rules.paymentChangeRefusal(true, "ben", pay(after), null)).toBe(GUEST_REFUSAL);
+    expect(rules.paymentChangeRefusal(true, "ben", { fromId: "varun", toId: "asha", createdAt: after }, took)).toBe(GUEST_REFUSAL); // not in it
+    expect(rules.paymentChangeRefusal(false, "varun", pay(before), null)).toBeNull(); // an account: the usual rule applies elsewhere
   });
   it("recording a payment: the guest must be the payer or the person paid", () => {
     expect(rules.paymentPartyRefusal(true, "ben", "ben", "asha")).toBeNull();
@@ -160,17 +178,20 @@ describe("the pure rules, row by row: guest on their own, guest on another's, a 
     expect(rules.ownPlayerRefusal(true, "ben", [])).toBe(GUEST_REFUSAL);
     expect(rules.ownPlayerRefusal(false, "varun", ["asha", "ben"])).toBeNull();
   });
-  it("undo: a guest undoes only their own lines", () => {
-    expect(rules.undoRefusal(true, "ben", "ben")).toBeNull();
-    expect(rules.undoRefusal(true, "ben", "asha")).toBe(GUEST_REFUSAL);
-    expect(rules.undoRefusal(true, "ben", undefined)).toBe(GUEST_REFUSAL);
+  it("undo: a guest undoes only their own lines, written after he took the name", () => {
+    expect(rules.undoRefusal(true, "ben", "ben", after, took)).toBeNull();
+    expect(rules.undoRefusal(true, "ben", "ben", before, took)).toBe(GUEST_REFUSAL); // a freed-then-retaken name: the earlier holder's line
+    expect(rules.undoRefusal(true, "ben", "ben", after, null)).toBe(GUEST_REFUSAL);
+    expect(rules.undoRefusal(true, "ben", "asha", after, took)).toBe(GUEST_REFUSAL);
+    expect(rules.undoRefusal(true, "ben", undefined, after, took)).toBe(GUEST_REFUSAL);
     expect(rules.undoRefusal(false, "varun", "asha")).toBeNull();
   });
   it("actorRefusal (what the screen asks) gives the same answer as the server for a guest", () => {
-    const ev = { id: "e1", kind: "expense_added", undo: "", undoneAt: null, expenseId: "x", paymentId: null, createdAt: new Date(), actorId: "asha" };
-    const viewer = { id: "ben", isAdmin: false, closed: false, members: [], guest: true };
+    const ev = { id: "e1", kind: "expense_added", undo: "", undoneAt: null, expenseId: "x", paymentId: null, createdAt: after, actorId: "asha" };
+    const viewer = { id: "ben", isAdmin: false, closed: false, members: [], guest: true, claimedAt: took };
     expect(actorRefusal(ev, viewer, new Date())).toBe(GUEST_REFUSAL);
     expect(actorRefusal({ ...ev, actorId: "ben" }, viewer, new Date())).toBeNull();
+    expect(actorRefusal({ ...ev, actorId: "ben", createdAt: before }, viewer, new Date())).toBe(GUEST_REFUSAL); // written before he took the name
     expect(actorRefusal(ev, { ...viewer, guest: false }, new Date())).toBeNull();
   });
 });
@@ -254,6 +275,43 @@ describe("the Goa trip, with the rules switched on", () => {
     expect((await db.expense.findUniqueOrThrow({ where: { id: taxi } })).deletedAt).not.toBeNull();
     expect((await undoEvent(await lineOf(dinner), f.V, "Asia/Kolkata", { guestRules: true })).ok).toBe(true); // an account, anyone's line
     expect((await db.expense.findUniqueOrThrow({ where: { id: dinner } })).deletedAt).not.toBeNull();
+  });
+});
+
+describe("a freed-then-retaken name does not inherit what the earlier holder added", () => {
+  const wait = () => new Promise((r) => setTimeout(r, 25));
+  it("Ben adds Taxi and takes part in a payment; his name is freed and retaken: the new holder can't edit, delete, undo or remove them, but their own new things work", async () => {
+    const f = await goa();
+    const taxi = await add(f, f.B, "Taxi", "900");
+    expect(await pay(f, f.B, f.V, f.B, 20000)).toMatchObject({ kind: "done" });
+    const payment = await db.payment.findFirstOrThrow({ where: { groupId: f.g.id } });
+    const taxiLine = (await db.groupEvent.findFirstOrThrow({ where: { expenseId: taxi, kind: "expense_added" } })).id;
+
+    // The name is freed and someone else takes "Ben": claimedAt is now later than everything Ben added.
+    await wait();
+    await db.member.update({ where: { id: f.B }, data: { claimedAt: new Date() } });
+    await wait();
+
+    const before = await snapshot(f);
+    expect(await saveExpense(draft(f, "Taxi", "600", f.B, taxi), f.B, noRate, { guestRules: true })).toEqual({ ok: false, error: rules.expenseRefusal("Ben") });
+    expect(await setExpenseDeleted(taxi, f.B, true, { guestRules: true })).toEqual({ ok: false, error: rules.expenseRefusal("Ben") });
+    expect(await undoEvent(taxiLine, f.B, "Asia/Kolkata", { guestRules: true })).toEqual({ ok: false, error: GUEST_REFUSAL });
+    expect(await setPaymentDeleted(payment.id, f.B, true, { guestRules: true })).toEqual({ ok: false, error: GUEST_REFUSAL });
+    expect(await snapshot(f)).toEqual(before); // nothing changed
+
+    // A payment recorded after he took the name is his: he can delete and restore it. Recording a new one is allowed too.
+    expect(await pay(f, f.B, f.B, f.V, 5000)).toMatchObject({ kind: "done" });
+    const mine = await db.payment.findFirstOrThrow({ where: { groupId: f.g.id, id: { not: payment.id } } });
+    expect((await setPaymentDeleted(mine.id, f.B, true, { guestRules: true })).ok).toBe(true);
+    expect((await setPaymentDeleted(mine.id, f.B, false, { guestRules: true })).ok).toBe(true);
+    const newer = await add(f, f.B, "Lunch", "300");
+    expect((await saveExpense(draft(f, "Lunch", "450", f.B, newer), f.B, noRate, { guestRules: true })).ok).toBe(true);
+    expect((await setExpenseDeleted(newer, f.B, true, { guestRules: true })).ok).toBe(true);
+
+    // Someone with an account still changes anything, as before.
+    expect((await setExpenseDeleted(taxi, f.V, true, { guestRules: true })).ok).toBe(true);
+    // The old payment is still removable by the OTHER person in it (Varun has an account).
+    expect((await setPaymentDeleted(payment.id, f.V, true, { guestRules: true })).ok).toBe(true);
   });
 });
 
