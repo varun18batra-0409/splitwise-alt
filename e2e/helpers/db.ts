@@ -45,7 +45,10 @@ export async function cleanUp(match: { runId?: string; olderThanMs?: number; now
     select: { id: true, members: { select: { accountId: true } } },
   });
   const safe = touched.filter((g) => g.members.every((m) => !m.accountId || ids.includes(m.accountId)));
-  if (safe.length) await eraseGroups(safe.map((g) => g.id));
+  // In batches: one erase over hundreds of leftover groups builds a query too big for the database ("expression tree is too
+  // large"), and the whole test pass then stops before its first test.
+  const safeIds = safe.map((g) => g.id);
+  for (let i = 0; i < safeIds.length; i += 40) await eraseGroups(safeIds.slice(i, i + 40));
   const emails = accounts.map((a) => a.email);
   await db.outbox.deleteMany({ where: { to: { in: emails } } });
   await db.loginCode.deleteMany({ where: { email: { in: emails } } });
