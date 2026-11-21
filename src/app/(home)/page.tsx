@@ -517,6 +517,8 @@ export default async function Home({
       <header className="mb-4 flex items-start justify-between">
         <div className="min-w-0">
           <p className="font-display text-[28px] font-semibold leading-none tracking-tight">loopin</p>
+          {/* The start screen has its own visible h1; with groups, Home gets a hidden one so the screen has exactly one main heading. */}
+          {hasAny && <h1 className="sr-only">Home</h1>}
           {hasAny && (
             <p className="mt-2 text-[17px] leading-tight text-fg/75" data-greeting>
               {greetingWord(new Date(), tz)}

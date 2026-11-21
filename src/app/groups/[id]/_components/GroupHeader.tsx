@@ -197,7 +197,8 @@ export function GroupHeader({ v, switchTo }: { v: LiteView; switchTo: SwitchItem
           </div>
         )}
         <div className="mt-3">{line(false)}</div>
-        <div className="mt-1 flex items-center justify-between gap-3">
+        {/* flex-wrap: at 200% text the faces and the Invite pill drop to two lines instead of pushing the page sideways. */}
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           {faces}
           {!v.leaver && (
             <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-fg/25 px-4 text-[15px] font-semibold text-fg active:bg-fg/10" data-invite-pill>

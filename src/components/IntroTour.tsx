@@ -327,7 +327,12 @@ export function IntroTour({
               else if (!last) go(active + 1);
             }}
           >
-            <h1 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h1>
+            {/* One main heading per screen: the slide in view is the h1, the others (hidden from readers) are h2. Same look. */}
+            {i === active ? (
+              <h1 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h1>
+            ) : (
+              <h2 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h2>
+            )}
             <div className="flex flex-1 items-center justify-center py-8 [@media(max-height:700px)]:py-2">{s.art}</div>
             <p className="min-h-[3.5rem] text-center text-sm text-gray-500 [@media(max-height:700px)]:min-h-0">{s.caption}</p>
           </section>
