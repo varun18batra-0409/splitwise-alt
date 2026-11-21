@@ -89,7 +89,7 @@ export async function buildSummaryView(data: SummaryLoaded, myId: string, tz: st
     const v = convertAmount(Math.abs(minor), group.currency, secondary, secondaryRate.rate);
     return v === null ? null : `≈ ${formatMoney(v, secondary)}`;
   };
-  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })) };
+  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })), guest: group.members.find((m) => m.id === myId)?.accountId === null, claimedAt: group.members.find((m) => m.id === myId)?.claimedAt ?? null };
   return {
     group: data.group,
     expenses: data.expenses,
