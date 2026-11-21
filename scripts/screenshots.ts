@@ -388,23 +388,42 @@ if (demo.couple.goal) await shot("60-couple-goal", `${c}/goals/${demo.couple.goa
 await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
-// MOCKUP ONLY (21 Nov, throwaway branch, never released): long names at normal and 200% text, as now and with names wrapping to two lines.
-if (!desktop) {
-  const surname: Record<string, string> = { Varun: "Subramaniam", Asha: "Venkataraman", Ravi: "Chandrasekhar", Meera: "Krishnamurthy", Dev: "Bhattacharya", Kabir: "Raghunathan", Riya: "Ramachandran" };
+// MOCKUP ONLY (21 Nov, throwaway branch, never released): long names at normal and 200% text, as now and with the proposed fix
+// (names wrap onto up to two lines; when the text is too big for the badge and the name to share a line, the name moves under the badge).
+if (!desktop && !hosted) {
+  const surname: Record<string, string> = { Varun: "Subramaniam", Asha: "Venkataraman", Ravi: "Chandrasekhar", Meera: "Krishnamurthy", Dev: "Bhattacharya", Kabir: "Raghunathan", Riya: "Ramachandran", Priya: "Ramaswamy" };
   const longNames = async (p: Page) =>
     p.evaluate((s) => {
-      const els = document.querySelectorAll('[data-settle-card] p.font-display, section[aria-label="Your profile"] p.font-display, [data-record-route] span[aria-hidden]');
-      for (const el of Array.from(els)) for (const [k, v] of Object.entries(s)) if (el.textContent?.includes(k) && !el.textContent.includes(v)) el.textContent = el.textContent.replace(k, `${k} ${v}`);
+      const els = document.querySelectorAll('[data-settle-card] p.font-display, section[aria-label="Your profile"] p.font-display, [data-record-route] span[aria-hidden], [data-record-route]');
+      for (const el of Array.from(els)) {
+        if (el.children.length) continue;
+        let t = el.textContent ?? "";
+        for (const [k, v] of Object.entries(s)) if (t.includes(k) && !t.includes(v)) t = t.replace(new RegExp(`\\b${k}\\b`), `${k} ${v}`);
+        el.textContent = t;
+      }
     }, surname);
   const big = async (p: Page) => p.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
-  const wrap = async (p: Page) =>
-    p.addStyleTag({ content: `[data-settle-card] p.truncate, section[aria-label="Your profile"] p.truncate { white-space: normal !important; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }` });
-  for (const [n, path] of [["all", "/settle"], ["group", `${g}/settle`], ["account", "/account"]] as const) {
-    await shot(`MK-${n}-1-now-normal`, path, async (p) => { await longNames(p); }, false);
-    await shot(`MK-${n}-2-now-200`, path, async (p) => { await longNames(p); await big(p); await p.waitForTimeout(300); }, false);
-    await shot(`MK-${n}-3-wrap-normal`, path, async (p) => { await wrap(p); await longNames(p); }, false);
-    await shot(`MK-${n}-4-wrap-200`, path, async (p) => { await wrap(p); await longNames(p); await big(p); await p.waitForTimeout(300); }, false);
+  const FIX = `[data-settle-card] p.truncate, [data-record-route], section[aria-label="Your profile"] p.truncate { white-space: normal !important; overflow-wrap: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    [data-settle-person], [data-settle-card] > div > div.flex.items-start.gap-3 > div.min-w-0, section[aria-label="Your profile"] > div.flex, [data-record-sheet] div.mt-5.flex { flex-wrap: wrap; row-gap: 0.5rem; }
+    [data-settle-person] > div.min-w-0, [data-settle-card] div.min-w-0.flex-1.pt-0\\.5, section[aria-label="Your profile"] > div.flex > div.min-w-0, [data-record-sheet] div.mt-5.flex > div.min-w-0 { min-width: 9em; flex: 1 1 9em; }`;
+  const fix = async (p: Page) => { await p.addStyleTag({ content: FIX }); };
+  const noNav = async (p: Page) => { await p.addStyleTag({ content: HIDE_NAV }); };
+  const toCard = async (p: Page) => {
+    await p.locator("[data-settle-card]").first().evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await p.evaluate(() => window.scrollBy(0, -16));
+    await p.waitForTimeout(300);
+  };
+  const variants: [string, boolean, boolean][] = [["1-now-normal", false, false], ["2-now-200", false, true], ["3-fix-normal", true, false], ["4-fix-200", true, true]];
+  for (const [v, fixed, large] of variants) {
+    await shot(`MK-settle-${v}`, "/settle", async (p) => { await noNav(p); if (fixed) await fix(p); await longNames(p); if (large) await big(p); await toCard(p); }, false);
+    await shot(`MK-sheet-${v}`, "/settle", async (p) => { await openRecordSheet(p); await noNav(p); if (fixed) await fix(p); await longNames(p); if (large) await big(p); await p.waitForTimeout(300); }, false);
   }
+  const db = patient((await import("../src/lib/db")).db);
+  const acct = await db.account.create({ data: { email: `shots-mk-${Date.now()}@uat.loopin.test`, name: "Varun" } });
+  await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acct.id, v: 0 }), url: base }]);
+  for (const [v, fixed, large] of variants)
+    await shot(`MK-account-${v}`, "/account", async (p) => { await noNav(p); if (fixed) await fix(p); await longNames(p); if (large) await big(p); await p.waitForTimeout(300); }, false);
+  await signBackIn();
 }
 await shot("25b-groups", "/groups");
 await shot("26-signin", "/signin", undefined, false);
