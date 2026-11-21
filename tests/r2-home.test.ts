@@ -212,7 +212,8 @@ describe("a calmer Home", () => {
       if (i > 0) expect(at(x), `${x} after ${order[i - 1]}`).toBeGreaterThan(at(order[i - 1]));
     });
     expect(home).not.toMatch(/<MoneyCard[^>]* compact/);
-    expect(home).not.toContain("sr-only");
+    // The only hidden thing allowed is the screen-reader "Home" heading (a11y, 21 Nov).
+    expect(home.replace('<h1 className="sr-only">Home</h1>', "")).not.toContain("sr-only");
   });
   it("Home has no need line under the money card (what needs you is in Updates behind the bell)", () => {
     const hm = src("src/components/HomeMoney.tsx");

@@ -23,7 +23,9 @@ describe("greeting under the wordmark, tagline at the very end", () => {
     expect(header).toContain("greetingWord(new Date(), tz)");
     expect(header).toContain("text-[17px]");
     expect(header).toContain("text-fg/75");
-    expect(header).not.toContain("sr-only");
+    // The only hidden thing allowed is the screen-reader "Home" heading (a11y, 21 Nov); the greeting itself stays visible.
+    expect(header.replace('<h1 className="sr-only">Home</h1>', "")).not.toContain("sr-only");
+    expect(header).toContain('<h1 className="sr-only">Home</h1>');
     expect(header).not.toContain("Everything adds up");
     expect(header.indexOf("loopin</p>")).toBeLessThan(header.indexOf("data-greeting"));
     expect(header.indexOf("data-greeting")).toBeLessThan(header.indexOf("<BellButton"));
