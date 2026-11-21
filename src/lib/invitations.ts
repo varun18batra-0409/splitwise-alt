@@ -224,6 +224,7 @@ export async function declineInvitation(account: Account, key: string): Promise<
     await db.$transaction([
       db.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null, leftAt: null, removedAt: null }, data: { accountId: null, claimedAt: null, addedBy: "", freedAt: new Date() } }),
       db.pushSubscription.deleteMany({ where: { memberId: m.id } }),
+      db.payLink.deleteMany({ where: { groupId: m.groupId, OR: [{ fromId: m.id }, { toId: m.id }] } }), // links for this name stop working, as when a name is freed
     ]);
     return { ok: true, groupId: m.groupId, memberId: m.id };
   }

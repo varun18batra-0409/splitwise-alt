@@ -4,7 +4,7 @@ import { logEvent, markUndone, parseUndo, type Db, type PaymentAcross, type Undo
 import { formatMoney } from "./money";
 import { withRetry } from "./once";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, leaversOffZero } from "./money-guard";
-import { RestoreRefused, restorePayments } from "./payments";
+import { beforeNameRefusal, RestoreRefused, restorePayments } from "./payments";
 import { paymentChangeRefusal } from "./guest-rules";
 import { BEFORE_NAME_TEXT } from "./guest-words";
 import { onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
@@ -396,6 +396,9 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
 // Undo / redo of "Mark all paid" or "Settle everything": the actor must be a party to EVERY payment (or the recorder inside the window).
 // `restoring`: this is a Redo. A payment the person paid took off can only be brought back by them, whoever else asks (the recorder too).
 export async function paymentsPartyRefusal(client: Db, groupId: string, ids: string[], actorId: string, recorderOk = false, restoring = false): Promise<string | null> {
+  // A name that was freed and retaken: the earlier holder's payments in the set are not theirs, whoever recorded them.
+  const early = await beforeNameRefusal(client, ids, actorId, groupId);
+  if (early) return early;
   if (restoring) {
     const taken = await client.payment.findMany({ where: { id: { in: ids }, groupId, deletedAt: { not: null } }, select: { toId: true, deletedById: true, to: { select: { name: true } } } });
     const first = taken.find((p) => onlyReceiverCanBringBack(p, actorId));

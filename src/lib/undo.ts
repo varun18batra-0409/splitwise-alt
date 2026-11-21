@@ -18,7 +18,7 @@ import { MOVE_OUT_GONE_FOR_GOOD, MOVE_OUT_LEAVER_FIXABLE, moveOutUndoBlock, setM
 import { lateMoveText, lateRecreateText, lateRemovalText, putBackOpen } from "./put-back";
 import { DEFAULT_TIME_ZONE } from "./dates";
 import { undoRefusal } from "./guest-rules";
-import { madeBeforeFreed } from "./guest-words";
+import { BEFORE_NAME_TEXT, madeBeforeFreed } from "./guest-words";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks, moneySig, peopleInExpense } from "./money-guard";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
@@ -252,7 +252,9 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   // received" restore check, the 10-minute recorder window, or the own-leave rules below).
   const ownLine = ev.actorId === actorId && !madeBeforeFreed(viewer.freedAt, ev.createdAt);
   const find = (id: string) => viewer.members.find((m) => m.id === id);
-  if (payload.type === "member_set" && payload.data.leftAt === null && payload.memberId !== actorId) {
+  // A line about "my own row" (leave, rejoin, rename) made at or before my name was freed was about the earlier holder: not me.
+  const aboutMe = (memberId: string) => memberId === actorId && !madeBeforeFreed(viewer.freedAt, ev.createdAt);
+  if (payload.type === "member_set" && payload.data.leftAt === null && !aboutMe(payload.memberId)) {
     const who = find(payload.memberId);
     if (who?.accountId) {
       const own = ev.actorId === payload.memberId;
@@ -264,7 +266,7 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
     }
   }
   // Likewise undoing someone's own coming back (accepting an invitation, rejoining) would push them out: only they can.
-  if (payload.type === "member_set" && ev.kind === "member_rejoined" && payload.memberId !== actorId) {
+  if (payload.type === "member_set" && ev.kind === "member_rejoined" && !aboutMe(payload.memberId)) {
     const who = find(payload.memberId);
     if (who?.accountId) return `Only ${who.name} can undo rejoining the group.`;
   }
@@ -295,6 +297,12 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   // Someone an admin removed can't change payments themselves (the other person in the payment still can).
   if (isPaymentUndo(payload) && find(actorId)?.removedAt) return removedText();
   const recorder = ownLine && putBackOpen(originAt ?? ev.createdAt, now);
+  // A name that was freed and retaken: payments of the earlier holder (one, or any in a set) are not theirs to take off or put back.
+  if (viewer.freedAt && (payload.type === "payment_delete" || payload.type === "payment_restore" || payload.type === "payments_set" || payload.type === "settle_all")) {
+    const ids = payload.type === "payment_delete" || payload.type === "payment_restore" ? [payload.paymentId] : payload.paymentIds;
+    const theirs = ids.map((id) => viewer.payments?.find((x) => x.id === id)).filter((x) => x?.createdAt);
+    if (theirs.some((x) => (x!.fromId === actorId || x!.toId === actorId) && madeBeforeFreed(viewer.freedAt, x!.createdAt))) return BEFORE_NAME_TEXT;
+  }
   if (!recorder && (payload.type === "payment_delete" || payload.type === "payment_restore")) {
     const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
     if (pay && pay.fromId !== actorId && pay.toId !== actorId) return `Only ${find(pay.fromId)?.name ?? "the payer"} or ${find(pay.toId)?.name ?? "the person paid"} can change this payment.`;
@@ -314,7 +322,7 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   const adminOnly =
     payload.type === "currency_restore" ||
     ((payload.type === "members_remove" || payload.type === "members_restore") && !ownLine) ||
-    (payload.type === "member_set" && "leftAt" in payload.data && payload.memberId !== actorId && !ownLine);
+    (payload.type === "member_set" && "leftAt" in payload.data && !aboutMe(payload.memberId) && !ownLine);
   if (adminOnly && !viewer.isAdmin) return "Only the person who looks after this group can undo that.";
   return null;
 }

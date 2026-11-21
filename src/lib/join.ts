@@ -304,6 +304,9 @@ export async function releaseGuestName(groupId: string, actorId: string, memberI
     const w = await tx.member.updateMany({ where: { id: target.id, accountId: null, claimedAt: { not: null }, ...(self ? {} : { leftAt: null, removedAt: null }) }, data: { claimedAt: null, freedAt: new Date(), grantEpoch: { increment: 1 } } });
     if (w.count !== 1) return "";
     await tx.pushSubscription.deleteMany({ where: { memberId: target.id } });
+    // Every "I've paid" link for or from this name stops working (the link row is removed, so it cannot be revived by making a new link):
+    // whoever holds the old link must not act for the next holder of the name.
+    await tx.payLink.deleteMany({ where: { groupId, OR: [{ fromId: target.id }, { toId: target.id }] } });
     return logEvent(tx, { groupId, actorId, kind: "members_added", text: self ? "freed their name (it was not them)" : `freed the name ${target.name}` });
   });
   if (!eventId) return { ok: false, error: "That name was already freed." };

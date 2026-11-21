@@ -4,7 +4,7 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, wit
 import { loadGroup } from "./group-data";
 import { logEvent, markUndone, type UndoMark } from "./events";
 import { formatMoney } from "./money";
-import { createPayment, RestoreRefused, restorePayments } from "./payments";
+import { beforeNameRefusal, createPayment, RestoreRefused, restorePayments } from "./payments";
 import { bringBackAfterDelete, NotSquare, paymentsPartyRefusal } from "./payment-change";
 import { partiesToTell, partyMessages, pushAllToReceivers } from "./payment-claims";
 import type { Transfer } from "./settle";
@@ -131,6 +131,9 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
     // closed, redo needs it open).
     await guardGroup(tx, groupId, { currency: group.currency, actorId, allowClosed: !apply });
     await markUndone(tx, opts.mark); // an undo is marked in this same transaction
+    // Again inside the write: the name may have been freed since the first look (Redo asks the same inside restorePayments).
+    const early = await beforeNameRefusal(tx, paymentIds, actorId, groupId);
+    if (early) throw new RestoreRefused(early);
     if (!apply) {
       const open = await tx.group.updateMany({ where: { id: groupId, closed: true }, data: { closed: true } });
       if (open.count !== 1) throw new Error("reopened-since");
@@ -283,6 +286,8 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, groupId, { currency: group.currency, actorId });
     await markUndone(tx, opts.mark);
+    const early = await beforeNameRefusal(tx, paymentIds, actorId, groupId);
+    if (early) throw new RestoreRefused(early); // again inside the write (a name freed since the first look)
     // Putting payments back (Redo of "Mark all paid"): someone who has left may only end with the balance they had, or 0.
     if (!deleted) {
       const goneHere = await restoredPaymentsBreak(tx, groupId, paymentIds);

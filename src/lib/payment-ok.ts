@@ -16,6 +16,14 @@ import { GUEST_REFUSAL, madeBeforeFreed, madeSinceClaim } from "./guest-words";
 type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 
 class Removed extends Error {}
+class NotYours extends Error {}
+
+// Inside the write: the name may have been freed or taken since the first look.
+async function recheckAnswerer(tx: Pick<typeof db, "member">, myMemberId: string, p: { createdAt: Date }) {
+  const me = await tx.member.findUnique({ where: { id: myMemberId }, select: { accountId: true, claimedAt: true, freedAt: true } });
+  const no = answerRefusal(me, p);
+  if (no) throw new NotYours(no);
+}
 
 // Only people who can actually tap the button are asked: they've joined (not just a name).
 export function needsOkFor(receiver: { id: string; accountId?: string | null; claimedAt?: Date | null } | undefined, actorId: string): boolean {
@@ -67,12 +75,14 @@ export async function confirmPayment(paymentId: string, myMemberId: string | und
     eventId = await db.$transaction(async (tx) => {
     // Again inside the transaction (a removal could have landed since the first look).
     if (await wasRemoved(p.groupId, myMemberId, tx)) throw new Removed(p.group.name);
+    await recheckAnswerer(tx, myMemberId!, p);
     const changed = await tx.payment.updateMany({ where: { id: p.id, okAt: null, deletedAt: null }, data: { okAt: new Date() } });
     if (changed.count !== 1) return "";
     return logEvent(tx, { groupId: p.groupId, actorId: myMemberId!, kind: "payment_confirmed", text: `confirmed getting ${formatMoney(p.amount, p.group.currency)} from ${p.from.name} ✓`, paymentId: p.id });
     });
   } catch (err) {
     if (err instanceof Removed) return { ok: false, error: removedText(p.group.name) };
+    if (err instanceof NotYours) return { ok: false, error: err.message };
     throw err;
   }
   return { ok: true, eventId: eventId || undefined };
@@ -98,6 +108,7 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
       await guardGroup(tx, p.groupId, { currency: p.group.currency });
       // Again inside the transaction (a removal could have landed since the first look).
       if (await wasRemoved(p.groupId, myMemberId, tx)) throw new Removed(p.group.name);
+      await recheckAnswerer(tx, myMemberId!, p);
       const changed = await tx.payment.updateMany({ where: { id: p.id, deletedAt: null, okAt: null }, data: { deletedAt: new Date(), deletedById: myMemberId } });
       if (changed.count !== 1) return { eventId: "", back: [] };
       const eventId = await logEvent(tx, {
@@ -117,6 +128,7 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
     });
   } catch (err) {
     if (err instanceof Removed) return { ok: false, error: removedText(p.group.name) };
+    if (err instanceof NotYours) return { ok: false, error: err.message };
     if (err instanceof NotSquare) return { ok: false, error: "Balances just changed. Look again, then try once more." };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;

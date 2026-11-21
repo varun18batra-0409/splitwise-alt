@@ -6,6 +6,7 @@ import { parsePayers, payersJson } from "./payers";
 import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, potTransfers, spreadGap } from "./pot";
 import { cleanNames, sameName } from "./names";
 import { pickAdmin } from "./group-admin";
+import { madeBeforeFreed } from "./guest-words";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
 import type { Prisma } from "@prisma/client";
 
@@ -97,8 +98,9 @@ async function groupFor(groupId: string, actorId: string) {
 // lastActivityAt: the latest of the newest chip line (made or taken back) and the game's own start or finish (see lastActivity).
 // A game with no activity time is treated as active.
 export const GAME_QUIET_MS = 24 * 60 * 60 * 1000;
-export function canRunGame(game: { hostId: string; lastActivityAt?: Date | null }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId: string | null; freedAt?: Date | null }[], actorId: string, now = new Date()): boolean {
-  if (game.hostId === actorId) return true;
+export function canRunGame(game: { hostId: string; createdAt?: Date | null; lastActivityAt?: Date | null }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null; accountId: string | null; freedAt?: Date | null }[], actorId: string, now = new Date()): boolean {
+  // The host only counts if the game was started after this name was last freed (a game from before it was the earlier holder's).
+  if (game.hostId === actorId && !madeBeforeFreed(members.find((m) => m.id === actorId)?.freedAt, game.createdAt)) return true;
   if (pickAdmin(members)?.id !== actorId) return false;
   const host = members.find((m) => m.id === game.hostId);
   if (!host || host.leftAt) return true; // left or removed (removing sets leftAt too)
@@ -231,7 +233,9 @@ export async function removeMove(moveId: string, actorId: string, hooks: Hooks =
   const r = await gameFor(m.gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   if (r.game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
-  if (m.createdById !== actorId && !canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only whoever added it, or the host, can take it back (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
+  // A line is "mine" only if I made it after my name was last freed (an earlier holder's chip line is not mine to take back).
+  const mine = m.createdById === actorId && !madeBeforeFreed(r.g.members.find((x) => x.id === actorId)?.freedAt, m.createdAt);
+  if (!mine && !canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only whoever added it, or the host, can take it back (whoever looks after the group can too once the host has left or the game has been quiet for a day)." };
   await hooks.afterRead?.();
   const g = r.g;
   return move(async () => {
@@ -239,7 +243,7 @@ export async function removeMove(moveId: string, actorId: string, hooks: Hooks =
       await openGame(tx, g, m.gameId);
       const took = await tx.potMove.updateMany({ where: { id: moveId, deletedAt: null }, data: { deletedAt: new Date() } });
       // Taking back a line someone ELSE recorded is told to the group (their own line is just a correction).
-      if (took.count === 1 && m.createdById !== actorId) {
+      if (took.count === 1 && !mine) {
         const who = g.members.find((x) => x.id === m.memberId)?.name ?? "someone";
         const what = m.kind === "take" ? "chips line" : m.kind === "return" ? "took-home line" : "adjustment";
         await logEvent(tx, { groupId: g.id, actorId, kind: "pot_line_removed", text: `took back ${who}’s ${formatMoney(Math.abs(m.amount), g.currency)} ${what} in ${r.game!.name}` });

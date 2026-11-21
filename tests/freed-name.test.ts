@@ -31,6 +31,11 @@ const { netBalances } = await import("@/lib/balances");
 const { releaseGuestName } = await import("@/lib/join");
 const { declineInvitation } = await import("@/lib/invitations");
 const { setPaymentDeleted } = await import("@/lib/save-expense");
+const { joinExistingAsGuest } = await import("@/lib/join");
+const { settleAllAndClose, markAllPaid, planKey, setPaymentsDeleted, applySettleAll } = await import("@/lib/settle-all");
+const { loadGroup } = await import("@/lib/group-data");
+const pot = await import("@/lib/pot-db");
+const { payLinkFor, readPayLink, recordLinkPayment } = await import("@/lib/pay-link");
 const { actorRefusal, removeMembers, undoEvent } = await import("@/lib/undo");
 const { groupAdminId, isGroupAdmin, pickAdmin } = await import("@/lib/group-admin");
 const { removedText } = await import("@/lib/active");
@@ -55,7 +60,7 @@ async function account(name: string) {
 
 const MIN = 60_000;
 // The flat above, right up to "Varun moved out and P is waiting for Ben". P was made `payAgo` before now.
-async function flat(payAgo = MIN) {
+async function flat(payAgo = MIN, withMoveOut = true) {
   const asha = await account("Asha");
   const g = await db.group.create({
     data: {
@@ -76,10 +81,13 @@ async function flat(payAgo = MIN) {
   await db.expense.create({
     data: { groupId: g.id, description: "Dinner", splitType: "equal", amount: 60000, originalAmount: 60000, convertedAmount: 60000, paidById: B, createdById: B, shares: { create: [{ memberId: B, amount: 20000 }, { memberId: V, amount: 20000 }, { memberId: A, amount: 20000 }] } },
   });
-  const P = await db.payment.create({ data: { groupId: g.id, fromId: V, toId: B, amount: 20000, createdById: A, needsOk: true, createdAt: new Date(Date.now() - payAgo) } });
-  await markAsMoveOut(g.id, A, [P.id]);
-  await db.member.update({ where: { id: V }, data: { leftAt: new Date(Date.now() - payAgo) } });
-  return { g, gid: g.id, gname: g.name, A, B, V, P, asha };
+  // withMoveOut = false: just the dinner (Ben +40000, Varun -20000, Asha -20000), nobody has left, no P.
+  const P = withMoveOut ? await db.payment.create({ data: { groupId: g.id, fromId: V, toId: B, amount: 20000, createdById: A, needsOk: true, createdAt: new Date(Date.now() - payAgo) } }) : (undefined as never);
+  if (withMoveOut) {
+    await markAsMoveOut(g.id, A, [P.id]);
+    await db.member.update({ where: { id: V }, data: { leftAt: new Date(Date.now() - payAgo) } });
+  }
+  return { g, gid: g.id, gname: g.name, code: g.inviteCode, A, B, V, P, asha };
 }
 type Flat = Awaited<ReturnType<typeof flat>>;
 
@@ -93,6 +101,7 @@ const sharesSum = async (f: Flat) => (await db.expenseShare.findMany({ where: { 
 const snapshot = async (f: Flat) => ({
   payments: (await db.payment.findMany({ where: { groupId: f.gid }, orderBy: { id: "asc" }, select: { id: true, amount: true, deletedAt: true, okAt: true } })).map((p) => ({ ...p, deletedAt: p.deletedAt?.getTime() ?? null, okAt: p.okAt?.getTime() ?? null })),
   events: await db.groupEvent.count({ where: { groupId: f.gid } }),
+  closed: (await db.group.findUniqueOrThrow({ where: { id: f.gid }, select: { closed: true } })).closed,
   left: (await db.member.findMany({ where: { groupId: f.gid }, orderBy: { id: "asc" }, select: { id: true, leftAt: true, removedAt: true } })).map((m) => ({ id: m.id, left: m.leftAt?.getTime() ?? null, removed: m.removedAt?.getTime() ?? null })),
   balances: await bal(f),
 });
@@ -110,10 +119,17 @@ async function endsSquare(f: Flat) {
   expect(await bal(f)).toEqual({ Ben: 0, Varun: 0, Asha: 0 });
 }
 
-// Cat takes the name "Ben": the row is freed (the real code), then taken again as a guest, optionally signing in later.
+// Cat takes the name "Ben": the row is freed (the real code), then taken again as a guest through the real join, optionally signing in later.
+const pause = (ms = 15) => new Promise((r) => setTimeout(r, ms));
+async function retake(f: Flat) {
+  await pause();
+  const joined = await joinExistingAsGuest(f.code, f.B);
+  expect(joined).toEqual({ ok: true, memberId: f.B });
+  await pause();
+}
 async function freeAndRetake(f: Flat) {
   expect((await releaseGuestName(f.gid, f.A, f.B)).ok).toBe(true);
-  await db.member.update({ where: { id: f.B }, data: { claimedAt: new Date() } });
+  await retake(f);
 }
 async function signIn(f: Flat, name = "Cat") {
   const cat = await account(name);
@@ -181,7 +197,7 @@ describe("(a) a freed name that is taken again cannot answer the earlier holder'
     const freed = (await db.member.findUniqueOrThrow({ where: { id: f.B } })).freedAt!;
     expect(freed.getTime()).toBeGreaterThanOrEqual(before.getTime());
     expect(freed.getTime()).toBeLessThanOrEqual(Date.now());
-    await db.member.update({ where: { id: f.B }, data: { claimedAt: new Date() } }); // Cat takes the name
+    await retake(f); // Cat takes the name through the real join
 
     const snap = await snapshot(f);
     expect(await rejectPaymentOf(f)).toEqual({ ok: false, error: ONLY_PAID_TEXT });
@@ -203,7 +219,7 @@ describe("(a) a freed name that is taken again cannot answer the earlier holder'
   it("(a2) Ben frees his own name and it is taken again: the same", async () => {
     const f = await flat();
     expect((await releaseGuestName(f.gid, f.B, f.B)).ok).toBe(true);
-    await db.member.update({ where: { id: f.B }, data: { claimedAt: new Date() } });
+    await retake(f);
     const snap = await snapshot(f);
     expect(await rejectPaymentOf(f)).toEqual({ ok: false, error: ONLY_PAID_TEXT });
     expect(await confirmPayment(f.P.id, f.B)).toEqual({ ok: false, error: ONLY_PAID_TEXT });
@@ -459,7 +475,8 @@ describe("looking after the group passes on once the admin's name is freed", () 
     expect(await groupAdminId(g.id)).toBe(asha); // no freed names: unchanged
     expect((await releaseGuestName(g.id, asha, asha)).ok).toBe(true);
     expect(await groupAdminId(g.id)).toBe(ben);
-    await db.member.update({ where: { id: asha }, data: { claimedAt: new Date(), accountId: cat.id } }); // Cat takes "Asha" and signs in
+    expect(await joinExistingAsGuest(g.inviteCode, asha)).toEqual({ ok: true, memberId: asha }); // Cat takes "Asha" through the real join...
+    await db.member.update({ where: { id: asha }, data: { accountId: cat.id } }); // ...and signs in
     expect(await groupAdminId(g.id)).toBe(ben);
     expect(await isGroupAdmin(g.id, asha)).toBe(false);
     expect(await isGroupAdmin(g.id, ben)).toBe(true);
@@ -477,5 +494,259 @@ describe("the static rules still hold", () => {
     for (const name of ["confirmPaymentAction", "rejectPaymentAction", "removePayment", "restorePayment", "undoChange"]) {
       expect(rules.ACTION_RULES[name].note, name).toContain("before the name was last freed");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Round 2: sets of payments, card games, the admin rule "as if they had left", pay links, own-row lines, the write itself.
+
+describe("Settle everything / Mark all paid: undo and redo by the new holder of a freed name", () => {
+  const allIds = async (f: Flat) => (await db.payment.findMany({ where: { groupId: f.gid }, select: { id: true } })).map((p) => p.id);
+  it("Asha settles everything (Varun>Ben 20000, Asha>Ben 20000, group closes); Ben freed, Cat takes 'Ben' and signs in: Undo is refused, nothing changes; Asha still can", async () => {
+    const f = await flat(MIN, false);
+    expect(await bal(f)).toEqual(BEFORE_DINNER);
+    const transfers = (await loadGroup(f.gid, { events: false }))!.transfers;
+    expect(planKey(transfers)).toBe([`${f.V}>${f.B}:20000`, `${f.A}>${f.B}:20000`].sort().join("|")); // each of the two owes Ben 20000
+    const done = await settleAllAndClose(f.gid, f.A, planKey(transfers));
+    if (!done.ok) throw new Error(done.error);
+    expect(await bal(f)).toEqual({ Ben: 0, Varun: 0, Asha: 0 }); // 40000 - 20000 - 20000, -20000 + 20000, -20000 + 20000
+    expect((await db.group.findUniqueOrThrow({ where: { id: f.gid } })).closed).toBe(true);
+
+    await freeAndRetake(f);
+    await signIn(f);
+    const snap = await snapshot(f);
+    expect(snap.closed).toBe(true);
+    expect(await undoEvent(done.eventId!, f.B)).toEqual({ ok: false, error: BEFORE_NAME_TEXT });
+    expect(await applySettleAll(f.gid, f.B, await allIds(f), false)).toEqual({ ok: false, error: BEFORE_NAME_TEXT }); // the server door itself
+    expect(await snapshot(f)).toEqual(snap); // payments, group still closed, history, balances 0 / 0 / 0
+    expect(await bal(f)).toEqual({ Ben: 0, Varun: 0, Asha: 0 });
+
+    // Asha (the other party, never freed, and who recorded it) keeps her rights: the payments come out and the group reopens.
+    expect((await undoEvent(done.eventId!, f.A)).ok).toBe(true);
+    expect(await bal(f)).toEqual(BEFORE_DINNER);
+    expect((await db.group.findUniqueOrThrow({ where: { id: f.gid } })).closed).toBe(false);
+    expect(await sharesSum(f)).toBe(60000);
+  });
+  it("redo: the earlier Ben undid a 'Mark all paid'; Cat (new holder, signed in) cannot redo it; nothing changes", async () => {
+    const f = await flat(MIN, false);
+    const made = await markAllPaid(f.gid, f.A, [{ from: f.V, to: f.B, amount: 20000 }, { from: f.A, to: f.B, amount: 20000 }], "Test", true);
+    if (!made.ok) throw new Error(made.error);
+    expect(await bal(f)).toEqual({ Ben: 0, Varun: 0, Asha: 0 });
+    const undone = await undoEvent(made.eventId!, f.B); // the real Ben takes them off (he is in both)
+    if (!undone.ok) throw new Error(undone.error);
+    expect(await bal(f)).toEqual(BEFORE_DINNER);
+    await freeAndRetake(f);
+    await signIn(f);
+    const snap = await snapshot(f);
+    expect(await undoEvent(undone.eventId!, f.B)).toEqual({ ok: false, error: BEFORE_NAME_TEXT }); // Redo
+    expect(await setPaymentsDeleted(f.gid, f.B, await allIds(f), false)).toEqual({ ok: false, error: BEFORE_NAME_TEXT });
+    expect(await snapshot(f)).toEqual(snap);
+    expect(await bal(f)).toEqual(BEFORE_DINNER); // Ben +40000, Varun -20000, Asha -20000
+    expect(await sharesSum(f)).toBe(60000);
+  });
+  it("the 10-minute recorder window through undoEvent: Asha records Varun>Ben for them and may Undo it inside 10 minutes, not after", async () => {
+    const f = await flat(MIN, false);
+    const made = await markAllPaid(f.gid, f.A, [{ from: f.V, to: f.B, amount: 20000 }], "Test", true);
+    if (!made.ok) throw new Error(made.error);
+    expect(await bal(f)).toEqual({ Ben: 20000, Varun: 0, Asha: -20000 }); // Ben +40000 -20000, Varun -20000 +20000
+    await db.groupEvent.update({ where: { id: made.eventId! }, data: { createdAt: new Date(Date.now() - 11 * MIN) } }); // 11 minutes ago
+    const late = await snapshot(f);
+    expect(await undoEvent(made.eventId!, f.A)).toEqual({ ok: false, error: "Only the people in each payment can take these off." }); // Asha is not in Varun>Ben
+    expect(await snapshot(f)).toEqual(late);
+    const g = await flat(MIN, false);
+    const again = await markAllPaid(g.gid, g.A, [{ from: g.V, to: g.B, amount: 20000 }], "Test", true);
+    if (!again.ok) throw new Error(again.error);
+    expect((await undoEvent(again.eventId!, g.A)).ok).toBe(true); // inside the window
+    expect(await bal(g)).toEqual(BEFORE_DINNER);
+  });
+});
+const BEFORE_DINNER = { Ben: 40000, Varun: -20000, Asha: -20000 }; // just the dinner
+
+describe("card games: the host and the line owner must be the holder who made them", () => {
+  const potBalances = async (gid: string) => {
+    const members = await db.member.findMany({ where: { groupId: gid }, select: { id: true } });
+    const [expenses, payments] = await Promise.all([db.expense.findMany({ where: { groupId: gid, deletedAt: null }, include: { shares: true } }), db.payment.findMany({ where: { groupId: gid, deletedAt: null } })]);
+    return netBalances(members.map((m) => m.id), expenses, payments);
+  };
+  it("canRunGame (pure): a host whose name was freed after the game started is not the host; freed before, or never, is", () => {
+    const d = (day: number) => new Date(2026, 10, day);
+    const me = (freedAt: Date | null) => [{ id: "ben", claimedAt: d(1), leftAt: null, accountId: null, freedAt }];
+    expect(pot.canRunGame({ hostId: "ben", createdAt: d(10) }, me(d(12)), "ben")).toBe(false);
+    expect(pot.canRunGame({ hostId: "ben", createdAt: d(10) }, me(d(10)), "ben")).toBe(false); // the same instant: safe side
+    expect(pot.canRunGame({ hostId: "ben", createdAt: d(10) }, me(d(8)), "ben")).toBe(true);
+    expect(pot.canRunGame({ hostId: "ben", createdAt: d(10) }, me(null), "ben")).toBe(true);
+  });
+  it("Ben hosts a finished game and an open one; Ben freed, Cat retakes and signs in: she can't reopen, take back Ben's lines, finish or delete; results unchanged; a never-freed host still can", async () => {
+    const g = await db.group.create({
+      data: { name: `Cards ${++n} ${stamp}`, type: "pot", currency: "INR", inviteCode: `fp-${n}-${stamp}`, members: { create: [{ name: "Ben", claimedAt: new Date(2026, 0, 2) }, { name: "Bina" }, { name: "Chirag" }] } },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const id = (name: string) => g.members.find((m) => m.name === name)!.id;
+    const [ben, bina, chirag] = [id("Ben"), id("Bina"), id("Chirag")];
+    const players = [ben, bina, chirag];
+    const start = async (by: string, name: string, who = players) => {
+      const s = await pot.startGame(g.id, by, { name, game: "cards", players: who });
+      if (!s.ok) throw new Error(s.error);
+      return s.id;
+    };
+    // Game 1: everyone takes 1000 (3000 in), Ben puts back 2000, Bina 1000, Chirag 0 (3000 out). Ben +1000, Bina 0, Chirag -1000 = +100000 / 0 / -100000 paise.
+    const g1 = await start(ben, "Friday");
+    for (const who of players) expect((await pot.recordMove(g1, ben, { memberId: who, kind: "take", amount: "1000" })).ok).toBe(true);
+    for (const [who, amt] of [[ben, "2000"], [bina, "1000"], [chirag, "0"]] as const) expect((await pot.recordMove(g1, ben, { memberId: who, kind: "return", amount: amt })).ok).toBe(true);
+    expect((await pot.finishGame(g1, ben)).ok).toBe(true);
+    const original = { [ben]: 100000, [bina]: 0, [chirag]: -100000 };
+    expect(await potBalances(g.id)).toEqual(original);
+    // Game 2 is still open, with a chip line Ben made.
+    const g2 = await start(ben, "Saturday");
+    expect((await pot.recordMove(g2, ben, { memberId: ben, kind: "take", amount: "500" })).ok).toBe(true);
+    const line = await db.potMove.findFirstOrThrow({ where: { gameId: g2, createdById: ben } });
+
+    expect((await releaseGuestName(g.id, ben, ben)).ok).toBe(true);
+    await pause();
+    expect(await joinExistingAsGuest(g.inviteCode, ben)).toEqual({ ok: true, memberId: ben });
+    await db.member.update({ where: { id: ben }, data: { accountId: (await account("Cat")).id } });
+    await pause();
+
+    const refused = async (r: Promise<{ ok: boolean; error?: string }>, re: RegExp) => {
+      const x = await r;
+      expect(x.ok).toBe(false);
+      expect(x.error).toMatch(re);
+    };
+    await refused(pot.reopenGame(g1, ben), /^Only the host can reopen the game/);
+    await refused(pot.deleteGame(g2, ben), /^Only the host can delete the game/);
+    await refused(pot.finishGame(g2, ben), /^Only the host can finish the game/);
+    await refused(pot.finishGame(g1, ben), /^Only the host can finish the game/); // "refinish"
+    await refused(pot.removeMove(line.id, ben), /^Only whoever added it, or the host, can take it back/);
+    await refused(pot.adjustGap(g2, ben, { mode: "spread" }), /^Only the host can fix the difference/);
+    expect(await potBalances(g.id)).toEqual(original);
+    expect((await db.potGame.findUniqueOrThrow({ where: { id: g1 } })).status).toBe("done");
+    expect((await db.potGame.findUniqueOrThrow({ where: { id: g2 } })).deletedAt).toBeNull();
+    expect((await db.potMove.findUniqueOrThrow({ where: { id: line.id } })).deletedAt).toBeNull();
+    expect((await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" } })).amount).toBe(100000);
+
+    // Her own new line is hers: she can take it back.
+    expect((await pot.recordMove(g2, ben, { memberId: ben, kind: "take", amount: "100" })).ok).toBe(true);
+    const mine = await db.potMove.findFirstOrThrow({ where: { gameId: g2, createdById: ben, amount: { not: line.amount } } });
+    expect((await pot.removeMove(mine.id, ben)).ok).toBe(true);
+
+    // A host who never had the name freed still runs their game: game 3 (Chirag hosts): in 100 each, Chirag back 150, Bina 50 -> Chirag +50, Bina -50.
+    const g3 = await start(chirag, "Sunday", [chirag, bina]);
+    for (const who of [chirag, bina]) expect((await pot.recordMove(g3, chirag, { memberId: who, kind: "take", amount: "100" })).ok).toBe(true);
+    expect((await pot.recordMove(g3, chirag, { memberId: chirag, kind: "return", amount: "150" })).ok).toBe(true);
+    expect((await pot.recordMove(g3, chirag, { memberId: bina, kind: "return", amount: "50" })).ok).toBe(true);
+    expect((await pot.finishGame(g3, chirag)).ok).toBe(true);
+    expect(await potBalances(g.id)).toEqual({ [ben]: 100000, [bina]: -5000, [chirag]: -95000 }); // Chirag -100000 + 5000, Bina 0 - 5000
+    expect((await pot.reopenGame(g3, chirag)).ok).toBe(true);
+    expect((await pot.deleteGame(g3, chirag)).ok).toBe(true);
+    expect(await potBalances(g.id)).toEqual(original);
+  });
+});
+
+describe("looking after the group: 'as if they had left', exactly", () => {
+  it("Zed creates and adds Ravi (opened, never took a name); Zed leaves; Asha (guest) looks after it; Asha frees her name; Cat takes 'Asha': Ravi looks after it, not Cat", async () => {
+    const [zed, ravi, cat] = [await account("Zed"), await account("Ravi"), await account("Cat")];
+    const g = await db.group.create({
+      data: {
+        name: `Zed ${++n} ${stamp}`, inviteCode: `fz-${n}-${stamp}`, type: "trip", currency: "INR",
+        members: {
+          create: [
+            { name: "Zed", accountId: zed.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1), seenAt: new Date(2026, 0, 1) },
+            { name: "Asha", claimedAt: new Date(2026, 0, 2), createdAt: new Date(2026, 0, 2), seenAt: new Date(2026, 0, 2) },
+            { name: "Ravi", accountId: ravi.id, addedBy: "zed", seenAt: new Date(2026, 0, 3), createdAt: new Date(2026, 0, 3) }, // opened the group: not pending, claimedAt empty
+          ],
+        },
+      },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const id = (name: string) => g.members.find((m) => m.name === name)!.id;
+    const [zedId, asha, raviId] = [id("Zed"), id("Asha"), id("Ravi")];
+    await db.member.update({ where: { id: zedId }, data: { leftAt: new Date() } });
+    expect(await groupAdminId(g.id)).toBe(asha); // the old rule: the first who took a name and has not left
+    expect((await releaseGuestName(g.id, asha, asha)).ok).toBe(true);
+    expect(await joinExistingAsGuest(g.inviteCode, asha)).toEqual({ ok: true, memberId: asha });
+    await db.member.update({ where: { id: asha }, data: { accountId: cat.id } });
+    // As if Asha had left: of Zed (left) and Ravi, the old rule picks Ravi (nobody took a name, so the first still here).
+    expect(await groupAdminId(g.id)).toBe(raviId);
+    expect(await isGroupAdmin(g.id, asha)).toBe(false);
+    expect(await isGroupAdmin(g.id, raviId)).toBe(true);
+  });
+  it("pickAdmin (pure): the old rule on people never freed; only when nobody is left there, the old rule on everyone", () => {
+    const m = (id: string, o: Partial<{ claimedAt: Date | null; leftAt: Date | null; freedAt: Date | null }> = {}) => ({ id, claimedAt: null as Date | null, leftAt: null as Date | null, freedAt: null as Date | null, ...o });
+    const day = new Date(2026, 5, 1);
+    expect(pickAdmin([m("zed", { leftAt: day }), m("asha", { claimedAt: day, freedAt: day }), m("ravi")])?.id).toBe("ravi"); // not Asha, who took her name again
+    expect(pickAdmin([m("asha", { claimedAt: day, freedAt: day }), m("zed", { leftAt: day })])?.id).toBe("asha"); // nobody else here: everyone
+  });
+});
+
+describe("pay links stop working when a name is freed", () => {
+  // The dinner (Ben +40000, Varun -20000, Asha -20000) and Lunch 100000 paid by Asha, split Asha / Ben 50000 each (Asha +50000, Ben -50000):
+  // Ben -10000, Varun -20000, Asha +30000 (sum 0). The settle plan: Ben owes Asha 10000, Varun owes Asha 20000.
+  async function owing() {
+    const f = await flat(MIN, false);
+    await db.expense.create({ data: { groupId: f.gid, description: "Lunch", splitType: "equal", amount: 100000, originalAmount: 100000, convertedAmount: 100000, paidById: f.A, createdById: f.A, shares: { create: [{ memberId: f.A, amount: 50000 }, { memberId: f.B, amount: 50000 }] } } });
+    return f;
+  }
+  it("the link Ben>Asha works; Asha frees Ben; the link is gone and records nothing", async () => {
+    const f = await owing();
+    const token = await payLinkFor(f.gid, f.B, f.A, f.A);
+    const state = await readPayLink(token);
+    expect(state.kind).toBe("owes");
+    expect(state.kind === "owes" && state.amount).toBe(10000);
+    const paymentsBefore = await db.payment.count({ where: { groupId: f.gid } });
+    expect((await releaseGuestName(f.gid, f.A, f.B)).ok).toBe(true);
+    expect(await db.payLink.count({ where: { token } })).toBe(0);
+    expect(await readPayLink(token)).toEqual({ kind: "gone" });
+    expect(await recordLinkPayment(state as never)).toBe(false); // the tap on the old page records nothing
+    expect(await db.payment.count({ where: { groupId: f.gid } })).toBe(paymentsBefore);
+    // Asking for a new link for the pair makes a NEW token (the old one is not revived).
+    expect(await payLinkFor(f.gid, f.B, f.A, f.A)).not.toBe(token);
+  });
+  it("a link where the freed name is the payer goes too, and 'Not now' on an invitation does the same", async () => {
+    const f = await flat(MIN, false);
+    const t1 = await payLinkFor(f.gid, f.B, f.A, f.A); // from Ben
+    expect((await releaseGuestName(f.gid, f.A, f.B)).ok).toBe(true);
+    expect(await db.payLink.count({ where: { token: t1 } })).toBe(0);
+    const pat = await account("Pat");
+    const row = await db.member.create({ data: { groupId: f.gid, name: "Pat", accountId: pat.id, addedBy: f.A, seenAt: null } });
+    const t2 = await payLinkFor(f.gid, row.id, f.A, f.A);
+    const other = await payLinkFor(f.gid, f.V, f.A, f.A); // somebody else's link is left alone
+    expect((await declineInvitation({ id: pat.id, name: "Pat", email: pat.email }, `m:${row.id}`)).ok).toBe(true);
+    expect(await db.payLink.count({ where: { token: t2 } })).toBe(0);
+    expect(await db.payLink.count({ where: { token: other } })).toBe(1);
+  });
+});
+
+describe("undoing a line about your own row (leave, rejoin, rename) made by the earlier holder", () => {
+  it("earlier Ben's 'rejoined' line cannot be undone by Cat (real undoEvent); the real Ben still can", async () => {
+    const f = await flat(MIN, false);
+    const line = await db.groupEvent.create({ data: { groupId: f.gid, actorId: f.B, kind: "member_rejoined", text: "rejoined the group", undo: JSON.stringify({ type: "member_set", memberId: f.B, data: { leftAt: new Date().toISOString() } }) } });
+    await freeAndRetake(f);
+    await signIn(f);
+    const snap = await snapshot(f);
+    expect(await undoEvent(line.id, f.B)).toEqual({ ok: false, error: "Only Ben can undo rejoining the group." });
+    expect(await snapshot(f)).toEqual(snap);
+  });
+  it("actorRefusal (pure): the line is the viewer's own only if made after the viewer's freedAt", () => {
+    const at = new Date(2026, 10, 10, 9, 0, 0);
+    const members = [{ id: "ben", name: "Ben", accountId: "acc", leftAt: null, removedAt: null }];
+    const ev = { id: "e1", kind: "member_rejoined", undo: JSON.stringify({ type: "member_set", memberId: "ben", data: { leftAt: at.toISOString() } }), undoneAt: null, expenseId: null, paymentId: null, createdAt: at, actorId: "ben" };
+    const viewer = { id: "ben", isAdmin: false, closed: false, members };
+    expect(actorRefusal(ev, { ...viewer, freedAt: null }, at)).toBeNull();
+    expect(actorRefusal(ev, { ...viewer, freedAt: new Date(2026, 10, 11) }, at)).toBe("Only Ben can undo rejoining the group.");
+    expect(actorRefusal(ev, { ...viewer, freedAt: new Date(2026, 10, 9) }, at)).toBeNull();
+  });
+});
+
+describe("the write itself checks again (Got it / Not received)", () => {
+  it("both transactions re-read the name before writing (a freeing between the first look and the write cannot slip through)", () => {
+    const src = readFileSync("src/lib/payment-ok.ts", "utf8");
+    expect(src.match(/await recheckAnswerer\(tx, myMemberId!, p\);/g)?.length).toBe(2);
+    expect(src).toContain("if (err instanceof NotYours) return { ok: false, error: err.message };");
+    // And the set paths ask inside the write too.
+    const settle = readFileSync("src/lib/settle-all.ts", "utf8");
+    expect(settle.match(/beforeNameRefusal\(tx, paymentIds, actorId, groupId\)/g)?.length).toBe(2);
+    expect(readFileSync("src/lib/payments.ts", "utf8")).toContain("const early = await beforeNameRefusal(tx, ids, actorId, groupId);");
   });
 });

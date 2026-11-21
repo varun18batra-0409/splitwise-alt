@@ -21,7 +21,8 @@ export function pickAdmin<T extends AdminCandidate>(members: T[]): T | undefined
   const here = members.filter((m) => !pending(m));
   // A name that has been freed passes on looking after the group as if that person had left: the next person who took their name (and
   // whose name was never freed) comes first. If nobody is left like that, the rule above applies unchanged.
-  return here.find((m) => m.claimedAt && !m.leftAt && !m.freedAt) ?? here.find((m) => m.claimedAt && !m.leftAt) ?? here.find((m) => !m.leftAt);
+  const oldRule = (list: T[]) => list.find((m) => m.claimedAt && !m.leftAt) ?? list.find((m) => !m.leftAt);
+  return oldRule(here.filter((m) => !m.freedAt)) ?? oldRule(here);
 }
 
 // Who may bring a deleted group back (within 30 days): the person who deleted it, or whoever looks

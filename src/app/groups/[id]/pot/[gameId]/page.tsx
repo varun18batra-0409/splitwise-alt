@@ -22,6 +22,7 @@ import { recordCustomPayment } from "@/app/actions";
 import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, outlineButtonClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
+import { madeBeforeFreed } from "@/lib/guest-words";
 import { SelectField } from "@/components/SelectField";
 import { readNotes } from "@/lib/flash";
 import { SigninPrompt } from "@/components/SigninPrompt";
@@ -55,8 +56,10 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const live = game.moves.filter((m) => !m.deletedAt);
   const { lines, totals } = potSummary(players, live);
   const open = game.status === "open";
-  const host = canRunGame({ hostId: game.hostId, lastActivityAt: lastActivity(game, game.moves) }, group.members, myId); // the host; whoever looks after the group once the host has left or the game has been quiet a day
+  const host = canRunGame({ hostId: game.hostId, createdAt: game.createdAt, lastActivityAt: lastActivity(game, game.moves) }, group.members, myId); // the host; whoever looks after the group once the host has left or the game has been quiet a day
   const hostLeft = !group.members.some((m) => m.id === game.hostId && !m.leftAt);
+  // The host is this name only if the game was started after the name was last freed (otherwise it was an earlier holder's game).
+  const iAmHost = game.hostId === myId && !madeBeforeFreed(group.members.find((m) => m.id === myId)?.freedAt, game.createdAt);
   const adminId = pickAdmin(group.members)?.id;
   const ranked = [...lines].sort((a, b) => b.net - a.net);
   const playing = inPlay(players, live);
@@ -460,7 +463,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           ) : (
             form(reopenGameAction, "Reopen game", "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist", "Reopen it? Its result comes out of the balances until you finish it again.")
           )}
-          <p className="text-xs text-gray-400">{game.hostId === myId ? "You’re the host." : hostLeft ? `${nameOf(game.hostId)} has left, so you can run this game.` : "The game has been quiet for a day, so you (who look after this group) can run it."}</p>
+          <p className="text-xs text-gray-400">{iAmHost ? "You’re the host." : hostLeft ? `${nameOf(game.hostId)} has left, so you can run this game.` : "The game has been quiet for a day, so you (who look after this group) can run it."}</p>
         </section>
       )}
       {showUndo && justDid && (

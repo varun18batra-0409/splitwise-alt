@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { formatMoney } from "./money";
 import { receiverOnlyText } from "./refused-payment";
+import { BEFORE_NAME_TEXT, madeBeforeFreed } from "./guest-words";
 
 // The ONE place a payment row is written. Every route that records a payment
 // (Mark paid, Record a payment, Mark all paid, Settle everything, cross-group
@@ -38,8 +39,22 @@ export async function createPayment(tx: Tx, p: NewPayment) {
 //    Asha's total 80000 against a debt of 40000. Refused; nothing changes.
 export class RestoreRefused extends Error {}
 
+// A name that was freed and taken again (freedAt) cannot change a payment made to it, or by it, at or before that moment: the payment is
+// the earlier holder's. For a set of payments (Mark all paid, Settle everything) one such payment refuses the whole set. Null when fine.
+// Works on the database or inside a transaction, so the same question is asked again inside the write.
+export async function beforeNameRefusal(client: Pick<Tx, "payment" | "member">, ids: string[], actorId: string, groupId?: string): Promise<string | null> {
+  if (!ids.length) return null;
+  const me = await client.member.findUnique({ where: { id: actorId }, select: { freedAt: true } });
+  if (!me?.freedAt) return null;
+  const rows = await client.payment.findMany({ where: { id: { in: ids }, ...(groupId ? { groupId } : {}) }, select: { fromId: true, toId: true, createdAt: true } });
+  return rows.some((p) => (p.fromId === actorId || p.toId === actorId) && madeBeforeFreed(me.freedAt, p.createdAt)) ? BEFORE_NAME_TEXT : null;
+}
+
 export async function restorePayments(tx: Tx, ids: string[], actorId: string, groupId?: string): Promise<string[]> {
   if (!ids.length) return [];
+  // The earlier holder's payment: the new holder of a freed name may not put it back (also what Redo of a set goes through).
+  const early = await beforeNameRefusal(tx, ids, actorId, groupId);
+  if (early) throw new RestoreRefused(early);
   const rows = await tx.payment.findMany({
     where: { id: { in: ids }, deletedAt: { not: null }, ...(groupId ? { groupId } : {}) },
     select: { id: true, groupId: true, fromId: true, toId: true, amount: true, deletedAt: true, deletedById: true },
