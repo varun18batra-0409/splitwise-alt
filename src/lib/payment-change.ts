@@ -6,6 +6,7 @@ import { withRetry } from "./once";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, leaversOffZero } from "./money-guard";
 import { RestoreRefused, restorePayments } from "./payments";
 import { paymentChangeRefusal } from "./guest-rules";
+import { BEFORE_NAME_TEXT } from "./guest-words";
 import { onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
 import { partyMessages, pushAllToReceivers, tellBroughtBack, tellParties } from "./payment-claims";
 import type { Prisma } from "@prisma/client";
@@ -42,6 +43,7 @@ class Removed extends Error {
   }
 }
 class NoLeavers extends Error {}
+class BeforeName extends Error {}
 
 export const OPEN_LOOPIN_TEXT = "Open Loopin to change this.";
 
@@ -141,11 +143,16 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
   if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   // Someone an admin removed can't delete or restore payments themselves (the other person in the payment still can).
   if (!opts.noLeavers && (await wasRemoved(payment.groupId, actorId))) return { ok: false, error: removedText(payment.group.name) };
+  // A name that was freed and retaken (account or not) cannot change a payment made to it before it was freed: it is the earlier holder's.
+  const actorRow = await db.member.findUnique({ where: { id: actorId }, select: { accountId: true, claimedAt: true, freedAt: true } });
+  {
+    const no = paymentChangeRefusal(false, actorId, payment, actorRow?.claimedAt, actorRow?.freedAt);
+    if (no) return { ok: false, error: no };
+  }
   // A payment the person paid took off can only be brought back by them: anyone else (even a non-party) is told that, in those words.
-  if (!deleted && payment.deletedAt && onlyReceiverCanBringBack(payment, actorId)) return { ok: false, error: receiverOnlyText(payment.to.name) };
+  if (!deleted && payment.deletedAt && onlyReceiverCanBringBack(payment, actorId, actorRow?.freedAt)) return { ok: false, error: receiverOnlyText(payment.to.name) };
   if (opts.guestRules) {
-    const me = await db.member.findUnique({ where: { id: actorId }, select: { accountId: true, claimedAt: true } });
-    const no = paymentChangeRefusal(me?.accountId === null, actorId, payment, me?.claimedAt);
+    const no = paymentChangeRefusal(actorRow?.accountId === null, actorId, payment, actorRow?.claimedAt, actorRow?.freedAt);
     if (no) return { ok: false, error: no };
   }
   if (!opts.recorderOk) {
@@ -168,10 +175,13 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
         const gone = await tx.member.count({ where: { groupId: payment.groupId, id: { in: [payment.fromId, payment.toId] }, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] } });
         if (gone) throw new NoLeavers();
       } else if (await tx.member.count({ where: { id: actorId!, groupId: payment.groupId, removedAt: { not: null } } })) throw new Removed(payment.group.name);
+      // Again inside the transaction: the name may have been freed since the first look.
+      const actorNow = await tx.member.findUnique({ where: { id: actorId! }, select: { freedAt: true } });
+      if (paymentChangeRefusal(false, actorId!, payment, null, actorNow?.freedAt)) throw new BeforeName();
       if (!deleted) {
         // Again inside the transaction, from the row as it is now (the first look could be out of date).
-        const nowRow = await tx.payment.findUnique({ where: { id: payment.id }, select: { deletedById: true, toId: true } });
-        if (nowRow && onlyReceiverCanBringBack(nowRow, actorId)) throw new ReceiverOnly(payment.to.name);
+        const nowRow = await tx.payment.findUnique({ where: { id: payment.id }, select: { deletedById: true, toId: true, createdAt: true } });
+        if (nowRow && onlyReceiverCanBringBack(nowRow, actorId, actorNow?.freedAt)) throw new ReceiverOnly(payment.to.name);
         // Someone who has left may only end with the balance they had, or 0.
         const gone = await leaverBalanceBreaks(tx, payment.groupId, [payment.fromId, payment.toId], (l) => ({ ...l, payments: [...l.payments, { id: payment.id, fromId: payment.fromId, toId: payment.toId, amount: payment.amount }] }));
         if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
@@ -232,6 +242,7 @@ function mapError(err: unknown): string | null {
   if (err instanceof ReceiverOnly) return receiverOnlyText(err.message);
   if (err instanceof Removed) return removedText(err.message);
   if (err instanceof NoLeavers) return OPEN_LOOPIN_TEXT;
+  if (err instanceof BeforeName) return BEFORE_NAME_TEXT;
   if (err instanceof RestoreRefused) return err.message;
   if (err instanceof GroupChanged) return groupChangedText(err);
   if (err instanceof LeaverBack) return err.message;
@@ -254,6 +265,7 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
   const where = names.length > 2 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(" and ");
   // Who is this person in each group: the one this phone is (memberships), otherwise the member with the same account.
   const me = await db.member.findUnique({ where: { id: actorId }, select: { accountId: true } });
+  const freedOf = new Map<string, Date | null>(); // each acting member's freedAt
   const actorIn = new Map<string, string>();
   for (const r of rows) {
     let id = opts.memberships?.[r.groupId];
@@ -267,14 +279,14 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
     const mine = actorIn.get(r.groupId);
     if (mine && (await wasRemoved(r.groupId, mine))) return { ok: false, error: removedText(r.group.name) };
   }
-  // A guest (no account) changes only a payment recorded after they took their name, in each group.
-  if (opts.guestRules) {
-    for (const r of rows) {
-      const mine = actorIn.get(r.groupId);
-      const me = mine ? await db.member.findUnique({ where: { id: mine }, select: { accountId: true, claimedAt: true } }) : null;
-      const no = me ? paymentChangeRefusal(me.accountId === null, mine!, r, me.claimedAt) : null;
-      if (no) return { ok: false, error: no };
-    }
+  // A name that was freed and retaken (account or not) cannot change a part made before it was freed; a guest (no account) changes only a
+  // payment recorded after they took their name, in each group.
+  for (const r of rows) {
+    const mine = actorIn.get(r.groupId);
+    const mm = mine ? await db.member.findUnique({ where: { id: mine }, select: { accountId: true, claimedAt: true, freedAt: true } }) : null;
+    if (mine) freedOf.set(mine, mm?.freedAt ?? null);
+    const no = mm ? paymentChangeRefusal(opts.guestRules ? mm.accountId === null : false, mine!, r, mm.claimedAt, mm.freedAt) : null;
+    if (no) return { ok: false, error: no };
   }
   // Said to anyone who asks, so it never names a group they may not be in.
   if (!rows.every((r) => actorIn.get(r.groupId) === r.fromId || actorIn.get(r.groupId) === r.toId)) {
@@ -291,7 +303,7 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
     for (const r of rows) {
       const mine = actorIn.get(r.groupId)!;
       if (await hasLeft(r.groupId, mine)) return { ok: false, error: LEFT_ERROR };
-      if (onlyReceiverCanBringBack(r, mine)) return { ok: false, error: receiverOnlyText(r.to.name) };
+      if (onlyReceiverCanBringBack(r, mine, freedOf.get(mine))) return { ok: false, error: receiverOnlyText(r.to.name) };
     }
   }
   await opts.afterRead?.();
@@ -305,6 +317,8 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
         await markUndone(tx, opts.mark);
         for (const r of sorted) {
           if (await tx.member.count({ where: { id: actorIn.get(r.groupId) ?? "", groupId: r.groupId, removedAt: { not: null } } })) throw new Removed(r.group.name);
+          const now = await tx.member.findUnique({ where: { id: actorIn.get(r.groupId) ?? "" }, select: { freedAt: true } });
+          if (paymentChangeRefusal(false, actorIn.get(r.groupId) ?? "", r, null, now?.freedAt)) throw new BeforeName(); // freed since the first look
         }
         // The lines of the same change in the other groups are marked undone with it, so no group shows a stale Undo.
         if (opts.mark) {
@@ -320,8 +334,8 @@ async function changeAcross(across: Across, clickedId: string, actorId: string |
             const gone = (await tx.payment.updateMany({ where: { id: r.id, deletedAt: null }, data: { deletedAt: new Date(), deletedById: mine } })).count === 1;
             if (!gone) throw new Moved();
           } else {
-            const nowRow = await tx.payment.findUnique({ where: { id: r.id }, select: { deletedById: true, toId: true } });
-            if (nowRow && onlyReceiverCanBringBack(nowRow, mine)) throw new ReceiverOnly(r.to.name);
+            const nowRow = await tx.payment.findUnique({ where: { id: r.id }, select: { deletedById: true, toId: true, createdAt: true } });
+            if (nowRow && onlyReceiverCanBringBack(nowRow, mine, freedOf.get(mine))) throw new ReceiverOnly(r.to.name);
             const bad = await leaverBalanceBreaks(tx, r.groupId, [r.fromId, r.toId], (l) => ({ ...l, payments: [...l.payments, { id: r.id, fromId: r.fromId, toId: r.toId, amount: r.amount }] }));
             if (bad.length) throw new LeaverBack(`${bad[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
             if ((await restorePayments(tx, [r.id], mine, r.groupId)).length !== 1) throw new Moved();

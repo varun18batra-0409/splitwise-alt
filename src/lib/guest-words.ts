@@ -5,6 +5,9 @@ export const SIGNIN_TITLE = "Sign in to do this";
 export const SIGNIN_BODY = "Changing things for the whole group needs a sign-in, so everyone can see who changed what. Your own expenses you can change any time.";
 export const GUEST_REFUSAL = `${SIGNIN_TITLE}. ${SIGNIN_BODY}`;
 
+// A payment from before the person took a freed name. NOT a sign-in refusal (signinKeyOf returns null for it): signing in won't help.
+export const BEFORE_NAME_TEXT = "This payment is from before you took this name, so you can’t change it.";
+
 const EXPENSE_PREFIX = "Sign in to change ";
 const EXPENSE_SUFFIX = "’s expense";
 export const expenseTitle = (name: string) => `${EXPENSE_PREFIX}${name}${EXPENSE_SUFFIX}`;
@@ -38,4 +41,10 @@ export function refusalNotes(error: string): { error: string; signin?: string } 
 // = not theirs). The same rule canDeleteMoment uses (moments-access.ts).
 export function madeSinceClaim(claimedAt: Date | null | undefined, createdAt: Date | null | undefined): boolean {
   return Boolean(claimedAt) && Boolean(createdAt) && createdAt!.getTime() >= claimedAt!.getTime();
+}
+
+// "Made before the name was freed": once a name is freed (freedAt) and taken again, anything made to it at or before that moment belongs
+// to the earlier holder. Equal instant or unknown time counts as the earlier holder's (the safe side). Never freed = false.
+export function madeBeforeFreed(freedAt: Date | null | undefined, createdAt: Date | null | undefined): boolean {
+  return Boolean(freedAt) && (!createdAt || createdAt.getTime() <= freedAt!.getTime());
 }

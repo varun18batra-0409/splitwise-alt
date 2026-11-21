@@ -179,7 +179,7 @@ export type UndoPayload =
   | {
       type: "members_restore";
       // accountId … joinedFrom: missing in changes saved before they were kept.
-      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null; grantEpoch?: number; leftAt?: string | null; removedAt?: string | null; removedById?: string }[];
+      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null; grantEpoch?: number; leftAt?: string | null; removedAt?: string | null; removedById?: string; freedAt?: string | null }[];
     }
   | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string }; moveOut?: MoveOutUndo }
   | { type: "move_in_set"; memberId: string; joinedFrom: string | null } // a moving-in date set or cleared: `joinedFrom` is what it was (ISO), null = none

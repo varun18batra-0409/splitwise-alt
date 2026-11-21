@@ -301,7 +301,7 @@ export async function releaseGuestName(groupId: string, actorId: string, memberI
   }
   if (target.accountId || !target.claimedAt) return { ok: false, error: "That name isn’t held by someone without an account." };
   const eventId = await db.$transaction(async (tx) => {
-    const w = await tx.member.updateMany({ where: { id: target.id, accountId: null, claimedAt: { not: null }, ...(self ? {} : { leftAt: null, removedAt: null }) }, data: { claimedAt: null, grantEpoch: { increment: 1 } } });
+    const w = await tx.member.updateMany({ where: { id: target.id, accountId: null, claimedAt: { not: null }, ...(self ? {} : { leftAt: null, removedAt: null }) }, data: { claimedAt: null, freedAt: new Date(), grantEpoch: { increment: 1 } } });
     if (w.count !== 1) return "";
     await tx.pushSubscription.deleteMany({ where: { memberId: target.id } });
     return logEvent(tx, { groupId, actorId, kind: "members_added", text: self ? "freed their name (it was not them)" : `freed the name ${target.name}` });

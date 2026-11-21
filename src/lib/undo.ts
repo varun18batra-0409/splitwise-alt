@@ -18,6 +18,7 @@ import { MOVE_OUT_GONE_FOR_GOOD, MOVE_OUT_LEAVER_FIXABLE, moveOutUndoBlock, setM
 import { lateMoveText, lateRecreateText, lateRemovalText, putBackOpen } from "./put-back";
 import { DEFAULT_TIME_ZONE } from "./dates";
 import { undoRefusal } from "./guest-rules";
+import { madeBeforeFreed } from "./guest-words";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks, moneySig, peopleInExpense } from "./money-guard";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
@@ -106,12 +107,14 @@ export type UndoViewer = {
   members: { id: string; name: string; accountId: string | null; leftAt: Date | null; removedAt: Date | null }[];
   // The group's payments (when the screen has them): lets the Undo check see WHO took a payment off, as the server does (setPaymentDeleted).
   // fromId and toId: Only the payer and the person paid can undo a payment (the Undo for someone who recorded it for others lasts 10 minutes).
-  payments?: { id: string; fromId: string; toId: string; deletedById: string | null }[];
+  payments?: { id: string; fromId: string; toId: string; deletedById: string | null; createdAt?: Date }[];
   // A person with no account in this group: they may undo only their own lines (guest-rules.ts). The screens fill it from the member
   // row; undoEvent fills it only when its caller asks (guestRules), so the screen and the server agree.
   guest?: boolean;
   // When this person took their name: a guest's own lines are only those written after that (a freed and retaken name starts clean).
   claimedAt?: Date | null;
+  // When this name was last freed (null = never): lines this person made at or before it are the earlier holder's, not theirs.
+  freedAt?: Date | null;
 };
 
 // Who may use Undo at all: someone in the group. Someone who left can't change the group, except to undo their OWN "left the group"
@@ -245,15 +248,18 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   const payload = parsed(ev);
   if (!payload) return null;
   const actorId = viewer.id;
+  // A line this member made at or before their name was last freed belongs to the earlier holder: it is not theirs (not for the "Not
+  // received" restore check, the 10-minute recorder window, or the own-leave rules below).
+  const ownLine = ev.actorId === actorId && !madeBeforeFreed(viewer.freedAt, ev.createdAt);
   const find = (id: string) => viewer.members.find((m) => m.id === id);
   if (payload.type === "member_set" && payload.data.leftAt === null && payload.memberId !== actorId) {
     const who = find(payload.memberId);
     if (who?.accountId) {
       const own = ev.actorId === payload.memberId;
       const recordedLeave = ev.kind === "member_left" && !("removedAt" in payload.data); // a move-out or "marked as left"
-      if (own || (recordedLeave && ev.actorId !== actorId)) return `Only ${who.name} can undo leaving the group. You can invite them back from People.`;
+      if (own || (recordedLeave && !ownLine)) return `Only ${who.name} can undo leaving the group. You can invite them back from People.`;
       // A removal made by someone else (the admin may have changed since): only whoever made it can undo it.
-      if (ev.actorId !== actorId) return `Only the person who removed ${who.name} can undo that. You can invite them back from People.`;
+      if (!ownLine) return `Only the person who removed ${who.name} can undo that. You can invite them back from People.`;
       if (!putBackOpen(ev.createdAt, now)) return recordedLeave ? lateMoveText(who.name) : lateRemovalText(who.name);
     }
   }
@@ -273,22 +279,22 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   // made that change, for 10 minutes. Every event that restores member rows has this payload, so this covers them all.
   if (payload.type === "members_restore") {
     const holder = payload.members.find((m) => m.accountId);
-    if (holder && ev.actorId !== actorId) return `Only the person who made that change can undo it. You can add ${holder.name} again with Add people.`;
+    if (holder && !ownLine) return `Only the person who made that change can undo it. You can add ${holder.name} again with Add people.`;
     if (holder && !putBackOpen(ev.createdAt, now)) return lateRecreateText(holder.name);
   }
   // The person paid said "Not received" (or deleted the payment themselves): only they can bring it back, so nobody can overrule them.
   // Lines written before the flag existed are recognised by their words. (The server also reads the payment itself: setPaymentDeleted.)
-  if (payload.type === "payment_restore" && ev.actorId !== actorId) {
+  if (payload.type === "payment_restore" && !ownLine) {
     // Older lines have no flag: the payment itself says whether the person paid took it off (deletedById is the receiver).
     const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
-    const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START))) || (pay ? onlyReceiverCanBringBack(pay, actorId) : false);
+    const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START))) || (pay ? onlyReceiverCanBringBack(pay, actorId, viewer.freedAt) : false);
     if (byReceiver) return receiverOnlyText(find(pay?.toId ?? ev.actorId ?? "")?.name ?? "the person who was paid");
   }
   // Only the payer and the person paid can take a payment off or put it back, and only for payments the screen knows about (the server
   // reads the payment itself). Someone who recorded it for others (Mark paid, Mark all paid, Settle everything) may Undo it for 10 minutes.
   // Someone an admin removed can't change payments themselves (the other person in the payment still can).
   if (isPaymentUndo(payload) && find(actorId)?.removedAt) return removedText();
-  const recorder = ev.actorId === actorId && putBackOpen(originAt ?? ev.createdAt, now);
+  const recorder = ownLine && putBackOpen(originAt ?? ev.createdAt, now);
   if (!recorder && (payload.type === "payment_delete" || payload.type === "payment_restore")) {
     const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
     if (pay && pay.fromId !== actorId && pay.toId !== actorId) return `Only ${find(pay.fromId)?.name ?? "the payer"} or ${find(pay.toId)?.name ?? "the person paid"} can change this payment.`;
@@ -307,8 +313,8 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   }
   const adminOnly =
     payload.type === "currency_restore" ||
-    ((payload.type === "members_remove" || payload.type === "members_restore") && ev.actorId !== actorId) ||
-    (payload.type === "member_set" && "leftAt" in payload.data && payload.memberId !== actorId && ev.actorId !== actorId);
+    ((payload.type === "members_remove" || payload.type === "members_restore") && !ownLine) ||
+    (payload.type === "member_set" && "leftAt" in payload.data && payload.memberId !== actorId && !ownLine);
   if (adminOnly && !viewer.isAdmin) return "Only the person who looks after this group can undo that.";
   return null;
 }
@@ -329,13 +335,13 @@ export function canUndo(ev: EventLike, all: EventLike[], now: Date, viewer: Undo
 export async function paymentsForUndo(groupId: string, undo: string): Promise<NonNullable<UndoViewer["payments"]>> {
   const early = parseUndo(undo);
   const ids = early && (early.type === "payment_delete" || early.type === "payment_restore") ? [early.paymentId] : early && (early.type === "payments_set" || early.type === "settle_all") ? early.paymentIds : [];
-  return ids.length ? db.payment.findMany({ where: { id: { in: ids }, groupId }, select: { id: true, fromId: true, toId: true, deletedById: true } }) : [];
+  return ids.length ? db.payment.findMany({ where: { id: { in: ids }, groupId }, select: { id: true, fromId: true, toId: true, deletedById: true, createdAt: true } }) : [];
 }
 
 // The viewer as the server sees them (for pages that don't already hold the member list).
 export async function undoViewerFor(groupId: string, memberId: string): Promise<UndoViewer> {
-  const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, accountId: true, leftAt: true, removedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
-  return { id: memberId, isAdmin: await isGroupAdmin(groupId, memberId), closed: await isClosed(groupId), members };
+  const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, accountId: true, leftAt: true, removedAt: true, freedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  return { id: memberId, freedAt: members.find((m) => m.id === memberId)?.freedAt ?? null, isAdmin: await isGroupAdmin(groupId, memberId), closed: await isClosed(groupId), members };
 }
 
 export const CLOSED_MOVE_OUT_TEXT = "The group is closed, so the move-out can’t be undone. Ask someone in the flat to reopen it.";
@@ -469,7 +475,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // who may use Undo at all, then whether anything newer stands in the way, then what only some people may do.
   // The payments this change is about, so the party-only rule reads who is in each (the screens fill the same list).
   const payRows = await paymentsForUndo(ev.groupId, ev.undo);
-  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members, ...(payRows.length ? { payments: payRows } : {}), ...(opts.guestRules && group.members.find((m) => m.id === actorId)?.accountId === null ? { guest: true, claimedAt: group.members.find((m) => m.id === actorId)?.claimedAt ?? null } : {}) };
+  const viewer: UndoViewer = { id: actorId, isAdmin: await isGroupAdmin(group.id, actorId), closed: group.closed, members: group.members, freedAt: group.members.find((m) => m.id === actorId)?.freedAt ?? null, ...(payRows.length ? { payments: payRows } : {}), ...(opts.guestRules && group.members.find((m) => m.id === actorId)?.accountId === null ? { guest: true, claimedAt: group.members.find((m) => m.id === actorId)?.claimedAt ?? null } : {}) };
   const actorLeft = Boolean(group.members.find((m) => m.id === actorId)?.leftAt);
   const refused = viewerRefusal(ev, viewer);
   if (refused) return { ok: false, error: refused };
@@ -494,7 +500,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   let result: UndoResult;
   try {
     // Someone who recorded it for others may Undo it for 10 minutes: the payment code then lets them through (it reads the same window).
-    const recorderOk = ev.actorId === actorId && putBackOpen(originAt, now);
+    const recorderOk = viewer.id === ev.actorId && !madeBeforeFreed(viewer.freedAt, ev.createdAt) && putBackOpen(originAt, now);
     result = await apply(payload, ev.groupId, actorId, ev.text, mark, { actorId: ev.actorId, createdAt: ev.createdAt }, { memberships: opts.memberships, recorderOk });
   } catch (err) {
     if (err instanceof UndoTaken) return { ok: false, error: err.message };
@@ -839,6 +845,8 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
           leftAt: m.leftAt?.toISOString() ?? null,
           removedAt: m.removedAt?.toISOString() ?? null,
           removedById: m.removedById,
+          // Kept so undo + redo can't erase "this name was freed" (payments from before it stay the earlier holder's).
+          freedAt: m.freedAt?.toISOString() ?? null,
         })),
       },
     });
@@ -880,6 +888,7 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
           // One past what it was: a copy of this name saved on a phone before the removal ("id" or "id~epoch") no longer matches.
           // (Payloads saved before the epoch was kept count as 0.)
           grantEpoch: (m.grantEpoch ?? 0) + 1,
+          ...(m.freedAt ? { freedAt: new Date(m.freedAt) } : {}), // (snapshots saved before this was kept restore as never freed)
           ...(m.splitWeight ? { splitWeight: m.splitWeight } : {}),
           ...(m.notify ? { notify: m.notify } : {}),
           ...(m.joinedFrom ? { joinedFrom: new Date(m.joinedFrom) } : {}),

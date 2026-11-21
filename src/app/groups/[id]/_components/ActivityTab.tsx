@@ -24,7 +24,7 @@ import type { GroupEvent, GroupView } from "./view";
 import { DateField } from "@/components/DateField";
 import { SelectField } from "@/components/SelectField";
 import { FilterSheet } from "@/components/FilterSheet";
-import { madeSinceClaim } from "@/lib/guest-words";
+import { madeBeforeFreed, madeSinceClaim } from "@/lib/guest-words";
 import { SignInTrigger, type SignInContext } from "@/components/SignInSheet";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
@@ -234,7 +234,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 const live = item.deletedById === null;
                 const isParty = item.fromId === myId || item.toId === myId;
                 // Without an account you change only a payment recorded after you took your name: on an earlier one the buttons open the sign-in sheet.
-                const payGate = signin && v.undoViewer.guest && isParty && !madeSinceClaim(v.undoViewer.claimedAt, group.payments.find((x) => x.id === item.id)?.createdAt) ? "general" : null;
+                // A payment made to this name before it was freed is the earlier holder's: no buttons (the server refuses them, account or not).
+                const beforeName = isParty && madeBeforeFreed(v.undoViewer.freedAt, group.payments.find((x) => x.id === item.id)?.createdAt);
+                const payGate = !beforeName && signin && v.undoViewer.guest && isParty && !madeSinceClaim(v.undoViewer.claimedAt, group.payments.find((x) => x.id === item.id)?.createdAt) ? "general" : null;
                 return (
                   <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                     <details open={openId === item.id}>
@@ -245,17 +247,17 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
                         {/* Only the payer and the person paid can delete or restore a payment (the server refuses everyone else, the admin too).
                             Not shown to anyone but the person paid, once they took it off themselves. */}
-                        {payGate && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
+                        {!beforeName && payGate && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
                           <SignInTrigger signin={payGate} ctx={signin!} marker="payment-restore" className="text-sm font-medium text-accent">
                             Restore payment
                           </SignInTrigger>
                         )}
-                        {payGate && live && canChange && (
+                        {!beforeName && payGate && live && canChange && (
                           <SignInTrigger signin={payGate} ctx={signin!} marker="payment-delete" className="text-sm font-medium text-red-700">
                             Delete payment
                           </SignInTrigger>
                         )}
-                        {!payGate && isParty && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
+                        {!beforeName && !payGate && isParty && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
                           <form action={restorePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />
@@ -264,7 +266,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                             </button>
                           </form>
                         )}
-                        {!payGate && isParty && live && canChange && (
+                        {!beforeName && !payGate && isParty && live && canChange && (
                           <form action={removePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />

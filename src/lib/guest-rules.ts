@@ -15,7 +15,7 @@ import { db } from "./db";
 // request still gets a calm answer. A refusal changes nothing.
 
 export * from "./guest-words";
-import { GUEST_REFUSAL, expenseRefusal, madeSinceClaim } from "./guest-words";
+import { BEFORE_NAME_TEXT, GUEST_REFUSAL, expenseRefusal, madeBeforeFreed, madeSinceClaim } from "./guest-words";
 
 export async function isGuestMember(memberId: string | undefined | null): Promise<boolean> {
   if (!memberId) return false;
@@ -61,9 +61,12 @@ export function ownPlayerRefusal(guest: boolean, actingMemberId: string, memberI
 
 // Deleting or restoring a payment: a guest may do it only for a payment they are in AND that was recorded after they took the name
 // (recording a NEW payment they are in stays allowed: paymentPartyRefusal above).
-export function paymentChangeRefusal(guest: boolean, actingMemberId: string, payment: { fromId: string; toId: string; createdAt: Date }, claimedAt?: Date | null): string | null {
-  if (!guest) return null;
+// Anyone (account or not) whose name was freed and retaken cannot change a payment made to that name before it was freed: it is the earlier
+// holder's (the other person in the payment can still delete it).
+export function paymentChangeRefusal(guest: boolean, actingMemberId: string, payment: { fromId: string; toId: string; createdAt: Date }, claimedAt?: Date | null, freedAt?: Date | null): string | null {
   const inIt = payment.fromId === actingMemberId || payment.toId === actingMemberId;
+  if (inIt && madeBeforeFreed(freedAt, payment.createdAt)) return BEFORE_NAME_TEXT;
+  if (!guest) return null;
   return inIt && madeSinceClaim(claimedAt, payment.createdAt) ? null : GUEST_REFUSAL;
 }
 
@@ -93,9 +96,9 @@ export const ACTION_RULES: Record<string, RuleEntry> = {
   addExpense: { rule: "own", marks: ["guestRules"], note: "new is open; editing is own" },
   deleteExpense: { rule: "own", via: "toggleExpense" },
   restoreExpense: { rule: "own", via: "toggleExpense" },
-  removePayment: { rule: "own", marks: ["guestRules"], note: "the payer or the person paid, and only a payment recorded after the guest took the name (paymentChangeRefusal)" },
-  restorePayment: { rule: "own", marks: ["guestRules"], note: "the payer or the person paid, and only a payment recorded after the guest took the name (paymentChangeRefusal)" },
-  undoChange: { rule: "own", marks: ["guestRules"] },
+  removePayment: { rule: "own", marks: ["guestRules"], note: "the payer or the person paid, and only a payment recorded after the guest took the name; not on things from before the name was last freed, account or not (paymentChangeRefusal)" },
+  restorePayment: { rule: "own", marks: ["guestRules"], note: "the payer or the person paid, and only a payment recorded after the guest took the name; not on things from before the name was last freed, account or not (paymentChangeRefusal)" },
+  undoChange: { rule: "own", marks: ["guestRules"], note: "own lines only, made after the guest took the name; not on things from before the name was last freed (actorRefusal in undo.ts)" },
   lookupRate: { rule: "open" },
   saveNotifyPrefs: { rule: "open", note: "just me" },
   updateSharingSettings: { rule: "acct", via: "signinIfGuest" },
@@ -193,8 +196,8 @@ export const ACTION_RULES: Record<string, RuleEntry> = {
   planTogetherAction: { rule: "done" },
   // pay-actions.ts
   savePayWays: { rule: "done" },
-  confirmPaymentAction: { rule: "own", marks: ["refusalNotes("], note: "only the person paid; a guest only on a payment made after they took the name (guestMayAnswer in payment-ok.ts)" },
-  rejectPaymentAction: { rule: "own", marks: ["refusalNotes("], note: "only the person paid; a guest only on a payment made after they took the name (guestMayAnswer in payment-ok.ts)" },
+  confirmPaymentAction: { rule: "own", marks: ["refusalNotes("], note: "only the person paid; a guest only on a payment made after they took the name; not on things from before the name was last freed (answerRefusal in payment-ok.ts)" },
+  rejectPaymentAction: { rule: "own", marks: ["refusalNotes("], note: "only the person paid; a guest only on a payment made after they took the name; not on things from before the name was last freed (answerRefusal in payment-ok.ts)" },
   markAllPaidAction: { rule: "acct", marks: ["gateGuest("] },
   // bill-actions.ts
   saveBill: { rule: "acct", via: "me" },

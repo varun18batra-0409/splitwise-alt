@@ -42,7 +42,7 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
   if (myIds.length) {
     const members = await db.member.findMany({
       where: { id: { in: myIds } },
-      select: { id: true, groupId: true, leftAt: true, removedAt: true, accountId: true, claimedAt: true, group: { select: { id: true, name: true, type: true, currency: true, closed: true, deletedAt: true } } },
+      select: { id: true, groupId: true, leftAt: true, removedAt: true, accountId: true, claimedAt: true, freedAt: true, group: { select: { id: true, name: true, type: true, currency: true, closed: true, deletedAt: true } } },
     });
     // Only the member row this phone really is, in groups that still run. (Someone who left can still answer money paid to them.)
     const live = members.filter((m) => memberships[m.groupId] === m.id && !m.group.deletedAt && !m.group.closed);

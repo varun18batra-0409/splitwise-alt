@@ -505,7 +505,7 @@ export async function loadDeletedGroups(memberships: Record<string, string>, now
   const since = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
   const groups = await db.group.findMany({
     where: { id: { in: Object.keys(memberships) }, deletedAt: { gt: since }, ...NOT_DIRECT },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, accountId: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, accountId: true, freedAt: true } } },
     orderBy: { deletedAt: "desc" },
   });
   return groups

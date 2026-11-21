@@ -222,7 +222,7 @@ export async function declineInvitation(account: Account, key: string): Promise<
     // Same as the live app: the account is taken off the row, which stays as a plain name (used or not): expenses, payments and
     // balances don't move. (People who left or were removed never get an "m:" card: they are invited back with a real invitation.)
     await db.$transaction([
-      db.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null, leftAt: null, removedAt: null }, data: { accountId: null, claimedAt: null, addedBy: "" } }),
+      db.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null, leftAt: null, removedAt: null }, data: { accountId: null, claimedAt: null, addedBy: "", freedAt: new Date() } }),
       db.pushSubscription.deleteMany({ where: { memberId: m.id } }),
     ]);
     return { ok: true, groupId: m.groupId, memberId: m.id };

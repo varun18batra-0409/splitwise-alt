@@ -89,7 +89,7 @@ export async function buildSummaryView(data: SummaryLoaded, myId: string, tz: st
     const v = convertAmount(Math.abs(minor), group.currency, secondary, secondaryRate.rate);
     return v === null ? null : `≈ ${formatMoney(v, secondary)}`;
   };
-  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })), guest: group.members.find((m) => m.id === myId)?.accountId === null, claimedAt: group.members.find((m) => m.id === myId)?.claimedAt ?? null };
+  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById, createdAt: x.createdAt })), guest: group.members.find((m) => m.id === myId)?.accountId === null, claimedAt: group.members.find((m) => m.id === myId)?.claimedAt ?? null, freedAt: group.members.find((m) => m.id === myId)?.freedAt ?? null };
   return {
     group: data.group,
     expenses: data.expenses,
@@ -149,7 +149,7 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string, opt
   const moveOutIds = opts.moveOuts === false ? new Set<string>() : await moveOutPaymentIds(db, [group.id]);
 
   // (isAdmin from the members just loaded, in the same order: no second read)
-  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById })), guest: group.members.find((m) => m.id === myId)?.accountId === null, claimedAt: group.members.find((m) => m.id === myId)?.claimedAt ?? null };
+  const undoViewer: UndoViewer = { id: myId, isAdmin: pickAdmin(group.members)?.id === myId, closed: group.closed, members: group.members, payments: group.payments.map((x) => ({ id: x.id, fromId: x.fromId, toId: x.toId, deletedById: x.deletedById, createdAt: x.createdAt })), guest: group.members.find((m) => m.id === myId)?.accountId === null, claimedAt: group.members.find((m) => m.id === myId)?.claimedAt ?? null, freedAt: group.members.find((m) => m.id === myId)?.freedAt ?? null };
   return {
     ...data,
     tz,

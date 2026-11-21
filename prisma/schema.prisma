@@ -100,6 +100,7 @@ model Member {
   // Goes up when this name is linked to an email and when that account is deleted: an older guest copy of the cookie
   // ("memberId~epoch") on another phone then stops working. Add-only.
   grantEpoch Int     @default(0)
+  freedAt DateTime? // when this name was last freed (null = never). Things made to the name at or before it belong to an earlier holder. Add-only.
   @@unique([groupId, name])
   @@index([accountId])
 }
