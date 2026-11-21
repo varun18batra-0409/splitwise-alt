@@ -388,6 +388,24 @@ if (demo.couple.goal) await shot("60-couple-goal", `${c}/goals/${demo.couple.goa
 await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
+// MOCKUP ONLY (21 Nov, throwaway branch, never released): long names at normal and 200% text, as now and with names wrapping to two lines.
+if (!desktop) {
+  const surname: Record<string, string> = { Varun: "Subramaniam", Asha: "Venkataraman", Ravi: "Chandrasekhar", Meera: "Krishnamurthy", Dev: "Bhattacharya", Kabir: "Raghunathan", Riya: "Ramachandran" };
+  const longNames = async (p: Page) =>
+    p.evaluate((s) => {
+      const els = document.querySelectorAll('[data-settle-card] p.font-display, section[aria-label="Your profile"] p.font-display, [data-record-route] span[aria-hidden]');
+      for (const el of Array.from(els)) for (const [k, v] of Object.entries(s)) if (el.textContent?.includes(k) && !el.textContent.includes(v)) el.textContent = el.textContent.replace(k, `${k} ${v}`);
+    }, surname);
+  const big = async (p: Page) => p.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const wrap = async (p: Page) =>
+    p.addStyleTag({ content: `[data-settle-card] p.truncate, section[aria-label="Your profile"] p.truncate { white-space: normal !important; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }` });
+  for (const [n, path] of [["all", "/settle"], ["group", `${g}/settle`], ["account", "/account"]] as const) {
+    await shot(`MK-${n}-1-now-normal`, path, async (p) => { await longNames(p); }, false);
+    await shot(`MK-${n}-2-now-200`, path, async (p) => { await longNames(p); await big(p); await p.waitForTimeout(300); }, false);
+    await shot(`MK-${n}-3-wrap-normal`, path, async (p) => { await wrap(p); await longNames(p); }, false);
+    await shot(`MK-${n}-4-wrap-200`, path, async (p) => { await wrap(p); await longNames(p); await big(p); await p.waitForTimeout(300); }, false);
+  }
+}
 await shot("25b-groups", "/groups");
 await shot("26-signin", "/signin", undefined, false);
 // Sign-in on small phones: Google and the email box must both be on the first screen.
