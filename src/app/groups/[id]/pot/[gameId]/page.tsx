@@ -58,6 +58,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const open = game.status === "open";
   const host = canRunGame({ hostId: game.hostId, createdAt: game.createdAt, lastActivityAt: lastActivity(game, game.moves) }, group.members, myId); // the host; whoever looks after the group once the host has left or the game has been quiet a day
   // A host whose name was freed after the game started counts as gone, as if they had left (canRunGame does the same).
+  const hostRow = group.members.find((m) => m.id === game.hostId);
+  const hostFreed = Boolean(hostRow && !hostRow.leftAt && madeBeforeFreed(hostRow.freedAt, game.createdAt)); // not left: the name was freed
   const hostLeft = !group.members.some((m) => m.id === game.hostId && !m.leftAt && !madeBeforeFreed(m.freedAt, game.createdAt));
   // The host is this name only if the game was started after the name was last freed (otherwise it was an earlier holder's game).
   const iAmHost = game.hostId === myId && !madeBeforeFreed(group.members.find((m) => m.id === myId)?.freedAt, game.createdAt);
@@ -440,7 +442,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                   {you(m.memberId)} {m.kind === "take" ? (topUps.has(m.id) ? "topped\u00a0up" : "chips\u00a0in") : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"}{"\u00a0"}{m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
                   <span className="block text-xs text-gray-400">
                     {m.note && !CASHED.includes(m.note) && m.note !== COUNTED ? `${neutralGameText(m.note)} · ` : ""}
-                    {m.createdById === m.memberId ? "" : `added by ${youLow(m.createdById)}`}
+                    {m.createdById === m.memberId ? "" : `added by ${m.createdById === myId && madeBeforeFreed(myFreedAt, m.createdAt) ? nameOf(m.createdById) : youLow(m.createdById)}`}
                   </span>
                 </span>
                 {open && !m.deletedAt && ((m.createdById === myId && !madeBeforeFreed(myFreedAt, m.createdAt)) || host) && (
@@ -467,7 +469,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           ) : (
             form(reopenGameAction, "Reopen game", "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist", "Reopen it? Its result comes out of the balances until you finish it again.")
           )}
-          <p className="text-xs text-gray-400">{iAmHost ? "You’re the host." : hostLeft ? `${nameOf(game.hostId)} has left, so you can run this game.` : "The game has been quiet for a day, so you (who look after this group) can run it."}</p>
+          <p className="text-xs text-gray-400">{iAmHost ? "You’re the host." : hostFreed ? "The game’s host has changed, so you (who look after this group) can run it." : hostLeft ? `${nameOf(game.hostId)} has left, so you can run this game.` : "The game has been quiet for a day, so you (who look after this group) can run it."}</p>
         </section>
       )}
       {showUndo && justDid && (

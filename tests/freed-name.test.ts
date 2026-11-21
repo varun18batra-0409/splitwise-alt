@@ -36,7 +36,7 @@ const { settleAllAndClose, markAllPaid, planKey, setPaymentsDeleted, applySettle
 const { loadGroup } = await import("@/lib/group-data");
 const pot = await import("@/lib/pot-db");
 const { payLinkFor, readPayLink, recordLinkPayment } = await import("@/lib/pay-link");
-const { inviteToClaim, cancelInvitation, CANCEL_NOT_ALLOWED, sentByMe, inviteRowLabel } = await import("@/lib/invites");
+const { inviteToClaim, inviteByEmail, cancelInvitation, CANCEL_NOT_ALLOWED, EARLIER_HOLDER_INVITE_TEXT, waitingNote, sentByMe, inviteRowLabel } = await import("@/lib/invites");
 process.env.MAIL_OUTBOX = "1"; // invitation emails go to the test outbox, never out
 const { actorRefusal, removeMembers, undoEvent } = await import("@/lib/undo");
 const { groupAdminId, isGroupAdmin, pickAdmin } = await import("@/lib/group-admin");
@@ -801,7 +801,7 @@ describe("email invitations belong to the holder who sent them", () => {
     expect(before.length).toBe(1);
     const events = await db.groupEvent.count({ where: { groupId: g.id } });
     expect(await cancelInvitation(g.id, B, P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
-    expect(await inviteToClaim(g.id, B, P, "cat@example.test", "https://loopin.test")).toEqual({ ok: false, error: "Priya is already invited (by Ben). Only Ben or the person who looks after the group can change that." });
+    expect(await inviteToClaim(g.id, B, P, "cat@example.test", "https://loopin.test")).toEqual({ ok: false, error: EARLIER_HOLDER_INVITE_TEXT }); // not "Only Ben…": that is the viewer's own name
     expect(await invites()).toEqual(before); // still open, still Priya's address
     expect(await db.groupEvent.count({ where: { groupId: g.id } })).toBe(events);
     // Asha looks after the group and keeps her right to cancel.
@@ -889,5 +889,108 @@ describe("the host's freeing counts as the host having left; guest order; 'Not n
     expect(ga.payments).toEqual(gb.payments);
     expect(ga.balances).toEqual({ Ben: 0, Varun: 0, Asha: 0 }); // 40000 - 20000 - 20000, -20000 + 20000, -20000 + 20000
     expect(ga.lines.find((l) => l.id === made.eventId)).toEqual({ id: made.eventId, undone: null, by: null });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Round 4: re-sending an invitation, wording for the new holder, the "Not now" race.
+
+describe("re-sending an invitation of an earlier holder", () => {
+  const ORIGIN = "https://loopin.test";
+  // Asha (account, looks after it), Ben (account), Priya (a name), Dee (account). Ben invites priya@ for "Priya".
+  async function scene(freeBen: boolean) {
+    const [asha, ben, dee, cat] = [await account("Asha"), await account("Ben"), await account("Dee"), await account("Cat")];
+    const g = await db.group.create({
+      data: {
+        name: `Resend ${++n} ${stamp}`, inviteCode: `fr4-${n}-${stamp}`, type: "trip", currency: "INR",
+        members: {
+          create: [
+            { name: "Asha", accountId: asha.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) },
+            { name: "Ben", accountId: ben.id, claimedAt: new Date(2026, 0, 2), createdAt: new Date(2026, 0, 2) },
+            { name: "Priya", createdAt: new Date(2026, 0, 3) },
+            { name: "Dee", accountId: dee.id, claimedAt: new Date(2026, 0, 4), createdAt: new Date(2026, 0, 4) },
+          ],
+        },
+      },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const id = (name: string) => g.members.find((m) => m.name === name)!.id;
+    const f = { g, A: id("Asha"), B: id("Ben"), P: id("Priya"), D: id("Dee") };
+    expect(await inviteToClaim(g.id, f.B, f.P, "priya@example.test", ORIGIN)).toEqual({ ok: true, email: "priya@example.test" });
+    if (freeBen) {
+      await db.member.updateMany({ where: { accountId: ben.id }, data: { accountId: null, grantEpoch: { increment: 1 } } });
+      expect((await releaseGuestName(g.id, f.A, f.B)).ok).toBe(true);
+      await pause();
+      expect(await joinExistingAsGuest(g.inviteCode, f.B)).toEqual({ ok: true, memberId: f.B });
+      await db.member.update({ where: { id: f.B }, data: { accountId: cat.id } });
+    }
+    return f;
+  }
+  const inv = (gid: string) => db.invite.findFirstOrThrow({ where: { groupId: gid, email: "priya@example.test" } });
+
+  it("Dee (not the admin) re-sends priya@ after Ben's name was freed: it is Dee's now; Cat cannot cancel or redirect it", async () => {
+    const f = await scene(true);
+    await pause();
+    await inviteByEmail(f.g.id, f.D, "priya@example.test", ORIGIN);
+    expect((await inv(f.g.id)).invitedById).toBe(f.D);
+    expect(await cancelInvitation(f.g.id, f.B, f.P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
+    expect(await inviteToClaim(f.g.id, f.B, f.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: "Priya is already invited (by Dee). Only Dee or the person who looks after the group can change that." });
+    expect((await inv(f.g.id)).declinedAt).toBeNull();
+  });
+  it("Asha re-sends it (inviteByEmail, and the inviteToClaim variant): invitedById is Asha; Cat still cannot cancel or redirect", async () => {
+    const f = await scene(true);
+    await pause();
+    await inviteByEmail(f.g.id, f.A, "priya@example.test", ORIGIN);
+    expect((await inv(f.g.id)).invitedById).toBe(f.A);
+    const g = await scene(true);
+    await pause();
+    expect(await inviteToClaim(g.g.id, g.A, g.P, "priya@example.test", ORIGIN)).toEqual({ ok: true, email: "priya@example.test" });
+    expect((await inv(g.g.id)).invitedById).toBe(g.A); // not left with the earlier Ben
+    for (const x of [f, g]) {
+      expect(await cancelInvitation(x.g.id, x.B, x.P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
+      expect(await inviteToClaim(x.g.id, x.B, x.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: "Priya is already invited (by Asha). Only Asha or the person who looks after the group can change that." });
+    }
+  });
+  it("Cat (the new holder) re-sending the same address does not make it hers: the time is kept, so she still cannot cancel or redirect", async () => {
+    const f = await scene(true);
+    const before = await inv(f.g.id);
+    await pause();
+    await inviteByEmail(f.g.id, f.B, "priya@example.test", ORIGIN);
+    const after = await inv(f.g.id);
+    expect(after.invitedById).toBe(before.invitedById);
+    expect(after.createdAt.getTime()).toBe(before.createdAt.getTime());
+    expect(await cancelInvitation(f.g.id, f.B, f.P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
+    expect(await inviteToClaim(f.g.id, f.B, f.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: EARLIER_HOLDER_INVITE_TEXT });
+    expect((await inv(f.g.id)).declinedAt).toBeNull();
+  });
+  it("a sender who was never freed keeps it when someone else re-sends (unchanged)", async () => {
+    const f = await scene(false);
+    await inviteByEmail(f.g.id, f.D, "priya@example.test", ORIGIN);
+    expect((await inv(f.g.id)).invitedById).toBe(f.B);
+  });
+  it("the words for the new holder do not name their own name", () => {
+    const list = [{ fromAccount: false, email: "priya@example.test" }];
+    expect(waitingNote({ invites: list, by: "Ben", mayCancel: false, mayInvite: false })).toBe("Invited by Ben. They can change it if the address is wrong."); // anyone else
+    expect(waitingNote({ invites: list, by: "Ben", mayCancel: false, mayInvite: false, earlierHolder: true })).toBe("Only the person who looks after the group can change that.");
+    expect(EARLIER_HOLDER_INVITE_TEXT).toBe("Only the person who looks after the group can change that.");
+  });
+  it("'Not now' when another path already released the name: the transaction's update matches no row and nothing else is touched", async () => {
+    const f = await flat(MIN, false);
+    const pat = await account("Pat");
+    const row = await db.member.create({ data: { groupId: f.gid, name: "Pat", accountId: pat.id, addedBy: f.A, seenAt: null } });
+    const stale = await db.member.findUniqueOrThrow({ where: { id: row.id } }); // what the first look saw
+    await db.pushSubscription.create({ data: { memberId: row.id, endpoint: `https://push.test/${stamp}-${++n}`, p256dh: "k", auth: "a" } });
+    const link = await payLinkFor(f.gid, row.id, f.A, f.A);
+    await db.member.update({ where: { id: row.id }, data: { accountId: null, addedBy: "" } }); // another path released it in between (without freeing)
+    const spy = vi.spyOn(db.member, "findFirst").mockResolvedValueOnce(stale as never);
+    try {
+      expect((await declineInvitation({ id: pat.id, name: "Pat", email: pat.email }, `m:${row.id}`)).ok).toBe(true); // the answer is the same as before
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await db.pushSubscription.count({ where: { memberId: row.id } })).toBe(1);
+    expect(await db.payLink.count({ where: { token: link } })).toBe(1);
+    expect((await db.member.findUniqueOrThrow({ where: { id: row.id } })).freedAt).toBeNull();
   });
 });

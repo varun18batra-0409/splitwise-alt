@@ -86,7 +86,7 @@ export default async function PeoplePage({
     const mayCancel = isAdmin || list.some((i) => sentByMe(i, myId, myFreedAt));
     // (The words, and whether an email may be shown at all, come from waitingNote: an invitation picked from someone's account never shows it.)
     const mayInvite = isAdmin || list.every((i) => sentByMe(i, myId, myFreedAt));
-    waiting.set(row, { mayCancel, mayInvite, note: waitingNote({ invites: list, by, mayCancel, mayInvite }) });
+    waiting.set(row, { mayCancel, mayInvite, note: waitingNote({ invites: list, by, mayCancel, mayInvite, earlierHolder: list.some((i) => i.invitedById === myId && !sentByMe(i, myId, myFreedAt)) }) });
   }
   // Report / Block on someone who is on Loopin (needs your own account).
   const viewer = await getAccount();

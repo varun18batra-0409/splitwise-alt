@@ -68,12 +68,16 @@ export async function shownNameFor(account: { id: string; name: string }, actorA
 // and showing it would hand over the private address of anyone they share a group with. A typed address is shown, as before, to whoever may
 // cancel the invitation (the admin and the person who sent it). Pure, so it can be tested without the screen.
 export const INVITED_ON_LOOPIN = "Invited on Loopin. Cancel the invitation if it’s the wrong person.";
-export function waitingNote(o: { invites: { fromAccount: boolean; email: string }[]; by: string; mayCancel: boolean; mayInvite: boolean }): string {
+export const EARLIER_HOLDER_INVITE_TEXT = "Only the person who looks after the group can change that.";
+
+// `earlierHolder`: the invitation was sent by an earlier holder of the viewer's own name (so "Invited by <your own name>" would be wrong).
+export function waitingNote(o: { invites: { fromAccount: boolean; email: string }[]; by: string; mayCancel: boolean; mayInvite: boolean; earlierHolder?: boolean }): string {
   const fromAccount = o.invites.some((i) => i.fromAccount);
   if (o.mayCancel && fromAccount) return INVITED_ON_LOOPIN;
   if (o.mayCancel) {
     return `Invited at ${o.invites[0]?.email ?? ""}. Wrong address, or they sign in with another one? Cancel the invitation${o.mayInvite ? ", or invite a different email below" : ""}.`;
   }
+  if (o.earlierHolder) return EARLIER_HOLDER_INVITE_TEXT;
   return `Invited by ${o.by}. They can change it if the address is wrong.`;
 }
 
@@ -220,6 +224,13 @@ async function inviteOne(
   // While an invitation is open it stays with whoever sent it first, except that the person who looks after the group takes it over
   // (a removed person who signed up again only gets back in through an invitation the admin sent).
   const adminTakesOver = Boolean(prior && priorOpen && prior.invitedById !== actor.id && (await isAdmin(group.id, actor.id)));
+  // If the kept sender's name was freed at or after the invitation was sent, it was sent by an EARLIER holder of that name: it passes to the
+  // person re-sending instead of staying with a name that someone else now holds (a re-send resets createdAt, which would otherwise make it
+  // look newer than the freeing). When the person re-sending IS the new holder of that very name, nothing is handed over: the invitation
+  // keeps its old time, so it stays the earlier holder's.
+  const senderFreedAt = prior && priorOpen ? (await db.member.findUnique({ where: { id: prior.invitedById }, select: { freedAt: true } }))?.freedAt : null;
+  const senderFreed = Boolean(prior && priorOpen && madeBeforeFreed(senderFreedAt, prior.createdAt));
+  const newHolderResending = senderFreed && prior!.invitedById === actor.id;
   const { memberId, eventId } = await db.$transaction(async (tx) => {
     let memberId = kept?.id ?? "";
     let eventId = "";
@@ -234,7 +245,7 @@ async function inviteOne(
       create: { groupId: group.id, email, invitedById: actor.id, token, memberId, fromAccount: Boolean(o.fromAccount) },
       // While an invitation is open it stays with whoever sent it first; a new one (after it was closed) belongs to the new sender.
       // Once it is marked "from an account" it stays so while open: a typed re-invite must not show the address to the first sender, who never typed it.
-      update: { invitedById: prior && priorOpen && !adminTakesOver ? prior.invitedById : actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId, fromAccount: Boolean(o.fromAccount) || Boolean(prior && priorOpen && prior.fromAccount) },
+      update: { invitedById: prior && priorOpen && !adminTakesOver && !senderFreed ? prior.invitedById : actor.id, acceptedAt: null, declinedAt: null, createdAt: newHolderResending ? prior!.createdAt : new Date(), token, memberId, fromAccount: Boolean(o.fromAccount) || Boolean(prior && priorOpen && prior.fromAccount) },
     });
     return { memberId, eventId };
   });
@@ -470,6 +481,8 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   const admin = await isAdmin(groupId, actorId);
   if (open.length && !admin && !open.every((i) => sentByMe(i, actorId, actor.freedAt))) {
     const by = group.members.find((m) => m.id === open[0].invitedById)?.name ?? "someone";
+    // Sent by an earlier holder of the viewer's own name: don't name the viewer's own name as "the one who can change it".
+    if (open.some((x) => x.invitedById === actorId)) return { ok: false, error: EARLIER_HOLDER_INVITE_TEXT };
     return { ok: false, error: `${member.name} is already invited (by ${by}). Only ${by} or the person who looks after the group can change that.` };
   }
   // This email may already be invited as a different name: moving it would quietly free that name.
@@ -484,7 +497,11 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   // The invitation is for this one name. Any older open invitation for the same name (a typo, the wrong address) is closed,
   // so only the newest email can take it. The same email asked again just refreshes its own invitation (and keeps its sender).
   const older = open.filter((i) => i.email !== email);
-  const sender = prior && priorOpen && inviteMemberId(prior) === memberId ? prior.invitedById : actorId;
+  // The kept sender stays only if their name was not freed since they sent it (otherwise it passes to the person re-sending, as in inviteOne).
+  const priorSender = prior && priorOpen && inviteMemberId(prior) === memberId ? group.members.find((m) => m.id === prior.invitedById) : undefined;
+  const senderFreed = Boolean(prior && priorSender && madeBeforeFreed(priorSender.freedAt, prior.createdAt));
+  const newHolderResending = senderFreed && prior!.invitedById === actorId;
+  const sender = prior && priorOpen && inviteMemberId(prior) === memberId && !senderFreed ? prior.invitedById : actorId;
   const token = prior && priorOpen && prior.token && inviteMemberId(prior) === memberId ? prior.token : newInviteToken();
   await db.$transaction([
     db.invite.updateMany({ where: { id: { in: older.map((i) => i.id) }, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
@@ -493,7 +510,7 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
       // The invitation carries a token, so it shows up as a Join card for an existing account (invitations without one are skipped there).
       // The same open invitation for this name keeps its token; anything else gets a fresh one.
       create: { groupId, email, invitedById: actorId, memberId, token },
-      update: { invitedById: sender, acceptedAt: null, declinedAt: null, createdAt: new Date(), memberId, token },
+      update: { invitedById: sender, acceptedAt: null, declinedAt: null, createdAt: newHolderResending ? prior!.createdAt : new Date(), memberId, token },
     }),
   ]);
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
