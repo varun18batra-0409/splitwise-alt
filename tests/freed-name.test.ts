@@ -573,7 +573,11 @@ describe("card games: the host and the line owner must be the holder who made th
   };
   it("canRunGame (pure): a host whose name was freed after the game started is not the host; freed before, or never, is", () => {
     const d = (day: number) => new Date(2026, 10, day);
-    const me = (freedAt: Date | null) => [{ id: "ben", claimedAt: d(1), leftAt: null, accountId: null, freedAt }];
+    // Bina (never freed) looks after the group, so Ben's only way to run the game is being its host.
+    const me = (freedAt: Date | null) => [
+      { id: "bina", claimedAt: d(1), leftAt: null, accountId: null, freedAt: null },
+      { id: "ben", claimedAt: d(1), leftAt: null, accountId: null, freedAt },
+    ];
     expect(pot.canRunGame({ hostId: "ben", createdAt: d(10) }, me(d(12)), "ben")).toBe(false);
     expect(pot.canRunGame({ hostId: "ben", createdAt: d(10) }, me(d(10)), "ben")).toBe(false); // the same instant: safe side
     expect(pot.canRunGame({ hostId: "ben", createdAt: d(10) }, me(d(8)), "ben")).toBe(true);
