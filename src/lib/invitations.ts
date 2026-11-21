@@ -221,11 +221,14 @@ export async function declineInvitation(account: Account, key: string): Promise<
     if (!m) return { ok: false, error: GONE };
     // Same as the live app: the account is taken off the row, which stays as a plain name (used or not): expenses, payments and
     // balances don't move. (People who left or were removed never get an "m:" card: they are invited back with a real invitation.)
-    await db.$transaction([
-      db.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null, leftAt: null, removedAt: null }, data: { accountId: null, claimedAt: null, addedBy: "", freedAt: new Date() } }),
-      db.pushSubscription.deleteMany({ where: { memberId: m.id } }),
-      db.payLink.deleteMany({ where: { groupId: m.groupId, OR: [{ fromId: m.id }, { toId: m.id }] } }), // links for this name stop working, as when a name is freed
-    ]);
+    // One transaction, and the other changes happen only if the name really was released here (a second tap, or the name having moved on,
+    // matches no row: nothing else is touched; the answer stays the same as before).
+    await db.$transaction(async (tx) => {
+      const w = await tx.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null, leftAt: null, removedAt: null }, data: { accountId: null, claimedAt: null, addedBy: "", freedAt: new Date() } });
+      if (w.count !== 1) return;
+      await tx.pushSubscription.deleteMany({ where: { memberId: m.id } });
+      await tx.payLink.deleteMany({ where: { groupId: m.groupId, OR: [{ fromId: m.id }, { toId: m.id }] } }); // links for this name stop working, as when a name is freed
+    });
     return { ok: true, groupId: m.groupId, memberId: m.id };
   }
   const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email } }) : null;

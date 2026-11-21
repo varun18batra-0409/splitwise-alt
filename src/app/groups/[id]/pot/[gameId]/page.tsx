@@ -57,9 +57,13 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const { lines, totals } = potSummary(players, live);
   const open = game.status === "open";
   const host = canRunGame({ hostId: game.hostId, createdAt: game.createdAt, lastActivityAt: lastActivity(game, game.moves) }, group.members, myId); // the host; whoever looks after the group once the host has left or the game has been quiet a day
-  const hostLeft = !group.members.some((m) => m.id === game.hostId && !m.leftAt);
+  // A host whose name was freed after the game started counts as gone, as if they had left (canRunGame does the same).
+  const hostLeft = !group.members.some((m) => m.id === game.hostId && !m.leftAt && !madeBeforeFreed(m.freedAt, game.createdAt));
   // The host is this name only if the game was started after the name was last freed (otherwise it was an earlier holder's game).
   const iAmHost = game.hostId === myId && !madeBeforeFreed(group.members.find((m) => m.id === myId)?.freedAt, game.createdAt);
+  const myFreedAt = group.members.find((m) => m.id === myId)?.freedAt;
+  const hostYou = iAmHost ? "You" : nameOf(game.hostId); // "You" only for the real host (a retaken name was not the one who started it)
+  const hostYouLow = iAmHost ? "you" : nameOf(game.hostId);
   const adminId = pickAdmin(group.members)?.id;
   const ranked = [...lines].sort((a, b) => b.net - a.net);
   const playing = inPlay(players, live);
@@ -214,7 +218,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {/* The table */}
       <section aria-label="The table" className="relative overflow-hidden rounded-[20px] border border-line bg-[#16161a] px-5 pb-5 pt-5 text-fg">
         <p className="pr-14 text-[11px] font-semibold text-fg/55">
-          {potGameLabel(game.game)} · {youLow(game.hostId)} hosted · {open ? "playing" : "finished"}
+          {potGameLabel(game.game)} · {hostYouLow} hosted · {open ? "playing" : "finished"}
         </p>
         {open ? (
           <>
@@ -364,7 +368,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             inPlay={totals.out}
             settled={lines.filter((l) => !playing.includes(l.memberId)).map((l) => ({ name: nameOf(l.memberId), net: l.net }))}
             host={host}
-            hostName={you(game.hostId)}
+            hostName={hostYou}
             currency={group.currency}
           />
         </section>
@@ -418,7 +422,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             )
           ) : (
             <p className="text-center text-xs text-gray-500">
-              {hostLeft && adminId ? `${you(adminId)} (looks after the group) settles the game once it adds up.` : `${you(game.hostId)} (the host) settles the game once it adds up.${adminId ? ` ${you(adminId)} (looks after the group) can too if it has been quiet for a day.` : ""}`}
+              {hostLeft && adminId ? `${you(adminId)} (looks after the group) settles the game once it adds up.` : `${hostYou} (the host) settles the game once it adds up.${adminId ? ` ${you(adminId)} (looks after the group) can too if it has been quiet for a day.` : ""}`}
             </p>
           )}
         </section>
@@ -439,7 +443,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                     {m.createdById === m.memberId ? "" : `added by ${youLow(m.createdById)}`}
                   </span>
                 </span>
-                {open && !m.deletedAt && (m.createdById === myId || host) && (
+                {open && !m.deletedAt && ((m.createdById === myId && !madeBeforeFreed(myFreedAt, m.createdAt)) || host) && (
                   <form action={removeMoveAction}>
                     <input type="hidden" name="gameId" value={game.id} />
                     <input type="hidden" name="moveId" value={m.id} />

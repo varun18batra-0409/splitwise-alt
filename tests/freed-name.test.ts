@@ -36,6 +36,8 @@ const { settleAllAndClose, markAllPaid, planKey, setPaymentsDeleted, applySettle
 const { loadGroup } = await import("@/lib/group-data");
 const pot = await import("@/lib/pot-db");
 const { payLinkFor, readPayLink, recordLinkPayment } = await import("@/lib/pay-link");
+const { inviteToClaim, cancelInvitation, CANCEL_NOT_ALLOWED, sentByMe, inviteRowLabel } = await import("@/lib/invites");
+process.env.MAIL_OUTBOX = "1"; // invitation emails go to the test outbox, never out
 const { actorRefusal, removeMembers, undoEvent } = await import("@/lib/undo");
 const { groupAdminId, isGroupAdmin, pickAdmin } = await import("@/lib/group-admin");
 const { removedText } = await import("@/lib/active");
@@ -101,6 +103,7 @@ const sharesSum = async (f: Flat) => (await db.expenseShare.findMany({ where: { 
 const snapshot = async (f: Flat) => ({
   payments: (await db.payment.findMany({ where: { groupId: f.gid }, orderBy: { id: "asc" }, select: { id: true, amount: true, deletedAt: true, okAt: true } })).map((p) => ({ ...p, deletedAt: p.deletedAt?.getTime() ?? null, okAt: p.okAt?.getTime() ?? null })),
   events: await db.groupEvent.count({ where: { groupId: f.gid } }),
+  lines: (await db.groupEvent.findMany({ where: { groupId: f.gid }, orderBy: { id: "asc" }, select: { id: true, undoneAt: true, undoneById: true } })).map((e) => ({ id: e.id, undone: e.undoneAt?.getTime() ?? null, by: e.undoneById })), // who undid what
   closed: (await db.group.findUniqueOrThrow({ where: { id: f.gid }, select: { closed: true } })).closed,
   left: (await db.member.findMany({ where: { groupId: f.gid }, orderBy: { id: "asc" }, select: { id: true, leftAt: true, removedAt: true } })).map((m) => ({ id: m.id, left: m.leftAt?.getTime() ?? null, removed: m.removedAt?.getTime() ?? null })),
   balances: await bal(f),
@@ -405,7 +408,7 @@ describe("deleting and restoring P, and Undo (phase 2)", () => {
     await signIn(f);
     const snap = await snapshot(f);
     expect(await setPaymentDeleted(f.P.id, f.B, false, {})).toEqual({ ok: false, error: BEFORE_NAME_TEXT });
-    expect(await undoEvent(line.id, f.B)).toEqual({ ok: false, error: receiverOnlyText("Ben") });
+    expect(await undoEvent(line.id, f.B)).toEqual({ ok: false, error: BEFORE_NAME_TEXT }); // the earlier holder's payment: said first
     expect(await snapshot(f)).toEqual(snap);
     expect(await bal(f)).toEqual(AFTER_NOT_RECEIVED);
     expect(await sharesSum(f)).toBe(60000);
@@ -748,5 +751,143 @@ describe("the write itself checks again (Got it / Not received)", () => {
     const settle = readFileSync("src/lib/settle-all.ts", "utf8");
     expect(settle.match(/beforeNameRefusal\(tx, paymentIds, actorId, groupId\)/g)?.length).toBe(2);
     expect(readFileSync("src/lib/payments.ts", "utf8")).toContain("const early = await beforeNameRefusal(tx, ids, actorId, groupId);");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Round 3: email invitations, the card-game page rule, the host's freeing as "left", guest sign-in order, "Not now", the write's rollback.
+
+describe("email invitations belong to the holder who sent them", () => {
+  const d = (day: number) => new Date(2026, 10, day);
+  it("sentByMe and the People / Invite screens' words (pure)", () => {
+    const inv = { invitedById: "ben", createdAt: d(10) };
+    expect(sentByMe(inv, "ben", null)).toBe(true); // never freed
+    expect(sentByMe(inv, "ben", d(8))).toBe(true); // freed before it was sent
+    expect(sentByMe(inv, "ben", d(12))).toBe(false); // freed after: the earlier holder's
+    expect(sentByMe(inv, "ben", d(10))).toBe(false); // the same instant: safe side
+    expect(sentByMe(inv, "asha", null)).toBe(false);
+    expect(inviteRowLabel({ email: "priya@example.test", invitedById: "ben", createdAt: d(10) }, "ben", "Ben")).toBe("priya@example.test");
+    expect(inviteRowLabel({ email: "priya@example.test", invitedById: "ben", createdAt: d(10) }, "ben", "Ben", d(12))).toBe("Invited by Ben"); // the address is not shown to the new holder
+  });
+  it("Ben (account) invites Priya by email, deletes his account; Asha frees 'Ben'; Cat takes it and signs in: Cat can neither cancel nor redirect it; Asha still can", async () => {
+    const [asha, ben, cat] = [await account("Asha"), await account("Ben"), await account("Cat")];
+    const g = await db.group.create({
+      data: {
+        name: `Invites ${++n} ${stamp}`, inviteCode: `fi-${n}-${stamp}`, type: "trip", currency: "INR",
+        members: {
+          create: [
+            { name: "Asha", accountId: asha.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) },
+            { name: "Ben", accountId: ben.id, claimedAt: new Date(2026, 0, 2), createdAt: new Date(2026, 0, 2) },
+            { name: "Priya", createdAt: new Date(2026, 0, 3) },
+          ],
+        },
+      },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const id = (name: string) => g.members.find((m) => m.name === name)!.id;
+    const [A, B, P] = [id("Asha"), id("Ben"), id("Priya")];
+    const sent = await inviteToClaim(g.id, B, P, "priya@example.test", "https://loopin.test");
+    expect(sent).toEqual({ ok: true, email: "priya@example.test" });
+    // Ben deletes his account: the row keeps its name and its claim, loses the account (the same write auth.ts makes when an account is deleted).
+    await db.member.updateMany({ where: { accountId: ben.id }, data: { accountId: null, grantEpoch: { increment: 1 } } });
+    expect((await releaseGuestName(g.id, A, B)).ok).toBe(true);
+    await pause();
+    expect(await joinExistingAsGuest(g.inviteCode, B)).toEqual({ ok: true, memberId: B });
+    await db.member.update({ where: { id: B }, data: { accountId: cat.id } });
+
+    const invites = async () => (await db.invite.findMany({ where: { groupId: g.id }, orderBy: { id: "asc" }, select: { id: true, email: true, invitedById: true, declinedAt: true, acceptedAt: true, token: true, memberId: true } })).map((i) => ({ ...i, declinedAt: i.declinedAt?.getTime() ?? null }));
+    const before = await invites();
+    expect(before.length).toBe(1);
+    const events = await db.groupEvent.count({ where: { groupId: g.id } });
+    expect(await cancelInvitation(g.id, B, P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
+    expect(await inviteToClaim(g.id, B, P, "cat@example.test", "https://loopin.test")).toEqual({ ok: false, error: "Priya is already invited (by Ben). Only Ben or the person who looks after the group can change that." });
+    expect(await invites()).toEqual(before); // still open, still Priya's address
+    expect(await db.groupEvent.count({ where: { groupId: g.id } })).toBe(events);
+    // Asha looks after the group and keeps her right to cancel.
+    expect(await cancelInvitation(g.id, A, P)).toEqual({ ok: true, cancelled: 1 });
+  });
+});
+
+describe("the host's freeing counts as the host having left; guest order; 'Not now'; the write's rollback", () => {
+  it("canRunGame (pure): the admin may step in at once when the host's name was freed after the game started (not while an active host is still the host)", () => {
+    const d = (day: number) => new Date(2026, 10, day);
+    const people = (benFreed: Date | null) => [
+      { id: "bina", claimedAt: d(1), leftAt: null, accountId: null, freedAt: null },
+      { id: "ben", claimedAt: d(1), leftAt: null, accountId: null, freedAt: benFreed },
+    ];
+    const game = { hostId: "ben", createdAt: d(10), lastActivityAt: new Date() }; // active just now
+    expect(pot.canRunGame(game, people(d(12)), "bina")).toBe(true); // host freed after the game started: as if left
+    expect(pot.canRunGame(game, people(d(8)), "bina")).toBe(false); // freed before the game: Ben really is the host, and active
+    expect(pot.canRunGame(game, people(null), "bina")).toBe(false);
+  });
+  it("a guest new holder is told the payment is from before they took the name (not the sign-in prompt), through undoEvent with guestRules", async () => {
+    const f = await flat(MIN, false);
+    const transfers = (await loadGroup(f.gid, { events: false }))!.transfers;
+    const done = await settleAllAndClose(f.gid, f.A, planKey(transfers));
+    if (!done.ok) throw new Error(done.error);
+    await freeAndRetake(f); // Cat is a guest: no sign-in
+    const snap = await snapshot(f);
+    expect(await undoEvent(done.eventId!, f.B, "Asia/Kolkata", { guestRules: true })).toEqual({ ok: false, error: BEFORE_NAME_TEXT });
+    expect(signinKeyOf(BEFORE_NAME_TEXT)).toBeNull();
+    // An earlier-holder line of another kind still gets the sign-in prompt, as before.
+    const line = await db.groupEvent.create({ data: { groupId: f.gid, actorId: f.A, kind: "expense_added", text: "added Tea", undo: JSON.stringify({ type: "expense_delete", expenseId: "x" }), expenseId: "x" } });
+    expect(await undoEvent(line.id, f.B, "Asia/Kolkata", { guestRules: true })).toEqual({ ok: false, error: GUEST_REFUSAL });
+    await db.groupEvent.delete({ where: { id: line.id } });
+    expect(await snapshot(f)).toEqual(snap);
+  });
+  it("'Not now' tapped a second time touches nothing (the card is gone, a link made since stays)", async () => {
+    const f = await flat(MIN, false);
+    const pat = await account("Pat");
+    const row = await db.member.create({ data: { groupId: f.gid, name: "Pat", accountId: pat.id, addedBy: f.A, seenAt: null } });
+    const first = await payLinkFor(f.gid, row.id, f.A, f.A);
+    expect((await declineInvitation({ id: pat.id, name: "Pat", email: pat.email }, `m:${row.id}`)).ok).toBe(true);
+    expect(await db.payLink.count({ where: { token: first } })).toBe(0);
+    const freed = (await db.member.findUniqueOrThrow({ where: { id: row.id } })).freedAt!.getTime();
+    // Nobody holds the row any more: a link made for the plain name now, and a stale second "Not now", must leave it alone.
+    const again = await payLinkFor(f.gid, row.id, f.A, f.A);
+    expect((await declineInvitation({ id: pat.id, name: "Pat", email: pat.email }, `m:${row.id}`)).ok).toBe(false); // the card is gone: the existing answer
+    expect(await db.payLink.count({ where: { token: again } })).toBe(1);
+    expect((await db.member.findUniqueOrThrow({ where: { id: row.id } })).freedAt!.getTime()).toBe(freed);
+  });
+  it("a freeing that lands between the first look and the write: the write refuses, rolls back, and even the 'undone' mark is not kept", async () => {
+    // Settle everything, then Ben (not yet freed) tries to undo it; his own name is freed after the first checks and before the write.
+    const f = await flat(MIN, false);
+    const transfers = (await loadGroup(f.gid, { events: false }))!.transfers;
+    const done = await settleAllAndClose(f.gid, f.A, planKey(transfers));
+    if (!done.ok) throw new Error(done.error);
+    const ids = (await db.payment.findMany({ where: { groupId: f.gid }, select: { id: true } })).map((p) => p.id);
+    const before = await snapshot(f);
+    const r = await applySettleAll(f.gid, f.B, ids, false, {
+      mark: { eventId: done.eventId!, actorId: f.B },
+      afterRead: async () => {
+        expect((await releaseGuestName(f.gid, f.B, f.B)).ok).toBe(true);
+      },
+    });
+    expect(r).toEqual({ ok: false, error: BEFORE_NAME_TEXT });
+    const after = await snapshot(f);
+    expect(after.payments).toEqual(before.payments); // none taken out
+    expect(after.closed).toBe(true); // still closed
+    expect(after.balances).toEqual({ Ben: 0, Varun: 0, Asha: 0 });
+    expect(after.lines.find((l) => l.id === done.eventId)).toEqual({ id: done.eventId, undone: null, by: null }); // the mark was rolled back too
+    expect(after.events).toBe(before.events + 1); // only the freeing's own line
+
+    // The same for a Mark all paid taken off.
+    const g = await flat(MIN, false);
+    const made = await markAllPaid(g.gid, g.A, [{ from: g.V, to: g.B, amount: 20000 }, { from: g.A, to: g.B, amount: 20000 }], "Test", true);
+    if (!made.ok) throw new Error(made.error);
+    const gids = (await db.payment.findMany({ where: { groupId: g.gid }, select: { id: true } })).map((p) => p.id);
+    const gb = await snapshot(g);
+    const r2 = await setPaymentsDeleted(g.gid, g.B, gids, true, {
+      mark: { eventId: made.eventId!, actorId: g.B },
+      afterRead: async () => {
+        expect((await releaseGuestName(g.gid, g.B, g.B)).ok).toBe(true);
+      },
+    });
+    expect(r2).toEqual({ ok: false, error: BEFORE_NAME_TEXT });
+    const ga = await snapshot(g);
+    expect(ga.payments).toEqual(gb.payments);
+    expect(ga.balances).toEqual({ Ben: 0, Varun: 0, Asha: 0 }); // 40000 - 20000 - 20000, -20000 + 20000, -20000 + 20000
+    expect(ga.lines.find((l) => l.id === made.eventId)).toEqual({ id: made.eventId, undone: null, by: null });
   });
 });

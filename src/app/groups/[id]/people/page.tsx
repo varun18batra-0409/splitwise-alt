@@ -27,7 +27,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { db } from "@/lib/db";
-import { inviteMemberId, waitingNote } from "@/lib/invites";
+import { inviteMemberId, sentByMe, waitingNote } from "@/lib/invites";
 import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
 import { DateField } from "@/components/DateField";
@@ -72,19 +72,20 @@ export default async function PeoplePage({
   // Removing people or marking them as left is for the person who looks after the group.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
+  const myFreedAt = group.members.find((m) => m.id === myId)?.freedAt;
   // Names with an invitation still waiting. Who it went to is shown to whoever may cancel it (the admin, or a person who sent one);
   // the Invite box on such a name is for the admin or the person who sent it, so nobody else can re-point it to their own address.
   const waiting = new Map<string, { note: string; mayCancel: boolean; mayInvite: boolean }>();
-  const openFor = new Map<string, { email: string; invitedById: string; fromAccount: boolean }[]>();
+  const openFor = new Map<string, { email: string; invitedById: string; fromAccount: boolean; createdAt: Date }[]>();
   for (const i of await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null, declinedAt: null }, orderBy: { createdAt: "desc" } })) {
     const row = inviteMemberId(i);
-    if (row) openFor.set(row, [...(openFor.get(row) ?? []), { email: i.email, invitedById: i.invitedById, fromAccount: i.fromAccount }]);
+    if (row) openFor.set(row, [...(openFor.get(row) ?? []), { email: i.email, invitedById: i.invitedById, fromAccount: i.fromAccount, createdAt: i.createdAt }]);
   }
   for (const [row, list] of openFor) {
     const by = group.members.find((m) => m.id === list[0].invitedById)?.name ?? "someone";
-    const mayCancel = isAdmin || list.some((i) => i.invitedById === myId);
+    const mayCancel = isAdmin || list.some((i) => sentByMe(i, myId, myFreedAt));
     // (The words, and whether an email may be shown at all, come from waitingNote: an invitation picked from someone's account never shows it.)
-    const mayInvite = isAdmin || list.every((i) => i.invitedById === myId);
+    const mayInvite = isAdmin || list.every((i) => sentByMe(i, myId, myFreedAt));
     waiting.set(row, { mayCancel, mayInvite, note: waitingNote({ invites: list, by, mayCancel, mayInvite }) });
   }
   // Report / Block on someone who is on Loopin (needs your own account).

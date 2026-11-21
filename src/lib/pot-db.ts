@@ -103,7 +103,7 @@ export function canRunGame(game: { hostId: string; createdAt?: Date | null; last
   if (game.hostId === actorId && !madeBeforeFreed(members.find((m) => m.id === actorId)?.freedAt, game.createdAt)) return true;
   if (pickAdmin(members)?.id !== actorId) return false;
   const host = members.find((m) => m.id === game.hostId);
-  if (!host || host.leftAt) return true; // left or removed (removing sets leftAt too)
+  if (!host || host.leftAt || madeBeforeFreed(host.freedAt, game.createdAt)) return true; // left or removed (removing sets leftAt too), or the host's name was freed after the game started
   return game.lastActivityAt ? now.getTime() - game.lastActivityAt.getTime() >= GAME_QUIET_MS : false;
 }
 

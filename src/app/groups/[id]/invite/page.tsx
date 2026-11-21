@@ -230,7 +230,7 @@ export default async function AddPeoplePage({
               <li key={i.id} className="flex items-center gap-3 px-4 py-3 max-[389px]:flex-wrap max-[389px]:gap-y-1">
                 {/* The email someone typed is shown only to the person who invited; everyone else sees that an invitation is out. */}
                 <span className="min-w-0 flex-1 truncate text-sm max-[389px]:basis-full" data-invite-row>
-                  {inviteRowLabel(i, myId, nameOf(i.invitedById))}
+                  {inviteRowLabel(i, myId, nameOf(i.invitedById), group.members.find((m) => m.id === myId)?.freedAt)}
                 </span>
                 <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs text-gray-500">Invited · hasn’t joined yet</span>
               </li>

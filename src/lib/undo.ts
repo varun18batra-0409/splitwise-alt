@@ -243,6 +243,16 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
 // put them back in. The only undo of that kind allowed to someone else is the admin's own removal action (the event is the admin's).
 // The person who took someone with an account out can undo that, but only for 10 minutes (put-back.ts); after that the person is invited back.
 export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, originAt?: Date): string | null {
+  // First of all: a payment of the earlier holder of a freed name is not theirs, so the answer is that one (signing in would not help),
+  // not the sign-in prompt a guest would get below.
+  const early = parsed(ev);
+  if (early && viewer.freedAt) {
+    if (early.type === "payment_delete" || early.type === "payment_restore" || early.type === "payments_set" || early.type === "settle_all") {
+      const ids = early.type === "payment_delete" || early.type === "payment_restore" ? [early.paymentId] : early.paymentIds;
+      const theirs = ids.map((id) => viewer.payments?.find((x) => x.id === id)).filter((x) => x?.createdAt);
+      if (theirs.some((x) => (x!.fromId === viewer.id || x!.toId === viewer.id) && madeBeforeFreed(viewer.freedAt, x!.createdAt))) return BEFORE_NAME_TEXT;
+    }
+  }
   const guestNo = undoRefusal(Boolean(viewer.guest), viewer.id, ev.actorId, ev.createdAt, viewer.claimedAt);
   if (guestNo) return guestNo;
   const payload = parsed(ev);
@@ -297,12 +307,6 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   // Someone an admin removed can't change payments themselves (the other person in the payment still can).
   if (isPaymentUndo(payload) && find(actorId)?.removedAt) return removedText();
   const recorder = ownLine && putBackOpen(originAt ?? ev.createdAt, now);
-  // A name that was freed and retaken: payments of the earlier holder (one, or any in a set) are not theirs to take off or put back.
-  if (viewer.freedAt && (payload.type === "payment_delete" || payload.type === "payment_restore" || payload.type === "payments_set" || payload.type === "settle_all")) {
-    const ids = payload.type === "payment_delete" || payload.type === "payment_restore" ? [payload.paymentId] : payload.paymentIds;
-    const theirs = ids.map((id) => viewer.payments?.find((x) => x.id === id)).filter((x) => x?.createdAt);
-    if (theirs.some((x) => (x!.fromId === actorId || x!.toId === actorId) && madeBeforeFreed(viewer.freedAt, x!.createdAt))) return BEFORE_NAME_TEXT;
-  }
   if (!recorder && (payload.type === "payment_delete" || payload.type === "payment_restore")) {
     const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
     if (pay && pay.fromId !== actorId && pay.toId !== actorId) return `Only ${find(pay.fromId)?.name ?? "the payer"} or ${find(pay.toId)?.name ?? "the person paid"} can change this payment.`;

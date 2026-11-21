@@ -13,6 +13,7 @@ import { randomBytes } from "node:crypto";
 import { validSub } from "./push-subs";
 import { claimJob, finishJob } from "./push";
 import { DIRECT, NOT_DIRECT } from "./direct";
+import { madeBeforeFreed } from "./guest-words";
 
 // Invite and "added you" emails one person can send in a day. The whole app's
 // daily email allowance is small, so one person (or a spammer) can't use it up.
@@ -29,9 +30,11 @@ export type Found = { accountId: string; name: string; inGroup: boolean; known: 
 
 // What the invite screen shows for an invitation that has no name row of its own: the typed email only to the
 // person who invited; everyone else just sees who invited.
-export function inviteRowLabel(invite: { email: string; invitedById: string; fromAccount?: boolean }, viewerId: string, inviterName: string): string {
-  if (invite.fromAccount) return invite.invitedById === viewerId ? "Invited on Loopin" : `Invited by ${inviterName}`; // picked from an account: no email is ever shown
-  return invite.invitedById === viewerId ? invite.email : `Invited by ${inviterName}`;
+// `viewerFreedAt`: an invitation sent at or before the viewer's name was last freed was sent by the earlier holder, so its address is not shown to them.
+export function inviteRowLabel(invite: { email: string; invitedById: string; fromAccount?: boolean; createdAt?: Date | null }, viewerId: string, inviterName: string, viewerFreedAt?: Date | null): string {
+  const mine = invite.invitedById === viewerId && !madeBeforeFreed(viewerFreedAt, invite.createdAt);
+  if (invite.fromAccount) return mine ? "Invited on Loopin" : `Invited by ${inviterName}`; // picked from an account: no email is ever shown
+  return mine ? invite.email : `Invited by ${inviterName}`;
 }
 
 // This person's row in a group (not a pair, not deleted) that the actor's account is also really in: the people the search is allowed to show.
@@ -419,9 +422,12 @@ function esc(s: string) {
 export async function openInvitesFor(groupId: string, memberId: string) {
   return db.invite.findMany({
     where: { groupId, acceptedAt: null, declinedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }] },
-    select: { id: true, email: true, invitedById: true },
+    select: { id: true, email: true, invitedById: true, createdAt: true },
   });
 }
+
+// An invitation is "mine" only if I sent it AFTER my name was last freed: one sent to or before that moment was sent by the earlier holder of the name.
+export const sentByMe = (i: { invitedById: string; createdAt?: Date | null }, actorId: string, freedAt?: Date | null) => i.invitedById === actorId && !madeBeforeFreed(freedAt, i.createdAt);
 
 export const CANCEL_NOT_ALLOWED = "Only the person who looks after the group, or the person who sent the invitation, can cancel it.";
 
@@ -429,7 +435,7 @@ export const CANCEL_NOT_ALLOWED = "Only the person who looks after the group, or
 // Closes the open invitations for the name (all of them for the admin, only their own for the person who sent them); it goes back to being a plain name that "That's me" can take.
 // Only the person who looks after the group or whoever sent the invitation may do it. Nothing about balances changes.
 export async function cancelInvitation(groupId: string, actorId: string, memberId: string): Promise<{ ok: true; cancelled: number } | { ok: false; error: string }> {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, leftAt: true, removedAt: true } } } });
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, leftAt: true, removedAt: true, freedAt: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   const actor = group.members.find((m) => m.id === actorId);
   if (!actor || actor.leftAt) return { ok: false, error: "Only people in this group can do this." };
@@ -439,7 +445,7 @@ export async function cancelInvitation(groupId: string, actorId: string, memberI
   if (!open.length) return { ok: false, error: "There is no open invitation for that name." };
   // The admin cancels every open invitation for the name; anyone else only the ones they sent.
   const admin = await isAdmin(groupId, actorId);
-  const mine = admin ? open : open.filter((i) => i.invitedById === actorId);
+  const mine = admin ? open : open.filter((i) => sentByMe(i, actorId, actor.freedAt));
   if (!mine.length) return { ok: false, error: CANCEL_NOT_ALLOWED };
   const r = await db.invite.updateMany({ where: { id: { in: mine.map((i) => i.id) }, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `cancelled the invitation for ${member.name}` });
@@ -462,7 +468,7 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   // cancel it), not by any member: otherwise anyone could point it at their own address and take the name over.
   const open = await openInvitesFor(groupId, memberId);
   const admin = await isAdmin(groupId, actorId);
-  if (open.length && !admin && !open.every((i) => i.invitedById === actorId)) {
+  if (open.length && !admin && !open.every((i) => sentByMe(i, actorId, actor.freedAt))) {
     const by = group.members.find((m) => m.id === open[0].invitedById)?.name ?? "someone";
     return { ok: false, error: `${member.name} is already invited (by ${by}). Only ${by} or the person who looks after the group can change that.` };
   }
