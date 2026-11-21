@@ -41,12 +41,12 @@ async function seed() {
   const memberships: Record<string, string> = {};
   let expenseCount = 0, paymentCount = 0;
 
-  async function makeGroup(name: string, size: number, expenses: number, payments: number, withHeavy: boolean) {
+  async function makeGroup(name: string, size: number, expenses: number, payments: number, withHeavy: boolean, type?: string) {
     const people = new Set<(typeof accounts)[number]>(withHeavy ? [heavy] : []);
     while (people.size < size) people.add(pick(accounts.slice(1)));
     const g = await db.group.create({
       data: {
-        name, currency: "INR", inviteCode: `load-${stamp}-${name.replace(/\W/g, "")}-${rnd(1e9)}`, cardMarkupBp: 300,
+        name, ...(type ? { type } : {}), currency: "INR", inviteCode: `load-${stamp}-${name.replace(/\W/g, "")}-${rnd(1e9)}`, cardMarkupBp: 300,
         members: { create: [...people].map((a) => ({ name: a.name, accountId: a.id, claimedAt: new Date() })) },
       },
       include: { members: true },
@@ -162,6 +162,9 @@ async function seed() {
 
   const busy = await makeGroup("Busy 12-person trip", 12, 1200, 300, true);
   const undoEventId = await addHardCases(busy);
+  // The same busy trip again, but saved as type "trip": trip groups run extra code (the moments viewer) the plain one never does.
+  const busyTrip = await makeGroup("Busy 12-person trip (type trip)", 12, 1200, 300, true, "trip");
+  await addHardCases(busyTrip);
   // A trip the heavy user has left (the leaver view has its own, slower code path).
   const left = await makeGroup("Left trip", 6, 60, 10, true);
   await db.member.update({ where: { id: memberships[left.id] }, data: { leftAt: new Date(Date.now() - 20 * 86_400_000) } });
@@ -170,7 +173,7 @@ async function seed() {
   log(`Seeded 400 people, 120 groups, ${expenseCount} expenses, ${paymentCount} payments in ${Math.round((Date.now() - t0) / 1000)} s.`);
   log(`Heavy user: in ${Object.keys(memberships).length} groups. Busy trip: about 1,275 expenses (split payers, refunds, deleted ones, Thai baht with card fee), 310 payments (10 deleted), 12 people, one who left, real Undo wording.`);
   log("Also a trip the heavy user left.");
-  return { heavy, memberships, busy, left, undoEventId };
+  return { heavy, memberships, busy, busyTrip, left, undoEventId };
 }
 
 async function timeGet(path: string, cookie: string) {
@@ -279,12 +282,13 @@ async function profileScreens(pages: [string, string][], cookie: string): Promis
 }
 
 async function main() {
-  const { heavy, memberships, busy, left, undoEventId } = await seed();
+  const { heavy, memberships, busy, busyTrip, left, undoEventId } = await seed();
   const cookie = `${SESSION_COOKIE}=${await encodeSession({ m: memberships, a: heavy.id })}`;
   const pages: [string, string][] = [
     ["Home", "/"],
     ["Busy trip: activity", `/groups/${busy.id}?tab=activity`],
     ["Busy trip: balances", `/groups/${busy.id}?tab=balances`],
+    ["Busy trip (type trip): balances", `/groups/${busyTrip.id}?tab=balances`],
     ["Busy trip: charts", `/groups/${busy.id}?tab=charts`],
     ["Busy trip: settle up", `/groups/${busy.id}/settle`],
     ["Settle across groups", "/settle"],

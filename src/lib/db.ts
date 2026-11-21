@@ -61,6 +61,19 @@ function waitingLocally(base: PrismaClient, client: PrismaClient): PrismaClient 
 // Speed measurement, only when LOOPIN_PERF=1 (the load-test server in CI; never set on the live app):
 // one line per database call with when it started, how long it took, which table and how many rows
 // came back. scripts/load.ts reads these lines from the server log. It changes no result.
+// Counts every row that came back, nested ones too (an expense with its shares is 1 + the number of shares).
+function countRows(result: unknown): number {
+  if (result == null) return 0;
+  if (Array.isArray(result)) return result.reduce((n: number, r: unknown) => n + 1 + nestedRows(r), 0);
+  return 1 + nestedRows(result);
+}
+function nestedRows(row: unknown): number {
+  if (row === null || typeof row !== "object" || row instanceof Date || row instanceof Uint8Array) return 0;
+  let n = 0;
+  for (const v of Object.values(row as Record<string, unknown>)) if (Array.isArray(v)) n += countRows(v);
+  return n;
+}
+
 function withPerf(client: PrismaClient): PrismaClient {
   return client.$extends({
     query: {
@@ -70,7 +83,7 @@ function withPerf(client: PrismaClient): PrismaClient {
         let rows = 0;
         try {
           const result: unknown = await query(args);
-          rows = Array.isArray(result) ? result.length : result == null ? 0 : 1;
+          rows = countRows(result);
           return result;
         } finally {
           console.log(`LOOPIN_PERF_Q ${JSON.stringify({ t, ms: Math.round((performance.now() - start) * 10) / 10, m: model ?? "raw", op: operation, rows })}`);
