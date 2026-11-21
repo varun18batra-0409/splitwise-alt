@@ -1,0 +1,30 @@
+# One-off, READ-ONLY: how many guest names have been freed on the live app since joining without signing in went live.
+# Counts only (no names, no groups). Uses the read-only key; it cannot change anything.
+name: Freed-name count (one-off, read-only)
+on:
+  push:
+    branches: [ops-freed-count]
+jobs:
+  count:
+    environment: live-read
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --ignore-scripts @libsql/client@0.15.0
+      - name: Count
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
+        run: |
+          node -e '
+          const { createClient } = require("@libsql/client");
+          const db = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+          const one = async (sql) => Number(Object.values((await db.execute(sql)).rows[0])[0] ?? 0);
+          (async () => {
+            const freed = await one("SELECT COUNT(*) FROM \"GroupEvent\" WHERE \"kind\" = '\''members_added'\'' AND \"text\" LIKE '\''freed %'\''");
+            const groups = await one("SELECT COUNT(DISTINCT \"groupId\") FROM \"GroupEvent\" WHERE \"kind\" = '\''members_added'\'' AND \"text\" LIKE '\''freed %'\''");
+            const guests = await one("SELECT COUNT(*) FROM \"Member\" WHERE \"accountId\" IS NULL AND \"claimedAt\" IS NOT NULL");
+            console.log(`::notice title=Freed names::freed lines=${freed} in groups=${groups}; names held as guests now=${guests}`);
+          })().catch((e) => { console.log("::error title=Count failed::" + String(e.message).split("\n")[0]); process.exit(1); });'
