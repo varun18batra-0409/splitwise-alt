@@ -140,8 +140,9 @@ describe("M2: who looks after the group is the live rule; a guest admin is asked
     expect(readFileSync("src/lib/group-admin.ts", "utf8")).toContain("seenAt: true, accountId: true");
     expect(readFileSync("src/lib/pot-db.ts", "utf8")).toContain("addedBy: true, seenAt: true, accountId: true");
     expect(readFileSync("src/lib/group-data.ts", "utf8")).toContain("addedBy: true, seenAt: true, accountId: true");
-    // The group screens read members with every column except a few they omit (accountId is kept).
-    expect(readFileSync("src/lib/group-data.ts", "utf8")).toContain("omit: { notify: true, addedBy: true, seenAt: true, removedById: true, seenEventsAt: true }");
+    // The group screens read members with every column except a few they omit (accountId, addedBy and seenAt are kept, so the
+    // person who looks after the group is picked from the members already loaded).
+    expect(readFileSync("src/lib/group-data.ts", "utf8")).toContain("omit: { notify: true, removedById: true, seenEventsAt: true }");
   });
 });
 
