@@ -442,7 +442,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                   {you(m.memberId)} {m.kind === "take" ? (topUps.has(m.id) ? "topped\u00a0up" : "chips\u00a0in") : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"}{"\u00a0"}{m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
                   <span className="block text-xs text-gray-400">
                     {m.note && !CASHED.includes(m.note) && m.note !== COUNTED ? `${neutralGameText(m.note)} · ` : ""}
-                    {m.createdById === m.memberId ? "" : `added by ${m.createdById === myId && madeBeforeFreed(myFreedAt, m.createdAt) ? nameOf(m.createdById) : youLow(m.createdById)}`}
+                    {m.createdById === m.memberId ? "" : `added by ${m.createdById === myId && madeBeforeFreed(myFreedAt, m.createdAt) ? "an earlier holder of this name" : youLow(m.createdById)}`}
                   </span>
                 </span>
                 {open && !m.deletedAt && ((m.createdById === myId && !madeBeforeFreed(myFreedAt, m.createdAt)) || host) && (
@@ -469,7 +469,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           ) : (
             form(reopenGameAction, "Reopen game", "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist", "Reopen it? Its result comes out of the balances until you finish it again.")
           )}
-          <p className="text-xs text-gray-400">{iAmHost ? "You’re the host." : hostFreed ? "The game’s host has changed, so you (who look after this group) can run it." : hostLeft ? `${nameOf(game.hostId)} has left, so you can run this game.` : "The game has been quiet for a day, so you (who look after this group) can run it."}</p>
+          <p className="text-xs text-gray-400">{iAmHost ? "You’re the host." : hostFreed ? "The person who started this game no longer holds that name, so you (who look after this group) can run it." : hostLeft ? `${nameOf(game.hostId)} has left, so you can run this game.` : "The game has been quiet for a day, so you (who look after this group) can run it."}</p>
         </section>
       )}
       {showUndo && justDid && (

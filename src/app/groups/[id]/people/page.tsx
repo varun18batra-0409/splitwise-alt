@@ -28,6 +28,7 @@ import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { db } from "@/lib/db";
 import { inviteMemberId, sentByMe, waitingNote } from "@/lib/invites";
+import { madeBeforeFreed } from "@/lib/guest-words";
 import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
 import { DateField } from "@/components/DateField";
@@ -86,7 +87,7 @@ export default async function PeoplePage({
     const mayCancel = isAdmin || list.some((i) => sentByMe(i, myId, myFreedAt));
     // (The words, and whether an email may be shown at all, come from waitingNote: an invitation picked from someone's account never shows it.)
     const mayInvite = isAdmin || list.every((i) => sentByMe(i, myId, myFreedAt));
-    waiting.set(row, { mayCancel, mayInvite, note: waitingNote({ invites: list, by, mayCancel, mayInvite, earlierHolder: list.some((i) => i.invitedById === myId && !sentByMe(i, myId, myFreedAt)) }) });
+    waiting.set(row, { mayCancel, mayInvite, note: waitingNote({ invites: list, by, mayCancel, mayInvite, orphanedName: list.some((i) => madeBeforeFreed(group.members.find((m) => m.id === i.invitedById)?.freedAt, i.createdAt)) ? group.members.find((m) => m.id === row)?.name : undefined }) });
   }
   // Report / Block on someone who is on Loopin (needs your own account).
   const viewer = await getAccount();

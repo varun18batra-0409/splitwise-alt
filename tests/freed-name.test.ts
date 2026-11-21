@@ -36,7 +36,7 @@ const { settleAllAndClose, markAllPaid, planKey, setPaymentsDeleted, applySettle
 const { loadGroup } = await import("@/lib/group-data");
 const pot = await import("@/lib/pot-db");
 const { payLinkFor, readPayLink, recordLinkPayment } = await import("@/lib/pay-link");
-const { inviteToClaim, inviteByEmail, cancelInvitation, CANCEL_NOT_ALLOWED, EARLIER_HOLDER_INVITE_TEXT, waitingNote, sentByMe, inviteRowLabel } = await import("@/lib/invites");
+const { inviteToClaim, inviteByEmail, cancelInvitation, CANCEL_NOT_ALLOWED, earlierHolderInviteText, waitingNote, sentByMe, inviteRowLabel } = await import("@/lib/invites");
 process.env.MAIL_OUTBOX = "1"; // invitation emails go to the test outbox, never out
 const { actorRefusal, removeMembers, undoEvent } = await import("@/lib/undo");
 const { groupAdminId, isGroupAdmin, pickAdmin } = await import("@/lib/group-admin");
@@ -801,7 +801,7 @@ describe("email invitations belong to the holder who sent them", () => {
     expect(before.length).toBe(1);
     const events = await db.groupEvent.count({ where: { groupId: g.id } });
     expect(await cancelInvitation(g.id, B, P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
-    expect(await inviteToClaim(g.id, B, P, "cat@example.test", "https://loopin.test")).toEqual({ ok: false, error: EARLIER_HOLDER_INVITE_TEXT }); // not "Only Ben…": that is the viewer's own name
+    expect(await inviteToClaim(g.id, B, P, "cat@example.test", "https://loopin.test")).toEqual({ ok: false, error: earlierHolderInviteText("Priya") }); // no sender is named: "Only Ben…" would be the viewer's own name
     expect(await invites()).toEqual(before); // still open, still Priya's address
     expect(await db.groupEvent.count({ where: { groupId: g.id } })).toBe(events);
     // Asha looks after the group and keeps her right to cancel.
@@ -929,30 +929,42 @@ describe("re-sending an invitation of an earlier holder", () => {
   }
   const inv = (gid: string) => db.invite.findFirstOrThrow({ where: { groupId: gid, email: "priya@example.test" } });
 
-  it("Dee (not the admin) re-sends priya@ after Ben's name was freed: it is Dee's now; Cat cannot cancel or redirect it", async () => {
+  const ORPHAN_SENTENCE = "Priya is already invited. Only the person who looks after the group can change that.";
+  it("Dee (not the admin) re-sends priya@ after Ben's name was freed: owner and time stay the earlier Ben's; Dee and Cat cannot cancel or redirect it; Asha can", async () => {
     const f = await scene(true);
+    const before = await inv(f.g.id);
+    expect(before.invitedById).toBe(f.B);
     await pause();
     await inviteByEmail(f.g.id, f.D, "priya@example.test", ORIGIN);
-    expect((await inv(f.g.id)).invitedById).toBe(f.D);
-    expect(await cancelInvitation(f.g.id, f.B, f.P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
-    expect(await inviteToClaim(f.g.id, f.B, f.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: "Priya is already invited (by Dee). Only Dee or the person who looks after the group can change that." });
+    const after = await inv(f.g.id);
+    expect(after.invitedById).toBe(f.B); // still the Ben row's
+    expect(after.createdAt.getTime()).toBe(before.createdAt.getTime()); // and the time did not move
+    for (const who of [f.D, f.B]) {
+      expect(await cancelInvitation(f.g.id, who, f.P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
+      expect(await inviteToClaim(f.g.id, who, f.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: ORPHAN_SENTENCE });
+    }
     expect((await inv(f.g.id)).declinedAt).toBeNull();
+    expect((await inv(f.g.id)).email).toBe("priya@example.test");
+    expect(await cancelInvitation(f.g.id, f.A, f.P)).toEqual({ ok: true, cancelled: 1 }); // Asha looks after the group
   });
-  it("Asha re-sends it (inviteByEmail, and the inviteToClaim variant): invitedById is Asha; Cat still cannot cancel or redirect", async () => {
+  it("Asha (admin) re-sends it, by inviteByEmail and by inviteToClaim: it is hers, with a new time; Cat still cannot cancel or redirect", async () => {
     const f = await scene(true);
+    const before = await inv(f.g.id);
     await pause();
     await inviteByEmail(f.g.id, f.A, "priya@example.test", ORIGIN);
-    expect((await inv(f.g.id)).invitedById).toBe(f.A);
+    const mid = await inv(f.g.id);
+    expect(mid.invitedById).toBe(f.A);
+    expect(mid.createdAt.getTime()).toBeGreaterThan(before.createdAt.getTime());
     const g = await scene(true);
     await pause();
     expect(await inviteToClaim(g.g.id, g.A, g.P, "priya@example.test", ORIGIN)).toEqual({ ok: true, email: "priya@example.test" });
-    expect((await inv(g.g.id)).invitedById).toBe(g.A); // not left with the earlier Ben
+    expect((await inv(g.g.id)).invitedById).toBe(g.A);
     for (const x of [f, g]) {
       expect(await cancelInvitation(x.g.id, x.B, x.P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
       expect(await inviteToClaim(x.g.id, x.B, x.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: "Priya is already invited (by Asha). Only Asha or the person who looks after the group can change that." });
     }
   });
-  it("Cat (the new holder) re-sending the same address does not make it hers: the time is kept, so she still cannot cancel or redirect", async () => {
+  it("Cat (the new holder) re-sending the same address does not make it hers: owner and time are kept", async () => {
     const f = await scene(true);
     const before = await inv(f.g.id);
     await pause();
@@ -961,19 +973,30 @@ describe("re-sending an invitation of an earlier holder", () => {
     expect(after.invitedById).toBe(before.invitedById);
     expect(after.createdAt.getTime()).toBe(before.createdAt.getTime());
     expect(await cancelInvitation(f.g.id, f.B, f.P)).toEqual({ ok: false, error: CANCEL_NOT_ALLOWED });
-    expect(await inviteToClaim(f.g.id, f.B, f.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: EARLIER_HOLDER_INVITE_TEXT });
-    expect((await inv(f.g.id)).declinedAt).toBeNull();
+    expect(await inviteToClaim(f.g.id, f.B, f.P, "cat@example.test", ORIGIN)).toEqual({ ok: false, error: ORPHAN_SENTENCE });
+  });
+  it("a re-send that moves the address to a brand-new name row is a new invitation by the re-sender", async () => {
+    const f = await scene(true);
+    const before = await inv(f.g.id);
+    await db.member.update({ where: { id: f.P }, data: { leftAt: new Date() } }); // the old Priya row can no longer be the kept one
+    await pause();
+    await inviteByEmail(f.g.id, f.D, "priya@example.test", ORIGIN);
+    const after = await inv(f.g.id);
+    expect(after.memberId).not.toBe(f.P);
+    expect(after.invitedById).toBe(f.D);
+    expect(after.createdAt.getTime()).toBeGreaterThan(before.createdAt.getTime());
   });
   it("a sender who was never freed keeps it when someone else re-sends (unchanged)", async () => {
     const f = await scene(false);
     await inviteByEmail(f.g.id, f.D, "priya@example.test", ORIGIN);
     expect((await inv(f.g.id)).invitedById).toBe(f.B);
   });
-  it("the words for the new holder do not name their own name", () => {
+  it("the words: someone who cannot change an orphaned invitation reads the plain sentence; someone who can reads the usual note", () => {
     const list = [{ fromAccount: false, email: "priya@example.test" }];
-    expect(waitingNote({ invites: list, by: "Ben", mayCancel: false, mayInvite: false })).toBe("Invited by Ben. They can change it if the address is wrong."); // anyone else
-    expect(waitingNote({ invites: list, by: "Ben", mayCancel: false, mayInvite: false, earlierHolder: true })).toBe("Only the person who looks after the group can change that.");
-    expect(EARLIER_HOLDER_INVITE_TEXT).toBe("Only the person who looks after the group can change that.");
+    expect(waitingNote({ invites: list, by: "Ben", mayCancel: false, mayInvite: false })).toBe("Invited by Ben. They can change it if the address is wrong."); // not orphaned
+    expect(waitingNote({ invites: list, by: "Ben", mayCancel: false, mayInvite: false, orphanedName: "Priya" })).toBe(ORPHAN_SENTENCE);
+    expect(waitingNote({ invites: list, by: "Dee", mayCancel: true, mayInvite: false, orphanedName: "Priya" })).toMatch(/^Invited at priya@example.test\./); // one's own invitation reads normally
+    expect(earlierHolderInviteText("Priya")).toBe(ORPHAN_SENTENCE);
   });
   it("'Not now' when another path already released the name: the transaction's update matches no row and nothing else is touched", async () => {
     const f = await flat(MIN, false);
