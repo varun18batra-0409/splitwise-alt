@@ -63,7 +63,7 @@ export default async function SignInDevicesPage({ searchParams }: { searchParams
             </GuestMoveButton>
             <form action={signOutThisPhone}>
               <PushEndpointField />
-              <ConfirmButton message={`Sign out anyway? ${lost} ${onlyHere.length === 1 ? "is" : "are"} only on this device and will be lost from it.`} className={secondaryButtonClass}>
+              <ConfirmButton wipesOffline message={`Sign out anyway? ${lost} ${onlyHere.length === 1 ? "is" : "are"} only on this device and will be lost from it.`} className={secondaryButtonClass}>
                 Sign out anyway
               </ConfirmButton>
             </form>
@@ -73,7 +73,7 @@ export default async function SignInDevicesPage({ searchParams }: { searchParams
             <p className="mb-4 text-sm text-gray-500">This device forgets your groups. They stay safe in your email — sign in again to get them back.</p>
             <form action={signOutThisPhone}>
               <PushEndpointField />
-              <ConfirmButton message="Sign out of this device?" className={secondaryButtonClass}>
+              <ConfirmButton wipesOffline message="Sign out of this device?" className={secondaryButtonClass}>
                 Sign out
               </ConfirmButton>
             </form>

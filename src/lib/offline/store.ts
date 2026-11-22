@@ -48,6 +48,11 @@ export async function dropSnapshot(kv: KV, groupId: string, memberId: string): P
   await kv.del("snapshots", snapKey({ groupId, memberId }));
 }
 
+// The switch is off: no copies are kept (waiting expenses stay, they are the person's own typing).
+export async function dropAllSnapshots(kv: KV): Promise<void> {
+  for (const s of await kv.all<Snapshot>("snapshots")) await kv.del("snapshots", snapKey(s));
+}
+
 const fresh = (s: Snapshot, now: number) => now - Date.parse(s.savedAt) <= COPY_DAYS * DAY;
 
 // The copy of a group, only for the person it belongs to, and only while it is no more than 30 days old.

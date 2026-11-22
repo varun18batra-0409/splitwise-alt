@@ -1,0 +1,2 @@
+// The outline pill button, the same classes as OUTLINE in components/HomeMoney.tsx (copied so the offline screen does not load all of Home's money cards).
+export const OUTLINE = "flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-fg/25 px-3.5 text-[15px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";

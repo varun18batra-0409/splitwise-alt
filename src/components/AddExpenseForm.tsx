@@ -28,6 +28,11 @@ import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
 import { resultSentence } from "@/lib/add-expense-sentence";
 import { pairLine } from "@/lib/direct";
+import { newDraftKey } from "@/lib/offline/client";
+import { askToKeep, openStore } from "@/lib/offline/idb";
+import { addDraft } from "@/lib/offline/store";
+import type { DraftInput } from "@/lib/offline/types";
+import { W } from "@/lib/offline/words";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -61,6 +66,9 @@ export function AddExpenseForm({
   existingReceiptId,
   initialItems,
   pair,
+  offline,
+  fixed,
+  keepOffline = false,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -77,6 +85,13 @@ export function AddExpenseForm({
   ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
   existingReceiptId?: string; // editing: the bill photo already kept with this expense
   initialItems?: { name: string; amount: string; people: string[] }[]; // editing an expense split by item
+  // Add expenses offline (version 1). `offline`: this is the offline screen: nothing is sent, "Save on this phone" keeps what was typed.
+  // Scan a bill, Speak, Type a line, bill photo, Items and Save & add another are left out. `fixed`: an expense kept on this phone that the
+  // server refused, opened to fix: it keeps its own one-time key (a refusal never used it) and its typed rate. `keepOffline`: online, a save
+  // that could not be confirmed (no signal) offers "Save on this phone".
+  offline?: { groupName: string; snapshotAt: string; onSaved: () => void };
+  fixed?: { key: string; manualRate?: string };
+  keepOffline?: boolean;
   pair?: { otherId: string; otherName: string }; // an expense with one person, no group: "For" reads Both of you / Just them / Just you, and a line says who owes whom
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
@@ -112,8 +127,8 @@ export function AddExpenseForm({
 
   // Conversion (only when currency ≠ group currency)
   const [rateState, setRateState] = useState<RateState>({ status: "none" });
-  const [rateMode, setRateMode] = useState<"auto" | "manual">("auto");
-  const [manualRate, setManualRate] = useState("");
+  const [rateMode, setRateMode] = useState<"auto" | "manual">(fixed?.manualRate ? "manual" : "auto");
+  const [manualRate, setManualRate] = useState(fixed?.manualRate ?? "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "card");
   const [markup, markupDo] = useReducer(markupBox, markupBoxStart(initial?.markupChoice ?? "group", initial?.markupCustom ?? ""));
   const markupChoice: ExpenseDraft["markupChoice"] = markup.choice;
@@ -175,7 +190,8 @@ export function AddExpenseForm({
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
   // One key per opened form: if the save is sent twice, it's saved once.
-  const requestKey = useRequestKey();
+  const generatedKey = useRequestKey();
+  const requestKey = fixed?.key ?? generatedKey;
 
   // Remember how the last expense in this group was split (who it was for,
   // how, and how it was paid) and start the next one the same way.
@@ -252,6 +268,11 @@ export function AddExpenseForm({
       setRateState({ status: "none" });
       return;
     }
+    // Offline there is no rate to fetch: the one for the expense's own day is added when it is added online (or typed here by hand).
+    if (offline) {
+      setRateState({ status: "missing", message: W.foreignNote(niceDate(date)) });
+      return;
+    }
     if (keepSavedRate && initial && currency === initial.currency) {
       setRateState({ status: "ok", rate: initial.rate, date: initial.rateDate, stale: false });
       return;
@@ -278,7 +299,7 @@ export function AddExpenseForm({
     return () => {
       cancelled = true;
     };
-  }, [currency, baseCurrency, foreign, keepSavedRate, initial]);
+  }, [currency, baseCurrency, foreign, keepSavedRate, initial, offline, date]);
 
   // remember = also the group's starting currency next time (a pick by hand, not a scanned bill).
   function chooseCurrency(code: string, remember = true) {
@@ -437,6 +458,51 @@ export function AddExpenseForm({
     const own = text.split("\n").filter((l) => !l.startsWith("By item: ")).join("\n").trim();
     return [own, `By item: ${list}.${extra}`].filter(Boolean).join("\n").slice(0, 500);
   }
+  // Add expenses offline: keep exactly what was typed on this phone (nothing is worked out here; the server does it when it is added).
+  const [offerPhone, setOfferPhone] = useState(false);
+  async function keepOnPhone(key: string, then: () => void) {
+    const input: DraftInput = {
+      key,
+      groupId,
+      memberId: myId,
+      day: date,
+      typedAt: Date.now(),
+      name: name.trim(),
+      amount,
+      currency,
+      category: category.id,
+      paidById,
+      multiPay,
+      payers,
+      forMode: draft.forMode,
+      selected,
+      onePersonId,
+      splitType: draft.splitType,
+      exact: draft.exact,
+      percent,
+      shares,
+      kind,
+      paymentMethod,
+      markupChoice,
+      markupCustom,
+      notes: notes.trim(),
+      rateMode: foreign && usingManualRate && manualRate.trim() ? "manual" : "auto",
+      manualRate: foreign && usingManualRate ? manualRate.trim() : "",
+      seen: { baseCurrency, cardMarkupBp: groupMarkupBp, activeMemberIds: memberIds, snapshotAt: offline?.snapshotAt ?? new Date().toISOString() },
+    };
+    try {
+      const res = await addDraft(openStore(), input);
+      if (!res.ok) {
+        setError(res.reason === "full" ? W.tooMany : W.noPrivate);
+        return;
+      }
+      askToKeep();
+      then();
+    } catch {
+      setError(W.noPrivate);
+    }
+  }
+
   function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -451,17 +517,26 @@ export function AddExpenseForm({
       setShowPeople(true);
       return;
     }
-    if (!preview.ok) {
-      setError(preview.error);
-      if (/person|amounts|percent|shares/i.test(preview.error)) {
+    // Offline, with another currency and no rate typed, the sums can't be shown; the split is still checked (against a rate of 1, for the
+    // checks only: nothing from it is kept).
+    const checked = offline && foreign && !(usingManualRate && manualRate.trim()) ? buildExpense(draft, { ...ctx, rate: "1" }) : preview;
+    if (!checked.ok) {
+      setError(checked.error);
+      if (/person|amounts|percent|shares/i.test(checked.error)) {
         setShowPeople(true);
       }
       // A bad card fee opens the currency details, where the fee is.
-      if (/card markup/i.test(preview.error)) setShowFx(true);
-      if (errorNeedsMore(preview.error, multiPay)) setShowMore(true);
+      if (/card markup/i.test(checked.error)) setShowFx(true);
+      if (errorNeedsMore(checked.error, multiPay)) setShowMore(true);
       return;
     }
     if (!expenseId) rememberSplit();
+    if (offline) {
+      startSaving(async () => {
+        await keepOnPhone(newDraftKey(), offline.onSaved);
+      });
+      return;
+    }
     startSaving(async () => {
       try {
         const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), receiptId: receiptId || undefined, items: byItem && itemSplit?.ok ? items.filter((x) => x.name.trim() || x.amount.trim()).map((x) => ({ name: x.name.trim() || "Item", amount: parseAmount(x.amount, currency) ?? 0, people: x.people })) : [], baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
@@ -472,6 +547,7 @@ export function AddExpenseForm({
         if (String((err as { digest?: string })?.digest ?? "").startsWith("NEXT_")) throw err;
         // No signal, or the server hiccuped. Saving again is safe (this form's key means it's only ever added once).
         setError("We couldn’t confirm this saved. What you typed is still here: tap Save again when you’re back online. It won’t be added twice.");
+        if (keepOffline && !expenseId && !billRun) setOfferPhone(true);
       }
     });
   }
@@ -779,7 +855,7 @@ export function AddExpenseForm({
       )}
 
       {/* Faster entry: scan a bill, say it, or type it in one line. Each fills the form below; nothing saves until Save. */}
-      {(!billRun || quickOk) && (
+      {!offline && (!billRun || quickOk) && (
         <div data-faster-entry>
           {entryColumns > 0 && <span className={labelClass}>Faster entry</span>}
           {entryColumns > 0 && (
@@ -1001,9 +1077,11 @@ export function AddExpenseForm({
           <Chip on={choice === "shares" && !(groupSplitOn && !showPeople)} onClick={() => chooseHow("shares")}>
             Shares
           </Chip>
-          <Chip on={choice === "items"} onClick={() => chooseHow("items")}>
-            Items
-          </Chip>
+          {!offline && (
+            <Chip on={choice === "items"} onClick={() => chooseHow("items")}>
+              Items
+            </Chip>
+          )}
         </div>
         {usingLast && (
           <p className="mt-2 text-sm text-gray-500">
@@ -1356,6 +1434,14 @@ export function AddExpenseForm({
       </div>
 
       {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {offerPhone && !offline && (
+        <div className="rounded-[20px] border border-line px-4 py-3 text-sm" data-save-on-phone>
+          <p className="text-fg/80">No signal? Keep it on this phone and Loopin will ask before adding it when you’re back online.</p>
+          <button type="button" onClick={() => void keepOnPhone(requestKey.startsWith("off-") ? requestKey : `off-${requestKey}`, () => window.location.assign(`/groups/${groupId}`))} className="mt-2 flex min-h-11 items-center font-semibold text-fg underline underline-offset-4">
+            {W.saveOnPhone}
+          </button>
+        </div>
+      )}
       {dup && (
         <div role="status" className="rounded-[20px] border border-line bg-white px-4 py-3 text-sm">
           <p>
@@ -1380,6 +1466,8 @@ export function AddExpenseForm({
         </div>
       )}
 
+      {offline && <p className="-mt-2 text-center text-[13px] leading-snug text-fg/60" data-offline-people-note>{W.peopleNote(offline.groupName)}</p>}
+
       {/* Always in reach: the save buttons ride along at the bottom while you scroll the form. */}
       <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2 mt-6">
       <div className="rounded-[28px] bg-[#0d0d0f] px-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)]">
@@ -1394,10 +1482,11 @@ export function AddExpenseForm({
           disabled={saving || scanBusy || rateState.status === "loading"}
           className={primaryButtonClass}
         >
-          {saving && !again ? "Saving…" : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
+          {saving && !again ? "Saving…" : offline ? W.saveOnPhone : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
         </button>
       </div>
-      {!expenseId && (
+      {offline && <p className="px-3 pb-1 pt-2 text-center text-[13px] text-fg/60" data-offline-save-note>{W.saveNote}</p>}
+      {!expenseId && !offline && (
         <button
           type="submit"
           onClick={() => {

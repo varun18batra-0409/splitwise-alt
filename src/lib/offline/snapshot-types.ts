@@ -6,7 +6,7 @@ export type ActivityRowCopy = {
   title: string;
   category: string;
   line: string; // "Kabir paid ₹1,180"
-  when: string; // "Today"
+  day: string; // the day it was spent, "2026-11-17" (the phone words it: Today, Yesterday, 17 Nov)
   effectLabel: string; // "you owe"
   effectAmount: string; // "₹200", or "" when not yours
   tone: "owe" | "owed" | "none";

@@ -9,6 +9,8 @@ import { DoubleTapGuard } from "@/components/DoubleTapGuard";
 import { InstallCapture } from "@/components/GetApp";
 import { Haptics } from "@/components/Haptics";
 import { AppRefresh } from "@/components/AppRefresh";
+import { OfflineSync } from "@/components/offline/OfflineSync";
+import { offlineOn } from "@/lib/offline/words";
 import { NavProgress } from "@/components/NavProgress";
 import { Splash } from "@/components/Splash";
 import { MotionWatch } from "@/components/MotionWatch";
@@ -71,7 +73,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <PushSync />
         <TimeZoneSync />
         <DoubleTapGuard />
-        <InstallCapture />
+        <InstallCapture offline={offlineOn()} build={process.env.VERCEL_GIT_COMMIT_SHA ?? ""} />
+        <OfflineSync on={offlineOn()} />
         <AppRefresh />
         <Haptics />
         <NavProgress />

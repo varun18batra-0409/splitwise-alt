@@ -17,13 +17,15 @@ import { formatMoney, toInputAmount } from "@/lib/money";
 import { billExpenseInput, prepaidFor } from "@/lib/home/bills-db";
 import { dailyTotal, payerFor } from "@/lib/home/bills";
 import type { ExpenseInitial } from "@/lib/expense-initial";
+import { OfflineFix } from "@/components/offline/OfflineFix";
+import { offlineOn } from "@/lib/offline/words";
 
 export default async function AddExpensePage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ again?: string; from?: string; bill?: string; period?: string }>;
+  searchParams: Promise<{ again?: string; from?: string; bill?: string; period?: string; fix?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -116,22 +118,32 @@ export default async function AddExpensePage({
           {waitingRun.bill.name} for {new Date(`${sp.period}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" })}: {waitingRun.bill.nature === "varies" ? "enter the amount from the bill." : "check it and add it."}
         </p>
       )}
-      <AddExpenseForm
-        key={sourceId ?? (waitingRun ? `bill-${waitingRun.id}` : "new")}
-        initial={initial}
-        billRun={waitingRun ? { billId: waitingRun.billId, period: waitingRun.period } : undefined}
-        groupId={group.id}
-        baseCurrency={group.currency}
-        groupMarkupBp={group.cardMarkupBp}
-        members={group.members.filter((m) => !m.leftAt).map(({ id, name }) => ({ id, name }))}
-        myId={myId}
-        tz={tz}
-        weights={Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight]))}
-        splitName={splitNameFor(group.type)}
-        spin={!pair && group.type !== "pot"}
-        pair={pair}
-        ai={aiReady()}
-      />
+      {(() => {
+        const formProps = {
+          groupId: group.id,
+          baseCurrency: group.currency,
+          groupMarkupBp: group.cardMarkupBp,
+          members: group.members.filter((m) => !m.leftAt).map(({ id, name }) => ({ id, name })),
+          myId,
+          tz,
+          weights: Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight])),
+          splitName: splitNameFor(group.type),
+          spin: !pair && group.type !== "pot",
+          pair,
+          ai: aiReady(),
+        };
+        // "Open and fix" for an expense kept on this phone (only with the switch on, and never for a pair).
+        if (sp.fix && offlineOn() && !pair) return <OfflineFix draftKey={sp.fix.slice(0, 64)} formProps={formProps} back={`/groups/${group.id}`} />;
+        return (
+          <AddExpenseForm
+            key={sourceId ?? (waitingRun ? `bill-${waitingRun.id}` : "new")}
+            initial={initial}
+            billRun={waitingRun ? { billId: waitingRun.billId, period: waitingRun.period } : undefined}
+            {...formProps}
+            keepOffline={offlineOn() && !pair && !waitingRun}
+          />
+        );
+      })()}
     </SheetPage>
   );
 }

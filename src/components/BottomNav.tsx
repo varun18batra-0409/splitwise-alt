@@ -8,7 +8,7 @@ import { GroupIcon, HomeIcon, PersonIcon, PlusIcon, SettleIcon } from "./icons";
 // Inside a group, ＋ and Settle work on that group.
 // Recap lives on Home's month card, on each group, and on the You page; the unread count lives on the bell (BellButton).
 // Hidden on forms (adding, editing, paying, joining, group settings, a new bill, moving out), where a Save bar sits at the bottom instead, so it never gets in the way.
-const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/groups\/[^/]+\/settings$/, /^\/groups\/[^/]+\/bills\/new$/, /^\/groups\/[^/]+\/people\/[^/]+\/move$/, /^\/groups\/[^/]+\/pot\/new$/, /^\/groups\/[^/]+\/budgets$/, /^\/groups\/[^/]+\/goals\/new$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/p\//, /^\/postcards\/new/, /^\/groups\/[^/]+\/wrapped$/, /^\/groups\/[^/]+\/moments(\/|$)/, /^\/add\/person$/];
+const HIDE = [/^\/offline-app/, /^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/groups\/[^/]+\/settings$/, /^\/groups\/[^/]+\/bills\/new$/, /^\/groups\/[^/]+\/people\/[^/]+\/move$/, /^\/groups\/[^/]+\/pot\/new$/, /^\/groups\/[^/]+\/budgets$/, /^\/groups\/[^/]+\/goals\/new$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/p\//, /^\/postcards\/new/, /^\/groups\/[^/]+\/wrapped$/, /^\/groups\/[^/]+\/moments(\/|$)/, /^\/add\/person$/];
 
 export function BottomNav() {
   const path = usePathname();

@@ -7,6 +7,8 @@ import { recentRows } from "@/lib/group-overview";
 import { itemHref } from "@/lib/paths";
 import { dayLabel } from "@/lib/activity";
 import { MoneyTicket } from "./GroupSummary";
+import { OfflineWaiting } from "@/components/offline/OfflineWaiting";
+import { offlineOn } from "@/lib/offline/words";
 import { MomentsStrip } from "./MomentsStrip";
 import type { GroupView } from "./view";
 
@@ -29,6 +31,7 @@ export function OverviewTab({ v, facts, strip }: { v: GroupView; facts: GroupFac
           Add expense
         </Link>
       )}
+      {offlineOn() && canAdd && <OfflineWaiting groupId={group.id} myId={myId} names={Object.fromEntries(group.members.map((m) => [m.id, m.name]))} />}
       {strip && <MomentsStrip groupId={group.id} count={strip.count} latest={strip.latest} canAdd={strip.canAdd} />}
 
       {rows.length > 0 && (

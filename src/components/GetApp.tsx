@@ -17,9 +17,17 @@ declare global {
 
 // Mounted once (in the layout): registers the service worker (needed for
 // installing and for notifications) and keeps the browser's install offer.
-export function InstallCapture() {
+// `offline` is the OFFLINE_ADD switch: on, the service worker keeps the generic offline screen (refreshed every 6 hours and after each
+// release: `build` changes); off, it forgets it, so no phone is sent there.
+export function InstallCapture({ offline = false, build = "" }: { offline?: boolean; build?: string }) {
   useEffect(() => {
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then(() => navigator.serviceWorker.ready)
+        .then((reg) => reg.active?.postMessage({ offline, build }))
+        .catch(() => {});
+    }
     const onPrompt = (e: Event) => {
       e.preventDefault();
       window.__loopinInstall = e as InstallPrompt;
@@ -35,7 +43,7 @@ export function InstallCapture() {
       window.removeEventListener("beforeinstallprompt", onPrompt);
       window.removeEventListener("appinstalled", onInstalled);
     };
-  }, []);
+  }, [offline, build]);
   return null;
 }
 

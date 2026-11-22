@@ -49,6 +49,10 @@ import { loadGroupPostcards, tripStampCard } from "@/lib/group-memories";
 import { sinceLastPayment } from "@/lib/home/money-card";
 import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
+import { OfflineKeeper } from "@/components/offline/OfflineKeeper";
+import { buildSnapshot } from "@/lib/offline/snapshot";
+import { offlineOn } from "@/lib/offline/words";
+import { splitNameFor } from "@/lib/group-types";
 
 // A group: header, then its tabs. Trips and other groups: Overview / Expenses / People / Memories (Trip recap sits behind the Overview).
 // Flats and couples: This month (their Overview) / Expenses / People. Card nights: Games / Balances / Activity. The addresses are the old ones
@@ -230,12 +234,17 @@ export default async function GroupPage({
   // What has built up since the group's last payment: the pass's Since and Items fields (worked out from the rows already loaded).
   const facts = tab === "overview" || pot ? sinceLastPayment(group.expenses, group.payments, (d) => dayKey(d, v.tz)) : { since: null, items: 0 };
 
+  // Add expenses offline (switch OFFLINE_ADD): keep a small copy of this group on the phone, worked out here. (Not for someone who left,
+  // a closed group or a pair: buildSnapshot says no, and the old copy is removed.)
+  const offlineCopy = offlineOn() && fv ? buildSnapshot(fv, { splitName: splitNameFor(group.type) }) : null;
+
   // Bills, Shopping list and Charts: their own title bar, no group picture, no tab bar, no "‹ Overview" link.
   const subTitle = subPageTitle(tab);
 
   return (
     <>
       {subTitle ? <SubPageHeader title={subTitle} groupId={group.id} groupName={group.name} /> : <GroupHeader v={v} switchTo={switchTo} />}
+      {offlineOn() && fv && <OfflineKeeper groupId={group.id} memberId={myId} snapshot={offlineCopy} />}
       <LeftBanner v={v} ownMoveOut={ownMove} />
       {/* A refusal that needs an account opens the sign-in sheet; its sentence is the sheet, so the plain banner is not repeated. */}
       <GroupNotices sp={sp} notes={notes} />

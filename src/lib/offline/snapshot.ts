@@ -1,8 +1,8 @@
-import { dayLabel, type ActivityItem } from "../activity";
+import type { ActivityItem } from "../activity";
 import { balanceParts, summaryLine } from "../group-summary-text";
 import { recentRows } from "../group-overview";
 import { headerTripLine, tripPhase } from "../countdown";
-import { todayKey } from "../dates";
+import { dayKey, isDayMarker, todayKey } from "../dates";
 import { formatMoney } from "../money";
 import { paymentEffectLabel, paymentSubline, paymentTitle } from "../payment-words";
 import type { ActivityRowCopy, Snapshot } from "./snapshot-types";
@@ -38,8 +38,8 @@ export type SnapshotView = {
 };
 
 // One row, as plain words (the same words the group's Recent expenses show).
-export function rowCopy(item: ActivityItem, v: Pick<SnapshotView, "nameOf" | "money" | "tz">, now: Date): ActivityRowCopy | null {
-  const when = dayLabel(item.date, now, v.tz);
+export function rowCopy(item: ActivityItem, v: Pick<SnapshotView, "nameOf" | "money" | "tz">): ActivityRowCopy | null {
+  const day = dayKey(item.date, isDayMarker(item.date) ? "UTC" : v.tz); // a chosen day is stored as noon UTC: it keeps its own date
   if (item.kind === "payment") {
     const deleted = item.deletedById !== null;
     return {
@@ -47,7 +47,7 @@ export function rowCopy(item: ActivityItem, v: Pick<SnapshotView, "nameOf" | "mo
       title: paymentTitle(v.nameOf(item.fromId), v.nameOf(item.toId), item.status, deleted),
       category: "payment",
       line: paymentSubline(item.status, v.nameOf(item.toId), deleted, deleted ? "Deleted" : ""),
-      when,
+      day,
       effectLabel: paymentEffectLabel(item.status, item.effect, deleted),
       effectAmount: deleted || item.effect === 0 ? "" : v.money(Math.abs(item.effect)),
       tone: deleted || item.effect === 0 ? "none" : item.effect > 0 ? "owed" : "owe",
@@ -57,7 +57,7 @@ export function rowCopy(item: ActivityItem, v: Pick<SnapshotView, "nameOf" | "mo
   const shown = item.original ? formatMoney(item.original.amount, item.original.currency) : v.money(item.amount);
   const payers = (item.payerIds ?? [item.paidById]).map(v.nameOf).join(" + ");
   const deleted = item.deletedById !== null;
-  const base = { id: item.id, title: item.title, category: item.category, when };
+  const base = { id: item.id, title: item.title, category: item.category, day };
   if (deleted) return { ...base, line: `Deleted · ${shown}`, effectLabel: "deleted", effectAmount: "", tone: "none" };
   const line = `${payers} ${item.refund ? "got back" : "paid"} ${shown}`;
   if (item.effect > 0) return { ...base, line, effectLabel: item.refund ? "you get back" : "you lent", effectAmount: v.money(item.effect), tone: "owed" };
@@ -77,7 +77,7 @@ export function buildSnapshot(v: SnapshotView, o: { splitName: string; now?: Dat
   const active = g.members.filter((m) => !m.leftAt);
   const phase = g.type === "trip" ? tripPhase(g.tripStart, g.tripEnd, todayKey(now, v.tz)) : null;
   const rows = recentRows(g.expenses, g.payments, v.myId, 3, v.moveOutIds)
-    .map((r) => rowCopy(r, v, now))
+    .map((r) => rowCopy(r, v))
     .filter((r): r is ActivityRowCopy => r !== null);
   return {
     memberId: v.myId,
