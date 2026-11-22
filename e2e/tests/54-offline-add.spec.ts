@@ -163,7 +163,8 @@ test("with the signal refused (faked), expenses are kept on the phone, then adde
   await expect(sheet.getByText(`You added 2 expenses while offline. Add them to ${name}?`)).toBeVisible();
   await expect(sheet.locator("[data-sheet-row]")).toHaveCount(2);
   const dup = sheet.locator("[data-sheet-duplicate]");
-  await expect(dup, `server answers: ${JSON.stringify(answers)}`).toHaveCount(1);
+  const rowsNow = (await db.expense.findMany({ where: { groupId } })).map((e) => `${e.description}/${e.amount}/${e.kind}/${e.spentAt?.toISOString()}/${e.category}/${e.deletedAt ? "deleted" : "live"}`);
+  await expect(dup, `server answers: ${JSON.stringify(answers)}; expenses: ${JSON.stringify(rowsNow)}; now ${new Date().toISOString()}`).toHaveCount(1);
   await expect(dup).toContainText("Asha added Breakfast");
   await expect(dup).toContainText("at 8:40 am. Is it the same one?");
   await sheet.locator("[data-sheet-keep]").click();
