@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { keepPeeking, revealSelected } from "@/lib/reveal-selected";
+import { revealIfNewPick } from "@/lib/reveal-selected";
 
 // A row that scrolls sideways (chips, small cards). Words fit, no new look: while there is more to the right a soft fade at the
-// edge says so (gone at the end), the picked item is scrolled fully into view, and the item cut by the edge is never a sliver:
-// when the finger lifts it is whole or clearly peeking (at least 40%).
+// edge says so (gone at the end), and a newly picked item is scrolled fully into view. Otherwise the row moves only when the finger
+// moves it (founder, 22 Nov): no nudging after a swipe, and no jumping back to the picked item while swiping.
 const FADE = 28;
 const MASK = `linear-gradient(to right,#000 calc(100% - ${FADE}px),transparent)`;
 
@@ -20,14 +20,13 @@ export function SideRow({ children, className = "", ...rest }: { children: React
     el.addEventListener("scroll", measure, { passive: true });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     ro?.observe(el);
-    const stop = keepPeeking(el, more ? FADE / 2 : 0);
     return () => {
       el.removeEventListener("scroll", measure);
       ro?.disconnect();
-      stop();
     };
-  }, [more]);
-  useEffect(() => revealSelected(ref.current));
+  }, []);
+  const shown = useRef<Element | null>(null);
+  useEffect(() => revealIfNewPick(ref.current, shown));
   return (
     <div ref={ref} className={`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`} style={more ? { WebkitMaskImage: MASK, maskImage: MASK } : undefined} {...rest}>
       {children}

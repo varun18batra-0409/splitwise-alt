@@ -11,6 +11,17 @@ export function revealSelected(row: HTMLElement | null, gap = 12): void {
   else if (c.right > r.right - fade - gap) row.scrollLeft += c.right - r.right + fade + gap;
 }
 
+// Like revealSelected, but only when the picked item is a different one from last time (or the row has just opened). A row must never
+// jump back to the picked item while someone is swiping through it (founder, 22 Nov: rows "start from the beginning" when swiped
+// to the end, because every redraw scrolled the picked item back into view). `last` remembers the item already shown.
+export function revealIfNewPick(row: HTMLElement | null, last: { current: Element | null }, gap = 12): void {
+  if (!row) return;
+  const on = row.querySelector('[aria-pressed="true"],[aria-selected="true"],[aria-current="page"],[aria-current="true"]');
+  if (!on || on === last.current) return;
+  last.current = on;
+  revealSelected(row, gap);
+}
+
 // How far a sideways row should move so its last visible item is never sliced to a bare letter: the item cut by the right edge
 // must be fully shown or clearly peeking (at least `min` of it). Pure numbers in, one number out (px to add to scrollLeft).
 // `items` are the items' [left, right] edges and `edge` is the row's right edge, in the same coordinates.

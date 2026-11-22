@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { keepPeeking, revealSelected } from "@/lib/reveal-selected";
+import { revealIfNewPick } from "@/lib/reveal-selected";
 
 // A row of chips that scrolls sideways. Names are never cut with "…": a long one is a long chip, and the row scrolls.
 // The row runs to the screen's edges (so the next chip is seen coming in), and while there is more to the right a soft fade
@@ -17,15 +17,14 @@ export function ChipRow({ label, children, dataKey }: { label: string; children:
     n.addEventListener("scroll", check, { passive: true });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(check) : null;
     ro?.observe(n);
-    const stop = keepPeeking(n, 20); // the last visible chip is whole or clearly peeking, never a sliver
     return () => {
-      stop();
       n.removeEventListener("scroll", check);
       ro?.disconnect();
     };
   }, []);
-  // The picked chip is always in full view when the row opens or changes.
-  useEffect(() => revealSelected(el.current));
+  // A newly picked chip is brought into full view (when the row opens, or the pick changes); otherwise only the finger moves the row.
+  const shown = useRef<Element | null>(null);
+  useEffect(() => revealIfNewPick(el.current, shown));
   return (
     <div className="relative -mx-5 mb-5">
       <nav ref={el} aria-label={label} className="flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" {...(dataKey ? ({ [dataKey]: "" } as Record<string, string>) : {})}>

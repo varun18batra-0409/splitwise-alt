@@ -15,3 +15,27 @@ describe("Home's row of cards moves only when you swipe", () => {
     expect(src).toContain("aria-label={`Show ${i + 1} of ${n}`}");
   });
 });
+
+// Founder, 22 Nov: in the postcard editor (and every sideways row), swiping to the end made the row jump back to the start.
+describe("sideways rows move only when you move them", () => {
+  it("a row brings a newly picked item into view once, and never pulls back to it while you swipe", async () => {
+    const { revealIfNewPick } = await import("@/lib/reveal-selected");
+    const picked = { getBoundingClientRect: () => ({ left: -400, right: -340 }) };
+    const row = { scrollLeft: 0, querySelector: () => picked, getBoundingClientRect: () => ({ left: 0, right: 300 }) };
+    const shown = { current: null as Element | null };
+    // First time (the row opens): the picked item is 400 px off to the left, so the row moves 412 px back (400 + 12 room).
+    revealIfNewPick(row as unknown as HTMLElement, shown);
+    expect(row.scrollLeft).toBe(-412);
+    // The person swipes far away; the row redraws with the same pick: it must stay where the finger left it.
+    row.scrollLeft = 900;
+    revealIfNewPick(row as unknown as HTMLElement, shown);
+    expect(row.scrollLeft).toBe(900);
+  });
+  it("no row nudges itself after a swipe any more", () => {
+    for (const f of ["src/components/SideRow.tsx", "src/components/ChipRow.tsx", "src/app/postcards/new/editor/ToolRow.tsx"]) {
+      const s = readFileSync(f, "utf8");
+      expect(s, f).not.toContain("keepPeeking(");
+      expect(s, f).not.toMatch(/useEffect\(\(\) => revealSelected\([^)]*\)\);/); // no reveal after every redraw
+    }
+  });
+});
