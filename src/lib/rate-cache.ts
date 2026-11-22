@@ -82,6 +82,9 @@ export async function getRateOn(from: string, to: string, day: string, todayKey 
     // Saved under the day it applies to (the asked-for day, or the working day before it). `fetchedAt` is that day too, NOT now: the
     // 6-hour "still fresh" test and "newest saved rate" in getRate / displayRate must never mistake an old day's rate for today's.
     await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: live.date, fetchedAt: new Date(`${live.date}T00:00:00Z`) } }).catch(() => null);
+    // A weekend or holiday has no fixing of its own: the answer is the working day before. Also kept under the day that was ASKED about,
+    // so asking again does not call the service again. (Never a range lookup: a row for Wednesday is not the rate on Friday.)
+    if (live.date !== day) await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: day, fetchedAt: new Date(`${day}T00:00:00Z`) } }).catch(() => null);
   }
   return live;
 }

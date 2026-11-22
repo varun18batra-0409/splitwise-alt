@@ -32,6 +32,7 @@ export async function readMe(kv: KV): Promise<Record<string, string>> {
 // The server's answer to "who am I in each group?". Copies that no longer match are dropped; drafts stay, hidden.
 export async function applyMe(kv: KV, groups: Record<string, string>, now = Date.now()): Promise<void> {
   await kv.put("meta", ME, { groups, at: now } satisfies Me);
+  await dropStale(kv, now);
   for (const s of await kv.all<Snapshot>("snapshots")) {
     if (groups[s.groupId] !== s.memberId) await kv.del("snapshots", snapKey(s));
   }
@@ -55,8 +56,14 @@ export async function dropAllSnapshots(kv: KV): Promise<void> {
 
 const fresh = (s: Snapshot, now: number) => now - Date.parse(s.savedAt) <= COPY_DAYS * DAY;
 
+// A copy not opened online for more than 30 days is DELETED (not just hidden), as the privacy page says.
+export async function dropStale(kv: KV, now = Date.now()): Promise<void> {
+  for (const s of await kv.all<Snapshot>("snapshots")) if (!fresh(s, now)) await kv.del("snapshots", snapKey(s));
+}
+
 // The copy of a group, only for the person it belongs to, and only while it is no more than 30 days old.
 export async function snapshotFor(kv: KV, groupId: string, now = Date.now()): Promise<Snapshot | undefined> {
+  await dropStale(kv, now);
   const memberId = (await readMe(kv))[groupId];
   if (!memberId) return undefined;
   const s = await kv.get<Snapshot>("snapshots", snapKey({ groupId, memberId }));
@@ -64,6 +71,7 @@ export async function snapshotFor(kv: KV, groupId: string, now = Date.now()): Pr
 }
 
 export async function visibleSnapshots(kv: KV, now = Date.now()): Promise<Snapshot[]> {
+  await dropStale(kv, now);
   const me = await readMe(kv);
   return (await kv.all<Snapshot>("snapshots"))
     .filter((s) => me[s.groupId] === s.memberId && fresh(s, now))

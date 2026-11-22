@@ -56,7 +56,7 @@ export default function Privacy() {
         <li>A small cookie on your device that remembers which person you are in each group.</li>
         {offlineOn() && (
           <li data-offline-privacy>
-            On your device only, so you can add expenses with no signal: a small copy of each group you open (its name, the people’s names, your own balance and its three newest expenses; never phone numbers or emails) and any expense you saved while offline, until it’s added. Signing out or deleting your account removes them from that device. A phone that stays offline keeps its copy (names, your balance and three recent expenses) until it next comes online or 30 days pass without that group being opened online; “Sign out on other devices” can’t reach a phone while it stays offline. Anyone who can unlock your phone can see them, as they could an open Loopin tab.
+            On your device only, so you can add expenses with no signal: a small copy of each group you open (its name, the people’s names, your own balance and its three newest expenses; never phone numbers or emails) and any expense you saved while offline, until it’s added. Signing out or deleting your account removes them from that device. A phone that stays offline keeps its copy (names, your balance and three recent expenses) until it next comes online, or until 30 days pass without that group being opened online (then the copy is deleted); “Sign out on other devices” can’t reach a phone while it stays offline. Anyone who can unlock your phone can see them, as they could an open Loopin tab.
           </li>
         )}
         <li>If you join without an account, we keep only the name you pick and a signed note on that phone saying which person you are.</li>

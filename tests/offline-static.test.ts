@@ -83,11 +83,28 @@ describe("the switch", () => {
     expect(app).toContain("window.location.replace(real)");
     expect(app).toContain("data-offline-try-again");
   });
-  it("the wipe is only asked for while the switch is on, and a browser without requestSubmit still signs out", () => {
+  it("the wipe comes AFTER the server has signed out (a note is left, the next page wipes), only when something is stored, and a failed sign-out loses nothing", () => {
+    const c = src("src/components/ConfirmButton.tsx");
+    expect(c).toContain("hasOfflineData()");
+    expect(c).toContain("localStorage.setItem(WIPE_FLAG");
+    expect(c).not.toContain("await wipePhone()");
+    const sync = src("src/components/offline/OfflineSync.tsx");
+    expect(sync).toContain("me?.signedOut");
+    expect(sync).toContain("await wipePhone()");
+    expect(sync.indexOf("readWipeNote()")).toBeLessThan(sync.indexOf("if (!on)"));
+    expect(src("src/app/api/offline/me/route.ts").indexOf("signedOut")).toBeLessThan(src("src/app/api/offline/me/route.ts").indexOf("if (!offlineOn())"));
+  });
+  it("Open and fix opens only the signed-in person's draft; Save on this phone says what it cannot keep", () => {
+    expect(src("src/components/offline/OfflineFix.tsx")).toContain("d.memberId === formProps.myId");
+    const form = src("src/components/AddExpenseForm.tsx");
+    expect(form).toContain("W.itemsNotKept");
+    expect(form).toContain("W.photoNotKept");
+  });
+  it("a browser without requestSubmit still signs out", () => {
     for (const p of ["src/app/account/sign-in/page.tsx", "src/app/account/data/page.tsx"]) {
       const t = src(p);
-      expect(t).toContain("wipesOffline={offlineOn()}");
-      expect(t).not.toMatch(/wipesOffline(?!=)/);
+      expect(t).toContain("wipesOffline");
+      expect(t).not.toContain("wipesOffline={offlineOn()}"); // no longer tied to the switch: anything stored is cleared
     }
     const c = src("src/components/ConfirmButton.tsx");
     expect(c).toContain('typeof form.requestSubmit === "function"');

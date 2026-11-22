@@ -28,21 +28,24 @@ export const postDraft: Post = async (draft: DraftInput, o) => {
   return a;
 };
 
-export async function fetchMe(): Promise<{ on: boolean; groups: Record<string, string> } | null> {
+export async function fetchMe(): Promise<{ on: boolean; groups: Record<string, string>; signedOut: boolean } | null> {
   try {
     const r = await fetch("/api/offline/me", { cache: "no-store", signal: AbortSignal.timeout(8000) });
     if (!r.ok) return null;
-    const j = (await r.json()) as { on?: boolean; groups?: Record<string, string> };
-    return { on: j.on === true, groups: j.groups && typeof j.groups === "object" ? j.groups : {} };
+    const j = (await r.json()) as { on?: boolean; groups?: Record<string, string>; signedOut?: boolean };
+    return { on: j.on === true, groups: j.groups && typeof j.groups === "object" ? j.groups : {}, signedOut: j.signedOut === true };
   } catch {
     return null;
   }
 }
 
-export async function fetchDone(keys: string[]): Promise<Record<string, string>> {
+// `drafts`: what each waiting expense says (so one that was changed after an online try is never mistaken for the one already added).
+export async function fetchDone(drafts: { key: string; amount: string; currency: string; name: string }[]): Promise<Record<string, string>> {
+  const keys = drafts.map((d) => d.key);
+  const typed = Object.fromEntries(drafts.map((d) => [d.key, { amount: d.amount, currency: d.currency, name: d.name }]));
   if (!keys.length) return {};
   try {
-    const r = await fetch("/api/offline/status", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ keys }), signal: AbortSignal.timeout(8000) });
+    const r = await fetch("/api/offline/status", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ keys, typed }), signal: AbortSignal.timeout(8000) });
     if (!r.ok) return {};
     const j = (await r.json()) as { done?: Record<string, string> };
     return j.done && typeof j.done === "object" ? j.done : {};

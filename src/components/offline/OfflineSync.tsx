@@ -3,9 +3,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { fetchDone, fetchMe, markSheetSeen, sheetSeen } from "@/lib/offline/client";
-import { openStore } from "@/lib/offline/idb";
+import { hasOfflineData, openStore, wipePhone } from "@/lib/offline/idb";
+import { WIPE_FLAG, WIPE_FLAG_MAX_MS } from "@/lib/offline/words";
 import { applyMe, draftsFor, dropAllSnapshots, removeConfirmed, snapshotFor } from "@/lib/offline/store";
 import { BackOnlineSheet } from "./BackOnlineSheet";
+
+const readWipeNote = (): number | null => {
+  try {
+    const v = Number(localStorage.getItem(WIPE_FLAG));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+};
+const clearWipeNote = () => {
+  try {
+    localStorage.removeItem(WIPE_FLAG);
+  } catch {
+    /* nothing to clear */
+  }
+};
 
 // Mounted once in the layout. On an ordinary (online) page it:
 //  1. asks who this phone is in each group (so a copy or waiting expense is only ever shown to its own person);
@@ -24,8 +41,18 @@ export function OfflineSync({ on }: { on: boolean }) {
     let live = true;
     void (async () => {
       try {
+        // The note left by Sign out / Delete account: if the server really has signed this person out now, everything kept for offline goes.
+        // (Done whether or not the feature is switched on, so a phone that kept things while it was on is still cleared.)
+        const note = readWipeNote();
+        if (note !== null) {
+          const me = await fetchMe();
+          if (me || Date.now() - note > WIPE_FLAG_MAX_MS) {
+            clearWipeNote();
+            if (me?.signedOut && Date.now() - note <= WIPE_FLAG_MAX_MS && (await hasOfflineData())) await wipePhone();
+          }
+        }
         if (!on) {
-          await dropAllSnapshots(kv);
+          if (await hasOfflineData()) await dropAllSnapshots(kv);
           return;
         }
         // 1. Who am I? (At most once a minute, and always when landing on Home, where a sign-in usually ends up.)
@@ -39,7 +66,7 @@ export function OfflineSync({ on }: { on: boolean }) {
         }
         // 2. Which of the waiting ones did the server already add?
         const mine = await draftsFor(kv);
-        if (mine.length) await removeConfirmed(kv, await fetchDone(mine.map((d) => d.key)));
+        if (mine.length) await removeConfirmed(kv, await fetchDone(mine));
         // 3. The sheet: for this group's page or Add page, or (on Home) the group with the oldest waiting expense.
         if (new URLSearchParams(window.location.search).get("fix")) return; // fixing one on the Add screen: don't interrupt
         // Only the expenses of the person the server says is signed in here now: another person's never flash after a phone changes hands.

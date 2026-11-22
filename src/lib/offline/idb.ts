@@ -90,10 +90,26 @@ export function askToKeep(): void {
   }
 }
 
+// Is anything kept on this phone? Never creates the database: where the browser can list databases it asks the list; otherwise it opens it
+// (an older Safari) and looks. Nothing stored means sign-out and Delete account have nothing to do here.
+export async function hasOfflineData(): Promise<boolean> {
+  try {
+    if (typeof indexedDB === "undefined") return false;
+    const list = (indexedDB as IDBFactory & { databases?: () => Promise<{ name?: string }[]> }).databases;
+    if (typeof list === "function" && !(await list.call(indexedDB)).some((d) => d.name === DB_NAME)) return false;
+    const kv = openStore();
+    for (const s of STORES) if ((await kv.all(s)).length) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 // Sign-out and Delete account: the whole offline database goes. (Also used when the phone's person changes.)
 export async function wipePhone(): Promise<void> {
   try {
     await openStore().wipe();
+    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase(DB_NAME); // and the empty shell, so nothing at all is left
   } catch {
     /* nothing there */
   }

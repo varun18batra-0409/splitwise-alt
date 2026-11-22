@@ -18,8 +18,8 @@ export function OfflineFix({ draftKey, formProps, back }: { draftKey: string; fo
   useEffect(() => {
     if (!kv || works === null) return;
     if (!works) return setDraft(null);
-    void draftsFor(kv, formProps.groupId).then((all) => setDraft(all.find((d) => d.key === draftKey) ?? null), () => setDraft(null));
-  }, [kv, works, draftKey, formProps.groupId]);
+    void draftsFor(kv, formProps.groupId).then((all) => setDraft(all.find((d) => d.key === draftKey && d.memberId === formProps.myId) ?? null), () => setDraft(null));
+  }, [kv, works, draftKey, formProps.groupId, formProps.myId]);
   if (draft === undefined) return null;
   if (!draft) {
     return (

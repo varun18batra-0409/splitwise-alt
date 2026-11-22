@@ -13,7 +13,7 @@ const { db } = await import("@/lib/db");
 const { getRate, getRateOn, displayRate } = await import("@/lib/rate-cache");
 const actual = await vi.importActual<typeof import("@/lib/rates")>("@/lib/rates");
 
-const BASES = ["XRA", "XRB", "XRC", "XRD"];
+const BASES = ["XRA", "XRB", "XRC", "XRD", "XRE", "XRF"];
 afterAll(async () => {
   await db.exchangeRate.deleteMany({ where: { base: { in: BASES } } });
 });
@@ -69,5 +69,27 @@ describe("the rate for a day with no fixing may come from at most 4 days before"
   it("an answer dated AFTER the day asked is never used", async () => {
     const no = await actual.fetchRateOn("THB", "INR", "2026-11-22", { fetchImpl: say("2026-11-23") as never });
     expect(no.ok).toBe(false);
+  });
+});
+
+describe("a weekend or holiday is asked about once", () => {
+  it("Sunday 15 Nov asked, Friday 13 Nov answered: the second ask is served from what is kept (the service is called once), the rate is the same 2.5", async () => {
+    fetchRateOn.mockResolvedValue({ ok: true, rate: "2.5", date: "2026-11-13" });
+    const first = await getRateOn("XRE", "INR", "2026-11-15", today);
+    expect(first).toEqual({ ok: true, rate: "2.5", date: "2026-11-13" });
+    fetchRateOn.mockClear();
+    const second = await getRateOn("XRE", "INR", "2026-11-15", today);
+    expect(second).toMatchObject({ ok: true, rate: "2.5" });
+    expect(fetchRateOn).not.toHaveBeenCalled();
+    fetchRateOn.mockImplementation(async (_f, _t, day) => ({ ok: true, rate: "2.5", date: day }));
+  });
+});
+
+describe("online: a service that is down still falls back to the last saved rate, marked old", () => {
+  it("saved 2.1 from 3 days ago, service offline: getRate gives 2.1 with stale: true (it is only getRateOn for TODAY's draft that refuses)", async () => {
+    await db.exchangeRate.create({ data: { base: "XRF", quote: "INR", rate: "2.1", date: "2026-11-19", fetchedAt: new Date(Date.now() - 3 * 86_400_000) } });
+    fetchPairRate.mockResolvedValueOnce({ ok: false, reason: "offline", message: "down" });
+    const r = await getRate("XRF", "INR");
+    expect(r).toEqual({ ok: true, rate: "2.1", date: "2026-11-19", stale: true });
   });
 });

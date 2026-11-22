@@ -40,6 +40,7 @@ const { saveExpense } = await import("@/lib/save-expense");
 const { POST } = await import("@/app/api/offline/add/route");
 const A = await import("@/app/actions");
 const { NOT_SIGNED_IN, OTHER_PERSON, PAIR_REFUSED } = await import("@/lib/offline/words");
+import { checkBooks } from "./helpers/money-invariants";
 import type { DraftInput } from "@/lib/offline/types";
 import type { RateAnswer } from "@/lib/rate-cache";
 
@@ -153,8 +154,9 @@ describe("POST /api/offline/add: the door itself", () => {
     expect(e.createdById).toBe(g.ids[0]);
     const share = (id: string) => e.shares.find((s) => s.memberId === id)?.amount;
     expect([share(g.ids[0]), share(g.ids[1]), share(g.ids[2])]).toEqual([30000, 30000, 30000]);
-    // Paid 90000, owes 30000: +60000; the others owe 30000 each; together 0.
-    expect(90000 - 30000).toBe(60000);
+    // Paid 90000, owes 30000: +60000; B and C owe 30000 each; together 0. Read back from the database, not worked out here.
+    const net = await checkBooks(g.id);
+    expect([net[g.ids[0]], net[g.ids[1]], net[g.ids[2]]]).toEqual([60000, -30000, -30000]);
     expect(e.shares.reduce((s, x) => s + x.amount, 0)).toBe(e.amount);
   });
 
@@ -268,5 +270,130 @@ describe("Open and fix uses the draft's own day's rate", () => {
     expect(e.amount).toBe(250000);
     expect(e.exchangeRate).toBe("2.5");
     expect(e.shares.map((s) => s.amount)).toEqual([125000, 125000]);
+  });
+});
+
+// ---- the second review ----
+const typedOf = (amount: string, name = "Taxi", currency = "INR") => ({ amount, currency, name });
+const onlineSave = (g: { id: string; ids: string[] }, key: string, amount: string, name = "Taxi") =>
+  saveExpense(
+    { groupId: g.id, name, amount, currency: "INR", category: "", paidById: g.ids[0], forMode: "everyone", selected: [], onePersonId: "", splitType: "equal", exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "", requestKey: key },
+    g.ids[0],
+    sameRate,
+    { requestKey: key },
+  );
+
+describe("the original key of a draft kept after an online try", () => {
+  it("an edited draft is never dropped: ₹1,200 saved online, the draft says ₹1,500 -> a duplicate question; 'Different, keep both' adds 150000 beside the 120000", async () => {
+    const g = await mkGroup(["A", "B"]);
+    const K = `rv-${stamp}-edit-0001`;
+    const first = await onlineSave(g, K, "1200");
+    expect(first.ok).toBe(true);
+    const kept = { ...draftOf(g, { amount: "1500" }), key: `off-${K}` };
+    keys.push(kept.key);
+    const asked = await sendDraft(kept, g.ids[0], { rateOn: sameRate });
+    expect(asked.status).toBe("duplicate");
+    expect(asked.status === "duplicate" && asked.dup).toMatchObject({ id: first.ok ? first.id : "", description: "Taxi", amount: 120000, by: "A" });
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(1); // asking saved nothing
+    const both = await sendDraft(kept, g.ids[0], { rateOn: sameRate, allowDuplicate: true });
+    expect(both.status).toBe("added");
+    const amounts = (await db.expense.findMany({ where: { groupId: g.id } })).map((e) => e.amount).sort((a, b) => a - b);
+    expect(amounts).toEqual([120000, 150000]);
+  });
+  it("a changed name or currency is a question too; the same amount and name (different spacing) is already added", async () => {
+    const g = await mkGroup(["A", "B"]);
+    const K = `rv-${stamp}-edit-0002`;
+    const first = await onlineSave(g, K, "1200");
+    const kept = { ...draftOf(g), key: `off-${K}` };
+    keys.push(kept.key);
+    expect((await sendDraft({ ...kept, name: "Lunch" }, g.ids[0], { rateOn: sameRate })).status).toBe("duplicate");
+    expect((await sendDraft({ ...kept, name: "  Taxi " }, g.ids[0], { rateOn: sameRate })).status).toBe("added");
+    expect(await sendDraft({ ...kept, amount: "1,200" }, g.ids[0], { rateOn: sameRate })).toEqual({ status: "added", id: first.ok ? first.id : "" });
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(1);
+  });
+  it("a key that made an expense in ANOTHER group is nothing to do with this draft: it is added normally (₹1,200 = 120000), the other group's expense is untouched", async () => {
+    const mine = await mkGroup(["A", "B"]);
+    const other = await mkGroup(["X", "Y"]);
+    const K = `rv-${stamp}-other-0003`;
+    const there = await onlineSave(other, K, "1200");
+    const d = { ...draftOf(mine), key: `off-${K}` };
+    keys.push(d.key);
+    const r = await sendDraft(d, mine.ids[0], { rateOn: sameRate });
+    expect(r.status).toBe("added");
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: mine.id } });
+    expect(e.amount).toBe(120000);
+    expect(r.status === "added" && r.id).toBe(e.id);
+    expect(r.status === "added" && r.id).not.toBe(there.ok ? there.id : "");
+    expect(await db.expense.count({ where: { groupId: other.id } })).toBe(1);
+  });
+});
+
+describe("one save wins when an online save and the phone's copy both try", () => {
+  it("the phone's copy claims K too: afterwards an online save with K is answered 'already added' (one expense)", async () => {
+    const g = await mkGroup(["A", "B"]);
+    const K = `rv-${stamp}-race-0004`;
+    const d = { ...draftOf(g), key: `off-${K}` };
+    keys.push(d.key, K);
+    const r = await sendDraft(d, g.ids[0], { rateOn: sameRate });
+    expect(r.status).toBe("added");
+    const again = await onlineSave(g, K, "1200");
+    expect(again).toEqual({ ok: true, id: r.status === "added" ? r.id : "" });
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(1);
+  });
+  it("if the online save with K lands in between, the phone's copy fails cleanly and is told the id of the one that is there", async () => {
+    const g = await mkGroup(["A", "B"]);
+    const K = `rv-${stamp}-race-0005`;
+    keys.push(`off-${K}`, K);
+    // The phone's copy has already looked (K was free); the online save commits; then the copy saves.
+    const online = await onlineSave(g, K, "1200");
+    const second = await saveExpense(
+      { groupId: g.id, name: "Taxi", amount: "1200", currency: "INR", category: "", paidById: g.ids[0], forMode: "everyone", selected: [], onePersonId: "", splitType: "equal", exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "", requestKey: `off-${K}` },
+      g.ids[0],
+      sameRate,
+      { requestKey: `off-${K}`, alsoKey: K },
+    );
+    expect(second).toEqual({ ok: true, id: online.ok ? online.id : "" });
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(1);
+    expect(await db.requestKey.count({ where: { key: `off-${K}` } })).toBe(0); // nothing half-claimed
+  });
+});
+
+describe("POST /api/offline/status", () => {
+  it("also sees the original key: the same expense is done, an edited one keeps waiting, another person's group is never revealed", async () => {
+    const status = await import("@/app/api/offline/status/route");
+    const g = await mkGroup(["A", "B"]);
+    const other = await mkGroup(["X", "Y"]);
+    const K1 = `rv-${stamp}-stat-0006`;
+    const K2 = `rv-${stamp}-stat-0007`;
+    const K3 = `rv-${stamp}-stat-0008`;
+    const one = await onlineSave(g, K1, "1200");
+    await onlineSave(g, K2, "1200", "Lunch");
+    await onlineSave(other, K3, "1200");
+    state.cookie = await guestCookie(g.id, g.ids[0]);
+    const body = {
+      keys: [`off-${K1}`, `off-${K2}`, `off-${K3}`],
+      typed: { [`off-${K1}`]: typedOf("1200"), [`off-${K2}`]: typedOf("1500", "Lunch"), [`off-${K3}`]: typedOf("1200") },
+    };
+    const res = await status.POST(new NextRequest("http://loopin.test/api/offline/status", { method: "POST", headers: { "content-type": "application/json", origin: "http://loopin.test", "x-forwarded-host": "loopin.test" }, body: JSON.stringify(body) }));
+    expect(await res.json()).toEqual({ done: { [`off-${K1}`]: one.ok ? one.id : "" } });
+  });
+});
+
+describe("an ordinary online save is exactly as before", () => {
+  it("a normal key and a past date: THB 1,000 on 10 Nov uses TODAY's rate 9 (100000 x 9 = 900000), not 10 Nov's 2.5", async () => {
+    const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
+    const a = await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } });
+    state.cookie = await accountCookie(a.accountId as string);
+    await A.addExpense({
+      groupId: g.id, name: "Dinner", amount: "1000", currency: "THB", category: "", paidById: g.ids[0], forMode: "everyone", selected: [], onePersonId: "", splitType: "equal", exact: {}, percent: {},
+      paymentMethod: "cash", markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "", date: "2026-11-10", requestKey: `rv-${stamp}-online-0009`,
+    }).catch((e: Error) => {
+      if (!/^NEXT_REDIRECT/.test(e.message)) throw e;
+    });
+    keys.push(`rv-${stamp}-online-0009`);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id }, include: { shares: true } });
+    expect(e.amount).toBe(900000);
+    expect(e.exchangeRate).toBe("9");
+    expect(e.shares.map((x) => x.amount)).toEqual([450000, 450000]);
   });
 });

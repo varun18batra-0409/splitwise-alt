@@ -8,12 +8,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const headers = { "Cache-Control": "private, no-store" };
-  if (!offlineOn()) return Response.json({ on: false, groups: {} }, { headers });
   let groups: Record<string, string> = {};
   try {
     groups = await getMemberships();
   } catch {
     // Unreadable cookie = signed out: no groups, so nothing is shown offline until the person signs in again.
   }
-  return Response.json({ on: true, groups, now: new Date().toISOString() }, { headers });
+  // `signedOut` is answered even with the switch off: a phone that kept things while it was on still clears them at sign-out.
+  const signedOut = Object.keys(groups).length === 0;
+  if (!offlineOn()) return Response.json({ on: false, groups: {}, signedOut }, { headers });
+  return Response.json({ on: true, groups, signedOut, now: new Date().toISOString() }, { headers });
 }

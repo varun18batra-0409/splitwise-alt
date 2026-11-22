@@ -9,6 +9,9 @@ export function offlineOn(value: string | undefined = process.env.OFFLINE_ADD): 
 export const MAX_DRAFTS = 50; // per phone
 export const COPY_DAYS = 30; // a group's offline copy stops showing after this many days without being opened online
 export const OFFLINE_KEY_PREFIX = "off-";
+// A note kept in the browser by Sign out / Delete account: "clear the offline data once the server has really signed this person out".
+export const WIPE_FLAG = "loopin-offline-wipe";
+export const WIPE_FLAG_MAX_MS = 10 * 60_000;
 export const OFFLINE_KEY_KEEP_DAYS = 400; // the daily clean-up keeps these one-time keys this long (ordinary ones: 30 days)
 
 // Why the server refused a draft. The draft stays on the phone ("refused") so the person can open and fix it, or remove it.
@@ -67,4 +70,7 @@ export const W = {
   // On the offline Add screen, once there is a signal again: it does not jump away from what is being typed.
   backOnlineHold: "You’re back online. Finish this one and save it, or open the group (what you’ve typed here won’t be kept).",
   openGroup: "Open the group",
+  // "Save on this phone" from the online form keeps only the plain expense; it says so.
+  photoNotKept: "The bill photo can’t be kept on the phone: only what you typed is kept. Add the photo again when you open it.",
+  itemsNotKept: "An expense split by item can’t be kept on the phone. Keep this screen open and tap Save again when you’re back online. It won’t be added twice.",
 } as const;

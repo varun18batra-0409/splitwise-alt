@@ -1,5 +1,4 @@
 import { PageHeader, secondaryButtonClass } from "@/components/ui";
-import { offlineOn } from "@/lib/offline/words";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PushEndpointField } from "@/components/PushEndpointField";
 import { deleteMyAccount } from "@/app/actions";
@@ -29,7 +28,7 @@ export default async function YourDataPage() {
           <form action={deleteMyAccount}>
             <PushEndpointField />
             <ConfirmButton
-              wipesOffline={offlineOn()}
+              wipesOffline
               message="Delete your sign-in, email, postcards and passkeys? The moments you added to groups, the collections you organised, your Want to go list and your blocks go too, for everyone. Your groups stay on this device and in each group’s history."
               className="mx-auto block min-h-11 px-4 py-2 text-center text-sm text-fg/75 underline underline-offset-4 active:text-fg"
             >

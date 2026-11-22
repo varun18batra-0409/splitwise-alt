@@ -461,6 +461,7 @@ export function AddExpenseForm({
   }
   // Add expenses offline: keep exactly what was typed on this phone (nothing is worked out here; the server does it when it is added).
   const [offerPhone, setOfferPhone] = useState(false);
+  const [offerNote, setOfferNote] = useState("");
   async function keepOnPhone(key: string, then: () => void) {
     const input: DraftInput = {
       key,
@@ -548,7 +549,14 @@ export function AddExpenseForm({
         if (String((err as { digest?: string })?.digest ?? "").startsWith("NEXT_")) throw err;
         // No signal, or the server hiccuped. Saving again is safe (this form's key means it's only ever added once).
         setError("We couldn’t confirm this saved. What you typed is still here: tap Save again when you’re back online. It won’t be added twice.");
-        if (keepOffline && !expenseId && !billRun) setOfferPhone(true);
+        if (keepOffline && !expenseId && !billRun) {
+          // Only what was typed can be kept: no bill photo, and nothing split by item (that would save a different split).
+          if (byItem) setOfferNote(W.itemsNotKept);
+          else {
+            setOfferPhone(true);
+            setOfferNote(receiptId ? W.photoNotKept : "");
+          }
+        }
       }
     });
   }
@@ -1435,9 +1443,11 @@ export function AddExpenseForm({
       </div>
 
       {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {offerNote && !offerPhone && !offline && <p className="rounded-[20px] border border-line px-4 py-3 text-sm text-fg/80" data-save-on-phone-note>{offerNote}</p>}
       {offerPhone && !offline && (
         <div className="rounded-[20px] border border-line px-4 py-3 text-sm" data-save-on-phone>
           <p className="text-fg/80">No signal? Keep it on this phone and Loopin will ask before adding it when you’re back online.</p>
+          {offerNote && <p className="mt-1 text-fg/70" data-save-on-phone-note>{offerNote}</p>}
           <button type="button" onClick={() => void keepOnPhone(requestKey.startsWith("off-") ? requestKey : `off-${requestKey}`, () => window.location.assign(`/groups/${groupId}`))} className="mt-2 flex min-h-11 items-center font-semibold text-fg underline underline-offset-4">
             {W.saveOnPhone}
           </button>

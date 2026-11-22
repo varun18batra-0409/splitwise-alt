@@ -171,3 +171,16 @@ describe("when a draft goes", () => {
     expect(await allDraftsCount(kv)).toBe(0);
   });
 });
+
+describe("copies older than 30 days are deleted, not just hidden", () => {
+  it("a copy saved 17 Nov is gone from the store at 18 Dec (31 days) but kept at 16 Dec (29 days); the waiting expense stays", async () => {
+    const kv = await signedInAsAsha();
+    await saveSnapshot(kv, snap({ savedAt: "2026-11-17T08:00:00.000Z" }));
+    await addDraft(kv, draft("off-stale-0000000000000001"));
+    expect(await snapshotFor(kv, "g1", Date.parse("2026-12-16T08:00:00.000Z"))).toBeDefined();
+    expect((await kv.all("snapshots")).length).toBe(1);
+    expect(await snapshotFor(kv, "g1", Date.parse("2026-12-18T09:00:00.000Z"))).toBeUndefined();
+    expect((await kv.all("snapshots")).length).toBe(0); // really removed
+    expect((await draftsFor(kv)).length).toBe(1);
+  });
+});
