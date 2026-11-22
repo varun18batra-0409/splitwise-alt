@@ -358,11 +358,11 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   const settledCard = (e: DirectEntry) => (
     <li key={e.groupId} id={`direct-${e.groupId}`} className="scroll-mt-6" data-settle-card={e.other.name} data-direct-settled>
       <div className="rounded-[22px] border border-line bg-white p-4">
-        <Link href={`/people/${e.groupId}`} className="flex min-h-11 items-start gap-3 active:opacity-80" data-settle-person>
+        <Link href={`/people/${e.groupId}`} className="flex min-h-11 flex-wrap items-start gap-x-3 gap-y-2 active:opacity-80" data-settle-person>
           <Initial name={e.other.name} />
-          <div className="min-w-0 flex-1 pt-0.5">
-            <p className="truncate font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{e.other.name}</p>
-            <p className="mt-0.5 truncate text-[14px] text-fg/60">{e.shared ? "Direct" : "Direct · only you see this"}</p>
+          <div className="min-w-[9em] flex-1 basis-[9em] pt-0.5">
+            <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{e.other.name}</p>
+            <p className="mt-0.5 break-words text-[14px] text-fg/60">{e.shared ? "Direct" : "Direct · only you see this"}</p>
           </div>
         </Link>
         <p className="mt-3 font-display text-[24px] font-semibold leading-none tracking-[-0.02em] text-fg" data-settle-amount>

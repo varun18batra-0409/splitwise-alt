@@ -388,6 +388,34 @@ if (demo.couple.goal) await shot("60-couple-goal", `${c}/goals/${demo.couple.goa
 await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
+// Long names (founder, 22 Nov): a long surname goes onto a second line, and at 200% text the name moves under its letter. The demo names
+// are short, so the surnames are added on the page itself; normal text and 200% text, on Settle up and on You (signed in).
+if (!desktop && !hosted) {
+  const surname: Record<string, string> = { Varun: "Subramaniam", Asha: "Venkataraman", Ravi: "Chandrasekhar", Meera: "Krishnamurthy", Dev: "Bhattacharya", Kabir: "Raghunathan", Riya: "Ramachandran", Priya: "Ramaswamy" };
+  const longNames = async (p: Page) =>
+    p.evaluate((s) => {
+      for (const el of Array.from(document.querySelectorAll('[data-settle-card] p.font-display, section[aria-label="Your profile"] p.font-display'))) {
+        if (el.children.length) continue;
+        let t = el.textContent ?? "";
+        for (const [k, v] of Object.entries(s)) if (t.includes(k) && !t.includes(v)) t = t.replace(new RegExp(`\\b${k}\\b`), `${k} ${v}`);
+        el.textContent = t;
+      }
+    }, surname);
+  const big = async (p: Page) => p.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const noNav = async (p: Page) => { await p.addStyleTag({ content: HIDE_NAV }); };
+  const toCard = async (p: Page) => {
+    await p.locator("[data-settle-card]").first().evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await p.evaluate(() => window.scrollBy(0, -16));
+  };
+  await shot("LN-settle-normal", "/settle", async (p) => { await noNav(p); await longNames(p); await toCard(p); await p.waitForTimeout(300); }, false);
+  await shot("LN-settle-200", "/settle", async (p) => { await noNav(p); await longNames(p); await big(p); await toCard(p); await p.waitForTimeout(300); }, false);
+  const db = patient((await import("../src/lib/db")).db);
+  const acct = await db.account.create({ data: { email: `shots-ln-${Date.now()}@uat.loopin.test`, name: "Varun" } });
+  await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acct.id, v: 0 }), url: base }]);
+  await shot("LN-account-normal", "/account", async (p) => { await noNav(p); await longNames(p); await p.waitForTimeout(300); }, false);
+  await shot("LN-account-200", "/account", async (p) => { await noNav(p); await longNames(p); await big(p); await p.waitForTimeout(300); }, false);
+  await signBackIn();
+}
 await shot("25b-groups", "/groups");
 await shot("26-signin", "/signin", undefined, false);
 // Sign-in on small phones: Google and the email box must both be on the first screen.

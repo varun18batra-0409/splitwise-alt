@@ -134,21 +134,22 @@ export function SettleCard({
               {lead.headline}
             </p>
           ) : href ? (
-            <Link href={href} className="flex min-h-11 min-w-0 flex-1 items-start gap-3 active:opacity-80" data-settle-person>
+            <Link href={href} className="flex min-h-11 min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-2 active:opacity-80" data-settle-person>
               <Initial name={name} />
-              <div className="min-w-0 flex-1 pt-0.5">
-                <p className="truncate font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
-                <p className="mt-0.5 truncate text-[14px] text-fg/60">{groupLine}</p>
+              {/* A long name wraps onto a second line; at very large text it moves under the letter (founder, 22 Nov). */}
+              <div className="min-w-[9em] flex-1 basis-[9em] pt-0.5">
+                <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
+                <p className="mt-0.5 break-words text-[14px] text-fg/60">{groupLine}</p>
               </div>
             </Link>
           ) : (
-            <>
+            <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-2">
               <Initial name={name} />
-              <div className="min-w-0 flex-1 pt-0.5">
-                <p className="truncate font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
-                <p className="mt-0.5 truncate text-[14px] text-fg/60">{groupLine}</p>
+              <div className="min-w-[9em] flex-1 basis-[9em] pt-0.5">
+                <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
+                <p className="mt-0.5 break-words text-[14px] text-fg/60">{groupLine}</p>
               </div>
-            </>
+            </div>
           )}
           <div ref={menuBox} className="relative -mr-2 -mt-2 shrink-0">
             <button
@@ -248,10 +249,10 @@ export function SettleCard({
               </button>
             </div>
 
-            <div className="mt-5 flex items-center gap-3">
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
               <Initial name={sheet.other} />
-              <div className="min-w-0">
-                <p className="truncate font-display text-[20px] font-semibold leading-tight" data-record-route>
+              <div className="min-w-[9em] flex-1 basis-[9em]">
+                <p className="break-words font-display text-[20px] font-semibold leading-tight" data-record-route>
                   {/* The arrow is only for the eye: a screen reader hears "from to". */}
                   {sheet.even ? (
                     `You and ${sheet.other}`
@@ -262,7 +263,7 @@ export function SettleCard({
                     </>
                   )}
                 </p>
-                <p className="mt-0.5 truncate text-[14px] text-fg/60">{sheet.groupLine}</p>
+                <p className="mt-0.5 break-words text-[14px] text-fg/60">{sheet.groupLine}</p>
               </div>
             </div>
 

@@ -39,12 +39,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       {account ? (
         <section aria-label="Your profile" className="rounded-[20px] border border-line bg-white px-5 py-5 text-fg">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
             <span aria-hidden className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#1f1f24] font-display text-3xl font-semibold">
               {(shown || account.email).slice(0, 1).toUpperCase()}
             </span>
-            <div className="min-w-0">
-              <p className="truncate font-display text-2xl font-semibold leading-tight">{shown || "Add your name"}</p>
+            <div className="min-w-[9em] flex-1 basis-[9em]">
+              {/* A long name wraps onto a second line; at very large text it moves under the letter (founder, 22 Nov). */}
+              <p className="break-words font-display text-2xl font-semibold leading-tight">{shown || "Add your name"}</p>
               <p className="mt-0.5 break-words text-[13px] text-fg/55">Signed in as <EmailText email={account.email} /></p>
             </div>
           </div>
