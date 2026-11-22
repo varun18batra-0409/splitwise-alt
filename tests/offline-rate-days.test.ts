@@ -31,20 +31,12 @@ describe("a past day's rate is not today's rate", () => {
     expect(fetchPairRate).toHaveBeenCalledTimes(1); // the 10 Nov row was not trusted as "fresh"
   });
 
-  it("the saved 10 Nov row is kept for 10 Nov (asking again does not call the service) but is never the newest rate", async () => {
+  it("past days are remembered in memory only: asking again does not call the service, and NO ExchangeRate row is written (only getRate writes there)", async () => {
     await getRateOn("XRB", "INR", "2026-11-10", today);
     fetchRateOn.mockClear();
     expect(await getRateOn("XRB", "INR", "2026-11-10", today)).toEqual({ ok: true, rate: "2.5", date: "2026-11-10" });
     expect(fetchRateOn).not.toHaveBeenCalled();
-    const row = await db.exchangeRate.findFirstOrThrow({ where: { base: "XRB", date: "2026-11-10" } });
-    expect(row.fetchedAt.toISOString()).toBe("2026-11-10T00:00:00.000Z");
-  });
-
-  it("Home's rate (displayRate) picks the newest FIXING even when an older day's row was fetched later", async () => {
-    await db.exchangeRate.create({ data: { base: "XRC", quote: "INR", rate: "2.8", date: today, fetchedAt: new Date(Date.now() - 3_600_000) } });
-    await db.exchangeRate.create({ data: { base: "XRC", quote: "INR", rate: "2.5", date: "2026-11-10", fetchedAt: new Date() } }); // how it used to be saved
-    const r = await displayRate("XRC", "INR", () => undefined);
-    expect(r).toEqual({ ok: true, rate: "2.8", date: today });
+    expect(await db.exchangeRate.count({ where: { base: "XRB" } })).toBe(0);
   });
 });
 
@@ -72,20 +64,19 @@ describe("the rate for a day with no fixing may come from at most 4 days before"
   });
 });
 
-describe("a weekend or holiday is asked about once, and never becomes the newest rate", () => {
-  it("Saturday 14 Nov asked, Friday 13 Nov answered: the service is called once, both answers say Friday; only Friday's row exists, so Home's and the online rate still pick Friday's real row / today's", async () => {
+describe("a weekend or holiday is asked about once, and writes nothing", () => {
+  it("Saturday 14 Nov asked, Friday 13 Nov answered: the service is called once, both answers say Friday, no ExchangeRate row exists, so Home's rate has nothing it did not have before", async () => {
     fetchRateOn.mockResolvedValue({ ok: true, rate: "2.5", date: "2026-11-13" });
     const first = await getRateOn("XRE", "INR", "2026-11-14", today);
     const second = await getRateOn("XRE", "INR", "2026-11-14", today);
     expect(first).toEqual({ ok: true, rate: "2.5", date: "2026-11-13" });
     expect(second).toEqual(first); // the real fixing date both times
     expect(fetchRateOn).toHaveBeenCalledTimes(1);
-    expect(await db.exchangeRate.count({ where: { base: "XRE", date: "2026-11-14" } })).toBe(0); // no copy under the asked day
-    expect(await db.exchangeRate.count({ where: { base: "XRE", date: "2026-11-13" } })).toBe(1);
-    // Home's rate: the only row there is, Friday's, marked old.
-    expect(await displayRate("XRE", "INR", () => undefined)).toEqual({ ok: true, rate: "2.5", date: "2026-11-13", stale: true });
-    // The online rate: Friday's row is far too old to trust, so today's is fetched (2.8).
+    expect(await db.exchangeRate.count({ where: { base: "XRE" } })).toBe(0);
+    expect((await displayRate("XRE", "INR", () => undefined)).ok).toBe(false); // "The rate isn't loaded yet", as for any currency never asked online
+    // The online rate is fetched fresh and is the only thing that writes a row: today's 2.8, dated today.
     expect(await getRate("XRE", "INR")).toEqual({ ok: true, rate: "2.8", date: today });
+    expect(await db.exchangeRate.count({ where: { base: "XRE" } })).toBe(1);
     fetchRateOn.mockImplementation(async (_f, _t, day) => ({ ok: true, rate: "2.5", date: day }));
   });
 });

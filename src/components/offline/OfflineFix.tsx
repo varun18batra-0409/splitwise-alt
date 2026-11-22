@@ -8,7 +8,7 @@ import { draftsFor } from "@/lib/offline/store";
 import { useStore } from "./useOffline";
 import type { Draft } from "@/lib/offline/types";
 
-type FormProps = Omit<React.ComponentProps<typeof AddExpenseForm>, "initial" | "fixed" | "offline" | "keepOffline">;
+type FormProps = Omit<React.ComponentProps<typeof AddExpenseForm>, "initial" | "fixed" | "offline">;
 
 // "Open and fix": the normal Add screen, filled in from an expense kept on this phone that the server refused. It keeps the SAME one-time
 // key (a refusal never used it), so it can still only ever be added once. Only the person who saved it can open it.

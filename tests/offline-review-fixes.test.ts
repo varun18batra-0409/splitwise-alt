@@ -200,12 +200,12 @@ describe("POST /api/offline/add: the door itself", () => {
   });
 });
 
-describe("an online save whose reply was lost, then 'Save on this phone' with the SAME key and content", () => {
-  // With the switch on the online form's key is an off- key from the start; "Save on this phone" keeps the same content under it.
+describe("a key that was already used is answered 'already added' (never saved twice)", () => {
+  // A kept expense has its own one-time key; if the server already used that key, the answer is the same expense again.
   const lost = (g: { id: string; ids: string[] }, K: string) => ({ ...draftOf(g), key: K }); // ₹1,200 "Taxi", paid by A, shared by everyone
   const online = (g: { id: string; ids: string[] }, K: string) => onlineSave(g, K, "1200");
 
-  it("the online save committed, the reply was lost: sending the kept copy answers 'already added' (dry run too), exactly one expense of 120000", async () => {
+  it("a save with this key committed (say the reply was lost): sending the kept copy answers 'already added' (dry run too), exactly one expense of 120000", async () => {
     const g = await mkGroup(["A", "B"]);
     const K = newKey();
     const first = await online(g, K);
@@ -266,25 +266,6 @@ describe("a group of 100 people (card night) can send a draft", () => {
   });
 });
 
-describe("Open and fix uses the draft's own day's rate", () => {
-  it("THB 1,000 dated 10 Nov, key off-...: 100000 satang x 2.5 (10 Nov) = 250000 paise, NOT x 9 (today) = 900000", async () => {
-    const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
-    const a = await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } });
-    state.cookie = await accountCookie(a.accountId as string);
-    const key = newKey();
-    await A.addExpense({
-      groupId: g.id, name: "Dinner", amount: "1000", currency: "THB", category: "", paidById: g.ids[0], forMode: "everyone", selected: [], onePersonId: "", splitType: "equal", exact: {}, percent: {},
-      paymentMethod: "cash", markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "", date: "2026-11-10", requestKey: key, rateOnDay: true,
-    }).catch((e: Error) => {
-      if (!/^NEXT_REDIRECT/.test(e.message)) throw e;
-    });
-    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id }, include: { shares: true } });
-    expect(e.amount).toBe(250000);
-    expect(e.exchangeRate).toBe("2.5");
-    expect(e.shares.map((s) => s.amount)).toEqual([125000, 125000]);
-  });
-});
-
 // ---- the third review ----
 const onlineSave = (g: { id: string; ids: string[] }, key: string, amount: string, name = "Taxi") =>
   saveExpense(
@@ -303,33 +284,28 @@ const addOnline = (input: ReturnType<typeof THB>) =>
     if (!/^NEXT_REDIRECT/.test(e.message)) throw e;
   });
 
-describe("the rate for an expense's own day is only used with the switch on, and only when asked for", () => {
-  // THB 1,000 = 100000 satang. 10 Nov rate 2.5 -> 250000 paise. Today's rate 9 -> 900000 paise.
-  it("switch ON, an ordinary online save (normal flag-less call, even with an off- key): today's rate 9 -> 900000", async () => {
-    const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
-    state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
-    await addOnline(THB(g, newKey())); // an off- key like every online form's key while the switch is on, but no rateOnDay
-    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id } });
-    expect([e.amount, e.exchangeRate]).toEqual([900000, "9"]);
-  });
-  it("switch ON, Open and fix (rateOnDay): 10 Nov's rate 2.5 -> 250000", async () => {
-    const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
-    state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
-    await addOnline(THB(g, newKey(), { rateOnDay: true }));
-    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id } });
-    expect([e.amount, e.exchangeRate]).toEqual([250000, "2.5"]);
-  });
-  it("switch OFF: rateOnDay is ignored (today's rate, 900000), a normal key as before; and the day lookup action answers today's rate 9", async () => {
-    delete process.env.OFFLINE_ADD;
-    const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
-    state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
-    await addOnline(THB(g, `rv-${stamp}-off-0001`, { rateOnDay: true }));
-    keys.push(`rv-${stamp}-off-0001`);
-    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id } });
-    expect([e.amount, e.exchangeRate]).toEqual([900000, "9"]);
-    expect(await A.lookupRate("THB", "INR", "2026-11-10")).toMatchObject({ ok: true, rate: "9" });
-    process.env.OFFLINE_ADD = "1";
-    expect(await A.lookupRate("THB", "INR", "2026-11-10")).toMatchObject({ ok: true, rate: "2.5" });
-    expect(await A.lookupRate("THB", "INR")).toMatchObject({ ok: true, rate: "9" });
+describe("an online save is exactly as on the live app, with the switch on or off", () => {
+  // THB 1,000 = 100000 satang, at TODAY's rate 9 = 900000 paise, even for a past date or with an off- key (Open and fix keeps its key).
+  for (const on of [true, false]) {
+    it(`switch ${on ? "ON" : "OFF"}: a past date uses today's rate 9 -> 900000, shared in two 450000; the rate lookup action answers today's rate`, async () => {
+      if (!on) delete process.env.OFFLINE_ADD;
+      const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
+      state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
+      await addOnline(THB(g, newKey())); // newKey() is an off- key like Open and fix's
+      const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id }, include: { shares: true } });
+      expect([e.amount, e.exchangeRate]).toEqual([900000, "9"]);
+      expect(e.shares.map((x) => x.amount)).toEqual([450000, 450000]);
+      expect(await A.lookupRate("THB", "INR")).toMatchObject({ ok: true, rate: "9" });
+    });
+  }
+});
+
+describe("offline code never writes an exchange rate", () => {
+  it("getRateOn for a past day (10 Nov) answers 2.5 and leaves the ExchangeRate table exactly as it was", async () => {
+    const { getRateOn } = await import("@/lib/rate-cache");
+    const before = await db.exchangeRate.count({ where: { base: "THB", date: "2026-11-09" } });
+    expect(await getRateOn("THB", "INR", "2026-11-09", todayKey)).toMatchObject({ ok: true, rate: "2.5" });
+    expect(await db.exchangeRate.count({ where: { base: "THB", date: "2026-11-09" } })).toBe(before);
+    expect(before).toBe(0);
   });
 });

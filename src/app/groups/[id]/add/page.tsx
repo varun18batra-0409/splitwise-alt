@@ -140,7 +140,6 @@ export default async function AddExpensePage({
             initial={initial}
             billRun={waitingRun ? { billId: waitingRun.billId, period: waitingRun.period } : undefined}
             {...formProps}
-            keepOffline={offlineOn() && !pair && !waitingRun}
           />
         );
       })()}

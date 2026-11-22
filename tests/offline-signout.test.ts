@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { W } from "@/lib/offline/words";
 import { addDraft, applyMe, draftsFor, saveSnapshot, snapshotFor } from "@/lib/offline/store";
 import { memoryKV } from "@/lib/offline/memory-kv";
 import { settleSignOutNote, type MeAnswer } from "@/lib/offline/signout";
@@ -76,5 +77,14 @@ describe("the note left by Sign out / Delete account", () => {
     });
     expect(shownWhileAsking).toBe(0);
     await applyMe(kv, {}); // (harmless afterwards)
+  });
+});
+
+describe("the words for waiting expenses", () => {
+  it("sign-out and Delete account each have their own, singular and plural", () => {
+    expect(W.signOutWarn(1)).toBe("1 expense is waiting on this phone and hasn’t been added. Signing out removes it from this phone.");
+    expect(W.signOutWarn(3)).toBe("3 expenses are waiting on this phone and haven’t been added. Signing out removes them from this phone.");
+    expect(W.deleteWarn(1)).toBe("1 expense waiting on this phone hasn’t been added. Deleting your account removes it from this phone.");
+    expect(W.deleteWarn(2)).toBe("2 expenses waiting on this phone haven’t been added. Deleting your account removes them from this phone.");
   });
 });

@@ -10,7 +10,7 @@ import { WIPE_FLAG, W } from "@/lib/offline/words";
 // switched off), the question says so first when expenses are still waiting, and the phone's offline data is removed AFTER the server has
 // signed the person out / deleted the account (the next page does it: src/lib/offline/signout.ts). Until then it is hidden. Nothing is wiped before that, so a failed sign-out
 // loses nothing. With nothing stored this behaves exactly like any other confirm button.
-export function ConfirmButton({ message, children, className, wipesOffline = false }: { message: string; children: React.ReactNode; className?: string; wipesOffline?: boolean }) {
+export function ConfirmButton({ message, children, className, wipesOffline = false, deletes = false }: { message: string; children: React.ReactNode; className?: string; wipesOffline?: boolean; deletes?: boolean }) {
   const passed = useRef(false); // the second submit, after the question was answered
   return (
     <button
@@ -34,12 +34,18 @@ export function ConfirmButton({ message, children, className, wipesOffline = fal
           } catch {
             /* nothing kept here */
           }
-          if (!window.confirm(waiting ? `${message}\n\n${W.signOutWarn(waiting)}` : message)) return;
+          if (!window.confirm(waiting ? `${message}\n\n${(deletes ? W.deleteWarn : W.signOutWarn)(waiting)}` : message)) return;
           // The note for the next page: "wipe this phone's offline data if the sign-out really happened".
           if (stored) {
+            // First, out of sight from this moment (kept, hidden: a sign-out that fails loses nothing). Its own step, so that a browser that
+            // refuses the note below still hides everything.
+            try {
+              await applyMe(openStore(), {});
+            } catch {
+              /* nothing to hide */
+            }
             try {
               localStorage.setItem(WIPE_FLAG, String(Date.now()));
-              await applyMe(openStore(), {}); // out of sight from this moment (kept, hidden: a sign-out that fails loses nothing)
             } catch {
               /* the browser won't keep a note: the data stays hidden, never shown to the next person */
             }

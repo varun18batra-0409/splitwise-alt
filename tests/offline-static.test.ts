@@ -101,22 +101,38 @@ describe("the switch", () => {
     expect(m).toContain("status: 503");
     expect(m.indexOf("account")).toBeLessThan(m.indexOf("if (!offlineOn())"));
   });
-  it("with the switch on the online form's key is an off- key; an unknown outcome locks the form; and the day's rate is only used behind the switch", () => {
+  it("the ONLINE add form behaves as on the live app: its own key, the live 'couldn't confirm' message, no 'Save on this phone', no lock, no day-rate flag; only offline-screen props differ", () => {
     const f = src("src/components/AddExpenseForm.tsx");
-    expect(f).toContain("keepOffline ? `${OFFLINE_KEY_PREFIX}${freshKey}` : freshKey");
-    expect(f).toContain("<fieldset disabled={locked}");
-    expect(f).toContain("rateOnDay: Boolean(fixed)");
-    expect(f).toContain("keepOnPhone(requestKey,");
+    expect(f).toContain("const generatedKey = useRequestKey();\n  const requestKey = fixed?.key ?? generatedKey;");
+    expect(f).toContain('setError("We couldn’t confirm this saved. What you typed is still here: tap Save again when you’re back online. It won’t be added twice.");');
+    for (const gone of ["keepOffline", "locked", "offerPhone", "offerNote", "OFFLINE_KEY_PREFIX", "rateOnDay", "isFixed", "<fieldset", "photoNotKept", "itemsNotKept"]) expect(f, gone).not.toContain(gone);
+    expect(f).toContain("if (saving) return; // a late Speak / AI answer");
+    // The only places Save on this phone exists: the offline screen (`offline`), through keepOnPhone(newDraftKey(), ...).
+    expect(f.match(/keepOnPhone\(/g)?.length).toBe(2); // the definition and the one call
+    expect(f).toContain("await keepOnPhone(newDraftKey(), offline.onSaved)");
+    expect(src("src/app/groups/[id]/add/page.tsx")).not.toContain("keepOffline");
     const a = src("src/app/actions.ts");
-    expect(a).toContain("offlineOn() && input.rateOnDay");
-    expect(a).toContain("day && offlineOn() ?");
+    expect(a).not.toContain("rateOnDay");
+    expect(a).not.toContain("getRateOn");
+    expect(a).toContain("export async function lookupRate(from: string, to: string)");
+    const rc = src("src/lib/rate-cache.ts");
+    expect(rc.slice(rc.indexOf("export async function getRateOn"), rc.indexOf("export async function displayRate"))).not.toContain("exchangeRate.create");
+    expect(rc).toContain('orderBy: { fetchedAt: "desc" }');
     for (const gone of ["alsoKey", "earlier.ts"]) expect(src("src/lib/save-expense.ts") + src("src/lib/offline/send.ts")).not.toContain(gone);
   });
-  it("Open and fix opens only the signed-in person's draft; Save on this phone says what it cannot keep", () => {
+  it("Delete account has its own words for waiting expenses, and the note is hidden-first in its own step", () => {
+    const w = src("src/lib/offline/words.ts");
+    expect(w).toContain("Deleting your account removes");
+    expect(src("src/app/account/data/page.tsx")).toContain("deletes");
+    const c = src("src/components/ConfirmButton.tsx");
+    expect(c).toContain("(deletes ? W.deleteWarn : W.signOutWarn)(waiting)");
+    expect(c.indexOf("await applyMe(openStore(), {})")).toBeLessThan(c.indexOf("localStorage.setItem(WIPE_FLAG"));
+    expect(c.slice(c.indexOf("await applyMe(openStore(), {})"), c.indexOf("localStorage.setItem(WIPE_FLAG"))).toContain("} catch {"); // its own try
+  });
+  it("Open and fix opens only the signed-in person's draft", () => {
     expect(src("src/components/offline/OfflineFix.tsx")).toContain("d.memberId === formProps.myId");
     const form = src("src/components/AddExpenseForm.tsx");
-    expect(form).toContain("W.itemsNotKept");
-    expect(form).toContain("W.photoNotKept");
+    expect(form).not.toContain("W.itemsNotKept");
   });
   it("a browser without requestSubmit still signs out", () => {
     for (const p of ["src/app/account/sign-in/page.tsx", "src/app/account/data/page.tsx"]) {

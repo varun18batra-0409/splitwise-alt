@@ -13,9 +13,6 @@ const FRESH_MS = 6 * 60 * 60 * 1000;
 const FAIL_MS = 5 * 60 * 1000;
 const CODES_MS = 24 * 60 * 60 * 1000;
 
-// The newest FIXING first (its date), then the newest fetch. A rate kept for an older day (see getRateOn) is never "the latest rate".
-const LATEST_FIRST = [{ date: "desc" as const }, { fetchedAt: "desc" as const }];
-
 // An old day's answers (an old day's rate never changes), by `from-to-day`.
 const pastDays = new Map<string, RateAnswer>();
 const memory = new Map<string, { at: number; answer: RateAnswer }>();
@@ -39,7 +36,7 @@ export async function getRate(from: string, to: string): Promise<RateAnswer> {
 
   const saved = await db.exchangeRate.findFirst({
     where: { base: from, quote: to },
-    orderBy: LATEST_FIRST,
+    orderBy: { fetchedAt: "desc" },
   });
   if (saved && now - saved.fetchedAt.getTime() < FRESH_MS) {
     const answer: RateAnswer = { ok: true, rate: saved.rate, date: saved.date };
@@ -84,11 +81,8 @@ export async function getRateOn(from: string, to: string, day: string, todayKey 
   if (saved) return { ok: true, rate: saved.rate, date: saved.date };
   const live = await fetchRateOn(from, to, day, { supported: await supportedCodes() });
   if (live.ok) {
-    // Saved under the day it applies to (the asked-for day, or the working day before it). `fetchedAt` is that day too, NOT now: the
-    // 6-hour "still fresh" test and "newest saved rate" in getRate / displayRate must never mistake an old day's rate for today's.
-    await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: live.date, fetchedAt: new Date(`${live.date}T00:00:00Z`) } }).catch(() => null);
-    // Kept in memory under the day that was asked about (a weekend or holiday answers with the working day before). NOT written to the
-    // table: that would make it the newest row for everyone's online screens. The answer keeps its real fixing date.
+    // Kept in memory only, under the day that was asked about (a weekend or holiday answers with the working day before it, and the answer
+    // keeps its real fixing date). Offline code NEVER writes to ExchangeRate: only getRate does, exactly as on the live app.
     if (pastDays.size > 500) pastDays.clear();
     pastDays.set(memKey, live);
   }
@@ -106,7 +100,7 @@ export async function displayRate(from: string, to: string, later: (job: () => P
   const now = Date.now();
   const hit = memory.get(key);
   if (hit && hit.answer.ok && now - hit.at < FRESH_MS) return hit.answer;
-  const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to }, orderBy: LATEST_FIRST });
+  const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to }, orderBy: { fetchedAt: "desc" } });
   const fresh = Boolean(saved && now - saved.fetchedAt.getTime() < FRESH_MS);
   if (!fresh) later(() => getRate(from, to).catch(() => null));
   if (!saved) return { ok: false, reason: "unavailable", message: "The rate isn’t loaded yet." };

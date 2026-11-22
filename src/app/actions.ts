@@ -13,8 +13,7 @@ import { PAY_CHANGE_LIMIT_TEXT, isPaymentChangeEvent, payChangeOk } from "@/lib/
 import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
 import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
-import { getRate, getRateOn, type RateAnswer } from "@/lib/rate-cache";
-import { offlineOn } from "@/lib/offline/words";
+import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
 import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, undoEvent, undoViewerFor } from "@/lib/undo";
@@ -329,7 +328,7 @@ export async function makeNewInviteLink(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { rateOnDay?: boolean; again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
+  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   // The checks both doors share (rate limit, pairs): src/lib/add-expense-checks.ts.
   const checks = await addExpenseChecks({ ip: (await originAndIp()).ip, groupId: input.groupId, currency: input.currency, editing: Boolean(input.expenseId) });
@@ -337,11 +336,7 @@ export async function addExpense(
   const isPair = checks.isPair;
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
-  // An expense kept on a phone that is being fixed ("Open and fix", only with the offline switch on): its rate is the one for ITS OWN day,
-  // as when it is sent from the phone, never today's. (getRateOn never answers with another day's rate; with none the person types one.)
-  const fromPhone = Boolean(offlineOn() && input.rateOnDay && input.date);
-  const rateFor: typeof getRate = fromPhone ? (from, to) => getRateOn(from, to, input.date as string) : getRate;
-  if (g && input.currency !== g.currency && input.rateMode === "auto") await rateFor(input.currency, g.currency).catch(() => null);
+  if (g && input.currency !== g.currency && input.rateMode === "auto") await getRate(input.currency, g.currency).catch(() => null);
   const me = await getMyMemberId(input.groupId);
   // A waiting bill is Home-group money setup: it needs an account. (An ordinary new expense is open to a guest; changing one is own-only, below.)
   if (input.billRun) {
@@ -356,7 +351,7 @@ export async function addExpense(
   const result =
     input.billRun && !input.expenseId
       ? await addWaitingBill(input, me, getRate, input.billRun, requestKey, attach)
-      : await saveExpense(input, me, rateFor, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach, guestRules: true });
+      : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach, guestRules: true });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
   // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
   after(() => checkBudgets(input.groupId).catch(() => []));
@@ -421,7 +416,7 @@ export async function undoChange(formData: FormData) {
 }
 
 // Looks up today's exchange rate when a currency is picked (not on every keystroke).
-export async function lookupRate(from: string, to: string, day?: string): Promise<RateAnswer> {
+export async function lookupRate(from: string, to: string): Promise<RateAnswer> {
   // A person picking currencies makes a handful of lookups; this only stops a script from using our rate service up.
   if (!(await allow(`rate-ip:${(await originAndIp()).ip}`, 120, 3600))) {
     return { ok: false, reason: "unavailable", message: "Lots of rate lookups from here in the last hour. Enter the rate yourself, or try again later." };
@@ -429,8 +424,7 @@ export async function lookupRate(from: string, to: string, day?: string): Promis
   if (!isSupportedCurrency(from) || !isSupportedCurrency(to)) {
     return { ok: false, reason: "unsupported", message: "That currency isn't supported. Enter the rate yourself." };
   }
-  // `day`: fixing an expense kept on a phone, whose rate is the one for its own day.
-  return day && offlineOn() ? getRateOn(from, to, day) : getRate(from, to);
+  return getRate(from, to);
 }
 
 // Group settings: name, currency and foreign card markup. Every change is logged for everyone.
