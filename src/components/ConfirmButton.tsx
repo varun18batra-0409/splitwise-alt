@@ -2,13 +2,13 @@
 
 import { useRef } from "react";
 import { hasOfflineData, openStore } from "@/lib/offline/idb";
-import { draftsFor } from "@/lib/offline/store";
+import { applyMe, draftsFor } from "@/lib/offline/store";
 import { WIPE_FLAG, W } from "@/lib/offline/words";
 
 // A submit button that asks "Are you sure?" first. Used for delete actions.
 // `wipesOffline` (Sign out, Delete account): if this phone keeps anything for add-expenses-offline (even if that feature has since been
 // switched off), the question says so first when expenses are still waiting, and the phone's offline data is removed AFTER the server has
-// signed the person out / deleted the account (the next page does it: see OfflineSync). Nothing is wiped before that, so a failed sign-out
+// signed the person out / deleted the account (the next page does it: src/lib/offline/signout.ts). Until then it is hidden. Nothing is wiped before that, so a failed sign-out
 // loses nothing. With nothing stored this behaves exactly like any other confirm button.
 export function ConfirmButton({ message, children, className, wipesOffline = false }: { message: string; children: React.ReactNode; className?: string; wipesOffline?: boolean }) {
   const passed = useRef(false); // the second submit, after the question was answered
@@ -39,6 +39,7 @@ export function ConfirmButton({ message, children, className, wipesOffline = fal
           if (stored) {
             try {
               localStorage.setItem(WIPE_FLAG, String(Date.now()));
+              await applyMe(openStore(), {}); // out of sight from this moment (kept, hidden: a sign-out that fails loses nothing)
             } catch {
               /* the browser won't keep a note: the data stays hidden, never shown to the next person */
             }

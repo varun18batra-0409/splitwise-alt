@@ -16,6 +16,8 @@ const CODES_MS = 24 * 60 * 60 * 1000;
 // The newest FIXING first (its date), then the newest fetch. A rate kept for an older day (see getRateOn) is never "the latest rate".
 const LATEST_FIRST = [{ date: "desc" as const }, { fetchedAt: "desc" as const }];
 
+// An old day's answers (an old day's rate never changes), by `from-to-day`.
+const pastDays = new Map<string, RateAnswer>();
 const memory = new Map<string, { at: number; answer: RateAnswer }>();
 let codesCache: { at: number; codes: Set<string> | null } | null = null;
 
@@ -75,6 +77,9 @@ export async function getRateOn(from: string, to: string, day: string, todayKey 
     if (r.ok && r.stale) return { ok: false, reason: "offline", message: "Couldn't reach the rate service. Enter the rate yourself, or try again later." };
     return r;
   }
+  const memKey = `${from}-${to}-${day}`;
+  const remembered = pastDays.get(memKey);
+  if (remembered) return remembered;
   const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to, date: day }, orderBy: { fetchedAt: "desc" } });
   if (saved) return { ok: true, rate: saved.rate, date: saved.date };
   const live = await fetchRateOn(from, to, day, { supported: await supportedCodes() });
@@ -82,9 +87,10 @@ export async function getRateOn(from: string, to: string, day: string, todayKey 
     // Saved under the day it applies to (the asked-for day, or the working day before it). `fetchedAt` is that day too, NOT now: the
     // 6-hour "still fresh" test and "newest saved rate" in getRate / displayRate must never mistake an old day's rate for today's.
     await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: live.date, fetchedAt: new Date(`${live.date}T00:00:00Z`) } }).catch(() => null);
-    // A weekend or holiday has no fixing of its own: the answer is the working day before. Also kept under the day that was ASKED about,
-    // so asking again does not call the service again. (Never a range lookup: a row for Wednesday is not the rate on Friday.)
-    if (live.date !== day) await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: day, fetchedAt: new Date(`${day}T00:00:00Z`) } }).catch(() => null);
+    // Kept in memory under the day that was asked about (a weekend or holiday answers with the working day before). NOT written to the
+    // table: that would make it the newest row for everyone's online screens. The answer keeps its real fixing date.
+    if (pastDays.size > 500) pastDays.clear();
+    pastDays.set(memKey, live);
   }
   return live;
 }

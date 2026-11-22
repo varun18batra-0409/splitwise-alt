@@ -32,7 +32,7 @@ import { newDraftKey } from "@/lib/offline/client";
 import { askToKeep, openStore } from "@/lib/offline/idb";
 import { addDraft } from "@/lib/offline/store";
 import type { DraftInput } from "@/lib/offline/types";
-import { W } from "@/lib/offline/words";
+import { OFFLINE_KEY_PREFIX, W } from "@/lib/offline/words";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -190,8 +190,14 @@ export function AddExpenseForm({
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
   // One key per opened form: if the save is sent twice, it's saved once.
-  const generatedKey = useRequestKey();
+  // With the offline switch on (`keepOffline`) the key is an `off-` key from the start. If the outcome of a save is unknown, "Save on this
+  // phone" keeps the SAME content under the SAME key, so a later send that finds the key used is genuinely "already added".
+  const freshKey = useRequestKey();
+  const generatedKey = keepOffline ? `${OFFLINE_KEY_PREFIX}${freshKey}` : freshKey;
   const requestKey = fixed?.key ?? generatedKey;
+  // An unknown outcome locks the form: only "Try again" (same key) or "Save on this phone" (same content, same key). To change anything,
+  // start a new expense (a new key; then the ordinary duplicate question applies).
+  const [locked, setLocked] = useState(false);
 
   // Remember how the last expense in this group was split (who it was for,
   // how, and how it was paid) and start the next one the same way.
@@ -541,14 +547,20 @@ export function AddExpenseForm({
     }
     startSaving(async () => {
       try {
-        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), receiptId: receiptId || undefined, items: byItem && itemSplit?.ok ? items.filter((x) => x.name.trim() || x.amount.trim()).map((x) => ({ name: x.name.trim() || "Item", amount: parseAmount(x.amount, currency) ?? 0, people: x.people })) : [], baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), receiptId: receiptId || undefined, rateOnDay: Boolean(fixed), items: byItem && itemSplit?.ok ? items.filter((x) => x.name.trim() || x.amount.trim()).map((x) => ({ name: x.name.trim() || "Item", amount: parseAmount(x.amount, currency) ?? 0, people: x.people })) : [], baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+        setLocked(false); // the server answered: the outcome is known, so the form can be changed again
         if (res?.duplicateOf) setDup(res.duplicateOf);
         else if (res?.error) setError(res.error);
       } catch (err) {
         // Going to the group afterwards is Next.js's own signal: let it through.
         if (String((err as { digest?: string })?.digest ?? "").startsWith("NEXT_")) throw err;
         // No signal, or the server hiccuped. Saving again is safe (this form's key means it's only ever added once).
-        setError("We couldn’t confirm this saved. What you typed is still here: tap Save again when you’re back online. It won’t be added twice.");
+        if (keepOffline && !expenseId && !billRun) {
+          setLocked(true);
+          setError(W.unknownOutcome);
+        } else {
+          setError("We couldn’t confirm this saved. What you typed is still here: tap Save again when you’re back online. It won’t be added twice.");
+        }
         if (keepOffline && !expenseId && !billRun) {
           // Only what was typed can be kept: no bill photo, and nothing split by item (that would save a different split).
           if (byItem) setOfferNote(W.itemsNotKept);
@@ -586,6 +598,7 @@ export function AddExpenseForm({
     // Saving is already safe to repeat (one request key per form, and the
     // buttons are off while saving), so the page-wide double-tap lock isn't needed here.
     <form ref={formRef} onSubmit={save} data-allow-repeat="1" className="space-y-7">
+      <fieldset disabled={locked} className="m-0 min-w-0 space-y-7 border-0 p-0" data-form-locked={locked ? "1" : undefined}>
       {/* Money back (a refund, a deposit returned) is a choice under "Notes, money back…" below (founder, 15 Nov: no switch on top).
           While it is on, one line here says so, with a way straight back. */}
       {kind === "refund" && (
@@ -1442,13 +1455,20 @@ export function AddExpenseForm({
         )}
       </div>
 
+      </fieldset>
+
       {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {locked && (
+        <a href={`/groups/${groupId}/add`} className="flex min-h-11 items-center text-sm font-semibold text-fg underline underline-offset-4" data-start-new>
+          {W.startNew}
+        </a>
+      )}
       {offerNote && !offerPhone && !offline && <p className="rounded-[20px] border border-line px-4 py-3 text-sm text-fg/80" data-save-on-phone-note>{offerNote}</p>}
       {offerPhone && !offline && (
         <div className="rounded-[20px] border border-line px-4 py-3 text-sm" data-save-on-phone>
           <p className="text-fg/80">No signal? Keep it on this phone and Loopin will ask before adding it when you’re back online.</p>
           {offerNote && <p className="mt-1 text-fg/70" data-save-on-phone-note>{offerNote}</p>}
-          <button type="button" onClick={() => void keepOnPhone(requestKey.startsWith("off-") ? requestKey : `off-${requestKey}`, () => window.location.assign(`/groups/${groupId}`))} className="mt-2 flex min-h-11 items-center font-semibold text-fg underline underline-offset-4">
+          <button type="button" onClick={() => void keepOnPhone(requestKey, () => window.location.assign(`/groups/${groupId}`))} className="mt-2 flex min-h-11 items-center font-semibold text-fg underline underline-offset-4">
             {W.saveOnPhone}
           </button>
         </div>
@@ -1493,11 +1513,11 @@ export function AddExpenseForm({
           disabled={saving || scanBusy || rateState.status === "loading"}
           className={primaryButtonClass}
         >
-          {saving && !again ? "Saving…" : offline ? W.saveOnPhone : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
+          {saving && !again ? "Saving…" : offline ? W.saveOnPhone : locked ? W.tryAgainSave : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
         </button>
       </div>
       {offline && <p className="px-3 pb-1 pt-2 text-center text-[13px] text-fg/60" data-offline-save-note>{W.saveNote}</p>}
-      {!expenseId && !offline && (
+      {!expenseId && !offline && !locked && (
         <button
           type="submit"
           onClick={() => {

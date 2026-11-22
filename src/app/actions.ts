@@ -14,6 +14,7 @@ import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
 import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, getRateOn, type RateAnswer } from "@/lib/rate-cache";
+import { offlineOn } from "@/lib/offline/words";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
 import { MOVED_OUT_REJOIN_TEXT, ownMoveOut, undoEvent, undoViewerFor } from "@/lib/undo";
@@ -328,7 +329,7 @@ export async function makeNewInviteLink(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
+  input: SaveExpenseInput & { rateOnDay?: boolean; again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   // The checks both doors share (rate limit, pairs): src/lib/add-expense-checks.ts.
   const checks = await addExpenseChecks({ ip: (await originAndIp()).ip, groupId: input.groupId, currency: input.currency, editing: Boolean(input.expenseId) });
@@ -336,9 +337,9 @@ export async function addExpense(
   const isPair = checks.isPair;
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
-  // An expense kept on a phone (its key starts "off-") that is being fixed: its rate is the one for ITS OWN day, as when it is sent from the
-  // phone, never today's. (getRateOn never answers with another day's rate; with none the person is asked to type one.)
-  const fromPhone = Boolean(input.requestKey?.startsWith("off-") && input.date);
+  // An expense kept on a phone that is being fixed ("Open and fix", only with the offline switch on): its rate is the one for ITS OWN day,
+  // as when it is sent from the phone, never today's. (getRateOn never answers with another day's rate; with none the person types one.)
+  const fromPhone = Boolean(offlineOn() && input.rateOnDay && input.date);
   const rateFor: typeof getRate = fromPhone ? (from, to) => getRateOn(from, to, input.date as string) : getRate;
   if (g && input.currency !== g.currency && input.rateMode === "auto") await rateFor(input.currency, g.currency).catch(() => null);
   const me = await getMyMemberId(input.groupId);
@@ -429,7 +430,7 @@ export async function lookupRate(from: string, to: string, day?: string): Promis
     return { ok: false, reason: "unsupported", message: "That currency isn't supported. Enter the rate yourself." };
   }
   // `day`: fixing an expense kept on a phone, whose rate is the one for its own day.
-  return day ? getRateOn(from, to, day) : getRate(from, to);
+  return day && offlineOn() ? getRateOn(from, to, day) : getRate(from, to);
 }
 
 // Group settings: name, currency and foreign card markup. Every change is logged for everyone.

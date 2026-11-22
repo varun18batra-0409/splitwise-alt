@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { fetchDone, fetchMe, markSheetSeen, sheetSeen } from "@/lib/offline/client";
-import { hasOfflineData, openStore, wipePhone } from "@/lib/offline/idb";
-import { WIPE_FLAG, WIPE_FLAG_MAX_MS } from "@/lib/offline/words";
+import { hasOfflineData, openStore } from "@/lib/offline/idb";
+import { settleSignOutNote } from "@/lib/offline/signout";
+import { WIPE_FLAG } from "@/lib/offline/words";
 import { applyMe, draftsFor, dropAllSnapshots, removeConfirmed, snapshotFor } from "@/lib/offline/store";
 import { BackOnlineSheet } from "./BackOnlineSheet";
 
@@ -41,16 +42,10 @@ export function OfflineSync({ on }: { on: boolean }) {
     let live = true;
     void (async () => {
       try {
-        // The note left by Sign out / Delete account: if the server really has signed this person out now, everything kept for offline goes.
-        // (Done whether or not the feature is switched on, so a phone that kept things while it was on is still cleared.)
-        const note = readWipeNote();
-        if (note !== null) {
-          const me = await fetchMe();
-          if (me || Date.now() - note > WIPE_FLAG_MAX_MS) {
-            clearWipeNote();
-            if (me?.signedOut && Date.now() - note <= WIPE_FLAG_MAX_MS && (await hasOfflineData())) await wipePhone();
-          }
-        }
+        // The note left by Sign out / Delete account (see signout.ts): hidden at once, wiped only once the server confirms no account is here.
+        // Done whether or not the feature is switched on, so a phone that kept things while it was on is still cleared.
+        const settled = await settleSignOutNote(kv, { read: readWipeNote, clear: clearWipeNote }, fetchMe);
+        if (settled === "hidden") return;
         if (!on) {
           if (await hasOfflineData()) await dropAllSnapshots(kv);
           return;
@@ -66,7 +61,7 @@ export function OfflineSync({ on }: { on: boolean }) {
         }
         // 2. Which of the waiting ones did the server already add?
         const mine = await draftsFor(kv);
-        if (mine.length) await removeConfirmed(kv, await fetchDone(mine));
+        if (mine.length) await removeConfirmed(kv, await fetchDone(mine.map((d) => d.key)));
         // 3. The sheet: for this group's page or Add page, or (on Home) the group with the oldest waiting expense.
         if (new URLSearchParams(window.location.search).get("fix")) return; // fixing one on the Add screen: don't interrupt
         // Only the expenses of the person the server says is signed in here now: another person's never flash after a phone changes hands.

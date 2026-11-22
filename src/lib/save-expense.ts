@@ -69,9 +69,6 @@ export type SaveOpts = {
   guestRules?: boolean;
   // Do every check (and the duplicate question) but write nothing. A key already used still answers "already added" with its id.
   // For the offline sheet, which asks the duplicate questions when it opens.
-  // An expense kept on a phone has the key `off-` + K; K is the key the online Add screen first tried with. Claimed in the SAME step, so if
-  // an online save with K and the phone's copy both try, the one that commits second fails cleanly (and is told it was already added).
-  alsoKey?: string;
   dryRun?: boolean;
   // An expense added offline: what the phone saw when it was written. A new expense is refused if the group is not as the phone saw it
   // (checked on the very rows the split is worked out from, so "everyone" can never quietly become one more or one fewer person).
@@ -97,7 +94,7 @@ export async function saveExpense(
       return await saveExpenseOnce(input, actingMemberId, lookupRate, opts);
     } catch (err) {
       if (!isDuplicateKey(err)) throw err;
-      return { ok: true, id: (await previousResult(opts.requestKey)) ?? (await previousResult(opts.alsoKey)) ?? "" };
+      return { ok: true, id: (await previousResult(opts.requestKey)) ?? "" };
     }
   });
 }
@@ -367,7 +364,6 @@ async function saveExpenseOnce(
       await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: peopleInExpense({ paidById: e.paidById, payers: e.payers, shares: e.shares }) });
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
       await claimKey(tx, opts.requestKey, created.id);
-      await claimKey(tx, opts.alsoKey, created.id);
       if (attach) await writeAttach(tx, group.id, created.id, attach, true);
       if (opts.alsoInTx) await opts.alsoInTx(tx, created.id);
       const eventId = await logEvent(tx, {

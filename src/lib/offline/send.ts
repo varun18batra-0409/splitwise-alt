@@ -1,6 +1,5 @@
 import { saveExpense, type SaveExpenseInput } from "../save-expense";
 import { cleanKey } from "../once";
-import { asDuplicate, earlierSave, originalKeyOf, sameAsTyped } from "./earlier";
 import { niceDate } from "../format";
 import type { RateAnswer } from "../rate-cache";
 import { NOT_SIGNED_IN, NO_RATE, OTHER_PERSON } from "./words";
@@ -24,17 +23,6 @@ export async function sendDraft(draft: DraftInput, me: string | undefined, o: Se
   if (me !== draft.memberId) return { status: "refused", code: "other-person", reason: OTHER_PERSON };
   const key = cleanKey(draft.key);
   if (!key) return { status: "refused", code: "invalid", reason: "That expense wasn’t readable, so it wasn’t added." };
-
-  // "Save on this phone" after an online save whose reply was lost keeps the draft as `off-` + that save's key K. If that save did commit:
-  //   - the same expense (same amount, currency and name), in this group: it is already added;
-  //   - changed since (say ₹1,200 became ₹1,500): the sheet asks, the draft is never dropped; "Different, keep both" then adds it;
-  //   - K belongs to something in another group, or to nothing that exists: it has nothing to do with this draft, a normal save.
-  const earlier = await earlierSave(key);
-  const there = earlier.expense && earlier.expense.groupId === draft.groupId ? earlier.expense : null;
-  if (there && sameAsTyped(there, draft)) return { status: "added", id: there.id };
-  if (there && o.allowDuplicate !== true) return { status: "duplicate", dup: await asDuplicate(there) };
-  // K is claimed together with the phone's own key only when nothing has used it, so a save still in flight online and this copy can't both land.
-  const alsoKey = earlier.taken ? undefined : originalKeyOf(key);
 
   let noRate: RateAnswer | null = null;
   const lookup = async (from: string, to: string) => {
@@ -71,7 +59,6 @@ export async function sendDraft(draft: DraftInput, me: string | undefined, o: Se
   };
   const result = await saveExpense(input, me, lookup, {
     requestKey: key,
-    alsoKey,
     checkDuplicate: true,
     guestRules: true,
     dryRun: o.dryRun === true,

@@ -72,15 +72,20 @@ describe("the rate for a day with no fixing may come from at most 4 days before"
   });
 });
 
-describe("a weekend or holiday is asked about once", () => {
-  it("Sunday 15 Nov asked, Friday 13 Nov answered: the second ask is served from what is kept (the service is called once), the rate is the same 2.5", async () => {
+describe("a weekend or holiday is asked about once, and never becomes the newest rate", () => {
+  it("Saturday 14 Nov asked, Friday 13 Nov answered: the service is called once, both answers say Friday; only Friday's row exists, so Home's and the online rate still pick Friday's real row / today's", async () => {
     fetchRateOn.mockResolvedValue({ ok: true, rate: "2.5", date: "2026-11-13" });
-    const first = await getRateOn("XRE", "INR", "2026-11-15", today);
+    const first = await getRateOn("XRE", "INR", "2026-11-14", today);
+    const second = await getRateOn("XRE", "INR", "2026-11-14", today);
     expect(first).toEqual({ ok: true, rate: "2.5", date: "2026-11-13" });
-    fetchRateOn.mockClear();
-    const second = await getRateOn("XRE", "INR", "2026-11-15", today);
-    expect(second).toMatchObject({ ok: true, rate: "2.5" });
-    expect(fetchRateOn).not.toHaveBeenCalled();
+    expect(second).toEqual(first); // the real fixing date both times
+    expect(fetchRateOn).toHaveBeenCalledTimes(1);
+    expect(await db.exchangeRate.count({ where: { base: "XRE", date: "2026-11-14" } })).toBe(0); // no copy under the asked day
+    expect(await db.exchangeRate.count({ where: { base: "XRE", date: "2026-11-13" } })).toBe(1);
+    // Home's rate: the only row there is, Friday's, marked old.
+    expect(await displayRate("XRE", "INR", () => undefined)).toEqual({ ok: true, rate: "2.5", date: "2026-11-13", stale: true });
+    // The online rate: Friday's row is far too old to trust, so today's is fetched (2.8).
+    expect(await getRate("XRE", "INR")).toEqual({ ok: true, rate: "2.8", date: today });
     fetchRateOn.mockImplementation(async (_f, _t, day) => ({ ok: true, rate: "2.5", date: day }));
   });
 });

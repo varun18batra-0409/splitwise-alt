@@ -83,16 +83,34 @@ describe("the switch", () => {
     expect(app).toContain("window.location.replace(real)");
     expect(app).toContain("data-offline-try-again");
   });
-  it("the wipe comes AFTER the server has signed out (a note is left, the next page wipes), only when something is stored, and a failed sign-out loses nothing", () => {
+  it("the wipe comes AFTER the server has signed out (a note is left, the next page settles it), only when something is stored, and a failed sign-out loses nothing", () => {
     const c = src("src/components/ConfirmButton.tsx");
     expect(c).toContain("hasOfflineData()");
     expect(c).toContain("localStorage.setItem(WIPE_FLAG");
     expect(c).not.toContain("await wipePhone()");
     const sync = src("src/components/offline/OfflineSync.tsx");
-    expect(sync).toContain("me?.signedOut");
-    expect(sync).toContain("await wipePhone()");
-    expect(sync.indexOf("readWipeNote()")).toBeLessThan(sync.indexOf("if (!on)"));
-    expect(src("src/app/api/offline/me/route.ts").indexOf("signedOut")).toBeLessThan(src("src/app/api/offline/me/route.ts").indexOf("if (!offlineOn())"));
+    expect(sync).toContain("settleSignOutNote(");
+    expect(sync.indexOf("settleSignOutNote(")).toBeLessThan(sync.indexOf("if (!on)"));
+    const so = src("src/lib/offline/signout.ts");
+    expect(so.indexOf("applyMe(kv, {})")).toBeLessThan(so.indexOf("await ask()")); // hidden before the server is asked
+    expect(so).toContain("if (!me.account)");
+    expect(so).not.toMatch(/Date\.now\(\)/); // the note never expires by time
+  });
+  it("/api/offline/me: a database problem is a 503, never 'no account'; the account answer comes even with the switch off", () => {
+    const m = src("src/app/api/offline/me/route.ts");
+    expect(m).toContain("status: 503");
+    expect(m.indexOf("account")).toBeLessThan(m.indexOf("if (!offlineOn())"));
+  });
+  it("with the switch on the online form's key is an off- key; an unknown outcome locks the form; and the day's rate is only used behind the switch", () => {
+    const f = src("src/components/AddExpenseForm.tsx");
+    expect(f).toContain("keepOffline ? `${OFFLINE_KEY_PREFIX}${freshKey}` : freshKey");
+    expect(f).toContain("<fieldset disabled={locked}");
+    expect(f).toContain("rateOnDay: Boolean(fixed)");
+    expect(f).toContain("keepOnPhone(requestKey,");
+    const a = src("src/app/actions.ts");
+    expect(a).toContain("offlineOn() && input.rateOnDay");
+    expect(a).toContain("day && offlineOn() ?");
+    for (const gone of ["alsoKey", "earlier.ts"]) expect(src("src/lib/save-expense.ts") + src("src/lib/offline/send.ts")).not.toContain(gone);
   });
   it("Open and fix opens only the signed-in person's draft; Save on this phone says what it cannot keep", () => {
     expect(src("src/components/offline/OfflineFix.tsx")).toContain("d.memberId === formProps.myId");
