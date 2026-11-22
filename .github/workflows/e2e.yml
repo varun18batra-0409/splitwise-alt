@@ -119,6 +119,13 @@ jobs:
             e2e-report-offline/
             e2e-report-offline-ios/
           retention-days: 5
+      - name: Keep the offline screens (for review)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-offline-screens
+          path: e2e-shots-offline/
+          retention-days: 5
       - name: Keep failure details (screenshots, traces, browser logs, server log)
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

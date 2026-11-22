@@ -83,6 +83,9 @@ async function saveOnPhone(page: Page, what: string, amount: string) {
 
 const net = async (page: Page) => (await page.locator("[data-net-balance]").first().innerText()).replace(/\s+/g, " ");
 
+// Pictures of the three approved offline screens for the founder's review (saved as a run artifact, not compared).
+const snap = (page: import("@playwright/test").Page, name: string) => page.screenshot({ path: `e2e-shots-offline/${test.info().project.name}-${name}.png` });
+
 test("with the signal refused (faked), expenses are kept on the phone, then added after asking; Different, keep both; balances add up", async ({ browser }) => {
   test.setTimeout(300_000);
   const { ctx, page, trip, groupId, name } = await setup(browser, "fake", { noWorker: true });
@@ -106,6 +109,7 @@ test("with the signal refused (faked), expenses are kept on the phone, then adde
   // Left out in version 1: scanning, speaking, typing a line, items.
   await expect(page.locator("[data-faster-entry]")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Items" })).toHaveCount(0);
+  await snap(page, "1-offline-add");
   await saveOnPhone(page, "Breakfast", "900");
   await page.waitForURL(new RegExp(`${trip.path}$`));
   await expect(page.locator("[data-offline-waiting-online]")).toContainText("1 expense waiting on this phone");
@@ -143,6 +147,7 @@ test("with the signal refused (faked), expenses are kept on the phone, then adde
   await expect(page.getByRole("heading", { name: "Recent expenses" })).toBeVisible();
   expect(await net(page)).toBe(lunchNet);
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await snap(page, "2-offline-group");
 
   // A second tab says "Not now": nothing is lost.
   const other = await ctx.newPage();
@@ -167,6 +172,7 @@ test("with the signal refused (faked), expenses are kept on the phone, then adde
   await expect(dup, `server answers: ${JSON.stringify(answers)}; expenses: ${JSON.stringify(rowsNow)}; now ${new Date().toISOString()}`).toHaveCount(1);
   await expect(dup).toContainText("Asha added Breakfast");
   await expect(dup).toContainText("at 8:40 am. Is it the same one?");
+  await snap(page, "3-back-online-sheet");
   await sheet.locator("[data-sheet-keep]").click();
   await expect(dup).toHaveCount(0);
   await sheet.getByRole("button", { name: `Add 2 to ${name}` }).click();
@@ -242,6 +248,7 @@ test("the offline Home lists the groups you can add to, and the waiting count", 
   await expect(page.locator("[data-offline-groups]")).toContainText(name);
   await expect(page.locator(`[data-offline-groups] a[href="/groups/${groupId}/add"]`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await snap(page, "4-offline-home");
   await ctx.close();
 });
 
