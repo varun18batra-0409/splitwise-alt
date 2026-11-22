@@ -32,6 +32,7 @@ import { newDraftKey } from "@/lib/offline/client";
 import { askToKeep, openStore } from "@/lib/offline/idb";
 import { addDraft } from "@/lib/offline/store";
 import type { DraftInput } from "@/lib/offline/types";
+import { fixNeedsOwnRate } from "@/lib/offline/fix-rate";
 import { W } from "@/lib/offline/words";
 
 type Member = { id: string; name: string };
@@ -261,9 +262,15 @@ export function AddExpenseForm({
   // Fetch a rate only when the currency changes — never on each keystroke.
   const rateCache = useRef(new Map<string, RateState>());
   const foreign = currency !== baseCurrency;
+  // Open and fix, another currency, a day before today: no live rate, the person enters the rate for that day (always false on the normal form).
+  const ownRateOnly = fixNeedsOwnRate({ isFix: Boolean(fixed), foreign, day: date, today });
   useEffect(() => {
     if (!foreign) {
       setRateState({ status: "none" });
+      return;
+    }
+    if (ownRateOnly) {
+      setRateState({ status: "missing", message: W.fixRateNote(niceDate(date)) });
       return;
     }
     // Offline there is no rate to fetch: the one for the expense's own day is added when it is added online (or typed here by hand).
@@ -297,7 +304,7 @@ export function AddExpenseForm({
     return () => {
       cancelled = true;
     };
-  }, [currency, baseCurrency, foreign, keepSavedRate, initial, offline]);
+  }, [currency, baseCurrency, foreign, keepSavedRate, initial, offline, ownRateOnly]);
 
   // remember = also the group's starting currency next time (a pick by hand, not a scanned bill).
   function chooseCurrency(code: string, remember = true) {
@@ -771,7 +778,7 @@ export function AddExpenseForm({
                     />
                   </span>
                 </label>
-                {rateState.status === "ok" && (
+                {rateState.status === "ok" && !ownRateOnly && (
                   <button type="button" onClick={() => setRateMode("auto")} className="mt-1 py-1 font-medium text-accent">
                     Use live rate ({rateText(rateState.rate, baseCurrency)})
                   </button>

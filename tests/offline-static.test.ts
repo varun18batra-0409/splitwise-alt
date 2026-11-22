@@ -120,6 +120,13 @@ describe("the switch", () => {
     expect(rc).toContain('orderBy: { fetchedAt: "desc" }');
     for (const gone of ["alsoKey", "earlier.ts"]) expect(src("src/lib/save-expense.ts") + src("src/lib/offline/send.ts")).not.toContain(gone);
   });
+  it("only in fix mode, another currency on an earlier day asks for the day's rate (empty box, own-rate mode, the note); the normal form is not touched", () => {
+    const f = src("src/components/AddExpenseForm.tsx");
+    expect(f).toContain("fixNeedsOwnRate({ isFix: Boolean(fixed), foreign, day: date, today })");
+    expect(f).toContain("W.fixRateNote(niceDate(date))");
+    expect(f).toContain("ownRateOnly");
+    expect(src("src/lib/offline/fix-rate.ts")).toContain("o.isFix && o.foreign && o.day < o.today");
+  });
   it("Delete account has its own words for waiting expenses, and the note is hidden-first in its own step", () => {
     const w = src("src/lib/offline/words.ts");
     expect(w).toContain("Deleting your account removes");

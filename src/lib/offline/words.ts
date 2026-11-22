@@ -64,6 +64,7 @@ export const W = {
   tryAgain: "Try again",
   noPrivate: "This phone can’t keep expenses offline in a private window.",
   tooMany: `This phone is keeping ${MAX_DRAFTS} expenses already. Add them when you’re online, then save more.`,
+  fixRateNote: (day: string) => `Enter the rate for ${day} (the day of this expense)`,
   foreignNote: (day: string) => `The rate for ${day} is added when it’s added online.`,
   signOutWarn: (n: number) => `${n} ${n === 1 ? "expense is" : "expenses are"} waiting on this phone and ${n === 1 ? "hasn’t" : "haven’t"} been added. Signing out removes ${n === 1 ? "it" : "them"} from this phone.`,
   // Delete account, with expenses still waiting on this phone (the account's own words, not the sign-out ones).
