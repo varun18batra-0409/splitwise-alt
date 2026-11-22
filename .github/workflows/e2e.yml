@@ -119,6 +119,21 @@ jobs:
             e2e-report-offline/
             e2e-report-offline-ios/
           retention-days: 5
+      - name: Print the offline screens (small copies, for review where artifacts can't be downloaded)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import base64, glob, os, subprocess
+          for f in sorted(glob.glob("e2e-shots-offline/*.png")):
+              out = f[:-4] + ".jpg"
+              # ImageMagick is on the runner; a half-size JPEG keeps the log small.
+              subprocess.run(["convert", f, "-resize", "50%", "-quality", "72", out], check=True)
+              data = base64.b64encode(open(out, "rb").read()).decode()
+              print(f"OFFSHOT-BEGIN {os.path.basename(out)}")
+              for i in range(0, len(data), 3000):
+                  print("OFFSHOT " + data[i:i + 3000])
+              print(f"OFFSHOT-END {os.path.basename(out)}")
+          PY
       - name: Keep the offline screens (for review)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
