@@ -15,7 +15,7 @@ import { db } from "../helpers/db";
 // Two kinds of "no signal": the real one (the browser offline, with the service worker) and a faked one (the "is there a signal?" answer
 // is refused), which works the same in both engines and does not need the service worker.
 
-const EXPECTED_FAILURE = /Failed to load resource|net::ERR|Failed to fetch|NetworkError|Load failed|Beacon API cannot load|fetch failed|The Internet connection appears to be offline|network connection was lost|ERR_INTERNET_DISCONNECTED|aborted/i;
+const EXPECTED_FAILURE = /Failed to load resource|net::ERR|Failed to fetch|NetworkError|Load failed|Beacon API cannot load|fetch failed|The Internet connection appears to be offline|network connection was lost|ERR_INTERNET_DISCONNECTED|aborted|due to access control checks/i; // the last one is how Safari words a send that was cut off when the page moved on
 const PEOPLE = ["Asha", "Ben", "Chitra", "Dev", "Esha"];
 
 async function setup(browser: Browser, tag: string, opts: { noWorker: boolean }) {
