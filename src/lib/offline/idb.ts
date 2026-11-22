@@ -109,7 +109,6 @@ export async function hasOfflineData(): Promise<boolean> {
 export async function wipePhone(): Promise<void> {
   try {
     await openStore().wipe();
-    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase(DB_NAME); // and the empty shell, so nothing at all is left
   } catch {
     /* nothing there */
   }

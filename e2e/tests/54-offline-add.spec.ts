@@ -263,7 +263,8 @@ test("signing out with an expense waiting warns, then wipes the phone's offline 
   await page.getByRole("button", { name: /^Sign out( anyway)?$/ }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/account/sign-in"), { timeout: 30_000 });
   expect(asked).toContain("1 expense is waiting on this phone and hasn’t been added. Signing out removes it from this phone.");
-  expect(await draftCount(page)).toBe(0);
+  // The wipe happens on the page after the server has signed the person out (not before), so give it a moment.
+  await expect.poll(() => draftCount(page), { timeout: 20_000, message: "the waiting expense is removed after sign-out" }).toBe(0);
   expect((await idbRows(page, "snapshots")).length).toBe(0);
   // The "who am I" note may be written again as an empty one after sign-out; what matters is that it names no group and no member.
   for (const row of await idbRows(page, "meta")) expect(Object.keys((row as { groups?: Record<string, string> }).groups ?? {})).toEqual([]);
