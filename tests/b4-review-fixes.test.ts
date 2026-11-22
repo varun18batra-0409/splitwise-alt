@@ -47,7 +47,7 @@ describe("M2: someone who has left hears only about their own side", () => {
     const settle = readFileSync("src/app/groups/[id]/settle/page.tsx", "utf8");
     expect(settle).toContain("leaverMoneyLine(");
     expect(settle).toContain("!data.leaver && transfers.length > 0 && before > transfers.length");
-    expect(readFileSync("src/app/groups/[id]/_components/GroupSummary.tsx", "utf8")).toContain("if (v.leaver) return leaverMoneyLine(");
+    expect(readFileSync("src/lib/group-summary-text.ts", "utf8")).toContain("if (v.leaver) return leaverMoneyLine(");
   });
 });
 

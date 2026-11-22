@@ -21,11 +21,10 @@ export type Snapshot = {
   cardMarkupBp: number;
   splitName: string;
   tz: string;
-  cover: { kind: string; src?: string };
   peopleCount: number;
   dayLine: string; // "Day 5 of 5" for a trip under way, else ""
   members: { id: string; name: string; splitWeight: number }[]; // people still in the group
-  balance: { paise: number; text: string; eq: string; tone: "owed" | "owe" | "square"; label: string; summary: string };
+  balance: { paise: number; text: string; eq: string; tone: "owed" | "owe" | "square"; label: string; summary: string; canSettle: boolean };
   rows: ActivityRowCopy[]; // the 3 newest
   savedAt: string; // ISO, the server's clock
 };

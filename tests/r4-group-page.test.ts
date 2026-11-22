@@ -7,7 +7,8 @@ const src = (p: string) => readFileSync(`${__dirname}/../${p}`, "utf8");
 
 describe("one boarding pass everywhere money is a ticket (rule A4)", () => {
   const home = src("src/components/HomeMoney.tsx");
-  const group = src("src/app/groups/[id]/_components/GroupSummary.tsx");
+  // The money box is drawn by MoneyCard (plain values, also used by the offline screen) from the words in group-summary-text.
+  const group = src("src/app/groups/[id]/_components/GroupSummary.tsx") + src("src/components/MoneyCard.tsx") + src("src/lib/group-summary-text.ts");
   const pay = src("src/components/PayScreens.tsx");
   it("the group's money box is the card from before the mockups (founder, 15 Nov): You're owed, the amount, one Settle up, the line with Why?", () => {
     for (const s of ["You’re owed", "You owe", "Your balance", "Settle up", "data-summary-line", "Why?", "payments clear", "glass rounded-[26px]"]) expect(group).toContain(s);
@@ -36,7 +37,7 @@ describe("one boarding pass everywhere money is a ticket (rule A4)", () => {
     expect(o).not.toContain("CREAM");
   });
   it("exact amounts: the money box formats with exactMoney (formatMoney), not the rounding helper", () => {
-    expect(group).toContain("exactMoney(Math.abs(mine), group.currency)");
+    expect(group).toContain("exactMoney(Math.abs(mine), currency)");
     expect(group).not.toContain("overviewMoney");
   });
 });

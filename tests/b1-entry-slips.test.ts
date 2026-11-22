@@ -65,8 +65,9 @@ describe("5. OA-6: the upgrade script no longer clears request keys after 7 days
   it("prisma/upgrade-data.mjs has no requestKey clean-up; the daily job keeps keys 30 days", () => {
     expect(readFileSync("prisma/upgrade-data.mjs", "utf8")).not.toContain("requestKey.deleteMany");
     const daily = readFileSync("src/app/api/cron/daily/route.ts", "utf8");
-    const line = daily.split("\n").find((l) => l.includes('"cleanup-keys"'))!;
-    expect(line).toContain("30 * 86_400_000");
+    // The 30 days now live in the clean-up helper (which also keeps offline "off-" keys 400 days); the daily job calls it.
+    expect(daily).toContain("cleanOldKeys(");
+    expect(readFileSync("src/lib/offline/key-cleanup.ts", "utf8")).toContain("30 * DAY");
   });
 });
 

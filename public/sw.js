@@ -1,22 +1,40 @@
 // Loopin service worker: lets the app be installed, shows phone
 // notifications and opens the right group when one is tapped. If the phone is
 // offline it shows a short message instead of the browser's error page.
-// TRIAL (branch phase-offline-trial): also keeps one generic offline screen (/offline-app) and its script and style files,
-// and sends group pages there when the phone has no signal.
+// ADD EXPENSES OFFLINE (switch OFFLINE_ADD): when the app tells this worker the switch is on, it keeps one generic offline screen
+// (/offline-app, no personal data) and the script and style files that screen lists, and sends group pages and Home there when the
+// phone has no signal. With the switch off (or before the app has said it is on) nothing is kept and nothing is redirected:
+// today's plain message shows. A fault in any of this falls back to the network, as if there were no service worker.
 const SHELL = "/offline-app";
 const PREFIX = "loopin-shell-";
+const SIX_HOURS = 6 * 60 * 60 * 1000;
 
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
-  event.waitUntil(saveShell().catch(() => {})); // never stops the install
-});
+self.addEventListener("install", () => self.skipWaiting()); // nothing is saved here: the app says when (message below)
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 self.addEventListener("message", (event) => {
-  if (event.data === "save-shell") event.waitUntil(saveShell().catch(() => {}));
+  const d = event.data;
+  if (!d || typeof d !== "object") return;
+  // { offline: true, build }: keep the offline screen (at most every 6 hours, and again after each release).
+  // { offline: false }: the switch is off: forget it.
+  if (d.offline === true) event.waitUntil(saveShellIfDue(String(d.build || "")).catch(() => {}));
+  else if (d.offline === false) event.waitUntil(forgetShell().catch(() => {}));
 });
 
+async function forgetShell() {
+  for (const k of await caches.keys()) if (k.startsWith(PREFIX)) await caches.delete(k);
+}
+async function saveShellIfDue(build) {
+  const name = await newest();
+  if (name) {
+    const meta = await (await caches.open(name)).match("/__meta").catch(() => undefined);
+    const m = meta ? await meta.json().catch(() => null) : null;
+    if (m && m.build === build && Date.now() - m.at < SIX_HOURS) return;
+  }
+  await saveShell(build);
+}
+
 // Fetch the offline screen with no cookies, then the files it lists, into a NEW cache; the older one goes only after it is complete.
-async function saveShell() {
+async function saveShell(build) {
   const res = await fetch(SHELL, { credentials: "omit", cache: "no-store" });
   if (!res.ok) throw new Error("shell " + res.status);
   const html = await res.clone().text();
@@ -28,6 +46,7 @@ async function saveShell() {
   const cache = await caches.open(name);
   try {
     await cache.put(SHELL, res);
+    await cache.put("/__meta", new Response(JSON.stringify({ build, at: Date.now() }), { headers: { "Content-Type": "application/json" } }));
     await Promise.all([...files].map(async (f) => {
       const r = await fetch(f, { credentials: "omit" });
       if (r.ok) await cache.put(f, r);

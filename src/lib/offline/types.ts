@@ -38,7 +38,13 @@ export type DraftInput = {
 };
 
 export type DraftStatus = "waiting" | "refused" | "duplicate";
-export type Draft = DraftInput & { status: DraftStatus; reason?: string; code?: RefusalCode; dup?: DuplicateOf };
+export type Draft = DraftInput & {
+  status: DraftStatus;
+  reason?: string;
+  code?: RefusalCode;
+  dup?: DuplicateOf;
+  keepBoth?: boolean; // the person said "Different, keep both": send it past the duplicate question
+};
 
 // The one request: POST /api/offline/add.
 export type AddRequest = { draft: DraftInput; dryRun?: boolean; allowDuplicate?: boolean };

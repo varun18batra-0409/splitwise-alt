@@ -223,4 +223,6 @@ export const ROUTE_RULES: Record<string, RuleEntry> = {
   "src/app/api/group-photo/[id]/route.ts": { rule: "acct", marks: ["gateGuest("] },
   "src/app/api/push/route.ts": { rule: "open" },
   "src/app/api/tz/route.ts": { rule: "open" },
+  "src/app/api/offline/add/route.ts": { rule: "open", note: "a NEW expense is open to a guest, as in addExpense; sendDraft calls saveExpense with guestRules, and only the member who saved the draft may send it" },
+  "src/app/api/offline/status/route.ts": { rule: "open", note: "reads only: whether an offline key was added, for expenses in the person's own groups" },
 };
