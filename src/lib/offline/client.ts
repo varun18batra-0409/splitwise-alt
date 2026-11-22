@@ -52,10 +52,11 @@ export async function fetchDone(keys: string[]): Promise<Record<string, string>>
 }
 
 export function newDraftKey(): string {
-  const c = typeof crypto !== "undefined" ? crypto : undefined;
-  if (c && "randomUUID" in c) return `off-${c.randomUUID()}`;
+  const c: Crypto | undefined = typeof crypto !== "undefined" ? crypto : undefined;
+  if (c && typeof c.randomUUID === "function") return `off-${c.randomUUID()}`;
   const b = new Uint8Array(16);
-  c?.getRandomValues(b);
+  if (c) c.getRandomValues(b);
+  else for (let i = 0; i < b.length; i++) b[i] = Math.floor(Math.random() * 256);
   return `off-${Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
