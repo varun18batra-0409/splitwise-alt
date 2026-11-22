@@ -17,7 +17,7 @@ describe("postcard editor: what is offered", () => {
     expect([...LOOK_PICKS]).toEqual(["none", "golden", "faded", "matte", "riviera", "cool", "bw", "sepia"]);
     expect([...SEAL_COLOUR_PICKS]).toEqual(["crimson", "scarlet", "burgundy", "blush", "gold", "bronze", "silver", "rosegold", "pearl", "navy", "sapphire", "teal", "forest", "plum", "black"]);
     expect([...SEAL_DESIGN_PICKS]).toEqual(["initial", "crest", "fleur", "heart", "star", "rose", "crown", "laurel", "compass", "anchor", "key", "moon", "plane", "bee"]);
-    expect([...TOUCH_PICKS]).toEqual(["tape", "flower", "seal", "coffee", "paravion", "ticket", "map", "compass", "film", "clip"]);
+    expect([...TOUCH_PICKS]).toEqual(["tape", "flower", "seal", "coffee", "paravion", "ticket", "map", "compass", "film", "clip", "sticker", "kiss"]); // sticker and kiss back (founder, 22 Nov)
   });
 
   it("no list has more than 15, and every offered id really exists", () => {
@@ -142,10 +142,13 @@ describe("postcard editor: a dropped choice is drawn as the nearest one offered 
     expect(cleanTouches("clip,ticket,map,compass,film,paravion")).toBe("clip,ticket,map,compass,film,paravion");
     // still mapped to the tape (two removed -> one tape, not two)
     expect(touchesOn("boarding,luggage", "front").map((t) => t.id)).toEqual(["tape"]);
-    expect(touchesOn("sticker,corners", "front").map((t) => t.id)).toEqual(["tape"]);
+    expect(touchesOn("corners", "front").map((t) => t.id)).toEqual(["tape"]);
+    // The hotel sticker and the lipstick kiss are offered again (founder, 22 Nov) and draw as themselves.
+    expect(touchesOn("sticker", "front").map((t) => t.id)).toEqual(["sticker"]);
     expect(touchesOn("tape,flower", "front").map((t) => t.id).sort()).toEqual(["flower", "tape"]);
-    // the kiss as the coffee ring; stamp-like labels on the back are left off
-    expect(touchesOn("kiss", "back").map((t) => t.id)).toEqual(["coffee"]);
+    // the kiss as itself, in the address half (x from 0.5), never over the message; stamp-like labels on the back are left off
+    expect(touchesOn("kiss", "back").map((t) => t.id)).toEqual(["kiss"]);
+    expect(TOUCHES.find((t) => t.id === "kiss")!.x).toBeGreaterThanOrEqual(0.5);
     expect(touchesOn("customs,arrived,received,seal", "back").map((t) => t.id)).toEqual(["seal"]);
   });
   it("touches on a one-side card: no tape, only the few that fit, each at its own spot", () => {

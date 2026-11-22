@@ -997,6 +997,7 @@ if (!hosted) {
       await tool("touches")(p);
       await p.getByRole("button", { name: "Tape", exact: true }).click();
       await p.getByRole("button", { name: "Pressed flower" }).click();
+      await p.getByRole("button", { name: "Hotel sticker" }).click();
       await p.waitForTimeout(900);
     }, false);
     await shot("131f-postcard-front-fit-taped", ed, async (p) => {
@@ -1037,6 +1038,7 @@ if (!hosted) {
     await shot("132e-postcard-note-touches", ed, async (p) => {
       await onNote(p, "touches");
       await p.getByRole("button", { name: "Coffee ring" }).click();
+      await p.getByRole("button", { name: "Lipstick kiss" }).click();
       await p.waitForTimeout(800);
     }, false);
     await shot("133-postcard-compose-send", ed, async (p) => {

@@ -407,7 +407,7 @@ export default async function HowItWorks() {
       <Section slot="place-goa-4" title="Postcards, sealed and stamped">
         <p>
           Turn any trip photo into a <strong>postcard</strong>. Pick the paper, the ink, the lettering and a look for the photo, add finishing
-          touches (pressed flowers, tape, a luggage tag), and close it with a <strong>wax seal</strong>: pick its colour and its design in two labelled rows.
+          touches (pressed flowers, tape, a hotel sticker, a lipstick kiss), and close it with a <strong>wax seal</strong>: pick its colour and its design in two labelled rows.
           The card stays the same size on every tool, light lettering gets a soft dark band so it always reads, and on a taped print or a white border the
           words sit on the card’s margin under the photo. Every card gets a real-looking stamp, with special limited stamps around festivals where you live.
         </p>

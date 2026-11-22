@@ -356,8 +356,9 @@ export const TOUCHES: Touch[] = [
     id: "kiss",
     name: "Lipstick kiss",
     side: "back",
-    x: 0.41,
-    y: 0.52,
+    // Bottom of the address half, right of the wax seal: never over the handwritten message (which fills the left half).
+    x: 0.55,
+    y: 0.76,
     w: 0.13,
     rot: -14,
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" width="100" height="60"><defs><filter id="lk"><feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.4"/></filter></defs><g filter="url(#lk)" fill="#a8132a" fill-opacity=".72"><path d="M8 28 C20 10 38 8 50 18 C62 8 80 10 92 28 C78 30 62 28 50 30 C38 28 22 30 8 28Z"/><path d="M8 31 C24 33 38 33 50 32 C62 33 76 33 92 31 C80 50 64 54 50 54 C36 54 20 50 8 31Z"/></g><g stroke="#fff" stroke-opacity=".25" stroke-width=".6" fill="none"><path d="M22 22 q6 -4 12 -2 M64 20 q6 -2 12 2 M24 42 q10 6 22 6 M56 48 q12 -1 20 -7"/></g></svg>`,
@@ -397,13 +398,12 @@ export const cleanTouches = (raw: string) =>
   [...new Set(String(raw || "").split(","))]
     .filter((t) => TOUCHES.some((x) => x.id === t))
     .join(",");
-// Ten to pick from. "seal" is chosen through the Wax seal tool. The front stickers with a place or brand feel (luggage tag, hotel sticker,
-// boarding pass, photo corners) are not offered: they stay valid for old cards and are drawn as the tape, "Lipstick kiss" as the coffee
-// ring, and the stamp-like labels on the back are left off (a card shows one stamp, one postmark and one seal at most).
-export const TOUCH_PICKS = ["tape", "flower", "seal", "coffee", "paravion", "ticket", "map", "compass", "film", "clip"] as const;
+// Twelve to pick from. "seal" is chosen through the Wax seal tool. The hotel sticker and the lipstick kiss are back (founder, 22 Nov).
+// The luggage tag, boarding pass and photo corners are not offered: they stay valid for old cards and are drawn as the tape, and the
+// stamp-like labels on the back are left off (a card shows one stamp, one postmark and one seal at most).
+export const TOUCH_PICKS = ["tape", "flower", "seal", "coffee", "paravion", "ticket", "map", "compass", "film", "clip", "sticker", "kiss"] as const;
 const TOUCH_NEAREST: Record<string, string> = {
-  luggage: "tape", sticker: "tape", boarding: "tape", corners: "tape",
-  kiss: "coffee",
+  luggage: "tape", boarding: "tape", corners: "tape",
 };
 export const keptTouch = (id: string) => TOUCH_NEAREST[id] ?? id;
 export const keptTouches = (raw: string | undefined) =>
