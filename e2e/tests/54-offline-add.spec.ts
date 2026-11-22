@@ -89,7 +89,7 @@ test("with the signal refused (faked), expenses are kept on the phone, then adde
   const bad = watchErrors(page);
   const answers: string[] = []; // what the server said to each send (shown if a step below fails)
   page.on("response", (r) => {
-    if (r.url().includes("/api/offline/add")) void r.text().then((t) => answers.push(`${r.status()} ${t.slice(0, 160)}`)).catch(() => undefined);
+    if (r.url().includes("/api/offline/add")) void r.text().then((t) => answers.push(`${r.status()} ${t.slice(0, 160)} <= ${(r.request().postData() ?? "").slice(0, 700)}`)).catch(() => undefined);
   });
   const lunchNet = await net(page);
   expect(lunchNet).toMatch(/500/); // Varun +500 (hand-worked above)
