@@ -22,7 +22,7 @@ import { removeOrKeepPerson } from "@/lib/remove-person";
 import { settleAllAndClose } from "@/lib/settle-all";
 import { isPairGroup } from "@/lib/direct-guard";
 import { vapidKeys } from "@/lib/push";
-import { prepareDirectSave } from "@/lib/direct-db";
+import { addExpenseChecks } from "@/lib/add-expense-checks";
 import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
@@ -330,16 +330,10 @@ export async function makeNewInviteLink(formData: FormData) {
 export async function addExpense(
   input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
-  if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
-  // A pair (expenses with one person): refused when either has blocked the other; an empty pair may take the currency of its first expense.
-  // (Done before the rate lookup below, which reads the pair's currency.)
-  const kind = await db.group.findUnique({ where: { id: input.groupId }, select: { type: true } });
-  const isPair = kind?.type === "direct";
-  if (isPair) {
-    const mine = await getMyMemberId(input.groupId);
-    const refused = mine ? await prepareDirectSave(input.groupId, mine, input.currency, Boolean(input.expenseId)) : null;
-    if (refused) return { error: refused };
-  }
+  // The checks both doors share (rate limit, pairs): src/lib/add-expense-checks.ts.
+  const checks = await addExpenseChecks({ ip: (await originAndIp()).ip, groupId: input.groupId, currency: input.currency, editing: Boolean(input.expenseId) });
+  if (!checks.ok) return { error: checks.error };
+  const isPair = checks.isPair;
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
   if (g && input.currency !== g.currency && input.rateMode === "auto") await getRate(input.currency, g.currency).catch(() => null);

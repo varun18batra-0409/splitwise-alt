@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { fetchPairRate, fetchSupportedCodes, type RateLookup } from "./rates";
+import { fetchPairRate, fetchRateOn, fetchSupportedCodes, type RateLookup } from "./rates";
 
 // Keeps the number of calls to the rate service small:
 // - a rate fetched in the last 6 hours is reused (memory first, then the database)
@@ -57,6 +57,22 @@ export async function getRate(from: string, to: string): Promise<RateAnswer> {
   }
 
   memory.set(key, { at: now, answer: live });
+  return live;
+}
+
+// The rate on the day an expense was spent (an expense added offline is sent days later). Today: the usual rate. Another day: a rate
+// already saved for exactly that day, or one fetched for it. It NEVER falls back to today's or the latest rate: with none for
+// that day the answer is "not ok" and the person is asked to enter one.
+export async function getRateOn(from: string, to: string, day: string, todayKey = new Date().toISOString().slice(0, 10)): Promise<RateAnswer> {
+  if (from === to) return { ok: true, rate: "1", date: day };
+  if (day >= todayKey) return getRate(from, to);
+  const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to, date: day }, orderBy: { fetchedAt: "desc" } });
+  if (saved) return { ok: true, rate: saved.rate, date: saved.date };
+  const live = await fetchRateOn(from, to, day, { supported: await supportedCodes() });
+  if (live.ok) {
+    // Saved under the day it applies to (which is the asked-for day, or the working day before it).
+    await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: live.date } }).catch(() => null);
+  }
   return live;
 }
 

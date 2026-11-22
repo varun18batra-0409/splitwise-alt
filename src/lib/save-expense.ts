@@ -18,6 +18,7 @@ import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText } from "./home/charge-lock";
 import { expenseEditRefusal } from "./guest-rules";
+import { CARD_FEE_CHANGED, CURRENCY_CHANGED, PEOPLE_JOINED, PEOPLE_LEFT } from "./offline/words";
 import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -46,7 +47,10 @@ export const RECEIPT_GONE = "That bill photo has expired. Add it again.";
 
 export type Result =
   | { ok: true; id: string; eventId?: string }
-  | { ok: false; error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } };
+  | { ok: false; error: string; duplicateOf?: DuplicateOf };
+
+// What a "looks like a duplicate" answer carries. `addedAt` (when it was added, not the day it was spent) and `byId` are for the offline sheet.
+export type DuplicateOf = { id: string; description: string; amount: number; by: string; when: string; addedAt?: string; byId?: string };
 
 export type SaveOpts = {
   ignoreDoubleTap?: boolean;
@@ -63,6 +67,12 @@ export type SaveOpts = {
   // Set by the server actions: a person who joined without an account may change only the expenses they added themselves
   // (guest-rules.ts). Off for the tests and scripts that call this directly with a bare member.
   guestRules?: boolean;
+  // Do every check (and the duplicate question) but write nothing. A key already used still answers "already added" with its id.
+  // For the offline sheet, which asks the duplicate questions when it opens.
+  dryRun?: boolean;
+  // An expense added offline: what the phone saw when it was written. A new expense is refused if the group is not as the phone saw it
+  // (checked on the very rows the split is worked out from, so "everyone" can never quietly become one more or one fewer person).
+  expect?: { currency: string; cardMarkupBp: number; memberIds: string[] };
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -214,6 +224,16 @@ async function saveExpenseOnce(
   if (!["everyone", "selected", "one"].includes(input.forMode)) return { ok: false, error: "Pick who it was for." };
   if (!PAYMENT_METHODS.some((p) => p.id === input.paymentMethod)) return { ok: false, error: "Pick how it was paid." };
 
+  // An expense added offline is only saved when the group is exactly as the phone saw it (nothing is worked out differently).
+  if (opts.expect && !input.expenseId) {
+    if (group.currency !== opts.expect.currency) return { ok: false, error: CURRENCY_CHANGED };
+    if (group.cardMarkupBp !== opts.expect.cardMarkupBp) return { ok: false, error: CARD_FEE_CHANGED };
+    const now = new Set(group.members.filter((m) => !m.leftAt).map((m) => m.id));
+    const then = new Set(opts.expect.memberIds);
+    if (opts.expect.memberIds.some((id) => !now.has(id))) return { ok: false, error: PEOPLE_LEFT };
+    if ([...now].some((id) => !then.has(id))) return { ok: false, error: PEOPLE_JOINED };
+  }
+
   // Editing: anyone in the group can change any expense (every change is logged
   // with who made it and everyone else is notified), but not once it's deleted.
   const existing = input.expenseId
@@ -331,10 +351,12 @@ async function saveExpenseOnce(
         return {
           ok: false,
           error: `Looks like “${hit.description} ${formatMoney(hit.amount, group.currency)}”, already added by ${hit.by}.`,
-          duplicateOf: { ...hit, when: hit.when.toISOString() },
+          duplicateOf: { id: hit.id, description: hit.description, amount: hit.amount, by: hit.by, when: hit.when.toISOString(), addedAt: hit.addedAt.toISOString(), byId: hit.byId },
         };
       }
     }
+    // A dry run stops here: every check has passed and nothing was written (no expense, no history line, no key).
+    if (opts.dryRun) return { ok: true, id: "" };
     await opts.afterRead?.();
     try {
      const saved = await db.$transaction(async (tx) => {

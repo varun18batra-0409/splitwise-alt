@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { eraseExpiredGroups } from "@/lib/purge";
 import { pruneUnknownPlaces } from "@/lib/unknown-places";
+import { cleanOldKeys } from "@/lib/offline/key-cleanup";
 import { PART_NAMES, makeStop, finishDailyRun, markDailyStarted, runClaimedParts } from "@/lib/daily-job";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
@@ -74,7 +75,11 @@ export async function GET(req: Request) {
   await part("cleanup-codes", async () => (await db.loginCode.deleteMany({ where: { expiresAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
   await part("cleanup-limits", async () => (await db.rateLimit.deleteMany({ where: { resetAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
   await part("cleanup-passkey", async () => (await db.requestKey.deleteMany({ where: { key: { startsWith: "pk:" }, createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
-  await part("cleanup-keys", async () => (await db.requestKey.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
+  // Ordinary keys go after 30 days; keys of expenses added offline ("off-") are kept 400 days (src/lib/offline/key-cleanup.ts).
+  await part("cleanup-keys", async () => {
+    const r = await cleanOldKeys(now);
+    return r.ordinary + r.offline;
+  });
   // Deleted collections: gone for good after 30 days.
   await part("cleanup-collections", async () => (await db.collection.deleteMany({ where: { deletedAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   await part("cleanup-notes", async () => (await db.accountNote.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 90 * 86_400_000) } } })).count);

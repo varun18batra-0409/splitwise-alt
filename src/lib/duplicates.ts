@@ -17,7 +17,8 @@ export function normaliseName(s: string): string {
     .join(" ");
 }
 
-export type DuplicateHit = { id: string; description: string; amount: number; by: string; when: Date };
+// `when` is the day it was spent (noon); `addedAt` is the moment it was added, and `byId` who added it (the offline sheet says "at 8:40 am").
+export type DuplicateHit = { id: string; description: string; amount: number; by: string; when: Date; addedAt: Date; byId: string };
 
 export async function findLikelyDuplicate(
   groupId: string,
@@ -45,6 +46,7 @@ export async function findLikelyDuplicate(
   // "Other" is too common to mean anything on its own.
   const hit = near.find((e) => (name && normaliseName(e.description) === name) || (category !== "other" && e.category === category));
   if (!hit) return null;
-  const by = hit.group.members.find((m) => m.id === (hit.createdById || hit.paidById))?.name ?? "someone";
-  return { id: hit.id, description: hit.description, amount: hit.amount, by, when: hit.spentAt ?? hit.createdAt };
+  const byId = hit.createdById || hit.paidById;
+  const by = hit.group.members.find((m) => m.id === byId)?.name ?? "someone";
+  return { id: hit.id, description: hit.description, amount: hit.amount, by, when: hit.spentAt ?? hit.createdAt, addedAt: hit.createdAt, byId };
 }
