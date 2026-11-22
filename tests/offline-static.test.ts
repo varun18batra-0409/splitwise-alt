@@ -93,8 +93,8 @@ describe("the switch", () => {
     expect(sync.indexOf("settleSignOutNote(")).toBeLessThan(sync.indexOf("if (!on)"));
     const so = src("src/lib/offline/signout.ts");
     expect(so.indexOf("applyMe(kv, {})")).toBeLessThan(so.indexOf("await ask()")); // hidden before the server is asked
-    expect(so).toContain("if (!me.account)");
-    expect(so).not.toMatch(/Date\.now\(\)/); // the note never expires by time
+    expect(so).toContain("if (me.left || !me.account)");
+    expect(so).toContain("RESTORE_AFTER_MS"); // an "account" answer straight after the tap is never taken as "still signed in"
   });
   it("/api/offline/me: a database problem is a 503, never 'no account'; the account answer comes even with the switch off", () => {
     const m = src("src/app/api/offline/me/route.ts");
@@ -109,7 +109,7 @@ describe("the switch", () => {
     expect(f).toContain("if (saving) return; // a late Speak / AI answer");
     // The only places Save on this phone exists: the offline screen (`offline`), through keepOnPhone(newDraftKey(), ...).
     expect(f.match(/keepOnPhone\(/g)?.length).toBe(2); // the definition and the one call
-    expect(f).toContain("await keepOnPhone(newDraftKey(), offline.onSaved)");
+    expect(f).toContain("await keepOnPhone((offlineKey.current ??= newDraftKey()), offline.onSaved)");
     expect(src("src/app/groups/[id]/add/page.tsx")).not.toContain("keepOffline");
     const a = src("src/app/actions.ts");
     expect(a).not.toContain("rateOnDay");
@@ -131,7 +131,7 @@ describe("the switch", () => {
     const y = src(".github/workflows/e2e.yml");
     expect(y).toContain("npx playwright test --project=phone; a=$?");
     expect(y).toContain("E2E_RUN_TAG=ios npx playwright test --project=iphone; b=$?");
-    expect(y.slice(0, y.indexOf("Run the add-expenses-offline tests"))).not.toContain("OFFLINE_ADD");
+    expect(y.slice(0, y.indexOf("# Add expenses offline is off"))).not.toContain("OFFLINE_ADD");
     expect(y).toContain("OFFLINE_ADD=1 E2E_PLAIN_HTTP=1 npm run start");
     expect(y).toContain("E2E_OFFLINE=1 E2E_RUN_TAG=offline npx playwright test e2e/tests/54-offline-add.spec.ts --project=phone");
     expect(src("playwright.config.ts")).toContain('process.env.E2E_OFFLINE === "1" ? undefined : /54-offline-add');
@@ -140,7 +140,7 @@ describe("the switch", () => {
   it("the offline screen's files are saved all-or-nothing: any listed file that is not ok fails the save and the older copy stays", () => {
     const sw = src("public/sw.js");
     expect(sw).toContain('if (!r.ok) throw new Error("file " + f + " " + r.status)');
-    expect(sw.indexOf("await caches.delete(name)")).toBeLessThan(sw.indexOf("for (const k of await caches.keys())")); // the old ones go only after the try completed
+    expect(sw.indexOf("await caches.delete(name)")).toBeLessThan(sw.lastIndexOf("for (const k of await caches.keys())")); // the old ones go only after the try completed
   });
   it("one draft key per opened offline form", () => {
     const f = src("src/components/AddExpenseForm.tsx");

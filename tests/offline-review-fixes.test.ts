@@ -285,13 +285,15 @@ const addOnline = (input: ReturnType<typeof THB>) =>
   });
 
 describe("an online save is exactly as on the live app, with the switch on or off", () => {
-  // THB 1,000 = 100000 satang, at TODAY's rate 9 = 900000 paise, even for a past date or with an off- key (Open and fix keeps its key).
+  // THB 1,000 = 100000 satang, at TODAY's rate 9 = 900000 paise, even for a past date or with an off- key (Open and fix, with its off- key, has its own rule below).
   for (const on of [true, false]) {
     it(`switch ${on ? "ON" : "OFF"}: a past date uses today's rate 9 -> 900000, shared in two 450000; the rate lookup action answers today's rate`, async () => {
       if (!on) delete process.env.OFFLINE_ADD;
       const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
       state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
-      await addOnline(THB(g, newKey())); // newKey() is an off- key like Open and fix's
+      const live = `rv-${stamp}-live-${on ? "on" : "off"}`;
+      keys.push(live);
+      await addOnline(THB(g, live)); // the ordinary online form's normal key
       const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id }, include: { shares: true } });
       expect([e.amount, e.exchangeRate]).toEqual([900000, "9"]);
       expect(e.shares.map((x) => x.amount)).toEqual([450000, 450000]);
@@ -317,7 +319,7 @@ describe("Open and fix is refused on the server when it would quietly use today'
     state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
     const key = newKey();
     const refused = await A.addExpense(THB(g, key));
-    expect(refused).toEqual({ error: "Enter the rate for 10 Nov (the day of this expense)." });
+    expect(refused).toEqual({ error: "Enter the rate for 10 Nov 2026 (the day of this expense)." });
     expect(await db.expense.count({ where: { groupId: g.id } })).toBe(0);
     expect(await db.requestKey.count({ where: { key } })).toBe(0);
     await addOnline(THB(g, key, { rateMode: "manual", manualRate: "2.5" }));
