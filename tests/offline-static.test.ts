@@ -72,7 +72,7 @@ describe("the switch", () => {
     for (const needle of ['addEventListener("push"', 'addEventListener("notificationclick"', "showNotification", "openWindow", "clients.claim()", "skipWaiting()"]) expect(sw).toContain(needle);
   });
   it("signing out and deleting the account wipe the phone's offline database", () => {
-    expect(src("src/components/ConfirmButton.tsx")).toContain("wipePhone()");
+    expect(src("src/components/offline/OfflineSync.tsx")).toContain("wipePhone()"); // after the server has signed the person out
     expect(src("src/app/account/sign-in/page.tsx")).toContain("wipesOffline");
     expect(src("src/app/account/data/page.tsx")).toContain("wipesOffline");
   });
