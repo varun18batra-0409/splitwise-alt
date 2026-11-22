@@ -87,6 +87,10 @@ test("with the signal refused (faked), expenses are kept on the phone, then adde
   test.setTimeout(300_000);
   const { ctx, page, trip, groupId, name } = await setup(browser, "fake", { noWorker: true });
   const bad = watchErrors(page);
+  const answers: string[] = []; // what the server said to each send (shown if a step below fails)
+  page.on("response", (r) => {
+    if (r.url().includes("/api/offline/add")) void r.text().then((t) => answers.push(`${r.status()} ${t.slice(0, 160)}`)).catch(() => undefined);
+  });
   const lunchNet = await net(page);
   expect(lunchNet).toMatch(/500/); // Varun +500 (hand-worked above)
   await expect(page.locator("[data-offline-waiting-online]")).toHaveCount(0);
@@ -159,7 +163,7 @@ test("with the signal refused (faked), expenses are kept on the phone, then adde
   await expect(sheet.getByText(`You added 2 expenses while offline. Add them to ${name}?`)).toBeVisible();
   await expect(sheet.locator("[data-sheet-row]")).toHaveCount(2);
   const dup = sheet.locator("[data-sheet-duplicate]");
-  await expect(dup).toHaveCount(1);
+  await expect(dup, `server answers: ${JSON.stringify(answers)}`).toHaveCount(1);
   await expect(dup).toContainText("Asha added Breakfast");
   await expect(dup).toContainText("at 8:40 am. Is it the same one?");
   await sheet.locator("[data-sheet-keep]").click();
