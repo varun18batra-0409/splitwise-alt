@@ -7,7 +7,7 @@ import { getTimeZone } from "@/lib/tz";
 import { visitorRegion } from "@/lib/region";
 import { countryOf, tripStops } from "@/lib/geo";
 import { photoSet, placePhotos } from "@/lib/places";
-import { POSTCARD_FONTS_URL, RARE, baseStamp, isSitePhoto, openRareStamps, postDate, withHome } from "@/lib/postcards/catalog";
+import { POSTCARD_FONTS_URL, RARE, baseStamp, isSitePhoto, openRareStamps, postDate, rareFor, rareOpen, withHome } from "@/lib/postcards/catalog";
 import { postcardPeople } from "@/lib/postcards/people";
 import { myPostcardUploads } from "@/lib/postcards/uploads";
 import { myMomentsForPostcard } from "@/lib/moments-db";
@@ -77,7 +77,9 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
         fit: again.fit,
         photoSize: again.photoSize,
         words: again.words,
-        stamp: again.stamp,
+        // A festival stamp only while it is on issue where you live (founder, 22 Nov: "Diwali can come and go when relevant"):
+        // sending an old Diwali card again in November starts with the usual stamp instead.
+        stamp: again.stamp.startsWith("r:") && !(rareOpen(again.stamp, now) && rareFor(again.stamp, home)) ? stamp : again.stamp,
         lettering: again.lettering,
         tone: again.tone,
         look: again.look,

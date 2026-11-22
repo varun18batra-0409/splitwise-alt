@@ -86,12 +86,9 @@ async function sendPostcard(f: FormData): Promise<{ error?: string }> {
   }
 
   let stamp = isStampId(field(f, "stamp", 20)) ? field(f, "stamp", 20) : "t:airmail";
-  // A rare stamp only while it's on issue (a card being sent again keeps it if the original had it).
+  // A festival stamp only while it's on issue where you live, also when a card is sent again (founder, 22 Nov).
   const home = (me!.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
-  if (stamp.startsWith("r:") && !(rareOpen(stamp) && rareFor(stamp, home))) {
-    const kept = field(f, "from", 40) ? await db.postcard.findFirst({ where: { id: field(f, "from", 40), fromId: me.id, stamp }, select: { id: true } }) : null;
-    if (!kept) stamp = "t:airmail";
-  }
+  if (stamp.startsWith("r:") && !(rareOpen(stamp) && rareFor(stamp, home))) stamp = "t:airmail";
   // Sealed until a day you pick (from tomorrow, up to two years ahead): opens at midnight your time.
   let opensAt: Date | null = null;
   const tz = await getTimeZone(); // the sender's zone: the day is picked, and shown in the push, in it
