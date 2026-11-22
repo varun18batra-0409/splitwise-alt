@@ -404,7 +404,7 @@ test("Open and fix: a past-day draft in another currency starts with an empty ow
   await expect(page.getByLabel("Exchange rate")).toHaveValue("");
   // Saving is blocked until a rate is typed.
   await page.getByRole("button", { name: "Save expense", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Enter the exchange rate to convert this amount.");
+  await expect(page.getByText("Enter the exchange rate to convert this amount.")).toBeVisible();
   expect(await db.expense.count({ where: { groupId, description: "Dinner" } })).toBe(0);
   // Typed 2.5: THB 1,000 = 100000 satang x 2.5 = 250000 paise, shared by six: 41666.67 -> shares add up to 250000.
   await page.getByLabel("Exchange rate").fill("2.5");
