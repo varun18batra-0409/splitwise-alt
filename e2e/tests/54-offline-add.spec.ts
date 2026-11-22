@@ -36,33 +36,33 @@ async function setup(browser: Browser, tag: string, opts: { noWorker: boolean })
 // The phone has kept a copy of the group (it is written when the group page opens).
 async function waitForCopy(page: Page, groupId: string) {
   await expect
-    .poll(() => page.evaluate((id) => idbRead("snapshots", (rows) => rows.some((r) => (r as { groupId: string }).groupId === id)), groupId), { timeout: 30_000, message: "the group's copy is on the phone" })
+    .poll(async () => (await idbRows(page, "snapshots")).some((r) => r.groupId === groupId), { timeout: 30_000, message: "the group's copy is on the phone" })
     .toBe(true);
 }
-const draftCount = (page: Page) => page.evaluate(() => idbRead("drafts", (rows) => rows.length));
+const draftCount = async (page: Page) => (await idbRows(page, "drafts")).length;
 
-// Runs in the page. Opens the offline database the way the app does (creating the three stores if it is not there yet).
-declare global {
-  // eslint-disable-next-line no-var
-  var idbRead: <T>(store: string, pick: (rows: unknown[]) => T) => Promise<T>;
-}
-test.beforeEach(async ({ context }) => {
-  await context.addInitScript(() => {
-    (globalThis as unknown as { idbRead: unknown }).idbRead = <T,>(store: string, pick: (rows: unknown[]) => T) =>
-      new Promise<T>((resolve, reject) => {
+// Reads one store of the phone's offline database from inside the page (opened the way the app opens it).
+async function idbRows(page: Page, store: "snapshots" | "drafts" | "meta"): Promise<Record<string, unknown>[]> {
+  return page.evaluate(
+    (name) =>
+      new Promise<Record<string, unknown>[]>((resolve, reject) => {
         const open = indexedDB.open("loopin-offline", 1);
         open.onupgradeneeded = () => {
-          for (const s of ["snapshots", "drafts", "meta"]) if (!open.result.objectStoreNames.contains(s)) open.result.createObjectStore(s);
+          for (const n of ["snapshots", "drafts", "meta"]) if (!open.result.objectStoreNames.contains(n)) open.result.createObjectStore(n);
         };
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
-          const req = open.result.transaction(store).objectStore(store).getAll();
-          req.onsuccess = () => resolve(pick(req.result));
+          const req = open.result.transaction(name).objectStore(name).getAll();
+          req.onsuccess = () => {
+            open.result.close();
+            resolve(req.result);
+          };
           req.onerror = () => reject(req.error);
         };
-      });
-  });
-});
+      }),
+    store,
+  );
+}
 
 function watchErrors(page: Page) {
   const bad: string[] = [];
@@ -261,8 +261,8 @@ test("signing out with an expense waiting warns, then wipes the phone's offline 
   await page.waitForURL((u) => !u.pathname.startsWith("/account/sign-in"), { timeout: 30_000 });
   expect(asked).toContain("1 expense is waiting on this phone and hasn’t been added. Signing out removes it from this phone.");
   expect(await draftCount(page)).toBe(0);
-  expect(await page.evaluate(() => idbRead("snapshots", (rows) => rows.length))).toBe(0);
-  expect(await page.evaluate(() => idbRead("meta", (rows) => rows.length))).toBe(0);
+  expect((await idbRows(page, "snapshots")).length).toBe(0);
+  expect((await idbRows(page, "meta")).length).toBe(0);
   await ctx.close();
 });
 
