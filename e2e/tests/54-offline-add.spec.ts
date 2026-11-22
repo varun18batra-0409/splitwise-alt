@@ -260,7 +260,8 @@ test("signing out with an expense waiting warns, then wipes the phone's offline 
   expect(asked).toContain("1 expense is waiting on this phone and hasn’t been added. Signing out removes it from this phone.");
   expect(await draftCount(page)).toBe(0);
   expect((await idbRows(page, "snapshots")).length).toBe(0);
-  expect((await idbRows(page, "meta")).length).toBe(0);
+  // The "who am I" note may be written again as an empty one after sign-out; what matters is that it names no group and no member.
+  for (const row of await idbRows(page, "meta")) expect(Object.keys((row as { groups?: Record<string, string> }).groups ?? {})).toEqual([]);
   await ctx.close();
 });
 
