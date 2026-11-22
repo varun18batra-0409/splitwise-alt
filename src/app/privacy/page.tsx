@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui";
+import { offlineOn } from "@/lib/offline/words";
 
 export const metadata = { title: "Privacy", description: "What Loopin keeps, what it never does, and how to download or delete your data.", alternates: { canonical: "/privacy" } };
 
@@ -14,6 +15,9 @@ const OPERATOR = {
 const filled = (v: string) => v.trim() !== "" && !v.includes("{{");
 const contactReady = filled(OPERATOR.OPERATOR_NAME) && filled(OPERATOR.POSTAL_ADDRESS) && filled(OPERATOR.PRIVACY_EMAIL);
 const minAge = filled(OPERATOR.MIN_AGE) ? OPERATOR.MIN_AGE : "18";
+
+// Read each visit (not at build time): the offline paragraph shows only while the OFFLINE_ADD switch is on.
+export const dynamic = "force-dynamic";
 
 // Plain-English privacy page. Keep it honest and short.
 export default function Privacy() {
@@ -50,6 +54,11 @@ export default function Privacy() {
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
         <li>If you turn on fingerprint / face sign-in, a key your device made for Loopin. Your fingerprint or face never leaves your device.</li>
         <li>A small cookie on your device that remembers which person you are in each group.</li>
+        {offlineOn() && (
+          <li data-offline-privacy>
+            On your device only, so you can add expenses with no signal: a small copy of each group you open (its name, the people’s names, your own balance and its three newest expenses; never phone numbers or emails) and any expense you saved while offline, until it’s added. Signing out or deleting your account removes them from that device. “Sign out on other devices” can’t reach a device that stays offline, so its copy stays until it next connects. Anyone who can unlock your phone can see them, as they could an open Loopin tab.
+          </li>
+        )}
         <li>If you join without an account, we keep only the name you pick and a signed note on that phone saying which person you are.</li>
         <li>If you switch on notifications, a browser address to send them to.</li>
         <li>Your time zone, sent by your device, so reminders arrive in the daytime where you are.</li>

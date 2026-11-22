@@ -1,0 +1,86 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+// Rules about the code itself for "add expenses offline": the phone never works out money, both doors into saving stay equal,
+// and nothing personal is copied to the phone.
+const src = (p: string) => readFileSync(`${__dirname}/../${p}`, "utf8");
+const files = (dir: string) => readdirSync(`${__dirname}/../${dir}`).filter((f) => /\.(ts|tsx)$/.test(f)).map((f) => `${dir}/${f}`);
+
+describe("the phone never works out money", () => {
+  const screens = [...files("src/components/offline"), ...files("src/app/offline-app")];
+  const phoneLib = ["store", "idb", "client", "describe", "memory-kv", "words", "types", "snapshot-types"].map((n) => `src/lib/offline/${n}.ts`);
+  it("the offline screens and the phone's own code do not import the split, totals or expense builders", () => {
+    expect(screens.length).toBeGreaterThan(5);
+    for (const f of [...screens, ...phoneLib]) {
+      const text = src(f).replace(/^import type .*$/gm, ""); // (a type-only import is erased: it can not run any code)
+      expect(text, f).not.toMatch(/from "@\/lib\/split"|from "(\.\.?\/)+split"|from "@\/lib\/expense"|from "(\.\.?\/)+expense"|computeTotals|buildExpense|from "@\/lib\/conversion"|from "(\.\.?\/)+conversion"/);
+    }
+  });
+  it("and none of it reaches the database", () => {
+    for (const f of [...screens, ...phoneLib]) expect(src(f), f).not.toMatch(/from "@\/lib\/db"|from "(\.\.?\/)+db"|@prisma/);
+  });
+  it("a draft's type holds typed values only: no shares result, total, converted amount or balance", () => {
+    const t = src("src/lib/offline/types.ts");
+    const draft = t.slice(t.indexOf("export type DraftInput"), t.indexOf("export type DraftStatus"));
+    for (const word of ["convertedAmount", "total", "balance", "markupAmount", "originalAmount", "exchangeRate"]) expect(draft).not.toContain(word);
+  });
+});
+
+describe("both doors into saving stay equal", () => {
+  it("the Add screen's action and the offline route both use the shared checks, and the route sends through sendDraft", () => {
+    expect(src("src/app/actions.ts")).toContain("addExpenseChecks(");
+    const route = src("src/app/api/offline/add/route.ts");
+    expect(route).toContain("addExpenseChecks(");
+    expect(route).toContain("sendDraft(");
+    expect(route).toContain("getMyMemberId(");
+    expect(route).toContain("ownOrigin(");
+  });
+  it("sendDraft calls saveExpense, with the guest rules, the duplicate check and what the phone saw", () => {
+    const send = src("src/lib/offline/send.ts");
+    expect(send).toContain("saveExpense(");
+    for (const needle of ["guestRules: true", "checkDuplicate: true", "expect:", "requestKey: key"]) expect(send).toContain(needle);
+    expect(send).toContain("me !== draft.memberId");
+  });
+  it("the daily clean-up goes through the helper that keeps off- keys 400 days", () => {
+    expect(src("src/app/api/cron/daily/route.ts")).toContain("cleanOldKeys(");
+    const c = src("src/lib/offline/key-cleanup.ts");
+    expect(c).toContain("OFFLINE_KEY_KEEP_DAYS");
+    expect(src("src/lib/offline/words.ts")).toContain("OFFLINE_KEY_KEEP_DAYS = 400");
+  });
+});
+
+describe("nothing personal goes to the phone", () => {
+  it("the copy of a group has no phone or email field, and the builder does not read them", () => {
+    const t = src("src/lib/offline/snapshot-types.ts").replace(/\/\/.*$/gm, "");
+    expect(t).not.toMatch(/phone|email/i);
+    expect(src("src/lib/offline/snapshot.ts").replace(/\/\/.*$/gm, "")).not.toMatch(/\.phone|\.email|accountId/);
+  });
+});
+
+describe("the switch", () => {
+  it("with OFFLINE_ADD off: the offline screen does not exist, the layout tells the service worker to forget it, and no copies are kept", () => {
+    expect(src("src/app/offline-app/page.tsx")).toContain("if (!offlineOn()) notFound()");
+    expect(src("src/app/layout.tsx")).toContain("<InstallCapture offline={offlineOn()}");
+    expect(src("src/components/offline/OfflineSync.tsx")).toContain("dropAllSnapshots(");
+    expect(src("src/app/groups/[id]/page.tsx")).toContain("offlineOn() && fv");
+    expect(src("src/app/api/offline/add/route.ts")).toContain("!offlineOn()");
+  });
+  it("the service worker redirects only when it has kept the screen, and keeps the push and notification parts", () => {
+    const sw = src("public/sw.js");
+    expect(sw).toContain("if (to && (await saved(SHELL)");
+    expect(sw).toContain("d.offline === false");
+    for (const needle of ['addEventListener("push"', 'addEventListener("notificationclick"', "showNotification", "openWindow", "clients.claim()", "skipWaiting()"]) expect(sw).toContain(needle);
+  });
+  it("signing out and deleting the account wipe the phone's offline database", () => {
+    expect(src("src/components/ConfirmButton.tsx")).toContain("wipePhone()");
+    expect(src("src/app/account/sign-in/page.tsx")).toContain("wipesOffline");
+    expect(src("src/app/account/data/page.tsx")).toContain("wipesOffline");
+  });
+  it("the Back-online check runs on online, pageshow, focus and visibilitychange, and every few seconds", () => {
+    const h = src("src/components/offline/useSignal.ts");
+    for (const ev of ['"online"', '"pageshow"', '"focus"', '"visibilitychange"', "setInterval"]) expect(h).toContain(ev);
+    const app = src("src/components/offline/OfflineApp.tsx");
+    expect(app).toContain("window.location.replace(real)");
+    expect(app).toContain("data-offline-try-again");
+  });
+});

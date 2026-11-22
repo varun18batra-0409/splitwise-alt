@@ -1,3 +1,4 @@
+import { offlineOn } from "@/lib/offline/words";
 import Link from "@/components/Link";
 import { StoryArt } from "@/components/StoryArt";
 import type { StoryKind } from "@/lib/home/stories";
@@ -247,6 +248,32 @@ export default async function HowItWorks() {
         </div>
         <p>150+ currencies. Cash? No fee added. Better rate from the exchange booth? Type it in.</p>
       </Section>
+
+      {offlineOn() && (
+        <>
+          <div id="offline" className="scroll-mt-4" />
+          <Section title="No signal? Add it anyway.">
+            <p>
+              Open a group once while you’re online and Loopin keeps a small copy of it on your phone: who’s in it, your balance and the latest
+              expenses. With no signal, open the group, tap Add expense and save it. It waits on your phone, marked “On this phone”.
+            </p>
+            <p>
+              When you’re back online Loopin asks before adding anything. You see each expense and tick the ones to add. If one looks like an
+              expense someone already added, it asks whether it’s the same. Not now keeps everything on your phone.
+            </p>
+            <p>
+              Loopin never guesses. If someone joined or left the group while you were away, or its currency or card fee changed, your
+              expense stays on your phone and you’re asked to check it. In another currency, the rate for the day you spent it is added when
+              it’s added online. It doesn’t work for expenses with just one person, and without signal there’s no scanning, speaking or
+              splitting by item.
+            </p>
+            <p>
+              Your phone keeps these only in the app or browser you used (the Home Screen app and Safari each keep their own). Signing out
+              removes them. Safari can clear a website’s storage after a week of not opening it.
+            </p>
+          </Section>
+        </>
+      )}
 
       <div id="balances" className="scroll-mt-4" />
       <Section slot="friends" kicker="4 · Balances" title="Who owes what, and why">

@@ -51,7 +51,7 @@ describe("Add expense: the later fixes are kept", () => {
     // Bad payer or share amounts and a bad card fee still open what they are about.
     expect(form).toContain("/person|amounts|percent|shares/i");
     expect(form).toContain("/card markup/i");
-    expect(form).toContain("errorNeedsMore(preview.error, multiPay)");
+    expect(form).toContain("errorNeedsMore(checked.error, multiPay)");
   });
   it("one main button: Save expense is the filled one, Save & add another is a quiet link", () => {
     expect(form).toContain("className={primaryButtonClass}");

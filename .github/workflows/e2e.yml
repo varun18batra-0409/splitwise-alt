@@ -35,6 +35,7 @@ jobs:
       MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
       CRON_SECRET: e2e-only-not-a-real-secret
       E2E_BASE_URL: http://localhost:3000
+      OFFLINE_ADD: "1" # add expenses offline is switched on for these tests (it is off unless this is set)
       # A made-up Google app, so the "Continue with Google" button shows and its
       # first step (off to Google) can be checked. Nothing is sent to Google.
       GOOGLE_CLIENT_ID: e2e-test.apps.googleusercontent.com
@@ -80,8 +81,8 @@ jobs:
       - name: Run the tests (Android phone, Chrome; then iPhone, Safari's engine)
         run: |
           set +e
-          npx playwright test e2e/tests/53-offline-trial.spec.ts --project=phone; a=$?
-          E2E_RUN_TAG=ios npx playwright test e2e/tests/53-offline-trial.spec.ts --project=iphone; b=$?
+          npx playwright test e2e/tests/54-offline-add.spec.ts --project=phone; a=$?
+          E2E_RUN_TAG=ios npx playwright test e2e/tests/54-offline-add.spec.ts --project=iphone; b=$?
           [ $a -eq 0 ] && [ $b -eq 0 ]
       - name: Summary
         if: always()

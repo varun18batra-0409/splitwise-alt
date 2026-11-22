@@ -1,12 +1,16 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
 import { supportHref } from "@/lib/support";
+import { offlineOn } from "@/lib/offline/words";
 
 export const metadata = { title: "FAQ", description: "Answers about Loopin: getting started, adding expenses, settling up, groups, trips and flats, memories, privacy and your account.", alternates: { canonical: "/faq" } };
 
 // Frequently asked questions: short, plain answers, grouped. Each opens on tap.
 type QA = { q: string; a: React.ReactNode };
 const link = "underline underline-offset-4";
+
+// Read each visit (not at build time): the offline answers show only while the OFFLINE_ADD switch is on.
+export const dynamic = "force-dynamic";
 
 const sections = (): { title: string; items: QA[] }[] => [
   {
@@ -53,6 +57,18 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "We’re abroad. How do currencies and card fees work?",
         a: "Add the expense in the currency you paid. Loopin converts it at the day’s rate and, for card payments, can add your bank’s foreign-card fee (set it once in a trip group’s settings; a flat has no foreign cards, so it isn’t asked there). Cash has no fee, and you can type your own rate.",
       },
+      ...(offlineOn()
+        ? [
+            {
+              q: "Can I add an expense with no signal?",
+              a: "Yes, in a group you’ve opened before while online. Tap Add expense and save it: it waits on your phone, marked “On this phone”. When you’re back online Loopin asks before adding it, and checks whether someone already added the same one. If the group changed meanwhile (someone joined or left, or its currency or card fee changed), Loopin keeps your expense and asks you to check it, rather than guessing. Not for expenses with one person, and no scanning, speaking or splitting by item without signal.",
+            },
+            {
+              q: "Where are my offline expenses kept? What if I sign out?",
+              a: "Only on the phone, in the app or browser you saved them in (the Home Screen app and Safari each keep their own). Signing out, or deleting your account, removes them, and asks first if any are still waiting. Safari can clear a website’s storage after a week of not opening it, so add them soon. If you lose a phone, “Sign out on other devices” can’t reach it until it’s online again.",
+            },
+          ]
+        : []),
       { q: "I made a mistake. Can I undo it?", a: "Yes. Edit or delete any expense or payment, and use Undo right after a change. Undo works on the latest change to something, and it won’t change the balance of someone who has left." },
     ],
   },
