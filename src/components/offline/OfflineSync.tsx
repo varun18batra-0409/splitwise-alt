@@ -44,7 +44,7 @@ export function OfflineSync({ on }: { on: boolean }) {
       try {
         // The note left by Sign out / Delete account (see signout.ts): hidden at once, wiped only once the server confirms no account is here.
         // Done whether or not the feature is switched on, so a phone that kept things while it was on is still cleared.
-        const settled = await settleSignOutNote(kv, { read: readWipeNote, clear: clearWipeNote }, fetchMe);
+        const settled = await settleSignOutNote(kv, { read: readWipeNote, clear: clearWipeNote }, () => fetchMe(true));
         if (settled === "hidden") return;
         if (!on) {
           if (await hasOfflineData()) await dropAllSnapshots(kv);

@@ -11,12 +11,14 @@ import { PAIR_REFUSED } from "./offline/words";
 // doors then call. Anything new that must hold for every new expense goes here or in saveExpense, never in only one door.
 export const TOO_MANY_CHANGES = "Too many changes in a short time. Wait a few minutes.";
 
-export type ChecksIn = { ip: string; groupId: string; currency: string; editing: boolean; offline?: boolean };
+export type ChecksIn = { ip: string; groupId: string; currency: string; editing: boolean; offline?: boolean; dryRun?: boolean };
 export type ChecksOut = { ok: true; isPair: boolean } | { ok: false; error: string; busy?: boolean; pair?: boolean };
 
 export async function addExpenseChecks(i: ChecksIn): Promise<ChecksOut> {
-  // 300 an hour per network address.
-  if (!(await allow(`expense:${i.ip}`, 300, 3600))) return { ok: false, error: TOO_MANY_CHANGES, busy: true };
+  // 300 an hour per network address. Expenses sent from an offline phone have their own count (and a check that saves nothing, a dry run, has
+  // its own larger one), so an offline phone can never make an ordinary online save fail.
+  const bucket = i.offline ? (i.dryRun ? "offline-check" : "offline-expense") : "expense";
+  if (!(await allow(`${bucket}:${i.ip}`, i.offline && i.dryRun ? 600 : 300, 3600))) return { ok: false, error: TOO_MANY_CHANGES, busy: true };
   // A pair (expenses with one person): refused when either has blocked the other; an empty pair may take the currency of its first expense.
   // (Done before the rate lookup, which reads the pair's currency.) An expense added offline is never saved into a pair in version 1.
   const kind = await db.group.findUnique({ where: { id: i.groupId }, select: { type: true } });

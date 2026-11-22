@@ -288,7 +288,8 @@ async function shellKept(page: Page, ctx: BrowserContext, test_: typeof test) {
           if (!keys.length) return "none";
           const c = await caches.open(keys.sort().pop()!);
           const paths = (await c.keys()).map((r) => new URL(r.url).pathname);
-          return paths.includes("/offline-app") && paths.some((p) => p.endsWith(".js")) ? "ready" : `partial ${paths.length}`;
+          // "/__meta" is written last, so having it means the copy is complete.
+          return paths.includes("/__meta") && paths.includes("/offline-app") && paths.some((p) => p.endsWith(".js")) ? "ready" : `partial ${paths.length}`;
         }),
       { timeout: 40_000, message: "the offline screen and its script files are kept" },
     )

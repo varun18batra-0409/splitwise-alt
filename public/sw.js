@@ -46,13 +46,14 @@ async function saveShell(build) {
   const cache = await caches.open(name);
   try {
     await cache.put(SHELL, res);
-    await cache.put("/__meta", new Response(JSON.stringify({ build, at: Date.now() }), { headers: { "Content-Type": "application/json" } }));
     await Promise.all([...files].map(async (f) => {
       const r = await fetch(f, { credentials: "omit" });
       // Any listed file that did not come back whole fails the whole save (the catch below drops the new cache): the older complete copy stays.
       if (!r.ok) throw new Error("file " + f + " " + r.status);
       await cache.put(f, r);
     }));
+    // The marker goes in LAST: a copy without it is half-saved and is never used.
+    await cache.put("/__meta", new Response(JSON.stringify({ build, at: Date.now() }), { headers: { "Content-Type": "application/json" } }));
   } catch (e) {
     await caches.delete(name).catch(() => {});
     throw e;
@@ -60,8 +61,9 @@ async function saveShell(build) {
   for (const k of await caches.keys()) if (k.startsWith(PREFIX) && k !== name) await caches.delete(k);
 }
 async function newest() {
-  const ks = (await caches.keys()).filter((k) => k.startsWith(PREFIX)).sort();
-  return ks[ks.length - 1] || "";
+  const ks = (await caches.keys()).filter((k) => k.startsWith(PREFIX)).sort().reverse();
+  for (const k of ks) if (await (await caches.open(k)).match("/__meta").catch(() => undefined)) return k; // newest COMPLETE copy only
+  return "";
 }
 async function saved(req) {
   const name = await newest();

@@ -429,7 +429,16 @@ export function AddExpenseForm({
 
   const [again, setAgain] = useState(false); // "Save & add another" was tapped (for the label)
   // One key for this opened offline form: two quick taps on "Save on this phone" store one draft (a draft is stored by its key).
+  // A new key after every successful offline save, and whenever the browser brings a saved copy of this screen back (the Back button).
   const offlineKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!offline) return;
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) offlineKey.current = null;
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, [offline]);
   const againRef = useRef(false); // read when saving (state isn't updated yet inside the same tap)
   // "Looks like a duplicate": what it matched, and whether the person said it's a different one.
   const [dup, setDup] = useState<{ id: string; description: string; amount: number; by: string; when: string } | null>(null);
@@ -503,6 +512,7 @@ export function AddExpenseForm({
         return;
       }
       askToKeep();
+      offlineKey.current = null; // saved: whatever is typed next is a new expense with its own key
       then();
     } catch {
       setError(W.noPrivate);

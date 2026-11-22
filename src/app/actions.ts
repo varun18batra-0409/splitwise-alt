@@ -341,7 +341,7 @@ export async function addExpense(
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
   // Open and fix (an expense kept on a phone keeps its `off-` key): another currency, a day before today, and "use the live rate" would quietly
   // use today's rate for an earlier day. Refused here too, not only on the phone: the rate for that day has to be entered.
-  if (offlineOn() && input.requestKey?.startsWith("off-") && input.date && g && input.currency !== g.currency && input.rateMode === "auto" && input.date < todayKey(new Date(), await getTimeZone())) {
+  if (offlineOn() && input.requestKey?.startsWith("off-") && input.date && g && input.currency !== g.currency && input.rateMode !== "manual" && input.date < todayKey(new Date(), await getTimeZone())) {
     return { error: W.fixRateNote(niceDate(input.date)) + "." };
   }
   if (g && input.currency !== g.currency && input.rateMode === "auto") await getRate(input.currency, g.currency).catch(() => null);

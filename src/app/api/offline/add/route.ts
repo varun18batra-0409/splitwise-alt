@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (me !== draft.memberId) return reply({ status: "refused", code: "other-person", reason: OTHER_PERSON });
 
   // The checks both doors share (rate limit; pairs are refused offline).
-  const checks = await addExpenseChecks({ ip: clientIp(req.headers), groupId: draft.groupId, currency: draft.currency, editing: false, offline: true });
+  const checks = await addExpenseChecks({ ip: clientIp(req.headers), groupId: draft.groupId, currency: draft.currency, editing: false, offline: true, dryRun });
   if (!checks.ok) {
     if (checks.busy) return reply({ status: "later", reason: checks.error }, 429);
     return reply({ status: "refused", code: checks.pair ? "pair" : "invalid", reason: checks.error });

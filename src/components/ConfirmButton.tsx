@@ -29,8 +29,13 @@ export function ConfirmButton({ message, children, className, wipesOffline = fal
           let stored = false;
           let waiting = 0;
           try {
-            stored = await hasOfflineData();
-            waiting = stored ? await allDraftsCount(openStore()) : 0; // every waiting expense on the phone, shown or hidden
+            // About 1.5 seconds for the storage check, then carry on with the normal question (older iPhones can be slow to open storage).
+            const check = (async () => {
+              const has = await hasOfflineData();
+              return { has, n: has ? await allDraftsCount(openStore()) : 0 }; // every waiting expense on the phone, shown or hidden
+            })();
+            const r = await Promise.race([check, new Promise<null>((done) => setTimeout(() => done(null), 1500))]);
+            if (r) ({ has: stored, n: waiting } = r);
           } catch {
             /* nothing kept here */
           }

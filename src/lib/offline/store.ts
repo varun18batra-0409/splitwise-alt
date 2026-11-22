@@ -95,10 +95,23 @@ export async function draftsFor(kv: KV, groupId?: string): Promise<Draft[]> {
 export type AddDraftResult = { ok: true } | { ok: false; reason: "full" | "storage" };
 
 // Saved only once it has been written AND read back; until then nothing says "saved".
+// What a draft says as typed, for comparing two: without the moment it was typed or anything the phone added beside it.
+const typedOnly = (d: DraftInput | Draft): string => {
+  const o: Record<string, unknown> = { ...d };
+  for (const k of ["typedAt", "status", "reason", "code", "dup", "keepBoth"]) delete o[k];
+  return JSON.stringify(o); // (no key list passed to stringify: that would also hide the keys inside payers, exact, seen)
+};
+const newKeyLike = (): string => `off-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 14)}-${Math.random().toString(36).slice(2, 14)}`}`;
+
+// A key is never reused for different contents: if a draft already sits under this key (say the Back button brought the Add screen back
+// and it was changed and saved again), the new one is stored under a new key, and the first stays exactly as it was. The very same contents
+// again (a double tap) is one draft.
 export async function addDraft(kv: KV, input: DraftInput): Promise<AddDraftResult> {
   try {
+    const existing = await kv.get<Draft>("drafts", input.key);
+    if (existing && typedOnly(existing) === typedOnly(input)) return { ok: true };
     if ((await allDraftsCount(kv)) >= MAX_DRAFTS) return { ok: false, reason: "full" };
-    const draft: Draft = { ...input, status: "waiting" };
+    const draft: Draft = { ...input, ...(existing ? { key: newKeyLike() } : {}), status: "waiting" };
     await kv.put("drafts", draft.key, draft);
     const back = await kv.get<Draft>("drafts", draft.key);
     return back && JSON.stringify(back) === JSON.stringify(draft) ? { ok: true } : { ok: false, reason: "storage" };

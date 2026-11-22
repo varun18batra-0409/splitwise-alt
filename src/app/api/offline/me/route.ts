@@ -13,7 +13,9 @@ import { offlineOn } from "@/lib/offline/words";
 // Anything going wrong (the database busy, say) is a 503, never "signed out": the phone keeps everything hidden and asks again later.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Only the phone settling a sign-out note (?settle=1) reads and clears the "finished" note; an ordinary ask leaves it for that phone.
+  const settling = new URL(req.url).searchParams.get("settle") === "1";
   const noStore = { "Cache-Control": "private, no-store" };
   // A phone asks about once a minute while open; this only stops a script from hammering the database.
   if (!(await allow(`offline-me:${clientIp(await headers())}`, 600, 3600))) return Response.json({ error: "slow down" }, { status: 429, headers: noStore });
@@ -23,7 +25,7 @@ export async function GET() {
   try {
     groups = await getMemberships();
     account = Boolean(await getAccount());
-    left = await takeLeft();
+    left = settling ? await takeLeft() : false;
   } catch {
     return Response.json({ error: "busy" }, { status: 503, headers: noStore });
   }

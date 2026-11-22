@@ -1,4 +1,5 @@
 import { applyMe, wipeAll, type KV } from "./store";
+import type { Draft } from "./types";
 
 // Sign out and Delete account leave a note in the browser ("clear this phone's offline data once the server has really finished"). The next
 // page settles it, in this order:
@@ -28,6 +29,10 @@ export async function settleSignOutNote(kv: KV, note: Note, ask: () => Promise<M
   }
   if (now - at < RESTORE_AFTER_MS) return "hidden"; // may be an answer from before the sign-out finished: wait, ask again on the next page
   note.clear();
-  if (me.on) await applyMe(kv, me.groups);
+  if (me.on) {
+    await applyMe(kv, me.groups);
+    // Waiting expenses that belong to nobody signed in now (an earlier person's) never linger.
+    for (const d of await kv.all<Draft>("drafts")) if (me.groups[d.groupId] !== d.memberId) await kv.del("drafts", d.key);
+  }
   return "restored";
 }
