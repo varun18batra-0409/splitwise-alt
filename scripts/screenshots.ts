@@ -391,7 +391,7 @@ await shot("25-account", "/account");
 // Long names (founder, 22 Nov): a long surname goes onto a second line, and at 200% text the name moves under its letter. The demo names
 // are short, so the surnames are added on the page itself; normal text and 200% text, on Settle up and on You (signed in).
 if (!desktop && !hosted) {
-  const surname: Record<string, string> = { Varun: "Subramaniam", Asha: "Venkataraman", Ravi: "Chandrasekhar", Meera: "Krishnamurthy", Dev: "Bhattacharya", Kabir: "Raghunathan", Riya: "Ramachandran", Priya: "Ramaswamy" };
+  const surname: Record<string, string> = { Varun: "Subramaniam", Asha: "Venkatasubramanian", Ravi: "Chandrasekhar", Meera: "Krishnamurthy", Dev: "Bhattacharya", Kabir: "Raghunathan", Riya: "Ramachandran", Priya: "Ramaswamy" };
   const longNames = async (p: Page) =>
     p.evaluate((s) => {
       for (const el of Array.from(document.querySelectorAll('[data-settle-card] p.font-display, section[aria-label="Your profile"] p.font-display'))) {

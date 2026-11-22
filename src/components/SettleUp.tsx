@@ -138,7 +138,7 @@ export function SettleCard({
               <Initial name={name} />
               {/* A long name wraps onto a second line; at very large text it moves under the letter (founder, 22 Nov). */}
               <div className="min-w-[9em] flex-1 basis-[9em] pt-0.5">
-                <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
+                <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em] hyphens-auto">{name}</p>
                 <p className="mt-0.5 break-words text-[14px] text-fg/60">{groupLine}</p>
               </div>
             </Link>
@@ -146,7 +146,7 @@ export function SettleCard({
             <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-2">
               <Initial name={name} />
               <div className="min-w-[9em] flex-1 basis-[9em] pt-0.5">
-                <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</p>
+                <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em] hyphens-auto">{name}</p>
                 <p className="mt-0.5 break-words text-[14px] text-fg/60">{groupLine}</p>
               </div>
             </div>
@@ -252,7 +252,7 @@ export function SettleCard({
             <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
               <Initial name={sheet.other} />
               <div className="min-w-[9em] flex-1 basis-[9em]">
-                <p className="break-words font-display text-[20px] font-semibold leading-tight" data-record-route>
+                <p className="break-words font-display text-[20px] font-semibold leading-tight hyphens-auto" data-record-route>
                   {/* The arrow is only for the eye: a screen reader hears "from to". */}
                   {sheet.even ? (
                     `You and ${sheet.other}`

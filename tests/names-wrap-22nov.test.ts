@@ -22,7 +22,8 @@ describe("long names wrap, never cut off", () => {
   it("You: your name wraps and moves under the letter at very large text", () => {
     const a = src("src/app/account/page.tsx");
     expect(a).not.toContain('truncate font-display text-2xl');
-    expect(a).toContain('break-words font-display text-2xl');
+    expect(a).toContain('break-words font-display text-[length:min(1.5rem,10vw)]'); // never wider than the screen at 200% text
+    expect(a).toContain('hyphens-auto');
     expect(a).toContain('flex flex-wrap items-center gap-x-4 gap-y-3');
   });
 });

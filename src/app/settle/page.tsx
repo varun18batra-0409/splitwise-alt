@@ -361,7 +361,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         <Link href={`/people/${e.groupId}`} className="flex min-h-11 flex-wrap items-start gap-x-3 gap-y-2 active:opacity-80" data-settle-person>
           <Initial name={e.other.name} />
           <div className="min-w-[9em] flex-1 basis-[9em] pt-0.5">
-            <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em]">{e.other.name}</p>
+            <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em] hyphens-auto">{e.other.name}</p>
             <p className="mt-0.5 break-words text-[14px] text-fg/60">{e.shared ? "Direct" : "Direct · only you see this"}</p>
           </div>
         </Link>
