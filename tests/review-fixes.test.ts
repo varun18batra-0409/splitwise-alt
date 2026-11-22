@@ -42,6 +42,13 @@ describe("return addresses can't send people to another website", () => {
     ["https://evil.com", "/"],
     ["javascript:alert(1)", "/"],
     ["", "/"],
+    // Review 23 Nov: addresses that only become "//evil.com" once tidied.
+    ["/.//evil.com", "/"],
+    ["/a/..//evil.com", "/"],
+    ["/%2e//evil.com", "/"],
+    ["/%2E%2E//evil.com", "/"],
+    ["/./\\evil.com", "/"],
+    ["/groups/./abc", "/groups/abc"],
   ])("%j → %j", (input, out) => {
     expect(safePath(input)).toBe(out);
   });

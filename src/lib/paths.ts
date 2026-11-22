@@ -7,7 +7,11 @@ export function safePath(raw: string | null | undefined): string {
   try {
     const u = new URL(p, "http://loopin.invalid");
     if (u.origin !== "http://loopin.invalid") return "/";
-    return (u.pathname + u.search + u.hash).slice(0, 300);
+    const out = u.pathname + u.search + u.hash;
+    // Check again AFTER tidying (review 23 Nov): "/.//evil.com", "/a/..//evil.com" and "/%2e//evil.com" all tidy into "//evil.com",
+    // which a browser reads as another website. The tidied path must still be a plain path on this site.
+    if (!out.startsWith("/") || out.startsWith("//") || /[\\\u0000-\u001f]/.test(out)) return "/";
+    return out.slice(0, 300); // cutting keeps the checked start, so it stays a plain path on this site
   } catch {
     return "/";
   }
