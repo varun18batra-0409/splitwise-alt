@@ -1,6 +1,6 @@
 import type { TripPhase } from "../countdown";
 import { placeSlot } from "../places";
-import { storyLines } from "./story-lines";
+import { seedNum, storyLines } from "./story-lines";
 import { lineForPhoto } from "./photo-tags";
 import { countsLine } from "../collect-rules";
 
@@ -53,88 +53,108 @@ export type StoryInput = {
 
 const place = (name: string) => name.replace(/\s+trip$/i, "").trim() || name;
 
-// A playful line for each stage of the countdown.
-function tripLine(p: TripPhase, people: number): string {
-  if (p.kind === "today") return "Bags packed? It starts today ✈️";
-  if (p.kind === "during") return p.day === p.of ? "Last day. Make it count 🌅" : `Day ${p.day} of ${p.of}. Keep the receipts coming`;
-  if (p.kind === "before" && p.days === 1) return "Tomorrow! Charge your phone 🔋";
-  if (p.kind === "before" && p.days <= 7) return `${people} of you, ${p.days} sleeps to go`;
-  if (p.kind === "before" && p.days <= 30) return "Start the packing list";
-  return "Mark it in your calendar";
+// The words that every trip story has in the same place. Each has a few versions: the version moves on day by day, and two trips on the
+// same Home at the same stage get different ones (22 Nov: "never the same words in two live stories").
+export const STAGE_LINES = {
+  far: ["Mark it in your calendar", "Plenty of time. Book the good stuff early.", "Somebody start the group chat", "Leave approved? Good. Now the tickets."],
+  month: ["Start the packing list", "Who's booking what? Add it to Loopin.", "Sort the bookings, then the outfits", "Make a list. Lose the list. Make another."],
+  week: (people: number, days: number) => [`${people} of you, ${days} sleeps to go`, `${days} sleeps. Somebody's already packed.`, `${days} more days. The group chat is buzzing.`],
+  tomorrow: ["Tomorrow! Charge your phone 🔋", "Tomorrow! Power bank charged? 🔋", "Tomorrow! Phone, charger, power bank 🔋"],
+  today: ["Bags packed? It starts today ✈️", "Today's the day. Don't miss the ride ✈️", "It starts today. Tickets handy? ✈️"],
+  during: ["Keep the receipts coming", "Add today's spends before bed", "Who's buying breakfast?"],
+  last: ["Last day. Make it count 🌅", "Last day. One more sunset? 🌅", "Last day. Settle up on the way home 🌅"],
+  posterSoon: ["Not that anyone's counting 👀", "But who's counting? 👀", "Not that we're excited 👀"],
+  posterLater: ["Time to start packing", "The countdown is on", "Plenty of time. Or is there?"],
+  bookings: ["Add bookings now, sort the money later", "Paid for something? Add it while you remember", "Every booking in Loopin, no maths later"],
+  addIt: ["Add it now, settle it later", "Snap the bill, add it now", "Add it before anyone forgets who paid"],
+  crew: (n: number) => [`${n} of you. Dangerous.`, `${n} of you. One group chat.`, `${n} of you. Many opinions.`],
+  spent: ["The night is young.", "Still counting.", "And the day's not over."],
+  quiet: ["Suspiciously quiet… 👀", "Nothing yet. Suspicious 👀", "A quiet day. Or a forgetful one? 👀"],
+  top: ["Somebody buy them a drink 🍹", "Next round's on everyone else 🍹", "Window seat and a drink for them 🍹"],
+};
+const one = (list: string[], v: number) => list[((v % list.length) + list.length) % list.length];
+
+// A playful line for each stage of the countdown (`v` picks the version).
+function tripLine(p: TripPhase, people: number, v = 0): string {
+  if (p.kind === "today") return one(STAGE_LINES.today, v);
+  if (p.kind === "during") return p.day === p.of ? one(STAGE_LINES.last, v) : `Day ${p.day} of ${p.of}. ${one(STAGE_LINES.during, v)}`;
+  if (p.kind === "before" && p.days === 1) return one(STAGE_LINES.tomorrow, v);
+  if (p.kind === "before" && p.days <= 7) return one(STAGE_LINES.week(people, p.days), v);
+  if (p.kind === "before" && p.days <= 30) return one(STAGE_LINES.month, v);
+  return one(STAGE_LINES.far, v);
 }
 
 // The countdown slide: the trip's own photo behind the number (when there is one), "Sleeps to Manali", and a line that says what to do.
-export function countdownPoster(days: number, where: string, photo?: string): Frame {
-  return { kind: "poster", tone: "sun", kicker: `${days === 1 ? "Sleep" : "Sleeps"} to ${where}`, big: String(days), line: days <= 3 ? "Not that anyone's counting 👀" : "Time to start packing", ...(photo ? { photo } : {}) };
+export function countdownPoster(days: number, where: string, photo?: string, v = 0): Frame {
+  return { kind: "poster", tone: "sun", kicker: `${days === 1 ? "Sleep" : "Sleeps"} to ${where}`, big: String(days), line: one(days <= 3 ? STAGE_LINES.posterSoon : STAGE_LINES.posterLater, v), ...(photo ? { photo } : {}) };
 }
 
-function tripFrames(t: StoryInput["trips"][number]): Frame[] {
+// A number that goes up by one each day of a trip's countdown and stay (the lines move on with it).
+const dayNumber = (p: TripPhase) => (p.kind === "before" ? 100 - p.days : p.kind === "today" ? 100 : p.kind === "during" ? 100 + p.day : 0);
+
+// `used` is shared by every story on the Home, so no two live stories show the same line; `v` is this trip's version of the fixed words.
+function tripFrames(t: StoryInput["trips"][number], used: Set<string>, v: number): Frame[] {
   const p = t.phase;
   const where = place(t.name);
   const photos = t.photos?.length ? t.photos : t.photo ? [t.photo] : [];
-  // Lines for this place, this kind of trip and this crew; a fresh set each day, written for the place, not the photo.
-  const dayKey = p.kind === "before" ? `b${p.days}` : p.kind === "during" ? `d${p.day}` : "t";
-  const caps = storyLines({ month: t.month, place: placeSlot(`${t.name} ${t.stop?.city ?? ""}`), country: t.stop?.country, countryName: t.stop?.countryName, flag: t.stop?.flag, city: t.stop?.city, mood: t.mood, people: t.people, seed: `${t.id}-${dayKey}` });
-  // A slide's words: a line that fits its photo when we know what's in it (a sunset line on a
-  // sunset), else the next line about the place, the season or the crew. Never the same line twice.
-  const used = new Set<string>();
-  let nextCap = 0;
+  const day = dayNumber(p);
+  // Lines for this place, this kind of trip and this crew; they take turns day by day, written for the place, not the photo.
+  const caps = storyLines({ month: t.month, place: placeSlot(`${t.name} ${t.stop?.city ?? ""}`), country: t.stop?.country, countryName: t.stop?.countryName, flag: t.stop?.flag, city: t.stop?.city, mood: t.mood, people: t.people, seed: t.id, day, step: p.kind === "before" ? 2 : 1, avoid: used, n: 8 });
+  // A slide's words: the place's own lines on most slides, and on the middle one a line that fits its photo when we know what's in it
+  // (a sunset line on a sunset). Never a line that is already on this story or another live story.
+  const fromCaps = () => caps.find((c) => !used.has(c[1])) ?? null;
+  const fromPhoto = (src?: string, k = 0) => (src ? lineForPhoto(src, seedNum(t.id) + day + k, used) : null);
   const cap = (k: number, photoIndex?: number): [string, string] => {
     const src = photoIndex != null && photos.length ? photos[photoIndex % photos.length] : undefined;
-    const fit = src ? lineForPhoto(src, k + t.id.length, used) : null;
-    let pickd: [string, string] = fit ?? ["", ""];
-    if (!fit) {
-      for (let i = 0; i < caps.length; i++) {
-        const c = caps[(nextCap + i) % caps.length];
-        if (!used.has(c[1])) {
-          pickd = c;
-          nextCap = (nextCap + i + 1) % caps.length;
-          break;
-        }
-      }
-    }
-    used.add(pickd[1]);
-    return pickd;
+    const c = (k % 2 === 1 ? fromPhoto(src, k) ?? fromCaps() : fromCaps() ?? fromPhoto(src, k)) ?? caps[k % Math.max(1, caps.length)] ?? ["Trip mode", where];
+    used.add(c[1]);
+    return c;
   };
   const photo = (k: number, kicker: string | undefined, head: string, line?: string): Frame | null => (photos.length ? { kind: "photo", photo: photos[k % photos.length], kicker, head, line } : null);
-  const crew: Frame | null = t.crew && t.crew.length > 1 ? { kind: "list", tone: "sky", kicker: "The crew", rows: t.crew.slice(0, 8).map((n) => ({ label: n })), line: t.crew.length > 8 ? `and ${t.crew.length - 8} more` : `${t.crew.length} of you. Dangerous.` } : null;
+  const crew: Frame | null = t.crew && t.crew.length > 1 ? { kind: "list", tone: "sky", kicker: "The crew", rows: t.crew.slice(0, 8).map((n) => ({ label: n })), line: t.crew.length > 8 ? `and ${t.crew.length - 8} more` : one(STAGE_LINES.crew(t.crew.length), v) } : null;
   const out: (Frame | null)[] = [];
   if (p.kind === "before") {
-    out.push(photo(0, p.days === 1 ? "Tomorrow" : `In ${p.days} days`, where, tripLine(p, t.people)));
-    out.push(countdownPoster(p.days, where, photos[0]));
+    out.push(photo(0, p.days === 1 ? "Tomorrow" : `In ${p.days} days`, where, tripLine(p, t.people, v)));
+    out.push(countdownPoster(p.days, where, photos[0], v));
     { const c = cap(0, 1); out.push(photo(1, c[0], c[1])); }
     out.push(crew);
     { const c = cap(1, 2); out.push(photo(2, c[0], c[1])); }
-    { const c = cap(2, 3); out.push(photo(3, c[0], c[1], "Add bookings now, sort the money later")); }
+    { const c = cap(2, 3); out.push(photo(3, c[0], c[1], one(STAGE_LINES.bookings, v))); }
   } else {
     const d = t.today;
     // The day is said once: "Goa · day 2 of 5", with the playful line under it (no "Day 2" label above, no "Day 2 of 5" repeated below).
     out.push(
       p.kind === "during"
-        ? photo(0, undefined, `${where} · day ${p.day} of ${p.of}`, p.day === p.of ? "Last day. Make it count" : "Keep the receipts coming")
-        : photo(0, p.kind === "today" ? "Today" : "Day 1", p.kind === "today" ? `${where} starts today` : `${where}, day 1`, tripLine(p, t.people)),
+        ? photo(0, undefined, `${where} · day ${p.day} of ${p.of}`, p.day === p.of ? one(STAGE_LINES.last, v).replace(/ 🌅$/, "") : one(STAGE_LINES.during, v))
+        : photo(0, p.kind === "today" ? "Today" : "Day 1", p.kind === "today" ? `${where} starts today` : `${where}, day 1`, tripLine(p, t.people, v)),
     );
     out.push(
       d && d.count > 0
-        ? { kind: "poster", tone: "coral", kicker: "Spent today", big: d.spent, line: `${d.count} ${d.count === 1 ? "expense" : "expenses"} so far. The night is young.` }
-        : { kind: "poster", tone: "coral", kicker: "Spent today", big: "Nothing", line: "Suspiciously quiet… 👀" },
+        ? { kind: "poster", tone: "coral", kicker: "Spent today", big: d.spent, line: `${d.count} ${d.count === 1 ? "expense" : "expenses"} so far. ${one(STAGE_LINES.spent, v)}` }
+        : { kind: "poster", tone: "coral", kicker: "Spent today", big: "Nothing", line: one(STAGE_LINES.quiet, v) },
     );
-    if (d?.top) out.push({ kind: "poster", tone: "mint", kicker: "Carrying the team today", big: d.top, line: "Somebody buy them a drink 🍹" });
+    if (d?.top) out.push({ kind: "poster", tone: "mint", kicker: "Carrying the team today", big: d.top, line: one(STAGE_LINES.top, v) });
     { const c = cap(0, 1); out.push(photo(1, c[0], c[1])); }
     if (d?.biggest) out.push({ kind: "poster", tone: "pink", kicker: "Biggest bill today", big: d.biggest.amount, line: d.biggest.what });
     out.push(crew);
-    { const c = cap(1, 2); out.push(photo(2, c[0], c[1], "Add it now, settle it later")); }
+    { const c = cap(1, 2); out.push(photo(2, c[0], c[1], one(STAGE_LINES.addIt, v))); }
   }
   const frames = out.filter((f): f is Frame => Boolean(f)).slice(0, 6);
-  return frames.length ? frames : [{ kind: "poster", tone: "sky", kicker: where, big: p.kind === "before" ? `${p.days} days` : "Today", line: tripLine(p, t.people) }];
+  return frames.length ? frames : [{ kind: "poster", tone: "sky", kicker: where, big: p.kind === "before" ? `${p.days} days` : "Today", line: tripLine(p, t.people, v) }];
 }
 
 export function buildStories(i: StoryInput): Story[] {
   const out: Story[] = [];
   const now = i.now.getTime();
+  const used = new Set<string>(); // every line already on a live trip story
+  // The version of the fixed words: today's date plus the trip's place in the row, so live trips always get different versions
+  // (up to 3 trips at once) and every trip moves on to the next version tomorrow.
+  const today = Math.floor(now / 86_400_000);
+  let nth = 0;
   for (const t of i.trips) {
     const p = t.phase;
     if (p.kind === "after" || (p.kind === "before" && p.days > 60)) continue;
+    const v = today + nth++;
     const head = p.kind === "before" ? (p.days === 1 ? `${place(t.name)} tomorrow` : `${place(t.name)} in ${p.days} days`) : p.kind === "today" ? `${place(t.name)} starts today` : `${place(t.name)}, day ${p.day}`;
     const key = p.kind === "before" ? `b${p.days}` : p.kind === "during" ? `d${p.day}` : "t";
     out.push({
@@ -143,14 +163,14 @@ export function buildStories(i: StoryInput): Story[] {
       label: place(t.name),
       short: place(t.name),
       headline: head,
-      line: tripLine(p, t.people),
+      line: tripLine(p, t.people, v),
       cta: p.kind === "before" ? "Open the trip" : "Add an expense",
       href: p.kind === "before" ? `/groups/${t.id}` : `/groups/${t.id}/add`,
       photo: t.photos?.[0] ?? t.photo,
       cover: t.cover,
       emoji: "✈️",
       big: p.kind === "before" ? (p.days === 1 ? "Tomorrow" : `${p.days} days`) : p.kind === "today" ? "Today" : `Day ${p.day}`,
-      frames: tripFrames(t),
+      frames: tripFrames(t, used, v),
       // Happening now first, then the soonest.
       at: now + (p.kind === "before" ? -p.days * 3_600_000 : 86_400_000),
     });

@@ -6,37 +6,42 @@ export type Line = [kicker: string, line: string];
 
 // For places Loopin has photos of (the slot names in places.ts, without "place-").
 const PLACE: Record<string, Line[]> = {
-  goa: [["Susegad mode", "Life moves slower here. The bill doesn't."], ["Local tip", "Rent the scooty. Wear the helmet."], ["Goa rules", "Fish thali for lunch is not optional"], ["Plot twist", "The beach shack is the fancy dinner"]],
+  goa: [
+    ["Susegad mode", "Life moves slower here. The bill doesn't."], ["Local tip", "Rent the scooty. Wear the helmet."], ["Goa rules", "Fish thali for lunch is not optional"],
+    ["Plot twist", "The beach shack is the fancy dinner"], ["North or south?", "Parties up north, peace down south. Pick a side."], ["Food check", "Prawn curry rice, then a very long nap"],
+    ["Sweet tooth", "Bebinca, one layer at a time"], ["Old Goa", "Pastel houses in Fontainhas, made for photos"], ["Fort views", "Sunset from a fort wall beats any rooftop"],
+    ["Night market", "You came for nothing. You left with a hat."], ["Day one", "Someone gets sunburnt. It's always day one."], ["Beach hopping", "One more beach, then lunch. Then one more."],
+  ],
   thailand: [["Sawasdee", "Pad thai count: rising 🍜"], ["Local tip", "7-Eleven toasties at 2am are a rite of passage"], ["Island time", "Ferry tickets, tuk-tuks, repeat"], ["Plot twist", "Someone buys elephant pants. Everyone buys elephant pants"]],
   bali: [["Selamat datang", "Villa with a pool, obviously 🌴"], ["Local tip", "Scooter, sunscreen, Nasi goreng. In that order."], ["Bali belly", "Nobody's ordering the street salad"], ["Plot twist", "The swing photo takes 45 minutes"]],
   dubai: [["Marhaba", "Everything here is the tallest, biggest or shiniest"], ["Local tip", "Metro is cheap. Taxis are not."], ["Desert plans", "Dune bashing first, buffet after"], ["Plot twist", "The mall has a ski slope. Of course it does"]],
-  manali: [["Hello hills", "Cold enough for two hoodies 🧣"], ["Local tip", "Old Manali cafés beat Mall Road"], ["Snow check", "Rohtang permits: someone sort it"], ["Plot twist", "Maggi at the top tastes like a five-star meal"]],
+  manali: [["Hello Manali", "Snow on the peaks, chai in hand 🧣"], ["Local tip", "Old Manali cafés beat Mall Road"], ["Snow check", "Rohtang permits: someone sort it"], ["Plot twist", "Maggi at the top tastes like a five-star meal"]],
   ladakh: [["Julley!", "Altitude: high. Phone signal: low."], ["Local tip", "Day one is for resting. Seriously."], ["Road trip", "Khardung La or bust 🏍️"], ["Plot twist", "Everyone's an amateur photographer now"]],
   kerala: [["Namaskaram", "Backwaters, banana chips, zero rush 🌴"], ["Local tip", "The houseboat lunch is the best meal of the trip"], ["God's own country", "Monsoon or not, it's green"], ["Plot twist", "Someone gets a full Ayurvedic massage and never recovers"]],
   singapore: [["Hello Singapore", "Clean streets, cold air-con, hot food"], ["Local tip", "Hawker centres > fancy restaurants"], ["Rules", "Gum's restricted. Yes, really."], ["Plot twist", "Marina Bay at night. Every night."]],
-  maldives: [["Island mode", "Water so blue it looks edited"], ["Local tip", "The seaplane is the tour"], ["Packing list", "Swimsuits. More swimsuits."], ["Plot twist", "Nobody checks the time for five days"]],
+  maldives: [["Island mode", "Water so blue it looks edited"], ["Local tip", "The seaplane is the tour"], ["Packing list", "Swimsuits. More swimsuits."], ["Plot twist", "Nobody checks the time for five days"], ["Snorkel check", "Fish count: too many to count"], ["Reef rules", "Reef-safe sunscreen, look don't touch"]],
   vietnam: [["Xin chào", "Pho for breakfast is the right choice 🍜"], ["Local tip", "You'll be a dong millionaire. Spend wisely."], ["Coffee check", "Egg coffee: try it once"], ["Plot twist", "Crossing the road is the adventure sport"]],
-  srilanka: [["Ayubowan", "Tea country, beaches, and a train ride for the ages"], ["Local tip", "Kandy to Ella by train. Book early."], ["Food check", "Kottu roti, every night"], ["Plot twist", "Everyone comes home with tea"]],
+  srilanka: [["Ayubowan", "Tea country, beaches, and a train ride for the ages"], ["Local tip", "Kandy to Ella by train. Book early."], ["Food check", "Hoppers for breakfast, kottu for dinner"], ["Plot twist", "Everyone comes home with tea"]],
   japan: [["Konnichiwa", "Bullet trains and convenience-store snacks 🍙"], ["Local tip", "Get a Suica card on day one"], ["Food check", "Ramen counts as three meals"], ["Plot twist", "Vending machines everywhere. Everyone tries all of them"]],
   london: [["Cheers!", "Bring an umbrella. Then bring another."], ["Local tip", "Tap your card on the Tube. No ticket needed."], ["Pub o'clock", "One pint turns into a pub crawl"], ["Plot twist", "Everything costs pounds. Nobody converts."]],
   jaipur: [["Padharo", "Pink City, fort views, chai stops"], ["Local tip", "Bargain at Johari Bazaar. Then bargain again."], ["Food check", "Dal baati churma, extra ghee"], ["Plot twist", "Someone buys a bedsheet they absolutely did not need"]],
   nepal: [["Namaste", "Mountains, momos, monasteries"], ["Local tip", "Thamel for gear, Pokhara for slowing down"], ["Trek talk", "Every step up is a step closer to dal bhat"], ["Plot twist", "Everyone falls in love with the momos"]],
-  andaman: [["Island time", "Ferries, beaches and very clear water"], ["Local tip", "Book the Havelock ferry early"], ["Dive in", "Scuba once, talk about it forever"], ["Plot twist", "Phone signal? What phone signal?"]],
+  andaman: [["Island life", "Ferries, beaches and very clear water"], ["Local tip", "Book the Havelock ferry early"], ["Dive in", "Scuba once, talk about it forever"], ["Plot twist", "Phone signal? What phone signal?"], ["Sunset spot", "Radhanagar at sunset, worth the wait"], ["Food check", "Fresh fish, grilled your way"]],
   rishikesh: [["Ganga calling", "Rafting by day, aarti by evening"], ["Local tip", "Cafés by the river, open till late"], ["Adventure", "Someone's doing the bungee. Someone's filming."], ["Plot twist", "The quiet trip turns into a camping trip"]],
   newyork: [["Hello NYC", "Walk everywhere. Seriously, everywhere."], ["Local tip", "The subway is faster than any cab"], ["Food check", "A dollar slice is a real meal"], ["Plot twist", "Times Square is louder than you thought"]],
   santorini: [["Yassou", "White walls, blue domes, golden evenings"], ["Local tip", "Oia gets packed by sunset. Go early."], ["Food check", "Gyros on the go, seafood by the water"], ["Plot twist", "Everyone's camera roll triples"]],
   bhutan: [["Kuzuzangpo", "A country that measures happiness, officially"], ["Local tip", "Tiger's Nest: start early, go slow"], ["Food check", "Ema datshi is spicy. Like, really spicy."], ["Plot twist", "Nobody wants to leave"]],
   meghalaya: [["Khublei", "Clouds, waterfalls and living root bridges"], ["Local tip", "Shillong cafés are the warm-up"], ["Rain check", "Pack a raincoat. Pack two."], ["Plot twist", "The 3,000 steps to the root bridge are worth it"]],
-  switzerland: [["Grüezi", "Mountains, trains and very good chocolate"], ["Local tip", "The Swiss Travel Pass can pay for itself"], ["Food check", "Fondue is a whole evening"], ["Plot twist", "Everything is on time. Including the bill."]],
+  switzerland: [["Grüezi", "Mountains, trains and very good chocolate"], ["Local tip", "The Swiss Travel Pass can pay for itself"], ["Food check", "Raclette, fondue, repeat"], ["Plot twist", "Everything is on time. Including the bill."]],
   ahmedabad: [["Kem cho", "Thepla, dhokla, Manek Chowk at midnight"], ["Local tip", "The old-city heritage walk starts early"], ["Food check", "Gujarati thali, unlimited refills"]],
-  alibaug: [["Weekend mode", "Ferry across, flip‑flops on"], ["Local tip", "The ro-ro ferry beats the drive"], ["Plot twist", "The weekend somehow becomes three days"]],
+  alibaug: [["Weekend mode", "Ferry across, chappals on"], ["Local tip", "The ro-ro ferry beats the drive"], ["Plot twist", "The weekend somehow becomes three days"], ["Food check", "Fresh catch, Konkan style"], ["Low tide", "Walk out to Kolaba fort when the sea lets you"]],
   amritsar: [["Sat Sri Akal", "Langar, lassi and Amritsari kulcha"], ["Local tip", "The Golden Temple at dawn is unreal"], ["Food check", "One kulcha is never enough"]],
   chikmagalur: [["Coffee country", "Estates, mist and filter coffee ☕"], ["Local tip", "Mullayanagiri for the sunrise"], ["Plot twist", "Everyone buys coffee to take home"]],
   coorg: [["Scotland of India", "Coffee, mist and homestays"], ["Local tip", "Try the pandi curry"], ["Plot twist", "Nobody wants to drive back"]],
   corbett: [["Jungle time", "Safari at dawn, stories by night"], ["Local tip", "Book the safari zone early"], ["Plot twist", "Everyone swears they saw a tiger"]],
   darjeeling: [["Hello hills", "Toy train, tea gardens, Kanchenjunga"], ["Local tip", "Tiger Hill for sunrise, early alarm"], ["Food check", "Momos and Darjeeling tea, on repeat"]],
   delhi: [["Dilli darshan", "Parathas, monuments and Metro rides"], ["Local tip", "The Metro beats traffic, every time"], ["Food check", "Chandni Chowk on an empty stomach"]],
-  gokarna: [["Beach hopping", "Om, Kudle, Half Moon, Paradise"], ["Local tip", "Trek between the beaches"], ["Plot twist", "Goa's quieter cousin steals the show"]],
+  gokarna: [["Beach trail", "Om, Kudle, Half Moon, Paradise"], ["Local tip", "Trek between the beaches"], ["Plot twist", "Goa's quieter cousin steals the show"], ["Temple town", "Temple in the morning, beach by noon"], ["Food check", "Thali at a beach café, banana pancakes after"]],
   hampi: [["Boulder land", "Ruins, rocks and a coracle ride"], ["Local tip", "Rent a cycle, go slow"], ["Plot twist", "Sunset at Hemakuta hill becomes a ritual"]],
   hyderabad: [["Biryani capital", "Charminar, chai and Irani biscuits"], ["Local tip", "Paradise is good. Ask locals for better."], ["Food check", "Haleem season? You're lucky."]],
   jaisalmer: [["Golden city", "Fort, dunes and a camp under the stars"], ["Local tip", "Sam dunes for the camel ride"], ["Plot twist", "Sand in everything. Everything."]],
@@ -52,7 +57,7 @@ const PLACE: Record<string, Line[]> = {
   mysore: [["Royal city", "The palace lights up on Sundays"], ["Local tip", "Mysore pak from the original shop"], ["Food check", "Masala dosa, extra butter"]],
   nainital: [["Lake town", "Boat rides, Mall Road, cool air"], ["Local tip", "Snow View point by cable car"], ["Plot twist", "Everyone rows the boat in circles"]],
   ooty: [["Nilgiris", "Toy train, tea estates, eucalyptus"], ["Local tip", "Doddabetta for the view"], ["Food check", "Homemade chocolate, by the kilo"]],
-  pondicherry: [["Bonjour Pondy", "French streets, cafés and promenade walks"], ["Local tip", "Rent a cycle in White Town"], ["Plot twist", "Everyone takes the same yellow-wall photo"]],
+  pondicherry: [["Bonjour Pondy", "French streets, cafés and promenade walks"], ["Local tip", "Rent a cycle in White Town"], ["Plot twist", "Everyone takes the same yellow-wall photo"], ["Food check", "Croissant for breakfast, fish curry for dinner"], ["Early start", "Rock Beach at sunrise, before the heat"]],
   pune: [["Punekar mode", "Misal, wada and a day at Sinhagad"], ["Local tip", "Sinhagad at sunrise, bhakri after"], ["Food check", "Bun maska at the Irani café"]],
   sikkim: [["Hello mountains", "Monasteries, momos and Tsomgo Lake"], ["Local tip", "Permits for North Sikkim, sorted early"], ["Plot twist", "Everyone says 'I'm moving here'"]],
   udaipur: [["City of lakes", "Palaces, boat rides and rooftop dinners"], ["Local tip", "Ambrai Ghat at sunset"], ["Plot twist", "Every dinner is a rooftop dinner"]],
@@ -186,8 +191,13 @@ function worldLines(country?: string | null, city?: string | null, countryName?:
 
 // When the place isn't one Loopin knows: by the kind of trip.
 const MOOD: Record<"beach" | "hills" | "city" | "any", Line[]> = {
-  beach: [["Forecast", "100% chance of flip‑flops 🩴"], ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."], ["Beach rules", "Coconut water counts as hydration"], ["Plot twist", "The beach shack is the fancy dinner"]],
-  hills: [["Forecast", "Cold enough for two hoodies 🧣"], ["Packing list", "Warm socks. Maggi. A speaker for the drive."], ["Spotted", "Chai at altitude hits different ☕"], ["Plot twist", "Nobody packed the charger"]],
+  beach: [
+    ["Forecast", "100% chance of flip‑flops 🩴"], ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."], ["Beach rules", "Last one in the water buys the coconuts"],
+    ["Plot twist", "The sand comes home with you"], ["Dress code", "Shorts at breakfast, shorts at dinner"], ["Snack check", "Roasted corn by the water"],
+    ["Tide check", "Move the towels before the wave does"], ["Beach day", "Find shade early. Defend it all day."], ["Swim check", "Someone swears the water isn't cold"],
+    ["Slow day", "The only plan is no plan"],
+  ],
+  hills: [["Forecast", "Two hoodies, minimum 🧣"], ["Packing list", "Warm socks. Maggi. A speaker for the drive."], ["Spotted", "Chai at altitude hits different ☕"], ["Plot twist", "Nobody packed the charger"]],
   city: [["Forecast", "High chance of street food 🌮"], ["Packing list", "Comfy shoes. You'll walk 20,000 steps."], ["After dark", "The city looks better at night. So do the bills."], ["Plot twist", "Someone gets lost. It's always the same someone"]],
   any: [["Forecast", "Good times, with a chance of receipts 🧾"], ["Packing list", "Charger, ID, snacks. In that order."], ["Spotted", "The group chat, already planning outfits"], ["Plot twist", "Loopin keeps the maths. You keep the memories"]],
 };
@@ -216,10 +226,16 @@ function crewLines(people: number): Line[] {
   return [["Full house", `${people} of you. That's a lot of receipts.`], ["Headcount", "Count everyone before you leave. Twice."]];
 }
 
-// A steady shuffle: the same trip on the same day always gets the same lines, and the next day different ones.
-function pick<T>(list: T[], seed: string, n: number): T[] {
+// A number from a word (the trip's id), so each trip gets its own steady order of lines.
+export function seedNum(seed: string): number {
   let h = 2166136261;
   for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return h;
+}
+
+// A steady shuffle: the same seed always gives the same order.
+function pick<T>(list: T[], seed: string, n: number): T[] {
+  let h = seedNum(seed);
   const out = [...list];
   for (let i = out.length - 1; i > 0; i--) {
     h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
@@ -229,18 +245,45 @@ function pick<T>(list: T[], seed: string, n: number): T[] {
   return out.slice(0, n);
 }
 
+// Lines that take turns: each trip shuffles a list once, then each day moves on by `step` (how many of them a day's story shows), so a
+// line only comes back once the whole list has been shown (22 Nov: the Goa story showed the same few lines every day). Lines already
+// on screen (`skip`) are passed over.
+export function rotate(list: Line[], seed: string, day: number, k: number, skip: Set<string>, step = k): Line[] {
+  if (!list.length || k <= 0) return [];
+  const order = pick(list, seed, list.length);
+  const start = (((day * step) % order.length) + order.length) % order.length;
+  const out: Line[] = [];
+  for (let i = 0; i < order.length && out.length < k; i++) {
+    const l = order[(start + i) % order.length];
+    if (!skip.has(l[1])) out.push(l);
+  }
+  return out;
+}
+
+// Every list of lines, for the tests (no line may be in two lists, so two trips never share words).
+export const STORY_POOLS = { PLACE, MOOD, FLAVOUR, seasonLines, crewLines, worldLines };
+
 // The lines for one trip story: the place's own first, then the kind of trip, then the crew.
-export function storyLines(o: { month?: number | null; place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; n?: number }): Line[] {
+// `seed` is the trip, `day` moves the lines on each day by `step` (how many a day's story shows), and `avoid` holds lines already used
+// by other stories on the same Home.
+export function storyLines(o: { month?: number | null; place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; day?: number; step?: number; avoid?: Set<string>; n?: number }): Line[] {
   // The place's own hand-written lines, else lines for its city and country (any country in the world).
   const handWritten = (o.place && PLACE[o.place.replace(/^place-/, "").replace(/^kyoto$/, "japan")]) || [];
   const own = handWritten.length ? handWritten : worldLines(o.country, o.city, o.countryName, o.flag);
   const mood = MOOD[o.mood ?? "any"];
   const n = o.n ?? 4;
+  const day = o.day ?? 0;
+  const taken = new Set(o.avoid ?? []);
+  const take = (list: Line[], salt: string, k: number) => {
+    const got = rotate(list, `${o.seed}${salt}`, day, k, taken, o.step ?? k);
+    for (const l of got) taken.add(l[1]);
+    return got;
+  };
   // Up to 3 about the place, then the trip's kind, then one about the crew.
-  const crew = pick(crewLines(o.people), `${o.seed}c`, 1);
-  const season = pick(seasonLines(o.month, o.country), `${o.seed}s`, 1);
+  const crew = take(crewLines(o.people), "c", 1);
+  const season = take(seasonLines(o.month, o.country), "s", 1);
   const room = Math.max(1, n - crew.length - season.length);
-  const placeLines = pick(own, o.seed, Math.min(room, own.length));
-  const rest = pick(mood, `${o.seed}m`, Math.max(0, room - placeLines.length));
+  const placeLines = take(own, "", Math.min(room, own.length));
+  const rest = take(mood, "m", Math.max(0, room - placeLines.length));
   return [...placeLines, ...season, ...rest, ...crew].slice(0, n);
 }

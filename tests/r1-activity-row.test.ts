@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { headerTripLine } from "@/lib/countdown";
-import { buildStories } from "@/lib/home/stories";
+import { STAGE_LINES, buildStories } from "@/lib/home/stories";
 
 const src = (f: string) => readFileSync(f, "utf8");
 
@@ -149,7 +149,9 @@ describe("R1 item 14: trip story says the day once", () => {
       games: [], squared: [], collections: [], memories: [], wrapped: [],
     });
     const first = s.frames[0];
-    expect(first).toMatchObject({ kind: "photo", head: "Goa · day 2 of 5", line: "Keep the receipts coming" });
+    expect(first).toMatchObject({ kind: "photo", head: "Goa · day 2 of 5" });
+    expect(STAGE_LINES.during).toContain((first as { line?: string }).line); // a version of "Keep the receipts coming" (22 Nov)
+    expect((first as { line?: string }).line).not.toMatch(/day 2/i);
     expect((first as { kicker?: string }).kicker).toBeUndefined();
   });
 });

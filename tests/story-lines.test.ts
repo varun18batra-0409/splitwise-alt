@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { storyLines } from "@/lib/home/story-lines";
+import { STORY_POOLS, storyLines } from "@/lib/home/story-lines";
 
 describe("story lines write themselves", () => {
   it("use the place's own lines first", () => {
     const l = storyLines({ place: "place-goa", mood: "beach", people: 5, seed: "t1-b3" });
     expect(l).toHaveLength(4);
-    expect(l.some(([, line]) => /Goa|scooty|thali|beach shack/i.test(line))).toBe(true);
+    const goa = new Set(STORY_POOLS.PLACE.goa.map(([, line]) => line));
+    expect(l.filter(([, line]) => goa.has(line)).length).toBeGreaterThanOrEqual(2);
   });
   it("speak to two of you, or a big squad", () => {
     expect(storyLines({ place: null, mood: "any", people: 2, seed: "s" }).some(([k]) => /two|Couple/.test(k))).toBe(true);

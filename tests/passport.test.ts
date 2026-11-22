@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { COUNTRIES, countryOf, searchCountries, tripStops } from "@/lib/geo";
 import { readFileSync } from "node:fs";
 import { buildPassport, parseHandPlaces, passportCounts, shareStamps, passportZone, stampDay, stampPages, undatedFacts, undatedTripDay, wentOnTrip } from "@/lib/passport";
-import { buildStories } from "@/lib/home/stories";
+import { STAGE_LINES, buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
 import { quickReactions, reactionSummary } from "@/lib/reactions";
@@ -100,7 +100,8 @@ describe("Stories on Home", () => {
       wrapped: [],
     });
     expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "pot-p1", "memory-g9-1", "collect-c1-2-0"]);
-    expect(s[0]).toMatchObject({ headline: "Goa in 3 days", line: "5 of you, 3 sleeps to go", href: "/groups/g1" });
+    expect(s[0]).toMatchObject({ headline: "Goa in 3 days", href: "/groups/g1" });
+    expect(STAGE_LINES.week(5, 3)).toContain(s[0].line); // one of the versions ("5 of you, 3 sleeps to go"…), 22 Nov
     expect(s.find((x) => x.kind === "pot")?.headline).toBe("Asha came out ahead by ₹600");
     expect(s.find((x) => x.kind === "memory")?.headline).toBe("A year ago: Manali");
   });

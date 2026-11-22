@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { buildStories } from "@/lib/home/stories";
-import { storyLines } from "@/lib/home/story-lines";
+import { STAGE_LINES, buildStories } from "@/lib/home/stories";
+import { STORY_POOLS, storyLines } from "@/lib/home/story-lines";
 import { TAG_LINES } from "@/lib/home/photo-tags";
 import { tripMetaLine } from "@/lib/countdown";
 import { buttonLabel, cardLabel, greetingWord, homeAmountTier, sideLine } from "@/lib/home/owe-card";
@@ -53,8 +53,9 @@ describe("stories are playful again (from before a9fe48ee) and moments are not s
     const all = (o: Parameters<typeof storyLines>[0]) => storyLines({ ...o, n: 10 }).map(([k, l]) => `${k}: ${l}`).join(" | ");
     expect(all({ place: "place-thailand", people: 4, seed: "x" })).toContain("Pad thai count: rising 🍜");
     expect(all({ place: "place-bali", people: 4, seed: "x" })).toContain("Villa with a pool, obviously 🌴");
-    expect(all({ place: null, mood: "beach", people: 4, seed: "x" })).toContain("100% chance of flip‑flops 🩴");
-    expect(all({ place: null, mood: "hills", people: 4, seed: "x" })).toContain("Cold enough for two hoodies 🧣");
+    // The mood lists take turns (22 Nov), so these are checked in the lists themselves.
+    expect(JSON.stringify(STORY_POOLS.MOOD.beach)).toContain("100% chance of flip‑flops 🩴");
+    expect(JSON.stringify(STORY_POOLS.MOOD.hills)).toContain("Two hoodies, minimum 🧣");
     // Which crew line shows is picked by the seed, so this one is checked in the list itself.
     expect(readFileSync("src/lib/home/story-lines.ts", "utf8")).toContain("Table for two, every night 💛");
     expect(JSON.stringify(TAG_LINES.beach)).toContain("🩴");
@@ -64,13 +65,16 @@ describe("stories are playful again (from before a9fe48ee) and moments are not s
   it("trip stories: countdown lines with ✈️ / 🔋 / 👀, and Spent-today lines with 🍹", () => {
     const tomorrow = buildStories({ ...base, trips: [{ id: "t", name: "Goa trip", phase: { kind: "before", days: 1 }, people: 4, photos }] });
     const text = JSON.stringify(tomorrow[0].frames);
-    expect(text).toContain("Tomorrow! Charge your phone 🔋");
-    expect(text).toContain("Not that anyone's counting 👀");
+    // Each fixed line has a few versions (22 Nov); every version keeps its emoji.
+    expect(text).toMatch(/Tomorrow! [^"]*🔋/);
+    expect(STAGE_LINES.posterSoon.some((l) => text.includes(l))).toBe(true);
+    expect(text).toContain("👀");
     const today = buildStories({ ...base, trips: [{ id: "t", name: "Goa trip", phase: { kind: "today" }, people: 4, photos }] });
-    expect(JSON.stringify(today[0].frames)).toContain("Bags packed? It starts today ✈️");
+    expect(STAGE_LINES.today.some((l) => JSON.stringify(today[0].frames).includes(l))).toBe(true);
+    expect(JSON.stringify(today[0].frames)).toContain("✈️");
     const on = buildStories({ ...base, trips: [{ id: "t", name: "Goa trip", phase: { kind: "during", day: 2, of: 5 }, people: 3, photos, today: { spent: "₹4,200", count: 0, top: "Asha" } }] });
-    expect(JSON.stringify(on[0].frames)).toContain("Somebody buy them a drink 🍹");
-    expect(JSON.stringify(on[0].frames)).toContain("Suspiciously quiet… 👀");
+    expect(JSON.stringify(on[0].frames)).toContain("🍹");
+    expect(STAGE_LINES.quiet.some((l) => JSON.stringify(on[0].frames).includes(l))).toBe(true);
   });
   it("square, wrapped, a year ago: their emoji are back, and the circle's own emoji too", () => {
     const s = buildStories({

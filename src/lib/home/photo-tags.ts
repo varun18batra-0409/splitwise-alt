@@ -59,16 +59,34 @@ export const PHOTO_TAGS: Record<string, string[]> = {
 
 // Lines for what's in the picture. Several each, so two slides never say the same thing.
 export const TAG_LINES: Record<string, [string, string][]> = {
-  sunset: [["Golden hour", "Somebody's taking 400 photos of this sunset"], ["Golden hour", "Phones out. Everyone's a photographer now."], ["Sunset o'clock", "Best seat in the house, no ticket needed"]],
+  sunset: [
+    ["Golden hour", "Somebody's taking 400 photos of this sunset"], ["Phones out", "Everyone's a photographer now"], ["Sunset o'clock", "Best seat in the house, no ticket needed"],
+    ["Sky show", "Orange, pink, gone. Same time tomorrow."], ["Last light", "Golden hour makes everyone look good"], ["Pink sky", "No filter needed. Use one anyway."],
+    ["Dusk", "Plans for tonight: still undecided"], ["Quiet minute", "Everyone stops talking when the sun goes down"],
+  ],
   night: [["After dark", "The night's just getting started"], ["After dark", "Looks even better with the lights on"], ["Night shift", "Sleep is overrated on holiday"]],
   neon: [["Lights on", "Neon, noise and street snacks"], ["After dark", "Every sign says 'come in'"]],
-  beach: [["Beach mode", "Toes in the sand, phone on silent"], ["Beach mode", "100% chance of flip‑flops 🩴"], ["Plot twist", "The beach shack is the fancy dinner"]],
-  sea: [["Sea view", "Water this blue should be illegal"], ["Sea view", "Somebody's already planning a swim"]],
-  palms: [["Palm trees", "Hammock not included. Find one."], ["Island energy", "Coconut water counts as hydration"]],
-  island: [["Island time", "Clocks work differently here"], ["Island hopping", "Boat, beach, repeat"]],
+  beach: [
+    ["Beach mode", "Toes in the sand, phone on silent"], ["Barefoot", "Flip‑flops in hand, sand everywhere 🩴"], ["Shoreline", "A long walk with no plan at all"],
+    ["Sand check", "Sand in the bag, sand in the shoes. Worth it."], ["Beach day", "Towel down, book open, eyes closed"], ["Footprints", "All the way to the shack and back"],
+    ["Low tide", "The beach just got twice as big"], ["Salt hair", "Hair: a mess. Mood: excellent."], ["Sandcastle", "A team sport, it turns out"],
+  ],
+  sea: [
+    ["Sea view", "Water this blue should be illegal"], ["Swim o'clock", "Somebody's already planning a swim"], ["Salt water", "Swim first, ask about towels later"],
+    ["Wave check", "Somebody gets knocked over. Everyone laughs."], ["Deep blue", "Blue as far as you can see"], ["Sea breeze", "Windows down, sea air in"],
+    ["Table by the sea", "Dinner tastes better with a view"],
+  ],
+  palms: [
+    ["Palm trees", "Hammock not included. Find one."], ["Island energy", "Coconut water counts as hydration"], ["Shade found", "Claim the palm. Guard the palm."],
+    ["Coconut stop", "Straw in, feet up"], ["Tropical", "Every tree here is a postcard"], ["Afternoon", "Palm leaves, slow fans, slower afternoons"],
+  ],
+  island: [
+    ["Island time", "Clocks work differently here"], ["Island hopping", "Boat, beach, repeat"], ["Ferry day", "The boat ride is half the fun"],
+    ["Off the grid", "Signal comes and goes. So do worries."], ["Castaway mode", "Shoes optional, sunscreen not"], ["Far away", "The nearest office is very far away"],
+  ],
   cliffs: [["The view", "Worth every step to get here"], ["Edge of the map", "Hold on to your phone"]],
   mountains: [["Up here", "Fresh air, no notifications"], ["Mountain mode", "Everyone's a trekker now"], ["The view", "Worth the early alarm"]],
-  snow: [["Snow day", "Gloves on, snowball fight loading"], ["Snow day", "Cold enough for two hoodies 🧣"], ["Winter wonderland", "Hot chocolate is now a food group"]],
+  snow: [["Snow day", "Gloves on, snowball fight loading"], ["Bundle up", "Cold enough for two hoodies 🧣"], ["Winter wonderland", "Hot chocolate is now a food group"]],
   clouds: [["Above the clouds", "Literally on top of the world"]],
   hills: [["Hill time", "Chai tastes better up here ☕"], ["Hill time", "Every bend in the road, a new view"]],
   mist: [["Into the mist", "Moody weather, cosy plans"], ["Fog mode", "Jackets on, chai on"]],
@@ -97,7 +115,7 @@ export const TAG_LINES: Record<string, [string, string][]> = {
   village: [["Village life", "Slow mornings, warm people"]],
   garden: [["Garden walk", "Green, gorgeous and air-conditioned somewhere"]],
   park: [["Park day", "Pick a bench, people-watch"]],
-  desert: [["Desert days", "Sand in everything. Everything."], ["Desert nights", "Stars you can't see at home"]],
+  desert: [["Desert days", "Dunes as far as the eye can see"], ["Desert nights", "Stars you can't see at home"]],
   road: [["On the road", "Window seat is non-negotiable"], ["Road trip", "Somebody's DJing, somebody's navigating"]],
   bike: [["Ride on", "Wind in your face, helmet on"]],
   paragliding: [["Up, up and away", "Someone's flying today. Someone's filming."]],
@@ -109,7 +127,7 @@ export const TAG_LINES: Record<string, [string, string][]> = {
   friends: [["The crew", "Same people, new place"], ["The crew", "Group photo, take 37"]],
   food: [["Food stop", "Order one of everything. Share."]],
   coffee: [["Coffee break", "First, coffee. Then plans."]],
-  cafe: [["Café stop", "Croissant first, questions later"]],
+  cafe: [["Café stop", "One more coffee, then we go. Probably."]],
   party: [["Night out", "Dance now, split the bill later"]],
   blossom: [["Blossom season", "Pink everywhere. Phones everywhere."]],
 };
@@ -118,11 +136,16 @@ export const TAG_LINES: Record<string, [string, string][]> = {
 export const slotOfPhoto = (src: string) => src.replace(/^.*\/photos\//, "").replace(/\.jpg$/, "");
 
 // A line that fits this photo, avoiding lines already used on other slides (`used`).
+// A line for what's in the photo. `seed` says where to start in each list (it moves on day by day), and lines in `used` (already on
+// this story or another story on the same Home) are passed over.
 export function lineForPhoto(src: string, seed: number, used: Set<string>): [string, string] | null {
   const tags = PHOTO_TAGS[slotOfPhoto(src)] ?? [];
   for (const t of tags) {
-    const options = (TAG_LINES[t] ?? []).filter(([, l]) => !used.has(l));
-    if (options.length) return options[seed % options.length];
+    const all = TAG_LINES[t] ?? [];
+    for (let i = 0; i < all.length; i++) {
+      const c = all[(seed + i) % all.length];
+      if (!used.has(c[1])) return c;
+    }
   }
   return null;
 }
