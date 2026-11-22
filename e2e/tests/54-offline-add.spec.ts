@@ -350,6 +350,23 @@ test("the offline screen's Try again button goes back by itself the moment a che
   await ctx.close();
 });
 
+test("on the offline Add screen, a signal coming back does not throw away what is half typed", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const { ctx, page, trip, groupId } = await setup(browser, "hold", { noWorker: true });
+  await page.route("**/api/ping", (r) => r.abort());
+  await page.goto(`/offline-app?g=${groupId}&s=add`);
+  await expect(page.locator("[data-offline-net]").first()).toHaveText("Offline");
+  await page.locator("#expense-name").fill("Half typed");
+  await page.unroute("**/api/ping");
+  await expect(page.locator("[data-offline-back-online]")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator("[data-offline-back-online]")).toContainText("You’re back online.");
+  await expect(page).toHaveURL(new RegExp(`/offline-app\\?g=${groupId}&s=add$`));
+  await expect(page.locator("#expense-name")).toHaveValue("Half typed");
+  await page.locator("[data-offline-back-online] a").click();
+  await expect(page).toHaveURL(new RegExp(`${trip.path}$`));
+  await ctx.close();
+});
+
 test("the push and notification parts of sw.js are still there", async ({ request }) => {
   const sw = await (await request.get("/sw.js")).text();
   for (const needle of ['addEventListener("push"', 'addEventListener("notificationclick"', "showNotification", "openWindow", "clients.claim()", "skipWaiting()"]) {

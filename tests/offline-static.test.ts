@@ -95,7 +95,7 @@ describe("the switch", () => {
   });
   it("the offline Add screen does not jump away from what is being typed once the signal returns", () => {
     const app = src("src/components/offline/OfflineApp.tsx");
-    expect(app).toContain('where?.s === "add" && touched');
+    expect(app).toContain('where.s === "add" && touched.current');
     expect(app).toContain("holdBack");
     expect(app).toContain("data-offline-back-online");
   });

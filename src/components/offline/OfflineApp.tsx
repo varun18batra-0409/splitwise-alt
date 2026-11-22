@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MoneyCard } from "@/components/MoneyCard";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
 import { BackIcon, PlusIcon, iconButtonClass } from "@/components/icons";
@@ -34,12 +34,14 @@ export function OfflineApp() {
   }, []);
   const { signal, check, checking } = useSignal(4000);
   // Something has been typed or tapped on the offline Add screen. Going to the real page then would throw it away, so it waits for a tap.
-  const [touched, setTouched] = useState(false);
-  const holdBack = where?.s === "add" && touched;
+  // (A ref, not state: typing must not re-draw this screen.)
+  const touched = useRef(false);
+  const [holdBack, setHoldBack] = useState(false);
 
   // A real page can load again: go to it (the group, its Add page, or Home). The "You're back online" sheet opens there.
   useEffect(() => {
     if (signal !== "online" || !where || holdBack) return;
+    if (where.s === "add" && touched.current) return setHoldBack(true);
     const real = where.g ? (where.s === "add" ? `/groups/${where.g}/add` : `/groups/${where.g}`) : "/";
     window.location.replace(real);
   }, [signal, where, holdBack]);
@@ -60,13 +62,13 @@ export function OfflineApp() {
     <section
       data-offline-app
       className="pb-8"
-      onInputCapture={() => setTouched(true)}
-      onChangeCapture={() => setTouched(true)}
+      onInputCapture={() => void (touched.current = true)}
+      onChangeCapture={() => void (touched.current = true)}
       onClickCapture={(e) => {
-        if ((e.target as HTMLElement).closest("form")) setTouched(true);
+        if ((e.target as HTMLElement).closest("form")) touched.current = true;
       }}
     >
-      {holdBack && signal === "online" && where?.g && (
+      {holdBack && where?.g && (
         <div role="status" className="mb-4 rounded-[20px] border border-line px-4 py-3 text-sm" data-offline-back-online>
           <p className="text-fg/80">{W.backOnlineHold}</p>
           <a href={`/groups/${where.g}`} className="mt-2 flex min-h-11 items-center font-semibold underline underline-offset-4">
