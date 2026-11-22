@@ -45,8 +45,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </span>
             <div className="min-w-[9em] flex-1 basis-[9em]">
               {/* A long name wraps onto a second line; at very large text it moves under the letter (founder, 22 Nov). Never wider than the screen:
-                  a very long word is hyphenated, and the size stops growing past a tenth of the screen width (only at the biggest text sizes). */}
-              <p className="break-words font-display text-[length:min(1.5rem,10vw)] font-semibold leading-tight hyphens-auto">{shown || "Add your name"}</p>
+                  a very long word is hyphenated, and the size stops growing past about a ninth of the screen width (only at the biggest text sizes). */}
+              <p className="break-words font-display text-[length:min(1.5rem,9vw)] font-semibold leading-tight hyphens-auto">{shown || "Add your name"}</p>
               <p className="mt-0.5 break-words text-[13px] text-fg/55">Signed in as <EmailText email={account.email} /></p>
             </div>
           </div>
