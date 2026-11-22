@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getMemberships } from "@/lib/identity";
 import { ownOrigin } from "@/lib/same-origin";
+import { allow, clientIp } from "@/lib/rate-limit";
 import { OFFLINE_KEY_PREFIX, offlineOn } from "@/lib/offline/words";
 
 // "Was this one added?" for a few offline one-time keys (when a reply was lost). It answers ONLY for expenses in groups this
@@ -12,6 +13,7 @@ export async function POST(req: NextRequest) {
   const headers = { "Cache-Control": "private, no-store" };
   if (!ownOrigin(req) || !(req.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) return Response.json({ done: {} }, { status: 403, headers });
   if (!offlineOn()) return Response.json({ done: {} }, { headers });
+  if (!(await allow(`offline-status:${clientIp(req.headers)}`, 600, 3600))) return Response.json({ done: {} }, { status: 429, headers });
   let keys: string[] = [];
   try {
     const body = (await req.json()) as { keys?: unknown };

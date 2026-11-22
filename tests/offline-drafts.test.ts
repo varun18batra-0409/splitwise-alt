@@ -184,3 +184,14 @@ describe("copies older than 30 days are deleted, not just hidden", () => {
     expect((await draftsFor(kv)).length).toBe(1);
   });
 });
+
+describe("two quick taps on Save on this phone", () => {
+  it("one key per opened form: the second tap writes the same draft again, so there is ONE waiting expense", async () => {
+    const kv = await signedInAsAsha();
+    expect(await addDraft(kv, draft("off-quick-0000000000000001"))).toEqual({ ok: true });
+    expect(await addDraft(kv, draft("off-quick-0000000000000001"))).toEqual({ ok: true });
+    expect(await allDraftsCount(kv)).toBe(1);
+    expect(await addDraft(kv, draft("off-quick-0000000000000002"))).toEqual({ ok: true }); // a different form: a different key
+    expect(await allDraftsCount(kv)).toBe(2);
+  });
+});

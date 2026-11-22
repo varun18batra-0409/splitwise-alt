@@ -428,6 +428,8 @@ export function AddExpenseForm({
   }
 
   const [again, setAgain] = useState(false); // "Save & add another" was tapped (for the label)
+  // One key for this opened offline form: two quick taps on "Save on this phone" store one draft (a draft is stored by its key).
+  const offlineKey = useRef<string | null>(null);
   const againRef = useRef(false); // read when saving (state isn't updated yet inside the same tap)
   // "Looks like a duplicate": what it matched, and whether the person said it's a different one.
   const [dup, setDup] = useState<{ id: string; description: string; amount: number; by: string; when: string } | null>(null);
@@ -537,7 +539,7 @@ export function AddExpenseForm({
     if (!expenseId) rememberSplit();
     if (offline) {
       startSaving(async () => {
-        await keepOnPhone(newDraftKey(), offline.onSaved);
+        await keepOnPhone((offlineKey.current ??= newDraftKey()), offline.onSaved);
       });
       return;
     }

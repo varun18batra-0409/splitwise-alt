@@ -11,6 +11,8 @@ const tag = process.env.E2E_RUN_TAG ? `-${process.env.E2E_RUN_TAG}` : "";
 
 export default defineConfig({
   testDir: "e2e/tests",
+  // The add-expenses-offline tests need the app started with OFFLINE_ADD=1: only run when asked for (E2E_OFFLINE=1), never in the ordinary suite.
+  testIgnore: process.env.E2E_OFFLINE === "1" ? undefined : /54-offline-add\.spec\.ts$/,
   outputDir: `e2e-results${tag}`,
   globalSetup: "./e2e/global-setup.ts",
   globalTeardown: "./e2e/global-teardown.ts",

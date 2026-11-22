@@ -9,8 +9,6 @@ export const metadata = { title: "FAQ", description: "Answers about Loopin: gett
 type QA = { q: string; a: React.ReactNode };
 const link = "underline underline-offset-4";
 
-// Read each visit (not at build time): the offline answers show only while the OFFLINE_ADD switch is on.
-export const dynamic = "force-dynamic";
 
 const sections = (): { title: string; items: QA[] }[] => [
   {

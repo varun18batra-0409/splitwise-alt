@@ -52,17 +52,39 @@ describe("the note left by Sign out / Delete account", () => {
   it("confirmed: no account on the phone any more -> everything is wiped (0 copies, 0 waiting expenses, nothing who-am-I), the note is cleared", async () => {
     const kv = await phone();
     const n = note(Date.now());
-    const me: MeAnswer = { on: true, groups: { g1: "asha" }, account: false }; // after Delete account the guest names can remain; the account is gone
+    const me: MeAnswer = { on: true, groups: { g1: "asha" }, account: false, left: false }; // after Delete account the guest names can remain; the account is gone
     expect(await settleSignOutNote(kv, n, async () => me)).toBe("wiped");
     expect(await count(kv)).toEqual({ snapshots: 0, drafts: 0 });
     expect((await kv.all("meta")).length).toBe(0);
     expect(n.left).toBeNull();
   });
 
-  it("the sign-out did not happen (an account is still here): nothing is wiped, the waiting expense shows again, the copy is re-saved on the next online open", async () => {
+  const NOW = Date.parse("2026-11-22T10:00:00.000Z");
+  const still: MeAnswer = { on: true, groups: { g1: "asha" }, account: true, left: false };
+
+  it("THE RACE: an answer that says 'account' but arrives right after the tap (the sign-out has not finished) never restores anything: still hidden, the note stays", async () => {
     const kv = await phone();
-    const n = note(Date.now());
-    expect(await settleSignOutNote(kv, n, async () => ({ on: true, groups: { g1: "asha" }, account: true }))).toBe("restored");
+    const n = note(NOW - 5_000); // the button was tapped 5 seconds ago
+    expect(await settleSignOutNote(kv, n, async () => still, NOW)).toBe("hidden");
+    expect((await draftsFor(kv)).length).toBe(0); // not shown to whoever is next
+    expect(await count(kv)).toEqual({ snapshots: 0, drafts: 1 });
+    expect(n.left).toBe(NOW - 5_000);
+    // ... the sign-out then finishes: the next answer carries the 'finished' note, and everything is wiped, even though an account answer arrived first.
+    expect(await settleSignOutNote(kv, n, async () => ({ ...still, left: true }), NOW + 3_000)).toBe("wiped");
+    expect(await count(kv)).toEqual({ snapshots: 0, drafts: 0 });
+    expect(n.left).toBeNull();
+  });
+
+  it("the finished note wins even if another account is signed in by then (the old person's things go)", async () => {
+    const kv = await phone();
+    expect(await settleSignOutNote(kv, note(NOW - 60_000), async () => ({ on: true, groups: { g9: "zed" }, account: true, left: true }), NOW)).toBe("wiped");
+    expect(await count(kv)).toEqual({ snapshots: 0, drafts: 0 });
+  });
+
+  it("the sign-out did not happen (still an account, no finished note, 3 minutes on): nothing is wiped, the waiting expense shows again, the copy is re-saved on the next online open", async () => {
+    const kv = await phone();
+    const n = note(NOW - 3 * 60_000);
+    expect(await settleSignOutNote(kv, n, async () => still, NOW)).toBe("restored");
     expect((await draftsFor(kv)).length).toBe(1); // shown again
     expect(await count(kv)).toEqual({ snapshots: 0, drafts: 1 }); // the copy was dropped, never lost money: it is saved again when the group is opened
     expect(n.left).toBeNull();
@@ -73,7 +95,7 @@ describe("the note left by Sign out / Delete account", () => {
     let shownWhileAsking = -1;
     await settleSignOutNote(kv, note(Date.now()), async () => {
       shownWhileAsking = (await draftsFor(kv)).length + (await snapshotFor(kv, "g1") ? 1 : 0);
-      return { on: true, groups: {}, account: false };
+      return { on: true, groups: {}, account: false, left: false };
     });
     expect(shownWhileAsking).toBe(0);
     await applyMe(kv, {}); // (harmless afterwards)

@@ -35,7 +35,6 @@ jobs:
       MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
       CRON_SECRET: e2e-only-not-a-real-secret
       E2E_BASE_URL: http://localhost:3000
-      OFFLINE_ADD: "1" # add expenses offline is switched on for these tests (it is off unless this is set)
       # A made-up Google app, so the "Continue with Google" button shows and its
       # first step (off to Google) can be checked. Nothing is sent to Google.
       GOOGLE_CLIENT_ID: e2e-test.apps.googleusercontent.com
@@ -81,14 +80,33 @@ jobs:
       - name: Run the tests (Android phone, Chrome; then iPhone, Safari's engine)
         run: |
           set +e
-          npx playwright test e2e/tests/54-offline-add.spec.ts --project=phone; a=$?
-          E2E_RUN_TAG=ios npx playwright test e2e/tests/54-offline-add.spec.ts --project=iphone; b=$?
+          npx playwright test --project=phone; a=$?
+          E2E_RUN_TAG=ios npx playwright test --project=iphone; b=$?
           [ $a -eq 0 ] && [ $b -eq 0 ]
       - name: Summary
         if: always()
         run: |
           node e2e/summary.mjs e2e-results/results.json "Android"; a=$?
           node e2e/summary.mjs e2e-results-ios/results.json "iPhone"; b=$?
+          [ $a -eq 0 ] && [ $b -eq 0 ]
+      # Add expenses offline is off on the live app unless OFFLINE_ADD is set, so the whole suite above runs with it UNSET (as live runs).
+      # Its own tests run here, against the same build with the switch ON, on both phones.
+      - name: Run the add-expenses-offline tests (switch ON; Android phone, then iPhone)
+        if: always()
+        run: |
+          pkill -f next-server || true
+          sleep 3
+          (OFFLINE_ADD=1 E2E_PLAIN_HTTP=1 npm run start > server-offline.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
+          set +e
+          E2E_OFFLINE=1 E2E_RUN_TAG=offline npx playwright test e2e/tests/54-offline-add.spec.ts --project=phone; a=$?
+          E2E_OFFLINE=1 E2E_RUN_TAG=offline-ios npx playwright test e2e/tests/54-offline-add.spec.ts --project=iphone; b=$?
+          [ $a -eq 0 ] && [ $b -eq 0 ]
+      - name: Summary (add expenses offline)
+        if: always()
+        run: |
+          node e2e/summary.mjs e2e-results-offline/results.json "Offline, Android"; a=$?
+          node e2e/summary.mjs e2e-results-offline-ios/results.json "Offline, iPhone"; b=$?
           [ $a -eq 0 ] && [ $b -eq 0 ]
       - name: Keep the HTML report
         if: always()
@@ -98,6 +116,8 @@ jobs:
           path: |
             e2e-report/
             e2e-report-ios/
+            e2e-report-offline/
+            e2e-report-offline-ios/
           retention-days: 5
       - name: Keep failure details (screenshots, traces, browser logs, server log)
         if: failure()
@@ -107,7 +127,10 @@ jobs:
           path: |
             e2e-results/
             e2e-results-ios/
+            e2e-results-offline/
+            e2e-results-offline-ios/
             server.log
+            server-offline.log
           retention-days: 5
 
   staging:

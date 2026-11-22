@@ -49,7 +49,9 @@ async function saveShell(build) {
     await cache.put("/__meta", new Response(JSON.stringify({ build, at: Date.now() }), { headers: { "Content-Type": "application/json" } }));
     await Promise.all([...files].map(async (f) => {
       const r = await fetch(f, { credentials: "omit" });
-      if (r.ok) await cache.put(f, r);
+      // Any listed file that did not come back whole fails the whole save (the catch below drops the new cache): the older complete copy stays.
+      if (!r.ok) throw new Error("file " + f + " " + r.status);
+      await cache.put(f, r);
     }));
   } catch (e) {
     await caches.delete(name).catch(() => {});

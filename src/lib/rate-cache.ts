@@ -62,7 +62,8 @@ export async function getRate(from: string, to: string): Promise<RateAnswer> {
   return live;
 }
 
-// The rate on the day an expense was spent (an expense added offline is sent days later). Today: the usual rate. Another day: a rate
+// The rate on the day an expense was spent (an expense added offline is sent days later). Today: the usual rate, through getRate, which may
+// write an ExchangeRate row exactly as an online save does (that is the live path, unchanged). Another day: a rate
 // already saved for exactly that day, or one fetched for it. It NEVER falls back to today's or the latest rate: with none for
 // that day the answer is "not ok" and the person is asked to enter one.
 export async function getRateOn(from: string, to: string, day: string, todayKey = new Date().toISOString().slice(0, 10)): Promise<RateAnswer> {
@@ -82,7 +83,7 @@ export async function getRateOn(from: string, to: string, day: string, todayKey 
   const live = await fetchRateOn(from, to, day, { supported: await supportedCodes() });
   if (live.ok) {
     // Kept in memory only, under the day that was asked about (a weekend or holiday answers with the working day before it, and the answer
-    // keeps its real fixing date). Offline code NEVER writes to ExchangeRate: only getRate does, exactly as on the live app.
+    // keeps its real fixing date). A past day never writes to ExchangeRate: only getRate does, exactly as on the live app.
     if (pastDays.size > 500) pastDays.clear();
     pastDays.set(memKey, live);
   }

@@ -5,6 +5,9 @@ import { memoryLock, type Lock } from "./store";
 // Browser only. Everything else about keeping things is in store.ts (and tested there).
 export const DB_NAME = "loopin-offline";
 const STORES: StoreName[] = ["snapshots", "drafts", "meta"];
+// A note in the browser that this phone has stored something, for browsers that cannot list databases (an older Safari): so a phone that
+// never used offline storage is never made a database, with the switch off.
+const USED_HINT = "loopin-offline-used";
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -45,6 +48,11 @@ export function openStore(): KV {
     },
     async put(store, key, value) {
       await tx(await get(), store, "readwrite", (s) => s.put(value, key));
+      try {
+        localStorage.setItem(USED_HINT, "1");
+      } catch {
+        /* no hint */
+      }
     },
     async del(store, key) {
       await tx(await get(), store, "readwrite", (s) => s.delete(key));
@@ -96,7 +104,11 @@ export async function hasOfflineData(): Promise<boolean> {
   try {
     if (typeof indexedDB === "undefined") return false;
     const list = (indexedDB as IDBFactory & { databases?: () => Promise<{ name?: string }[]> }).databases;
-    if (typeof list === "function" && !(await list.call(indexedDB)).some((d) => d.name === DB_NAME)) return false;
+    if (typeof list === "function") {
+      if (!(await list.call(indexedDB)).some((d) => d.name === DB_NAME)) return false;
+    } else if (localStorage.getItem(USED_HINT) !== "1") {
+      return false; // this browser cannot list databases and this phone never stored anything: do not make one
+    }
     const kv = openStore();
     for (const s of STORES) if ((await kv.all(s)).length) return true;
     return false;

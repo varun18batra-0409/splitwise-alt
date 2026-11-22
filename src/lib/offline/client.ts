@@ -28,12 +28,12 @@ export const postDraft: Post = async (draft: DraftInput, o) => {
   return a;
 };
 
-export async function fetchMe(): Promise<{ on: boolean; groups: Record<string, string>; account: boolean } | null> {
+export async function fetchMe(): Promise<{ on: boolean; groups: Record<string, string>; account: boolean; left: boolean } | null> {
   try {
     const r = await fetch("/api/offline/me", { cache: "no-store", signal: AbortSignal.timeout(8000) });
     if (!r.ok) return null;
-    const j = (await r.json()) as { on?: boolean; groups?: Record<string, string>; account?: boolean };
-    return { on: j.on === true, groups: j.groups && typeof j.groups === "object" ? j.groups : {}, account: j.account !== false };
+    const j = (await r.json()) as { on?: boolean; groups?: Record<string, string>; account?: boolean; left?: boolean };
+    return { on: j.on === true, groups: j.groups && typeof j.groups === "object" ? j.groups : {}, account: j.account !== false, left: j.left === true };
   } catch {
     return null;
   }

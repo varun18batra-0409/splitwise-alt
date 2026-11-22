@@ -16,8 +16,6 @@ const filled = (v: string) => v.trim() !== "" && !v.includes("{{");
 const contactReady = filled(OPERATOR.OPERATOR_NAME) && filled(OPERATOR.POSTAL_ADDRESS) && filled(OPERATOR.PRIVACY_EMAIL);
 const minAge = filled(OPERATOR.MIN_AGE) ? OPERATOR.MIN_AGE : "18";
 
-// Read each visit (not at build time): the offline paragraph shows only while the OFFLINE_ADD switch is on.
-export const dynamic = "force-dynamic";
 
 // Plain-English privacy page. Keep it honest and short.
 export default function Privacy() {

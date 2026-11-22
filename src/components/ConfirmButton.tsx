@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { hasOfflineData, openStore } from "@/lib/offline/idb";
-import { applyMe, draftsFor } from "@/lib/offline/store";
+import { allDraftsCount, applyMe } from "@/lib/offline/store";
 import { WIPE_FLAG, W } from "@/lib/offline/words";
 
 // A submit button that asks "Are you sure?" first. Used for delete actions.
@@ -30,7 +30,7 @@ export function ConfirmButton({ message, children, className, wipesOffline = fal
           let waiting = 0;
           try {
             stored = await hasOfflineData();
-            waiting = stored ? (await draftsFor(openStore())).length : 0;
+            waiting = stored ? await allDraftsCount(openStore()) : 0; // every waiting expense on the phone, shown or hidden
           } catch {
             /* nothing kept here */
           }
@@ -51,6 +51,14 @@ export function ConfirmButton({ message, children, className, wipesOffline = fal
             }
           }
           if (!form) return;
+          if (stored) {
+            // Tells the sign-out / delete action to leave its short "finished" note for this phone.
+            const mark = document.createElement("input");
+            mark.type = "hidden";
+            mark.name = "offline_wipe";
+            mark.value = "1";
+            form.appendChild(mark);
+          }
           passed.current = true;
           // Older iPhones have no requestSubmit: send the form the plain way (sign-out and delete need no button value).
           if (typeof form.requestSubmit === "function") form.requestSubmit(button);

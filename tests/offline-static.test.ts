@@ -127,6 +127,42 @@ describe("the switch", () => {
     expect(f).toContain("ownRateOnly");
     expect(src("src/lib/offline/fix-rate.ts")).toContain("o.isFix && o.foreign && o.day < o.today");
   });
+  it("the whole e2e suite runs with the switch UNSET as on live; the offline spec has its own step with it ON", () => {
+    const y = src(".github/workflows/e2e.yml");
+    expect(y).toContain("npx playwright test --project=phone; a=$?");
+    expect(y).toContain("E2E_RUN_TAG=ios npx playwright test --project=iphone; b=$?");
+    expect(y.slice(0, y.indexOf("Run the add-expenses-offline tests"))).not.toContain("OFFLINE_ADD");
+    expect(y).toContain("OFFLINE_ADD=1 E2E_PLAIN_HTTP=1 npm run start");
+    expect(y).toContain("E2E_OFFLINE=1 E2E_RUN_TAG=offline npx playwright test e2e/tests/54-offline-add.spec.ts --project=phone");
+    expect(src("playwright.config.ts")).toContain('process.env.E2E_OFFLINE === "1" ? undefined : /54-offline-add');
+    expect(src(".github/workflows/ci.yml")).not.toContain("OFFLINE_ADD");
+  });
+  it("the offline screen's files are saved all-or-nothing: any listed file that is not ok fails the save and the older copy stays", () => {
+    const sw = src("public/sw.js");
+    expect(sw).toContain('if (!r.ok) throw new Error("file " + f + " " + r.status)');
+    expect(sw.indexOf("await caches.delete(name)")).toBeLessThan(sw.indexOf("for (const k of await caches.keys())")); // the old ones go only after the try completed
+  });
+  it("one draft key per opened offline form", () => {
+    const f = src("src/components/AddExpenseForm.tsx");
+    expect(f).toContain("(offlineKey.current ??= newDraftKey())");
+  });
+  it("a sign-out is settled only on its own landing: the actions leave a short note, the phone reads it through /me, and /me and /status are rate limited", () => {
+    const a = src("src/app/actions.ts");
+    expect(a.match(/formData\?\.get\("offline_wipe"\) === "1"\) await markLeft\(\)/g)?.length).toBe(2);
+    expect(src("src/app/api/offline/me/route.ts")).toContain("takeLeft()");
+    expect(src("src/app/api/offline/me/route.ts")).toContain("allow(`offline-me:");
+    expect(src("src/app/api/offline/status/route.ts")).toContain("allow(`offline-status:");
+    const c = src("src/components/ConfirmButton.tsx");
+    expect(c).toContain("allDraftsCount(openStore())");
+    expect(c).toContain('mark.name = "offline_wipe"');
+  });
+  it("with the switch off a phone that never stored anything is never given a database; faq and privacy are built with the page as on live", () => {
+    const i = src("src/lib/offline/idb.ts");
+    expect(i).toContain('localStorage.getItem(USED_HINT) !== "1"');
+    expect(src("src/app/faq/page.tsx")).not.toContain("force-dynamic");
+    expect(src("src/app/privacy/page.tsx")).not.toContain("force-dynamic");
+    expect(src("src/lib/rate-cache.ts")).toContain("which may\n// write an ExchangeRate row exactly as an online save does");
+  });
   it("Delete account has its own words for waiting expenses, and the note is hidden-first in its own step", () => {
     const w = src("src/lib/offline/words.ts");
     expect(w).toContain("Deleting your account removes");

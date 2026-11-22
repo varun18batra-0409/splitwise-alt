@@ -11,6 +11,7 @@ import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { PAY_CHANGE_LIMIT_TEXT, isPaymentChangeEvent, payChangeOk } from "@/lib/pay-limit";
 import { headers } from "next/headers";
+import { markLeft } from "@/lib/offline/left-cookie";
 import { cleanNames, sameName } from "@/lib/names";
 import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
@@ -37,7 +38,9 @@ import { checkBudgets } from "@/lib/home/budgets-db";
 import { after } from "next/server";
 import { noteSavedTripPlaceLater, noteTripPlaceLater } from "@/lib/unknown-places";
 import { getTimeZone } from "@/lib/tz";
-import { dayKey } from "@/lib/dates";
+import { dayKey, todayKey } from "@/lib/dates";
+import { niceDate } from "@/lib/format";
+import { offlineOn, W } from "@/lib/offline/words";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { CLOSED_PAY_ERROR, hasLeft, LEFT_ERROR } from "@/lib/active";
@@ -336,6 +339,11 @@ export async function addExpense(
   const isPair = checks.isPair;
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
+  // Open and fix (an expense kept on a phone keeps its `off-` key): another currency, a day before today, and "use the live rate" would quietly
+  // use today's rate for an earlier day. Refused here too, not only on the phone: the rate for that day has to be entered.
+  if (offlineOn() && input.requestKey?.startsWith("off-") && input.date && g && input.currency !== g.currency && input.rateMode === "auto" && input.date < todayKey(new Date(), await getTimeZone())) {
+    return { error: W.fixRateNote(niceDate(input.date)) + "." };
+  }
   if (g && input.currency !== g.currency && input.rateMode === "auto") await getRate(input.currency, g.currency).catch(() => null);
   const me = await getMyMemberId(input.groupId);
   // A waiting bill is Home-group money setup: it needs an account. (An ordinary new expense is open to a guest; changing one is own-only, below.)
@@ -882,6 +890,7 @@ export async function signOutThisPhone(formData?: FormData) {
     }
   }
   await forgetThisPhone();
+  if (formData?.get("offline_wipe") === "1") await markLeft(); // the phone has offline data to clear: tell it we have finished
   redirect("/");
 }
 
@@ -893,6 +902,7 @@ export async function deleteMyAccount(formData?: FormData) {
   const groups = await getMemberships(); // before deleting: the account's names are unlinked by it
   if (account) await deleteAccount(account.id, { keepEndpoint });
   await keepGroupsDropAccount(groups); // after: the cookie carries each name's fresh epoch
+  if (formData?.get("offline_wipe") === "1") await markLeft();
   redirect("/?deleted=account");
 }
 

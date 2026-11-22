@@ -368,6 +368,54 @@ test("on the offline Add screen, a signal coming back does not throw away what i
   await ctx.close();
 });
 
+test("Open and fix: a past-day draft in another currency starts with an empty own-rate box and the note, and cannot be saved until a rate is typed", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const { ctx, page, trip, groupId } = await setup(browser, "fixrate", { noWorker: true });
+  const me = await db.member.findFirstOrThrow({ where: { groupId, name: "Varun" } });
+  const everyone = (await db.member.findMany({ where: { groupId } })).map((m) => m.id);
+  const key = `off-fix-${Date.now()}-0000000001`;
+  // What the phone keeps for a refused expense: THB 1,000 dated 10 Nov (before today), the group's money is rupees.
+  const draft = {
+    key, groupId, memberId: me.id, day: "2026-11-10", typedAt: Date.now(), name: "Dinner", amount: "1000", currency: "THB", category: "food", paidById: me.id, multiPay: false, payers: {},
+    forMode: "everyone", selected: everyone, onePersonId: "", splitType: "equal", exact: {}, percent: {}, shares: {}, kind: "expense", paymentMethod: "cash", markupChoice: "group", markupCustom: "",
+    notes: "", rateMode: "auto", manualRate: "", seen: { baseCurrency: "INR", cardMarkupBp: 0, activeMemberIds: everyone, snapshotAt: new Date().toISOString() },
+    status: "refused", code: "no-rate", reason: "There is no exchange rate for 10 Nov. Enter the rate yourself.",
+  };
+  await page.evaluate(
+    (d) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open("loopin-offline", 1);
+        open.onsuccess = () => {
+          const t = open.result.transaction("drafts", "readwrite");
+          t.objectStore("drafts").put(d, d.key);
+          t.oncomplete = () => {
+            open.result.close();
+            resolve();
+          };
+          t.onerror = () => reject(t.error);
+        };
+        open.onerror = () => reject(open.error);
+      }),
+    draft,
+  );
+  await page.goto(`${trip.path}/add?fix=${key}`);
+  await expect(page.locator("[data-fix-reason]")).toBeVisible();
+  await expect(page.getByText(/Enter the rate for 10 Nov( 2026)? \(the day of this expense\)/)).toBeVisible();
+  await expect(page.getByLabel("Exchange rate")).toHaveValue("");
+  // Saving is blocked until a rate is typed.
+  await page.getByRole("button", { name: "Save expense", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Enter the exchange rate to convert this amount.");
+  expect(await db.expense.count({ where: { groupId, description: "Dinner" } })).toBe(0);
+  // Typed 2.5: THB 1,000 = 100000 satang x 2.5 = 250000 paise, shared by six: 41666.67 -> shares add up to 250000.
+  await page.getByLabel("Exchange rate").fill("2.5");
+  await page.getByRole("button", { name: "Save expense", exact: true }).click();
+  await page.waitForURL(new RegExp(`${trip.path}\\?tab=activity`), { timeout: 30_000 });
+  const e = await db.expense.findFirstOrThrow({ where: { groupId, description: "Dinner" }, include: { shares: true } });
+  expect([e.amount, e.exchangeRate, e.rateSource]).toEqual([250000, "2.5", "manual"]);
+  expect(e.shares.reduce((n, x) => n + x.amount, 0)).toBe(250000);
+  await ctx.close();
+});
+
 test("the push and notification parts of sw.js are still there", async ({ request }) => {
   const sw = await (await request.get("/sw.js")).text();
   for (const needle of ['addEventListener("push"', 'addEventListener("notificationclick"', "showNotification", "openWindow", "clients.claim()", "skipWaiting()"]) {

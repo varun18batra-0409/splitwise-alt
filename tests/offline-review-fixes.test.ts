@@ -309,3 +309,29 @@ describe("offline code never writes an exchange rate", () => {
     expect(before).toBe(0);
   });
 });
+
+describe("Open and fix is refused on the server when it would quietly use today's rate for an earlier day", () => {
+  // THB 1,000 = 100000 satang. Typed rate 2.5 -> 250000 paise. (Live rate today in this file's mock: 9 -> 900000: never used.)
+  it("an off- key, 10 Nov, THB, 'use the live rate': refused with the note, nothing saved; the same with a typed rate 2.5: saved as 250000, 125000 each", async () => {
+    const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
+    state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
+    const key = newKey();
+    const refused = await A.addExpense(THB(g, key));
+    expect(refused).toEqual({ error: "Enter the rate for 10 Nov (the day of this expense)." });
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(0);
+    expect(await db.requestKey.count({ where: { key } })).toBe(0);
+    await addOnline(THB(g, key, { rateMode: "manual", manualRate: "2.5" }));
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id }, include: { shares: true } });
+    expect([e.amount, e.exchangeRate, e.rateSource]).toEqual([250000, "2.5", "manual"]);
+    expect(e.shares.map((x) => x.amount)).toEqual([125000, 125000]);
+  });
+  it("a normal key is exactly as on live (today's rate 9: 900000), and today's date with an off- key is not refused", async () => {
+    const g = await mkGroup(["A", "B"], { accountFor: ["A", "B"] });
+    state.cookie = await accountCookie(((await db.member.findUniqueOrThrow({ where: { id: g.ids[0] } })).accountId) as string);
+    await addOnline(THB(g, `rv-${stamp}-normal-0010`));
+    keys.push(`rv-${stamp}-normal-0010`);
+    await addOnline(THB(g, newKey(), { date: "", name: "Today" }));
+    const rows = await db.expense.findMany({ where: { groupId: g.id }, orderBy: { amount: "asc" } });
+    expect(rows.map((e) => e.amount)).toEqual([900000, 900000]);
+  });
+});
