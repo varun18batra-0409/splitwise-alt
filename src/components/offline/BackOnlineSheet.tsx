@@ -90,7 +90,8 @@ export function BackOnlineSheet({
 
   const same = async (d: Draft) => {
     await removeDraft(kv, d.key);
-    await load();
+    const all = await load();
+    if (!all.some((x) => x.status !== "refused")) onClose(); // that was the last one: nothing left to ask about
   };
   const keepBoth = async (d: Draft) => {
     await patchDraft(kv, d.key, { keepBoth: true });

@@ -250,10 +250,8 @@ test("signing out with an expense waiting warns, then wipes the phone's offline 
   await page.unroute("**/api/ping");
   expect(await draftCount(page)).toBe(1);
   let asked = "";
-  page.removeAllListeners("dialog");
   page.on("dialog", (d) => {
-    asked = d.message();
-    void d.accept();
+    asked = d.message(); // the shared fixture accepts it
   });
   await page.goto("/account/sign-in");
   await settled(page);

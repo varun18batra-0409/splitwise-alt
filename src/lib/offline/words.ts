@@ -63,5 +63,5 @@ export const W = {
   noPrivate: "This phone can’t keep expenses offline in a private window.",
   tooMany: `This phone is keeping ${MAX_DRAFTS} expenses already. Add them when you’re online, then save more.`,
   foreignNote: (day: string) => `The rate for ${day} is added when it’s added online.`,
-  signOutWarn: (n: number) => `${n} ${n === 1 ? "expense is" : "expenses are"} waiting on this phone and haven’t been added. Signing out removes ${n === 1 ? "it" : "them"} from this phone.`,
+  signOutWarn: (n: number) => `${n} ${n === 1 ? "expense is" : "expenses are"} waiting on this phone and ${n === 1 ? "hasn’t" : "haven’t"} been added. Signing out removes ${n === 1 ? "it" : "them"} from this phone.`,
 } as const;
