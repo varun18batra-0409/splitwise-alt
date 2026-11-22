@@ -13,6 +13,9 @@ const FRESH_MS = 6 * 60 * 60 * 1000;
 const FAIL_MS = 5 * 60 * 1000;
 const CODES_MS = 24 * 60 * 60 * 1000;
 
+// The newest FIXING first (its date), then the newest fetch. A rate kept for an older day (see getRateOn) is never "the latest rate".
+const LATEST_FIRST = [{ date: "desc" as const }, { fetchedAt: "desc" as const }];
+
 const memory = new Map<string, { at: number; answer: RateAnswer }>();
 let codesCache: { at: number; codes: Set<string> | null } | null = null;
 
@@ -34,7 +37,7 @@ export async function getRate(from: string, to: string): Promise<RateAnswer> {
 
   const saved = await db.exchangeRate.findFirst({
     where: { base: from, quote: to },
-    orderBy: { fetchedAt: "desc" },
+    orderBy: LATEST_FIRST,
   });
   if (saved && now - saved.fetchedAt.getTime() < FRESH_MS) {
     const answer: RateAnswer = { ok: true, rate: saved.rate, date: saved.date };
@@ -65,13 +68,20 @@ export async function getRate(from: string, to: string): Promise<RateAnswer> {
 // that day the answer is "not ok" and the person is asked to enter one.
 export async function getRateOn(from: string, to: string, day: string, todayKey = new Date().toISOString().slice(0, 10)): Promise<RateAnswer> {
   if (from === to) return { ok: true, rate: "1", date: day };
-  if (day >= todayKey) return getRate(from, to);
+  if (day >= todayKey) {
+    const r = await getRate(from, to);
+    // A rate service that is down gives back the last saved rate from some earlier day (stale): that is no rate for today. Not ok, "offline":
+    // the expense keeps waiting and is tried again later; it is never added at an older day's rate.
+    if (r.ok && r.stale) return { ok: false, reason: "offline", message: "Couldn't reach the rate service. Enter the rate yourself, or try again later." };
+    return r;
+  }
   const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to, date: day }, orderBy: { fetchedAt: "desc" } });
   if (saved) return { ok: true, rate: saved.rate, date: saved.date };
   const live = await fetchRateOn(from, to, day, { supported: await supportedCodes() });
   if (live.ok) {
-    // Saved under the day it applies to (which is the asked-for day, or the working day before it).
-    await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: live.date } }).catch(() => null);
+    // Saved under the day it applies to (the asked-for day, or the working day before it). `fetchedAt` is that day too, NOT now: the
+    // 6-hour "still fresh" test and "newest saved rate" in getRate / displayRate must never mistake an old day's rate for today's.
+    await db.exchangeRate.create({ data: { base: from, quote: to, rate: live.rate, date: live.date, fetchedAt: new Date(`${live.date}T00:00:00Z`) } }).catch(() => null);
   }
   return live;
 }
@@ -87,7 +97,7 @@ export async function displayRate(from: string, to: string, later: (job: () => P
   const now = Date.now();
   const hit = memory.get(key);
   if (hit && hit.answer.ok && now - hit.at < FRESH_MS) return hit.answer;
-  const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to }, orderBy: { fetchedAt: "desc" } });
+  const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to }, orderBy: LATEST_FIRST });
   const fresh = Boolean(saved && now - saved.fetchedAt.getTime() < FRESH_MS);
   if (!fresh) later(() => getRate(from, to).catch(() => null));
   if (!saved) return { ok: false, reason: "unavailable", message: "The rate isn’t loaded yet." };

@@ -8,7 +8,8 @@ import { useGroupData } from "./useOffline";
 // On the group's Overview, online: the expenses waiting on this phone for this group, first in the list, with "On this phone".
 // A refused one says why and offers Open and fix. (Offline, the same rows are drawn by the offline group screen.)
 export function OfflineWaiting({ groupId, myId, names }: { groupId: string; myId: string; names: Record<string, string> }) {
-  const { kv, drafts, reload } = useGroupData(groupId);
+  const { kv, drafts: kept, reload } = useGroupData(groupId);
+  const drafts = kept.filter((d) => d.memberId === myId); // the page knows who is signed in: another person's never show
   const nameOf = useCallback((id: string) => (id === myId ? "You" : (names[id] ?? "Someone")), [myId, names]);
   if (!drafts.length) return null;
   return (

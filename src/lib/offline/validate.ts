@@ -4,14 +4,16 @@ import type { DraftInput } from "./types";
 
 // A hand-made or damaged request must get a calm "no", never a crash and never a half-read draft.
 // Only the SHAPE is checked here (types, lengths, the key's prefix); every rule about money is saveExpense's.
+// A card-night group holds up to 100 people (pot-db.ts), so a list of people may too.
+const MAX_PEOPLE = 100;
 const str = (x: unknown, max: number): string | null => (typeof x === "string" && x.length <= max ? x : null);
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const id = (x: unknown): string | null => (typeof x === "string" && ID.test(x) ? x : null);
-const idList = (x: unknown): string[] | null => (Array.isArray(x) && x.length <= 60 && x.every((v) => id(v)) ? (x as string[]) : null);
+const idList = (x: unknown): string[] | null => (Array.isArray(x) && x.length <= MAX_PEOPLE && x.every((v) => id(v)) ? (x as string[]) : null);
 const textMap = (x: unknown): Record<string, string> | null => {
   if (!x || typeof x !== "object" || Array.isArray(x)) return null;
   const e = Object.entries(x as Record<string, unknown>);
-  if (e.length > 60) return null;
+  if (e.length > MAX_PEOPLE) return null;
   const out: Record<string, string> = {};
   for (const [k, v] of e) {
     if (!ID.test(k) || typeof v !== "string" || v.length > 40) return null;

@@ -263,6 +263,7 @@ export function AddExpenseForm({
   // Fetch a rate only when the currency changes — never on each keystroke.
   const rateCache = useRef(new Map<string, RateState>());
   const foreign = currency !== baseCurrency;
+  const isFixed = Boolean(fixed);
   useEffect(() => {
     if (!foreign) {
       setRateState({ status: "none" });
@@ -277,7 +278,7 @@ export function AddExpenseForm({
       setRateState({ status: "ok", rate: initial.rate, date: initial.rateDate, stale: false });
       return;
     }
-    const key = `${currency}-${baseCurrency}`;
+    const key = `${currency}-${baseCurrency}${isFixed ? `-${date}` : ""}`; // fixing a draft: the rate is the one for its own day
     const cached = rateCache.current.get(key);
     if (cached) {
       setRateState(cached);
@@ -285,7 +286,7 @@ export function AddExpenseForm({
     }
     let cancelled = false;
     setRateState({ status: "loading" });
-    lookupRate(currency, baseCurrency)
+    lookupRate(currency, baseCurrency, isFixed ? date : undefined)
       .then((r) => {
         const next: RateState = r.ok
           ? { status: "ok", rate: r.rate, date: r.date, stale: Boolean("stale" in r && r.stale) }
@@ -299,7 +300,7 @@ export function AddExpenseForm({
     return () => {
       cancelled = true;
     };
-  }, [currency, baseCurrency, foreign, keepSavedRate, initial, offline, date]);
+  }, [currency, baseCurrency, foreign, keepSavedRate, initial, offline, date, isFixed]);
 
   // remember = also the group's starting currency next time (a pick by hand, not a scanned bill).
   function chooseCurrency(code: string, remember = true) {

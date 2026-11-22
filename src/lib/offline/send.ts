@@ -1,8 +1,8 @@
 import { saveExpense, type SaveExpenseInput } from "../save-expense";
-import { cleanKey } from "../once";
+import { cleanKey, previousResult } from "../once";
 import { niceDate } from "../format";
 import type { RateAnswer } from "../rate-cache";
-import { NOT_SIGNED_IN, NO_RATE, OTHER_PERSON } from "./words";
+import { NOT_SIGNED_IN, NO_RATE, OFFLINE_KEY_PREFIX, OTHER_PERSON } from "./words";
 import { refusalCodeOf } from "./refusal";
 import type { AddAnswer, DraftInput } from "./types";
 
@@ -24,10 +24,16 @@ export async function sendDraft(draft: DraftInput, me: string | undefined, o: Se
   const key = cleanKey(draft.key);
   if (!key) return { status: "refused", code: "invalid", reason: "That expense wasn’t readable, so it wasn’t added." };
 
-  let noRate = false;
+  // "Save on this phone" after an online save whose reply was lost keeps the draft as `off-` + that save's own key. If the server did
+  // commit that save, this is the same expense: answer "already added" instead of adding it a second time.
+  const original = cleanKey(key.slice(OFFLINE_KEY_PREFIX.length));
+  const earlier = original ? await previousResult(original) : null;
+  if (earlier !== null) return { status: "added", id: earlier };
+
+  let noRate: RateAnswer | null = null;
   const lookup = async (from: string, to: string) => {
     const r = await o.rateOn(from, to, draft.day);
-    if (!r.ok) noRate = true;
+    if (!r.ok) noRate = r;
     return r;
   };
   const input: SaveExpenseInput = {
@@ -67,6 +73,8 @@ export async function sendDraft(draft: DraftInput, me: string | undefined, o: Se
   });
   if (result.ok) return o.dryRun && !result.id ? { status: "ok" } : { status: "added", id: result.id };
   if (result.duplicateOf) return { status: "duplicate", dup: result.duplicateOf };
+  // The rate service could not be reached (a passing problem): keep waiting and try again. Only "there is no rate for that day" is a refusal.
+  if (noRate && (noRate as RateAnswer & { ok: false }).reason === "offline") return { status: "later", reason: (noRate as RateAnswer & { ok: false }).message };
   if (noRate) return { status: "refused", code: "no-rate", reason: NO_RATE(niceDate(draft.day)) };
   return { status: "refused", code: refusalCodeOf(result.error), reason: result.error };
 }

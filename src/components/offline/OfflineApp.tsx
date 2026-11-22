@@ -33,13 +33,16 @@ export function OfflineApp() {
     setWhere({ g: q.get("g"), s: q.get("s") });
   }, []);
   const { signal, check, checking } = useSignal(4000);
+  // Something has been typed or tapped on the offline Add screen. Going to the real page then would throw it away, so it waits for a tap.
+  const [touched, setTouched] = useState(false);
+  const holdBack = where?.s === "add" && touched;
 
   // A real page can load again: go to it (the group, its Add page, or Home). The "You're back online" sheet opens there.
   useEffect(() => {
-    if (signal !== "online" || !where) return;
+    if (signal !== "online" || !where || holdBack) return;
     const real = where.g ? (where.s === "add" ? `/groups/${where.g}/add` : `/groups/${where.g}`) : "/";
     window.location.replace(real);
-  }, [signal, where]);
+  }, [signal, where, holdBack]);
 
   const status = (
     <span role="status" className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[13px] text-fg/80" data-offline-net={signal}>
@@ -54,7 +57,23 @@ export function OfflineApp() {
   );
 
   return (
-    <section data-offline-app className="pb-8">
+    <section
+      data-offline-app
+      className="pb-8"
+      onInputCapture={() => setTouched(true)}
+      onChangeCapture={() => setTouched(true)}
+      onClickCapture={(e) => {
+        if ((e.target as HTMLElement).closest("form")) setTouched(true);
+      }}
+    >
+      {holdBack && signal === "online" && where?.g && (
+        <div role="status" className="mb-4 rounded-[20px] border border-line px-4 py-3 text-sm" data-offline-back-online>
+          <p className="text-fg/80">{W.backOnlineHold}</p>
+          <a href={`/groups/${where.g}`} className="mt-2 flex min-h-11 items-center font-semibold underline underline-offset-4">
+            {W.openGroup}
+          </a>
+        </div>
+      )}
       {!where ? null : where.g ? <GroupScreen groupId={where.g} add={where.s === "add"} status={status} tryAgain={tryAgain} /> : <HomeScreen status={status} tryAgain={tryAgain} />}
     </section>
   );

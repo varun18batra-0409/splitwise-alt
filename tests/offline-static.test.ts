@@ -83,4 +83,34 @@ describe("the switch", () => {
     expect(app).toContain("window.location.replace(real)");
     expect(app).toContain("data-offline-try-again");
   });
+  it("the wipe is only asked for while the switch is on, and a browser without requestSubmit still signs out", () => {
+    for (const p of ["src/app/account/sign-in/page.tsx", "src/app/account/data/page.tsx"]) {
+      const t = src(p);
+      expect(t).toContain("wipesOffline={offlineOn()}");
+      expect(t).not.toMatch(/wipesOffline(?!=)/);
+    }
+    const c = src("src/components/ConfirmButton.tsx");
+    expect(c).toContain('typeof form.requestSubmit === "function"');
+    expect(c).toContain("form.submit()");
+  });
+  it("the offline Add screen does not jump away from what is being typed once the signal returns", () => {
+    const app = src("src/components/offline/OfflineApp.tsx");
+    expect(app).toContain('where?.s === "add" && touched');
+    expect(app).toContain("holdBack");
+    expect(app).toContain("data-offline-back-online");
+  });
+  it("another person's waiting expenses are filtered out by the page's own member id and by the server's answer", () => {
+    expect(src("src/components/offline/OfflineWaiting.tsx")).toContain("d.memberId === myId");
+    expect(src("src/components/offline/OfflineSync.tsx")).toContain("serverMe.current[d.groupId] === d.memberId");
+  });
+  it("the route says who is asking before it looks at the group", () => {
+    const r = src("src/app/api/offline/add/route.ts");
+    expect(r.indexOf("if (!me)")).toBeGreaterThan(0);
+    expect(r.indexOf("if (!me)")).toBeLessThan(r.indexOf("addExpenseChecks("));
+  });
+  it("the privacy page says a phone that stays offline keeps its copy until it is online or 30 days pass", () => {
+    const t = src("src/app/privacy/page.tsx");
+    expect(t).toContain("A phone that stays offline keeps its copy");
+    expect(t).toContain("30 days pass");
+  });
 });

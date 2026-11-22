@@ -73,7 +73,7 @@ export async function fetchPairRate(
 
 // The rate on ONE day (the day the money was spent): Frankfurter's `?date=` form of the same address.
 // When that day had no fixing (a weekend) the service answers with the last working day before it, so the answer's own date may be
-// earlier than asked for, but never later and never more than 7 days earlier. Anything else is "no rate for that day": the caller
+// earlier than asked for, but never later and never more than 4 days earlier (a weekend or a holiday, not longer). Anything else is "no rate for that day": the caller
 // asks the person to enter one. It never quietly uses another day's rate.
 export async function fetchRateOn(
   from: string,
@@ -92,7 +92,7 @@ export async function fetchRateOn(
     if (typeof body.rate !== "number" || !(body.rate > 0) || typeof body.date !== "string") return none();
     const got = body.date.slice(0, 10);
     const gap = (Date.parse(`${day}T12:00:00Z`) - Date.parse(`${got}T12:00:00Z`)) / 86_400_000;
-    if (!(gap >= 0 && gap <= 7)) return none();
+    if (!(gap >= 0 && gap <= 4)) return none();
     return { ok: true, rate: rateToString(body.rate), date: got };
   } catch {
     return { ok: false, reason: "offline", message: "Couldn't reach the rate service. Enter the rate yourself, or try again later." };

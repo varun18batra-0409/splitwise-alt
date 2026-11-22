@@ -16,6 +16,7 @@ export function OfflineSync({ on }: { on: boolean }) {
   const path = usePathname();
   const kv = useMemo(() => (typeof indexedDB === "undefined" ? null : openStore()), []);
   const lastMe = useRef(0);
+  const serverMe = useRef<Record<string, string> | null>(null); // the server's latest answer: who this phone is in each group
   const [sheet, setSheet] = useState<{ groupId: string; name: string; currency: string; tz: string; names: Record<string, string>; me: string } | null>(null);
 
   useEffect(() => {
@@ -31,14 +32,18 @@ export function OfflineSync({ on }: { on: boolean }) {
         if (Date.now() - lastMe.current > 60_000 || path === "/") {
           lastMe.current = Date.now();
           const me = await fetchMe();
-          if (me && me.on) await applyMe(kv, me.groups);
+          if (me && me.on) {
+            serverMe.current = me.groups;
+            await applyMe(kv, me.groups);
+          }
         }
         // 2. Which of the waiting ones did the server already add?
         const mine = await draftsFor(kv);
         if (mine.length) await removeConfirmed(kv, await fetchDone(mine.map((d) => d.key)));
         // 3. The sheet: for this group's page or Add page, or (on Home) the group with the oldest waiting expense.
         if (new URLSearchParams(window.location.search).get("fix")) return; // fixing one on the Add screen: don't interrupt
-        const waiting = (await draftsFor(kv)).filter((d) => d.status !== "refused");
+        // Only the expenses of the person the server says is signed in here now: another person's never flash after a phone changes hands.
+        const waiting = (await draftsFor(kv)).filter((d) => d.status !== "refused" && (!serverMe.current || serverMe.current[d.groupId] === d.memberId));
         const inGroup = /^\/groups\/([^/]+)(?:\/add)?\/?$/.exec(path)?.[1];
         const groupId = inGroup && inGroup !== "new" ? inGroup : path === "/" ? waiting[0]?.groupId : undefined;
         if (!groupId || !waiting.some((d) => d.groupId === groupId) || sheetSeen(groupId)) return;

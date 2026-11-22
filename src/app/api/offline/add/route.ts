@@ -6,7 +6,7 @@ import { getRateOn } from "@/lib/rate-cache";
 import { sendDraft } from "@/lib/offline/send";
 import { checkBudgets } from "@/lib/home/budgets-db";
 import { ownOrigin } from "@/lib/same-origin";
-import { offlineOn } from "@/lib/offline/words";
+import { NOT_SIGNED_IN, OTHER_PERSON, offlineOn } from "@/lib/offline/words";
 import { readDraft } from "@/lib/offline/validate";
 import type { AddAnswer, AddRequest } from "@/lib/offline/types";
 
@@ -34,6 +34,11 @@ export async function POST(req: NextRequest) {
 
   // Who you are comes from the cookie (never from the request); sendDraft refuses anyone but the person who saved the draft.
   const me = await getMyMemberId(draft.groupId);
+
+  // Before anything about the group is looked at (so a stranger learns nothing about it, not even that it is a pair): not signed in here
+  // keeps waiting; someone other than the person who saved it is refused.
+  if (!me) return reply({ status: "later", reason: NOT_SIGNED_IN });
+  if (me !== draft.memberId) return reply({ status: "refused", code: "other-person", reason: OTHER_PERSON });
 
   // The checks both doors share (rate limit; pairs are refused offline).
   const checks = await addExpenseChecks({ ip: clientIp(req.headers), groupId: draft.groupId, currency: draft.currency, editing: false, offline: true });

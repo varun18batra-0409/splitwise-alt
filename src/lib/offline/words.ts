@@ -64,4 +64,7 @@ export const W = {
   tooMany: `This phone is keeping ${MAX_DRAFTS} expenses already. Add them when you’re online, then save more.`,
   foreignNote: (day: string) => `The rate for ${day} is added when it’s added online.`,
   signOutWarn: (n: number) => `${n} ${n === 1 ? "expense is" : "expenses are"} waiting on this phone and ${n === 1 ? "hasn’t" : "haven’t"} been added. Signing out removes ${n === 1 ? "it" : "them"} from this phone.`,
+  // On the offline Add screen, once there is a signal again: it does not jump away from what is being typed.
+  backOnlineHold: "You’re back online. Finish this one and save it, or open the group (what you’ve typed here won’t be kept).",
+  openGroup: "Open the group",
 } as const;
