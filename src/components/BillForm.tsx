@@ -14,6 +14,7 @@ import { FreshKeyInput } from "./FreshKeyInput";
 type Member = { id: string; name: string };
 export type BillFormInitial = {
   billId: string;
+  version?: string; // billVersion of the bill as shown: posted back so a save over a newer change is refused
   template: string;
   name: string;
   nature: "fixed" | "varies" | "daily";
@@ -123,6 +124,7 @@ export function BillForm({
       <input type="hidden" name="groupId" value={groupId} />
       <input type="hidden" name="currency" value={currency} />
       {initial?.billId && <input type="hidden" name="billId" value={initial.billId} />}
+      {initial?.billId && <input type="hidden" name="billWas" value={initial.version ?? ""} />}
       {/* A new bill carries a one-time key, so a double tap or a retry after a lost reply is one bill, never two. */}
       {!initial?.billId && <FreshKeyInput name="rid" />}
       <input type="hidden" name="template" value={template} />

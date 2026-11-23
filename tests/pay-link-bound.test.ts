@@ -22,6 +22,25 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: (
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (job: () => Promise<unknown>) => void Promise.resolve().then(job).catch(() => undefined) }));
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
 
+// A test seam for the take-back: whatever is set in `gap.run` happens after the action's own checks and before the delete's write begins.
+const gap = vi.hoisted(() => ({ run: null as null | (() => Promise<void>) }));
+vi.mock("@/lib/payment-change", async (orig) => {
+  const real = await orig<typeof import("@/lib/payment-change")>();
+  return {
+    ...real,
+    changePayment: (id: string, actor: string | undefined, deleted: boolean, opts: Parameters<typeof real.changePayment>[3] = {}) =>
+      real.changePayment(id, actor, deleted, {
+        ...opts,
+        afterRead: async () => {
+          const job = gap.run;
+          gap.run = null;
+          await job?.();
+          await opts.afterRead?.();
+        },
+      }),
+  };
+});
+
 process.env.MAIL_OUTBOX = "1";
 const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
@@ -169,5 +188,25 @@ describe("G10: 'Take it back' removes only the payment its page showed", () => {
     // Ravi's 45,000 still counts; the taxi's 20,000 is owed again: Asha +20,000, Ravi -20,000.
     expect(await checkBooks(w.gid)).toEqual({ [w.a]: 20000, [w.r]: -20000 });
     expect(await readPayLink(token)).toMatchObject({ kind: "owes", amount: 20000 });
+  });
+});
+
+describe("G10: the link changes between the check and the delete", () => {
+  it("the reset inside the write fails, so the take-back is refused and nothing is deleted", async () => {
+    const w = await world();
+    // Dinner 90,000, Ravi owes 45,000 and pays it through the link (P1). The Done page shows P1.
+    await spend(w.gid, w.a, 90000, [[w.a, 45000], [w.r, 45000]], "Dinner");
+    const token = await payLinkFor(w.gid, w.r, w.a, w.a);
+    await run(() => L.iPaidAction(form({ token, amount: "45000", currency: "INR" })));
+    const p1 = (await db.payLink.findUniqueOrThrow({ where: { token } })).paymentId;
+    // After the page's check passed, the link is pointed at a newer payment (another tap won).
+    gap.run = async () => void (await db.payLink.update({ where: { token }, data: { paymentId: "newer-payment" } }));
+    await run(() => L.undoIPaidAction(form({ token, paymentId: p1 })));
+    // P1 still counts (not deleted), the link is as the other tap left it, no event for a delete was written.
+    expect((await livePayments(w.gid)).map((p) => [p.id, p.amount])).toEqual([[p1, 45000]]);
+    expect((await db.payLink.findUniqueOrThrow({ where: { token } })).paymentId).toBe("newer-payment");
+    expect(await db.groupEvent.count({ where: { groupId: w.gid, kind: "payment_deleted" } })).toBe(0);
+    // Asha paid 90,000 and owes 45,000, Ravi paid 45,000 back: both 0.
+    expect(await checkBooks(w.gid)).toEqual({ [w.a]: 0, [w.r]: 0 });
   });
 });

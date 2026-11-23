@@ -129,6 +129,13 @@ export function settleRowId(way: "pay" | "remind", key: string): string {
   return `${way}-${key.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 }
 
+// The id of one card of a person who has cards in several currencies (`currencies`: every currency they have a card in). Settle up and Home
+// both use this, so a link from Home always lands on a card that exists. One currency: the plain person key, as before.
+export function settleCardId(key: string, currency: string, currencies: string[], common: string): string {
+  const bare = currencies.includes(common) ? common : [...currencies].sort()[0];
+  return currency === bare ? key : `${key}|${currency}`;
+}
+
 // The key a person is combined under across groups on Settle up: their Loopin account, else their own row in their own group.
 export function crossPersonKey(m: { id?: string; name: string; phone: string; accountId?: string | null }, groupId = ""): string {
   return m.accountId ? personKey(m, groupId) : personKey({ id: m.id, name: m.name, phone: "" }, groupId);
@@ -167,13 +174,13 @@ export function crossSettle(
   }
 
   const items = [...byPerson.values()].sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name) || a.currency.localeCompare(b.currency));
-  // A person's first card (the one in the display currency if there is one) keeps the old anchor id (Home links to it); the others get the currency added.
-  const seenKeys = new Set<string>();
-  for (const it of [...items].sort((a, b) => Number(b.currency === commonCurrency) - Number(a.currency === commonCurrency))) {
-    if (seenKeys.has(it.key)) {
-      it.id = `${it.key}|${it.currency}`;
-      for (const o of items) if (o.key === it.key) o.mixed = true;
-    } else seenKeys.add(it.key);
+  // A person's cards: the one in the display currency (else the first currency by code) keeps the old anchor id (Home links to it); the others get the currency added.
+  const currenciesOf = new Map<string, string[]>();
+  for (const it of items) currenciesOf.set(it.key, [...(currenciesOf.get(it.key) ?? []), it.currency]);
+  for (const it of items) {
+    const all = currenciesOf.get(it.key)!;
+    it.id = settleCardId(it.key, it.currency, all, commonCurrency);
+    it.mixed = all.length > 1;
   }
   return { items, skippedGroups };
 }

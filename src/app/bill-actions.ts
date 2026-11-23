@@ -60,8 +60,12 @@ export async function saveBill(formData: FormData) {
   const billId = String(formData.get("billId") ?? "") || undefined;
   const stale = await staleForm(groupId, formData);
   if (stale) redirect(await flashTo(billId ? ["groups", groupId, "bills", billId] : ["groups", groupId, "bills", "new"], { error: stale }));
+  // Editing: the bill as the form showed it. Missing = a page opened before this check: look again.
+  const billWas = String(formData.get("billWas") ?? "");
+  if (billId && !billWas) redirect(await flashTo(["groups", groupId, "bills", billId], { error: FORM_OUT_OF_DATE }));
   const r = await saveBillFor(groupId, actor, {
     billId,
+    was: billId ? billWas : undefined,
     template: String(formData.get("template") ?? "other"),
     name: String(formData.get("name") ?? ""),
     nature: String(formData.get("nature") ?? "fixed"),
@@ -208,7 +212,7 @@ export async function saveDeposit(formData: FormData) {
   }
   const stale = await staleForm(groupId, formData);
   if (stale) redirect(await flashTo(["groups", groupId, "deposit"], { error: stale }));
-  const r = await saveDepositFor(groupId, await me(groupId), { heldBy: String(formData.get("heldBy") ?? ""), amounts, versions, currency: String(formData.get("currency") ?? "") });
+  const r = await saveDepositFor(groupId, await me(groupId), { heldBy: String(formData.get("heldBy") ?? ""), heldByWas: formData.has("heldByWas") ? String(formData.get("heldByWas")) : undefined, amounts, versions, currency: String(formData.get("currency") ?? "") });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "deposit"], { error: r.error }));
   redirect(`/groups/${groupId}/deposit?saved=1`);
 }

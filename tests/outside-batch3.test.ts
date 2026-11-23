@@ -65,7 +65,7 @@ describe("G26: a deposit save only changes the boxes that were on the form, and 
   it("Asha saves her old form (no Ravi box): Ravi still holds 250,000 and 3,600,000 + 4,200,000 + 250,000 = 8,050,000 is held", async () => {
     const { g, form } = await scene();
     const events = await eventCount(g.id);
-    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "42000" }, versions: form, currency: "INR" });
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "42000" }, versions: form, heldByWas: "Landlord", currency: "INR" });
     expect(r.ok).toBe(true);
     expect((await sharesOf(g.id))[g.ids.Ravi]).toEqual({ amount: 250000, status: "held" });
     expect(await heldTotal(g.id)).toBe(8050000);
@@ -75,7 +75,7 @@ describe("G26: a deposit save only changes the boxes that were on the form, and 
   it("Asha clears Kabir's box (posted blank): only Kabir's share goes, 3,600,000 + 250,000 = 3,850,000 is held", async () => {
     const { g } = await scene();
     const form = await opened(g, ["Asha", "Kabir"]);
-    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "" }, versions: form, currency: "INR" });
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "" }, versions: form, heldByWas: "Landlord", currency: "INR" });
     expect(r.ok).toBe(true);
     expect((await sharesOf(g.id))[g.ids.Kabir]).toBeUndefined();
     expect(await heldTotal(g.id)).toBe(3850000);
@@ -84,7 +84,7 @@ describe("G26: a deposit save only changes the boxes that were on the form, and 
   it("a box typed as 0 clears the same way", async () => {
     const { g } = await scene();
     const form = await opened(g, ["Asha", "Kabir"]);
-    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "0" }, versions: form, currency: "INR" });
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "0" }, versions: form, heldByWas: "Landlord", currency: "INR" });
     expect(r.ok).toBe(true);
     expect(await heldTotal(g.id)).toBe(3850000);
   });
@@ -94,7 +94,7 @@ describe("G26: a deposit save only changes the boxes that were on the form, and 
     expect((await saveDepositFor(g.id, g.ids.Kabir, { heldBy: "Landlord", amounts: { [g.ids.Kabir]: "45000" } })).ok).toBe(true);
     const before = await sharesOf(g.id);
     const events = await eventCount(g.id);
-    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "40000" }, versions: form, currency: "INR" });
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "40000" }, versions: form, heldByWas: "Landlord", currency: "INR" });
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toBe("Kabir’s deposit changed to ₹45,000 since you opened this page, so nothing was saved. Look again and save once more.");
     expect(await sharesOf(g.id)).toEqual(before);
@@ -105,7 +105,7 @@ describe("G26: a deposit save only changes the boxes that were on the form, and 
   it("Kabir changed since, but Asha left his box as shown and changed only her own: Kabir's newer 4,500,000 stays", async () => {
     const { g, form } = await scene();
     expect((await saveDepositFor(g.id, g.ids.Kabir, { heldBy: "Landlord", amounts: { [g.ids.Kabir]: "45000" } })).ok).toBe(true);
-    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "37000", [g.ids.Kabir]: "42000" }, versions: form, currency: "INR" });
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "37000", [g.ids.Kabir]: "42000" }, versions: form, heldByWas: "Landlord", currency: "INR" });
     expect(r.ok).toBe(true);
     expect(await sharesOf(g.id)).toMatchObject({ [g.ids.Asha]: { amount: 3700000 }, [g.ids.Kabir]: { amount: 4500000 }, [g.ids.Ravi]: { amount: 250000 } });
   });
@@ -118,12 +118,55 @@ describe("G26: a deposit save only changes the boxes that were on the form, and 
   });
 });
 
+describe("J4: who holds the deposit is only written when it was edited and the stored name still matches", () => {
+  async function scene() {
+    const g = await flat(["Asha", "Ravi"]);
+    expect((await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000" } })).ok).toBe(true);
+    const form = await opened(g, ["Asha", "Ravi"]); // Asha's page: holder "Landlord", Asha 3,600,000, Ravi nothing
+    // Ravi renames the holder meanwhile.
+    expect((await saveDepositFor(g.id, g.ids.Ravi, { heldBy: "Mr Rao", amounts: {} })).ok).toBe(true);
+    return { g, form };
+  }
+  const holder = async (gid: string) => (await db.deposit.findUniqueOrThrow({ where: { groupId: gid } })).heldBy;
+
+  it("Asha saves an old page without touching the holder: her box is saved, the newer holder 'Mr Rao' stays", async () => {
+    const { g, form } = await scene();
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", heldByWas: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Ravi]: "2500" }, versions: form, currency: "INR" });
+    expect(r.ok).toBe(true);
+    expect(await holder(g.id)).toBe("Mr Rao");
+    expect(await sharesOf(g.id)).toEqual({ [g.ids.Asha]: { amount: 3600000, status: "held" }, [g.ids.Ravi]: { amount: 250000, status: "held" } });
+    expect(await heldTotal(g.id)).toBe(3850000);
+  });
+
+  it("Asha edits the holder to 'Sharma' on an old page: refused, the holder and every share are unchanged", async () => {
+    const { g, form } = await scene();
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Sharma", heldByWas: "Landlord", amounts: { [g.ids.Asha]: "36000" }, versions: form, currency: "INR" });
+    expect(r).toEqual({ ok: false, error: "Who holds the deposit changed to Mr Rao since you opened this page, so nothing was saved. Look again and save once more." });
+    expect(await holder(g.id)).toBe("Mr Rao");
+    expect(await heldTotal(g.id)).toBe(3600000);
+  });
+
+  it("Asha edits the holder on a current page: it is saved", async () => {
+    const { g } = await scene();
+    const form = await opened(g, ["Asha", "Ravi"]);
+    expect((await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Sharma", heldByWas: "Mr Rao", amounts: { [g.ids.Asha]: "36000" }, versions: form, currency: "INR" })).ok).toBe(true);
+    expect(await holder(g.id)).toBe("Sharma");
+  });
+
+  it("an old page with no heldByWas is refused once", async () => {
+    const { g, form } = await scene();
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000" }, versions: form, currency: "INR" });
+    expect(r).toEqual({ ok: false, error: FORM_OUT_OF_DATE });
+    expect(await holder(g.id)).toBe("Mr Rao");
+  });
+});
+
 describe("L21: the deposit save and return re-check the currency inside the write", () => {
   it("the group switches INR to USD after the checks: the save is refused and the deposit rows are unchanged", async () => {
     const g = await flat(["Asha", "Kabir"]);
     await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Kabir]: "42000" } });
     const form = await opened(g, ["Asha", "Kabir"]);
-    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "40000", [g.ids.Kabir]: "42000" }, versions: form, currency: "INR" }, { afterRead: async () => void (await switchToUsd(g.id)) });
+    const r = await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "40000", [g.ids.Kabir]: "42000" }, versions: form, heldByWas: "Landlord", currency: "INR" }, { afterRead: async () => void (await switchToUsd(g.id)) });
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toContain("currency changed to USD");
     expect(await sharesOf(g.id)).toEqual({ [g.ids.Asha]: { amount: 3600000, status: "held" }, [g.ids.Kabir]: { amount: 4200000, status: "held" } });
@@ -183,6 +226,26 @@ describe("G29: moving out hands over exactly the deposit shown", () => {
     expect(r.ok).toBe(false);
     await nothingHappened(g);
     expect((await sharesOf(g.id))[g.ids.Ravi]).toEqual({ amount: 250000, status: "held" });
+  });
+
+  it("J3: no hand-over (kept on record), and the deposit is edited to 4,500,000 in the gap: refused inside the write, Kabir is still in the flat", async () => {
+    const g = await scene();
+    const r = await out(g, { expectDeposit: "4200000" }, {
+      afterRead: async () => void (await saveDepositFor(g.id, g.ids.You, { heldBy: "Landlord", amounts: { [g.ids.Kabir]: "45000" } })),
+    });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toBe("Kabir’s deposit changed to ₹45,000 since you opened this page, so nothing was saved.");
+    await nothingHappened(g);
+    expect(await sharesOf(g.id)).toEqual({ [g.ids.Kabir]: { amount: 4500000, status: "held" }, [g.ids.Ravi]: { amount: 250000, status: "held" } });
+  });
+
+  it("J3: no hand-over, deposit as shown: Kabir moves out and his 4,200,000 stays on record", async () => {
+    const g = await scene();
+    const r = await out(g, { expectDeposit: "4200000" });
+    expect(r.ok).toBe(true);
+    expect((await sharesOf(g.id))[g.ids.Kabir]).toEqual({ amount: 4200000, status: "held" });
+    expect(await heldTotal(g.id)).toBe(4450000); // 4,200,000 + 250,000
+    await checkBooks(g.id);
   });
 
   it("the person picked to take it moved out before the confirm: refused, and the hand-over is not dropped", async () => {

@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { STALE_KEY_ERROR } from "@/lib/once";
-import { saveBillFor, type BillInput } from "@/lib/home/bill-setup";
+import { billVersion, saveBillFor, type BillInput } from "@/lib/home/bill-setup";
 import { runBillsForGroup } from "@/lib/home/bills-db";
 import { checkBooks } from "./helpers/money-invariants";
 
@@ -105,5 +105,41 @@ describe("G41: a retry can't create a second bill", () => {
     const r = await saveBillFor(f.id, f.asha, rent(f, { billId: made.ok ? made.id : "", amount: "9000", currency: "INR" }), setupDay);
     expect(r.ok).toBe(false);
     expect((await db.bill.findFirstOrThrow({ where: { groupId: f.id } })).amount).toBe(800000);
+  });
+});
+
+describe("J5: an old bill edit page never overwrites a newer change", () => {
+  it("Asha's page showed 8,000; Ravi changed it to 9,000; Asha saves 8,500 from the old page: refused, the bill stays 9,000 and the month adds 900,000 = 450,000 + 450,000", async () => {
+    const f = await flat();
+    const made = await saveBillFor(f.id, f.asha, rent(f, { key: newKey() }), setupDay);
+    expect(made.ok).toBe(true);
+    const id = made.ok ? made.id : "";
+    const shown = billVersion(await db.bill.findUniqueOrThrow({ where: { id } })); // what Asha's page carried
+    // Ravi, from a current page, changes the amount to 9,000.
+    const ravisPage = shown;
+    expect((await saveBillFor(f.id, f.ravi, rent(f, { billId: id, amount: "9000", was: ravisPage }), setupDay)).ok).toBe(true);
+    expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(900000);
+    const r = await saveBillFor(f.id, f.asha, rent(f, { billId: id, amount: "8500", was: shown }), setupDay);
+    expect(r).toEqual({ ok: false, error: "Rent changed since you opened this page, so nothing was saved. Look again and save once more." });
+    expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(900000);
+    // The month's run uses 9,000: 900,000 split 450,000 + 450,000, Asha (payer) +450,000 and Ravi -450,000.
+    const bill = await db.bill.findUniqueOrThrow({ where: { id } });
+    await runBillsForGroup(f.id, new Date(`${bill.startMonth}-05T06:00:00Z`));
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: f.id, description: "Rent" }, include: { shares: true } });
+    expect(e.amount).toBe(900000);
+    expect(e.shares.map((x) => x.amount).sort()).toEqual([450000, 450000]);
+    expect(await checkBooks(f.id)).toEqual({ [f.asha]: 450000, [f.ravi]: -450000 });
+  });
+
+  it("a current page saves; a page that is current but whose version is garbled is refused", async () => {
+    const f = await flat();
+    const made = await saveBillFor(f.id, f.asha, rent(f, { key: newKey() }), setupDay);
+    const id = made.ok ? made.id : "";
+    const now = billVersion(await db.bill.findUniqueOrThrow({ where: { id } }));
+    expect((await saveBillFor(f.id, f.asha, rent(f, { billId: id, amount: "8500", was: now }), setupDay)).ok).toBe(true);
+    expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(850000);
+    const bad = await saveBillFor(f.id, f.asha, rent(f, { billId: id, amount: "7000", was: "nonsense" }), setupDay);
+    expect(bad.ok).toBe(false);
+    expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(850000);
   });
 });

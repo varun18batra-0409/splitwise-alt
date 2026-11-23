@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { PageHeader, ErrorNote, secondaryButtonClass } from "@/components/ui";
 import { BillForm } from "@/components/BillForm";
+import { billVersion } from "@/lib/home/bill-setup";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { changeBill, toggleMissedDay } from "@/app/bill-actions";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
@@ -180,6 +181,7 @@ export default async function BillPage({
             currency={group.currency}
             initial={{
               billId: bill.id,
+              version: billVersion(bill),
               template: bill.icon,
               name: bill.name,
               nature: (["fixed", "varies", "daily"] as const).find((n) => n === bill.nature) ?? "fixed",

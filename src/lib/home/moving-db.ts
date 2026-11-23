@@ -296,9 +296,7 @@ export async function moveOut(
   // The deposit this person holds must be exactly the one the page showed.
   if (input.expectDeposit !== undefined) {
     const held = flat.deposit?.shares.find((s) => s.memberId === leaver.id && s.status === "held");
-    if (String(held?.amount ?? "") !== input.expectDeposit) {
-      return { ok: false, error: held ? `${leaver.name}’s deposit changed to ${formatMoney(held.amount, flat.currency)} since you opened this page, so nothing was saved.` : `${leaver.name}’s deposit changed since you opened this page, so nothing was saved.` };
-    }
+    if (String(held?.amount ?? "") !== input.expectDeposit) return { ok: false, error: depositShownChanged(leaver.name, held?.amount ?? null, flat.currency) };
   }
 
   const bills = await billExpensesFor(flat, leaver.id, input.lastDay.slice(0, 7));
@@ -320,6 +318,11 @@ export async function moveOut(
     eventId = await db.$transaction(async (tx) => {
       // First: the flat must still be in the currency the amounts were worked out in, and the person doing it still in it.
       await guardGroup(tx, groupId, { currency: flat.currency, actorId });
+      // The leaver's held deposit is exactly the one the page showed, whether or not it is being handed over (read again here, in the write).
+      if (input.expectDeposit !== undefined) {
+        const nowHeld = await tx.depositShare.findFirst({ where: { deposit: { groupId }, memberId: leaver.id, status: "held" }, select: { amount: true } });
+        if (String(nowHeld?.amount ?? "") !== input.expectDeposit) throw new DepositShownMoved(nowHeld?.amount ?? null);
+      }
       // Someone with money in a game that is still open can't move out: the game's result would be worked out with them gone.
       const game = await openGameFor(tx, groupId, leaver.id);
       if (game) throw new InOpenGame(inOpenGameText(game, actorId === leaver.id ? null : leaver.name));
@@ -539,10 +542,20 @@ export async function moveOut(
     if (msg.includes("BALANCES_CHANGED") || msg.includes("NOT_SQUARE")) return { ok: false, error: "Balances just changed. Check the move-out again." };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     if (msg.includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };
+    if (err instanceof DepositShownMoved) return { ok: false, error: depositShownChanged(leaver.name, err.amount, flat.currency) };
     if (msg.includes("DEPOSIT_RECIPIENT_GONE")) return { ok: false, error: `${name(depositTo)} has moved out, so they can’t take over the deposit. Pick someone else.` };
     throw err;
   }
   return { ok: true, payments: p.payments, eventId };
+}
+
+function depositShownChanged(who: string, amount: number | null, currency: string): string {
+  return amount === null ? `${who}’s deposit changed since you opened this page, so nothing was saved.` : `${who}’s deposit changed to ${formatMoney(amount, currency)} since you opened this page, so nothing was saved.`;
+}
+class DepositShownMoved extends Error {
+  constructor(public amount: number | null) {
+    super("DEPOSIT_SHOWN_MOVED");
+  }
 }
 
 export const LEAVER_DEPOSIT_ERROR = "That person has moved out, so their deposit can’t be changed here.";
@@ -618,7 +631,7 @@ export function depositVersion(share: { amount: number; updatedAt: Date } | unde
 export async function saveDepositFor(
   groupId: string,
   actorId: string,
-  input: { heldBy: string; amounts: Record<string, string>; versions?: Record<string, string>; currency?: string },
+  input: { heldBy: string; heldByWas?: string; amounts: Record<string, string>; versions?: Record<string, string>; currency?: string },
   opts: { afterRead?: () => Promise<void> } = {},
 ): Promise<{ ok: true } | Fail> {
   const flat = await loadFlat(groupId);
@@ -653,14 +666,22 @@ export async function saveDepositFor(
     }
     boxes.push({ memberId, name: who.name, amount, shown });
   }
-  const heldBy = input.heldBy.trim().slice(0, 40) || "Landlord";
+  const cleanHolder = (v: string) => v.trim().slice(0, 40) || "Landlord";
+  // "Who holds it" is written only when it was edited, and only if the stored name is still the one the page showed (`heldByWas`).
+  if (input.versions && input.heldByWas === undefined) return { ok: false, error: FORM_OUT_OF_DATE };
+  const heldByWas = input.heldByWas === undefined ? undefined : cleanHolder(input.heldByWas);
+  const heldBy = cleanHolder(input.heldBy);
+  const heldByEdited = heldByWas === undefined ? true : heldBy !== heldByWas;
   await opts.afterRead?.(); // tests only: runs after the reads, before the write begins
   const cur = (tx: Prisma.TransactionClient, depId: string, memberId: string) => tx.depositShare.findUnique({ where: { depositId_memberId: { depositId: depId, memberId } } });
   try {
     await db.$transaction(async (tx) => {
       // The first statement is a write (see money-guard.ts): the group is still in the currency the page showed, and this person still in it.
       await guardGroup(tx, groupId, { currency: input.currency ?? flat.currency, actorId, allowClosed: true }); // (a closed flat could always keep its deposit record up to date)
-      const dep = await tx.deposit.upsert({ where: { groupId }, create: { groupId, heldBy }, update: { heldBy } });
+      const had = await tx.deposit.findUnique({ where: { groupId } });
+      if (heldByEdited && had && heldByWas !== undefined && had.heldBy !== heldByWas) throw new HolderMoved(had.heldBy);
+      const dep = heldByEdited || !had ? await tx.deposit.upsert({ where: { groupId }, create: { groupId, heldBy: heldByEdited ? heldBy : heldByWas ?? heldBy }, update: { heldBy } }) : had;
+      const holder = heldByEdited ? heldBy : dep.heldBy;
       // Checked again inside the write: someone may have moved out, or been removed, since the form was read.
       const adds = boxes.filter((b) => b.amount > 0);
       if (adds.length) {
@@ -697,19 +718,20 @@ export async function saveDepositFor(
         written.push(`${b.name}: ${b.amount ? formatMoney(b.amount, flat.currency) : "cleared"}`);
       }
       // Nothing was changed: no line in Activity (the holder's name may still have been updated above).
-      if (input.versions && !written.length && heldBy === (flat.deposit?.heldBy ?? "Landlord")) return;
+      if (input.versions && !written.length && !heldByEdited) return;
       // The total still held after this save: everyone's held share, including a leaver's that stays on record.
       const stillHeld = (await tx.depositShare.aggregate({ where: { depositId: dep.id, status: "held" }, _sum: { amount: true } }))._sum.amount ?? 0;
       await logEvent(tx, {
         groupId,
         actorId,
         kind: "bill_changed",
-        text: `updated the deposit with ${heldBy} (${formatMoney(stillHeld, flat.currency)})`,
+        text: `updated the deposit with ${holder} (${formatMoney(stillHeld, flat.currency)})`,
         details: boxes.filter((r) => r.amount > 0).map((r) => `${r.name}: ${formatMoney(r.amount, flat.currency)}`),
       });
     });
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof HolderMoved) return { ok: false, error: `Who holds the deposit changed to ${err.now} since you opened this page, so nothing was saved. Look again and save once more.` };
     if (err instanceof DepositMoved) return { ok: false, error: `${err.who}’s deposit changed to ${formatMoney(err.now, flat.currency)} since you opened this page, so nothing was saved. Look again and save once more.` };
     if (String((err as Error)?.message ?? err).includes("DEPOSIT_LEAVER")) return { ok: false, error: LEAVER_DEPOSIT_ERROR };
     if (String((err as Error)?.message ?? err).includes("DEPOSIT_GONE")) return { ok: false, error: "Someone on this deposit was just removed from the flat. Open Deposit again to see who’s in." };
@@ -717,6 +739,11 @@ export async function saveDepositFor(
     throw err;
   }
   return { ok: true };
+}
+class HolderMoved extends Error {
+  constructor(public now: string) {
+    super("HOLDER_MOVED");
+  }
 }
 class DepositMoved extends Error {
   constructor(public who: string, public now: number) {

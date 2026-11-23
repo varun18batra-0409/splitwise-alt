@@ -62,6 +62,8 @@ export default async function DepositPage({
       <form action={saveDeposit} className="space-y-5">
         <input type="hidden" name="groupId" value={group.id} />
         <input type="hidden" name="currency" value={group.currency} />
+        {/* Who holds it, as shown: it is only saved if it was edited here and the stored name is still this one. */}
+        <input type="hidden" name="heldByWas" value={group.deposit?.heldBy ?? "Landlord"} />
         <label className="block">
           <span className="mb-2 block text-base font-semibold">Who holds it</span>
           <input name="heldBy" defaultValue={group.deposit?.heldBy ?? "Landlord"} maxLength={40} className={inputClass} />

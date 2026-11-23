@@ -31,6 +31,12 @@ const splitKey = (json: string) => {
   return JSON.stringify([v.mode, [...v.ids].sort(), Object.entries(v.pct).sort(([a], [b]) => a.localeCompare(b)), Object.entries(v.amt).sort(([a], [b]) => a.localeCompare(b))]);
 };
 
+// What an edit form showed of a bill (the bill has no "changed at" time): the fields the form edits that money depends on.
+// The form posts this back; the save refuses if the bill is different by then.
+export function billVersion(b: { nature: string; amount: number; day: number; every: number; payer: string; split: string }): string {
+  return fingerprintOf("bill-shown", b.nature, b.amount, b.day, b.every, b.payer, splitKey(b.split));
+}
+
 export type BillInput = {
   billId?: string; // editing
   template: string;
@@ -43,6 +49,7 @@ export type BillInput = {
   ids: string[]; // when split = some
   pct?: Record<string, string>; // when split = percent: "50" per person
   amt?: Record<string, string>; // when split = amounts: "18000" per person
+  was?: string; // editing: billVersion of the bill as the form showed it (a different bill by now is refused)
   key?: string; // a new bill: the form's one-time key (a retry or double tap gives back the same bill, never a second one)
   currency?: string; // the currency the page was drawn in: the write refuses if the group's currency changed meanwhile
 };
@@ -122,6 +129,8 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
         const cur = await tx.bill.findFirst({ where: { id: existing.id, groupId, deletedAt: null } });
         if (!cur) throw new BillLocked("That bill no longer exists.");
         if (isStopped(cur)) throw new BillLocked(STOPPED_CHANGE(cur.name));
+        // The bill is still exactly as the form showed it (someone else may have changed the amount, day, payer or split since).
+        if (input.was !== undefined && billVersion(cur) !== input.was) throw new BillLocked(`${cur.name} changed since you opened this page, so nothing was saved. Look again and save once more.`);
         // A paused daily bill keeps its days from the pause worked out from the pause day: turning it into another kind would lose them.
         if (cur.paused && cur.nature === "daily" && data.nature !== "daily") throw new BillLocked(PAUSED_TYPE(cur.name));
         if (cur.nature === "daily" && (data.amount !== cur.amount || data.nature !== cur.nature || splitKey(data.split) !== splitKey(cur.split))) {

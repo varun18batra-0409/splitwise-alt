@@ -2,7 +2,7 @@
 // you owe -> Settle up is bright; you're owed or it evens out -> Add expense is bright;
 // all square -> Add expense is bright and the second button becomes New group (there is nothing to settle).
 import type { TripPhase } from "../countdown";
-import { crossPersonKey, settleRowId } from "../cross-settle";
+import { crossPersonKey, settleCardId, settleRowId } from "../cross-settle";
 import { formatMoney } from "../money";
 
 export type MoneyMode = "owe" | "owed" | "even" | "square";
@@ -51,7 +51,8 @@ export function moneyLabel(x: { mode: MoneyMode; acrossCurrencies?: boolean; peo
 // currency as the total, so parts of one entry are comparable). Used to pick the group to remind them in.
 export type MoneyPart = { groupId: string; memberId: string; amount: number; iPay: boolean };
 // `rowKey`: only for someone you share expenses with directly ("direct:<pair id>"): their card on Settle is "direct-<pair id>".
-export type MoneyPerson = { key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean; parts: MoneyPart[]; rowKey?: string };
+// `mixed`: this person also has money in another currency, so each currency is its own entry (never netted, never converted); `anchor`: then, the id of their card on Settle up.
+export type MoneyPerson = { mixed?: boolean; anchor?: string; key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean; parts: MoneyPart[]; rowKey?: string };
 export type PeopleGroup = {
   direct?: boolean; // a pair (expenses with one person): kept apart from groups even for the same person, never netted with them
   groupId: string;
@@ -82,6 +83,18 @@ export function pairPeopleGroup(e: { groupId: string; currency: string; myId: st
 // Amounts are positive minor units. Together (one currency) they add up to that side's total.
 export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common: string, toCommon: (amount: number, currency: string) => number | null): MoneyPerson[] {
   const acc = new Map<string, MoneyPerson & { signed: number }>();
+  // The currencies each person has a card in on Settle up (a group with a saved rate): more than one means their currencies are never added together.
+  const cardCurrencies = new Map<string, Set<string>>();
+  for (const g of groups) {
+    if (g.direct) continue;
+    for (const t of g.transfers) {
+      if (t.from !== g.myId && t.to !== g.myId) continue;
+      const other = g.members.find((m) => m.id === (t.from === g.myId ? t.to : t.from));
+      if (!other || (g.currency !== common && toCommon(t.amount, g.currency) === null)) continue;
+      const key = crossPersonKey(other, g.groupId);
+      (cardCurrencies.get(key) ?? cardCurrencies.set(key, new Set()).get(key)!).add(g.currency);
+    }
+  }
   for (const g of groups) {
     for (const t of g.transfers) {
       if (t.from !== g.myId && t.to !== g.myId) continue;
@@ -89,15 +102,18 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
       const other = g.members.find((m) => m.id === (iPay ? t.to : t.from));
       if (!other) continue;
       const conv = g.currency === common ? t.amount : toCommon(t.amount, g.currency);
-      const currency = conv === null ? g.currency : common;
-      const amount = conv === null ? t.amount : conv;
       const key = crossPersonKey(other, g.groupId);
+      const cards = cardCurrencies.get(key);
+      const mixed = !g.direct && conv !== null && (cards?.size ?? 0) > 1;
+      // Money in two currencies is never converted or netted: each currency is its own exact entry (as on Settle up).
+      const currency = mixed || conv === null ? g.currency : common;
+      const amount = mixed || conv === null ? t.amount : conv;
       // A pair and a group with the same person are separate entries: what you owe in one is never taken off what you are owed in the other.
       const slot = `${key}|${currency}|${g.direct ? "d" : "g"}`;
-      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0, ...(g.direct ? { rowKey: `direct:${g.groupId}` } : {}) };
+      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0, ...(g.direct ? { rowKey: `direct:${g.groupId}` } : {}), ...(mixed ? { mixed: true, anchor: settleCardId(key, g.currency, [...cards!], common) } : {}) };
       e.signed += iPay ? -amount : amount;
       e.parts.push({ groupId: g.groupId, memberId: other.id, amount, iPay });
-      e.approx ||= conv !== null && g.currency !== common;
+      e.approx ||= !mixed && conv !== null && g.currency !== common;
       acc.set(slot, e);
     }
   }
@@ -121,7 +137,8 @@ export type WhoLine = { parts: WhoPart[]; others: number; tail: string; opposite
 // Names are made unique the way peopleLine does it ("Ravi (Flat 402)"); a person is named once (their biggest entry).
 function uniquePeople(entries: MoneyPerson[]): { name: string; e: MoneyPerson }[] {
   const seen = new Set<string>();
-  const list = entries.filter((e) => (seen.has(e.key) ? false : (seen.add(e.key), true)));
+  // A person with money in two currencies appears once per currency (each is its own exact amount); everyone else once.
+  const list = entries.filter((e) => { const k = e.mixed ? `${e.key}|${e.currency}` : e.key; return seen.has(k) ? false : (seen.add(k), true); });
   const count = new Map<string, number>();
   for (const e of list) count.set(e.name.trim().toLowerCase(), (count.get(e.name.trim().toLowerCase()) ?? 0) + 1);
   return list.map((e) => ({ name: e.solo && (count.get(e.name.trim().toLowerCase()) ?? 0) > 1 ? `${e.name} (${e.groupName})` : e.name, e }));
@@ -138,8 +155,8 @@ export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], s
   }));
   const others = Math.max(0, list.length - 2);
   const tail = others === 0 ? "" : others === 1 ? "1 other" : `${others} others`;
-  const mainKeys = new Set(list.map(({ e }) => e.key));
-  const rest = uniquePeople(otherSide.filter((e) => !mainKeys.has(e.key)));
+  // Someone already named on the main side is not named again on the other side, unless they have money in two currencies (then it is another amount).
+  const rest = uniquePeople(otherSide.filter((e) => !list.some(({ e: m }) => m.key === e.key && !(m.mixed && m.currency !== e.currency))));
   const top = rest[0];
   const kind = side === "owe" ? "owes-you" : "you-owe";
   // Several people the other way, all in one currency: name them as a count with their total, so the line adds up
@@ -190,6 +207,7 @@ export function personButtonLabel(verb: "Pay" | "Remind", first: string, amount?
 // exchange rate has no row there, so it goes to that group's own Settle up.
 export function payHref(p: MoneyPerson, common: string): string {
   if (p.rowKey) return `/settle#direct-${p.rowKey.slice(7)}`; // a person you share expenses with directly: their own card
+  if (p.anchor) return `/settle#${settleRowId("pay", p.anchor)}`; // a person with cards in two currencies: this currency's card
   if (p.currency === common) return `/settle#${settleRowId("pay", p.key)}`;
   const part = [...p.parts].filter((x) => x.iPay).sort((a, b) => b.amount - a.amount)[0];
   return part ? `/groups/${part.groupId}/settle` : "/settle#pay";
