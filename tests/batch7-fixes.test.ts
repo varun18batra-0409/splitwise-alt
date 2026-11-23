@@ -102,7 +102,7 @@ async function bigDebt(amounts: number[] = [1_500_000_000, 900_000_000]) {
       data: { groupId: g.id, description: "Bill", amount, splitType: "exact", forMode: "selected", paidById: id("Asha"), createdById: id("Asha"), originalAmount: amount, convertedAmount: amount, originalCurrency: "VND", baseCurrency: "VND", shares: { create: [{ memberId: id("Ravi"), amount }] } },
     });
   }
-  return { gid: g.id, asha: id("Asha"), ravi: id("Ravi") };
+  return { gid: g.id, asha: id("Asha"), ravi: id("Ravi"), ashaAccount: asha.id };
 }
 const written = async (gid: string) => [await db.payment.count({ where: { groupId: gid } }), await db.groupEvent.count({ where: { groupId: gid } })];
 const SENTENCE = "That’s more than one payment can record (VND 2,000,000,000). Record it as two payments.";
@@ -138,7 +138,8 @@ describe("M1: the payment forms say the payment sentence, not the expense one", 
 
   it("Mark all paid with a hidden 2,400,000,000 transfer gets the sentence; nothing is written", async () => {
     const w = await bigDebt();
-    state.cookie = await encodeSession({ m: { [w.gid]: w.asha }, t: today() });
+    // Asha's name is linked to her account, so she is signed in through the account (a guest copy of a linked name doesn't count).
+    state.cookie = await encodeSession({ m: {}, a: w.ashaAccount, v: 0, t: today() });
     const data = await loadGroup(w.gid, { events: false });
     expect(data!.transfers).toEqual([{ from: w.ravi, to: w.asha, amount: 2_400_000_000 }]);
     const url = await redirectOf(() => P.markAllPaidAction(form({ groupId: w.gid, plan: planKey(data!.transfers) })));
