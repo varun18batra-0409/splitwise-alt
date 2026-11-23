@@ -26,6 +26,8 @@ vi.mock("@/lib/push", async (orig) => ({ ...(await orig<typeof import("@/lib/pus
 
 // Review of 23 Nov 2026, the reliability batch (R4-R16, S4). Each block says which finding it covers.
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// Letters only: the scrubber would (rightly) turn a long run of digits in the stamp into "[number]".
+const tag = Array.from({ length: 10 }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join("");
 const groupIds: string[] = [];
 const noteKeys: string[] = [];
 afterAll(async () => {
@@ -36,7 +38,7 @@ afterAll(async () => {
   await db.member.deleteMany({ where: { groupId: { in: groupIds } } });
   await db.group.deleteMany({ where: { id: { in: groupIds } } });
   await db.notifyLog.deleteMany({ where: { OR: [{ key: { in: noteKeys } }, ...groupIds.map((id) => ({ key: { contains: id } }))] } });
-  await db.errorLog.deleteMany({ where: { message: { contains: stamp } } });
+  await db.errorLog.deleteMany({ where: { message: { contains: tag } } });
 });
 
 describe("R16: a trip that began on 29 Feb has its memory on 28 Feb in years without one", () => {
@@ -133,16 +135,16 @@ describe("R7: every push send has a 5 second limit", () => {
 
 describe("R11: evening failures are written to the error log", () => {
   it("logJobFailure writes one row the morning email reads, and never throws", async () => {
-    expect(await logJobFailure("cron/evening", `evening catch-up failed: bills ${stamp}`)).toBe(true);
-    const row = await db.errorLog.findFirstOrThrow({ where: { message: { contains: stamp } } });
-    expect([row.path, row.message]).toEqual(["cron/evening", `evening catch-up failed: bills ${stamp}`]);
+    expect(await logJobFailure("cron/evening", `evening catch-up failed: bills ${tag}`)).toBe(true);
+    const row = await db.errorLog.findFirstOrThrow({ where: { message: { contains: tag } } });
+    expect([row.path, row.message]).toEqual(["cron/evening", `evening catch-up failed: bills ${tag}`]);
     expect(await logJobFailure("x", "y".repeat(500))).toBe(true); // long text is cut to 200
-    await db.errorLog.deleteMany({ where: { message: { startsWith: "yyyy" } } });
+    await db.errorLog.deleteMany({ where: { path: "x", message: "[id]" } });
   });
   it("what is stored passes the scrubber: no email address, phone number or long id (RL4)", async () => {
-    await logJobFailure("cron/evening", `evening job failed: send to ana@example.com 98765 43210 token ${"a".repeat(30)} ${stamp}`);
-    const row = await db.errorLog.findFirstOrThrow({ where: { message: { contains: stamp } }, orderBy: { createdAt: "desc" } });
-    expect(row.message).toBe(`evening job failed: send to [email] [number] token [id] ${stamp}`);
+    await logJobFailure("cron/evening", `evening job failed: send to ana@example.com 98765 43210 token ${"a".repeat(30)} ${tag}`);
+    const row = await db.errorLog.findFirstOrThrow({ where: { message: { contains: tag } }, orderBy: { createdAt: "desc" } });
+    expect(row.message).toBe(`evening job failed: send to [email] [number] token [id] ${tag}`);
   });
   it("the evening route logs a failed catch-up, failed parts and a crash", () => {
     const src = readFileSync("src/app/api/cron/evening/route.ts", "utf8");
