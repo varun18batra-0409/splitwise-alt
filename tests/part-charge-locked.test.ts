@@ -27,11 +27,11 @@ const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
 const { encodeSession, today } = await import("@/lib/session");
 const A = await import("@/app/actions");
+const B = await import("@/app/bill-actions");
 const { billCommand } = await import("@/lib/home/bill-setup");
 const { undoEvent } = await import("@/lib/undo");
 const { moveOut, moveOutPreview } = await import("@/lib/home/moving-db");
 const { runBillsForGroup, billChangeLines } = await import("@/lib/home/bills-db");
-const { dayKey } = await import("@/lib/dates");
 const { chargeLockedText } = await import("@/lib/home/charge-lock");
 const { checkBooks } = await import("./helpers/money-invariants");
 
@@ -195,15 +195,21 @@ describe("Rule 1: a daily bill can't be paused or stopped in a month someone mov
     expect(await netOf(f)).toEqual([0, 0, 0]);
   });
 
-  it("the real change-bill action refuses it too (a move-out dated today, the real clock): nothing is paused or added", async () => {
-    const f = await flat3();
-    const real = new Date();
-    const lastDay = dayKey(real, "Asia/Kolkata");
-    await db.bill.update({ where: { id: f.billId }, data: { startMonth: lastDay.slice(0, 7) } });
-    expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay, requestKey: `r1c-${stamp}-abcdefgh` }, real)).toMatchObject({ ok: true });
-    await redirected(() => A.changeBill(form({ groupId: f.gid, billId: f.billId, command: "pause" })));
-    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).paused).toBe(false);
-    expect(await live(f.gid)).toHaveLength(0);
+  it("the real change-bill action refuses it too (the clock is fixed at 20 Nov 2026 for this test): nothing is paused or added", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-20T06:00:00Z"));
+    try {
+      const f = await flat3();
+      expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-20", requestKey: `r1c-${stamp}-abcdefgh` }, new Date())).toMatchObject({ ok: true });
+      await redirected(() => B.changeBill(form({ groupId: f.gid, billId: f.billId, command: "pause" })));
+      await redirected(() => B.changeBill(form({ groupId: f.gid, billId: f.billId, command: "stop" })));
+      const bill = await db.bill.findUniqueOrThrow({ where: { id: f.billId } });
+      expect([bill.paused, bill.deletedAt]).toEqual([false, null]);
+      expect(await live(f.gid)).toHaveLength(0);
+      expect(await netOf(f)).toEqual([0, 0, 0]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("pausing next month after a move-out works: C moves out 28 Nov (28 × 6,000 ÷ 3 = 56,000, squared up); pausing 5 Dec adds Nov's rest 180,000 − 56,000 = 124,000 (62,000 each for A and B) and Dec 1–4 = 24,000 (12,000 each); A +74,000, B −74,000, C 0, then B pays A through the real action", async () => {

@@ -4,7 +4,7 @@ import { dayRangeLabel, monthSoFar, nextBillLabel } from "@/lib/home/bills";
 import { addWaitingBill, billChangeLines, billExpenseInput, billStatuses, runBillsForGroup } from "@/lib/home/bills-db";
 import { billCommand, saveBillFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { moveOut } from "@/lib/home/moving-db";
-import { joinWeights, lastPartDay, dailyPrecharge } from "@/lib/home/moving";
+import { joinWeights, lastPartDay } from "@/lib/home/moving";
 import { setExpenseDeleted, type SaveExpenseInput } from "@/lib/save-expense";
 import { checkBooks } from "./helpers/money-invariants";
 
@@ -61,11 +61,8 @@ describe("the month so far (pure, hand-worked)", () => {
     expect(dayRangeLabel("2026-11", 1, 19)).toBe("1–19 Nov");
     expect(dayRangeLabel("2026-11", 19, 19)).toBe("19 Nov");
   });
-  it("the leaver is not charged for days a part charge covered; the last part day is read from live charges", () => {
-    const members = [{ id: "A", splitWeight: 100, joinedFrom: null, leftAt: null }, { id: "B", splitWeight: 100, joinedFrom: null, leftAt: null }, { id: "C", splitWeight: 100, joinedFrom: null, leftAt: null }];
-    const bill = { amount: 6000, missed: JSON.stringify({ "2026-11": [10, 11] }), split: JSON.stringify({ mode: "equal" }) };
-    // C leaves 15 Nov; 1–9 were already charged: days 12–15 = 4 × 6,000 ÷ 3 = 8,000.
-    expect(dailyPrecharge(bill, "2026-11", "2026-11-15", members, "C", 10).amount).toBe(8000);
+  // (A leaver is never charged around a part charge any more: a move-out is refused in a month that has one, so dailyPrecharge needs no start day.)
+  it("the last part day is read from part charges only, not from a move-out charge", () => {
     expect(lastPartDay([{ m: "", a: 54000, e: "x", d: "2026-11-09", k: "part" }, { m: "C", a: 1, e: "y", d: "2026-11-12" }])).toBe(9);
   });
   it("someone who moved in on the 15th is there 5 of the 19 days: weights 19 : 19 : 19 : 5", () => {
@@ -360,7 +357,7 @@ describe("A2: the days after a pause are weighted by the days, even when nobody 
 });
 
 describe("pausing, starting again and stopping: the days add up, once", () => {
-  it("pause 20 Nov (P1 = 1–19 = 114,000), start again 25 Nov (20–24 not come), pause 28 Nov (P2 = 25–27 = 18,000), start again 29 Nov (28 not come), stop 30 Nov (P3 = 29 = 6,000): 23 days = 138,000; then settling leaves everyone at 0", async () => {
+  it("pause 20 Nov (P1 = 1–19 = 114,000), start again 25 Nov (20–24 not come), pause 28 Nov (P2 covers 20–27, of which 25–27 came = 18,000), start again 29 Nov (28 not come), stop 30 Nov (P3 covers 28–29, of which 29 came = 6,000): 23 days = 138,000; then settling leaves everyone at 0", async () => {
     const f = await flat("scen");
     expect((await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"))).ok).toBe(true);
     expect((await billCommand(f.groupId, f.a, f.billId, "resume", at("2026-11-25"))).ok).toBe(true);
@@ -370,7 +367,7 @@ describe("pausing, starting again and stopping: the days add up, once", () => {
     expect((await billCommand(f.groupId, f.a, f.billId, "resume", at("2026-11-29"))).ok).toBe(true);
     expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-30"))).ok).toBe(true);
     const list = await live(f.groupId);
-    expect(list.map((e) => [e.description, e.amount])).toEqual([["Milk · 1–19 Nov", 114000], ["Milk · 25–27 Nov", 18000], ["Milk · 29 Nov", 6000]]);
+    expect(list.map((e) => [e.description, e.amount])).toEqual([["Milk · 1–19 Nov", 114000], ["Milk · 20–27 Nov", 18000], ["Milk · 28–29 Nov", 6000]]);
     expect(sum(list.map((e) => e.amount))).toBe(23 * 6000); // 138,000
     let net = await checkBooks(f.groupId);
     expect([net[f.a], net[f.b], net[f.c]]).toEqual([92000, -46000, -46000]);
