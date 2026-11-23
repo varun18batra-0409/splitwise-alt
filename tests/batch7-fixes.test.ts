@@ -123,6 +123,19 @@ describe("M1: the payment forms say the payment sentence, not the expense one", 
     expect(await written(w.gid)).toEqual([0, 0]);
   });
 
+  it("exactly 2,000,000,000 VND typed into Record a payment is accepted and writes one payment", async () => {
+    const w = await bigDebt();
+    state.cookie = await encodeSession({ m: { [w.gid]: w.ravi }, t: today() });
+    const url = await redirectOf(() => A.recordCustomPayment(form({ currency: "VND", groupId: w.gid, fromId: w.ravi, toId: w.asha, amount: "2000000000" })));
+    expect(url.pathname).toBe(`/groups/${w.gid}`);
+    expect(url.searchParams.get("error")).toBeNull();
+    const pays = await db.payment.findMany({ where: { groupId: w.gid } });
+    expect(pays.map((p) => [p.fromId, p.toId, p.amount])).toEqual([[w.ravi, w.asha, 2_000_000_000]]);
+    // Ravi owed 2,400,000,000: 400,000,000 is left.
+    const after = await loadGroup(w.gid, { events: false });
+    expect(after!.transfers).toEqual([{ from: w.ravi, to: w.asha, amount: 400_000_000 }]);
+  });
+
   it("Mark all paid with a hidden 2,400,000,000 transfer gets the sentence; nothing is written", async () => {
     const w = await bigDebt();
     state.cookie = await encodeSession({ m: { [w.gid]: w.asha }, t: today() });
@@ -180,15 +193,18 @@ describe("imports: L2 fingerprint, L3 cap, L4 race, L5 name", () => {
     expect(await db.requestKey.count({ where: { key: { contains: `imp-l3-${stamp}` } } })).toBe(0);
   });
 
-  it("L4: two requests with the same key at the same moment end on the same group (one group made)", async () => {
-    const acc = await account("");
-    const input = { text: FILE, groupName: "Race", type: "trip", me: 0, key: `imp-l4-${stamp}-cccc` };
-    const [a, b] = await Promise.all([importSplitwise(acc, input), importSplitwise(acc, input)]);
-    if (!a.ok || !b.ok) throw new Error(JSON.stringify([a, b]));
-    groupIds.push(a.groupId);
-    expect(b.groupId).toBe(a.groupId);
-    expect(await db.group.count({ where: { members: { some: { accountId: acc.id } } } })).toBe(1);
-    expect(readFileSync("src/lib/splitwise-import.ts", "utf8")).toContain("retryOnceIfBusy(() => db.$transaction(");
+  it("L4: simultaneous requests with the same key (several rounds) all end on the same group, and one group is made each time", async () => {
+    for (const round of ["c1", "c2", "c3"]) {
+      const acc = await account("");
+      const input = { text: FILE, groupName: "Race", type: "trip", me: 0, key: `imp-l4-${round}-${stamp}-cccc` };
+      const results = await Promise.all([importSplitwise(acc, input), importSplitwise(acc, input), importSplitwise(acc, input)]);
+      const first = results[0];
+      if (!first.ok) throw new Error(JSON.stringify(results));
+      groupIds.push(first.groupId);
+      for (const r of results) expect(r).toEqual(first);
+      expect(await db.group.count({ where: { members: { some: { accountId: acc.id } } } })).toBe(1);
+    }
+    expect(readFileSync("src/lib/splitwise-import.ts", "utf8")).toContain("await withRetry(() => db.$transaction(");
   });
 
   it("L5: a retry that returns the stored result still names an account that has no name", async () => {

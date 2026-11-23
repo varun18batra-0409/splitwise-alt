@@ -8,7 +8,7 @@ import { isGroupType } from "./group-types";
 import { balanceGapText, balancesOf, mapCategory, planRow } from "./splitwise-csv";
 import { parseImport, type ColumnMap } from "./import-formats";
 import { formatMoney, MAX_MINOR } from "./money";
-import { claimKey, fingerprintOf, isBusy, isDuplicateKey, keyState, retryOnceIfBusy, STALE_KEY_ERROR } from "./once";
+import { claimKey, fingerprintOf, isBusy, isDuplicateKey, keyState, STALE_KEY_ERROR, withRetry } from "./once";
 
 // Saving a Splitwise export as a new Loopin group (the reading is in splitwise-csv.ts).
 
@@ -119,7 +119,8 @@ export async function importSplitwise(
   const chunks = <T,>(list: T[], n = 400) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
   const result: ImportResult = { ok: true, groupId, meMemberId: memberIds[input.me], expenses: expenses.length, payments: payments.length, matches };
   try {
-  await retryOnceIfBusy(() => db.$transaction(
+  // Queued within this server like the other same-key saves (bills, expenses): two simultaneous imports never both write at once.
+  await withRetry(() => db.$transaction(
     async (tx) => {
       // First, so a second request with this key fails here and nothing is made.
       await claimKey(tx, input.key, JSON.stringify(result), fp);
@@ -157,12 +158,17 @@ export async function importSplitwise(
     // that group once it is saved.
     const racing = isDuplicateKey(err);
     if (racing || isBusy(err)) {
-      const again = await keyState(input.key, fp);
-      if (again.state === "done") {
-        await nameAccountIfEmpty(account.id, names[input.me]);
-        return savedResult(again.result);
+      // After a busy answer the other request may still be finishing: look a few times, with short waits, before giving up.
+      for (let look = 0; look < 4; look++) {
+        if (look > 0) await new Promise((r) => setTimeout(r, 100 * look));
+        const again = await keyState(input.key, fp);
+        if (again.state === "done") {
+          await nameAccountIfEmpty(account.id, names[input.me]);
+          return savedResult(again.result);
+        }
+        if (again.state === "stale" || racing) return { ok: false, error: STALE_KEY_ERROR };
+        if (!input.key) break;
       }
-      if (racing) return { ok: false, error: STALE_KEY_ERROR };
     }
     throw err;
   }
