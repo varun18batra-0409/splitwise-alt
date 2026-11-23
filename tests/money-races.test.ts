@@ -947,7 +947,8 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(await db.$transaction((tx) => removedPaymentsBreak(tx, g.id, [pay.id]))).toEqual(["C"]);
     // The link goes through the one delete path with noLeavers: the check is inside the same transaction as the delete (L3).
     const src = readFileSync(path.resolve(__dirname, "..", "src/app/pay-link-actions.ts"), "utf8");
-    expect(src).toContain("changePayment(s.link.paymentId, s.link.fromId, true, { noLeavers: true })");
+    // The take-back still refuses to bring anyone back (noLeavers), now together with the link reset inside the same write (G10).
+    expect(src).toMatch(/changePayment\(s\.link\.paymentId, s\.link\.fromId, true, \{\s*noLeavers: true,/);
     const { changePayment } = await import("@/lib/payment-change");
     expect(await changePayment(pay.id, g.ids.B, true, { noLeavers: true })).toEqual({ ok: false, error: "Open Loopin to change this." });
     expect((await db.payment.findUniqueOrThrow({ where: { id: pay.id } })).deletedAt).toBeNull();
