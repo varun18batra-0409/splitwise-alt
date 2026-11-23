@@ -20,6 +20,7 @@
 import { readFileSync } from "node:fs";
 import { createClient } from "@libsql/client";
 import { checkRestored } from "./restore-checks.mjs";
+import { SKIP_TABLES_SQL } from "./backup.mjs";
 
 const DRILL_MARKER = "_loopin_drill_target";
 const q = (n) => `"${String(n).replace(/"/g, '""')}"`;
@@ -70,7 +71,8 @@ async function main() {
   const client = createClient({ url, authToken: url.startsWith("file:") ? undefined : process.env.TURSO_AUTH_TOKEN });
 
   const listTables = async () =>
-    (await client.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'libsql_%'")).rows.map((r) => String(r.name));
+    // The same skip list the backup uses (backup.mjs), so "an empty target" and "what was backed up" can never disagree.
+    (await client.execute(`SELECT name FROM sqlite_master WHERE type='table' AND ${SKIP_TABLES_SQL}`)).rows.map((r) => String(r.name));
 
   const existing = await listTables();
   const hasMarker = existing.includes(DRILL_MARKER);

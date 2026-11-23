@@ -15,6 +15,8 @@ import { allow } from "./rate-limit";
 // The signing keys are created once and kept in the database, so no extra
 // setup is needed when hosting.
 
+// One phone's push server may not hold up a whole daily job: each send gives up after 5 seconds (counted as failed).
+export const PUSH_TIMEOUT_MS = 5_000;
 const SUBJECT = process.env.PUSH_CONTACT ?? "mailto:hello@loopinapps.com";
 
 export async function vapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
@@ -150,6 +152,7 @@ export async function sendEventPush(eventId: string): Promise<number> {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
           TTL: 60 * 60 * 24,
+          timeout: PUSH_TIMEOUT_MS,
         });
         sent++;
       } catch (err) {
@@ -229,6 +232,7 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
           TTL: 60 * 60 * 24,
+          timeout: PUSH_TIMEOUT_MS,
         });
         sent++;
       } catch (err) {
@@ -273,6 +277,7 @@ export async function sendPushToAccounts(accountIds: string[], p: { title: strin
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
           TTL: 60 * 60 * 24,
+          timeout: PUSH_TIMEOUT_MS,
         });
         sent++;
       } catch (err) {

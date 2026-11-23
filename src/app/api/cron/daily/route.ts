@@ -2,8 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
+import { safeErrorNote } from "@/lib/scrub";
+import { cronRefusedWithoutSecret } from "@/lib/cron-auth";
 import { eraseExpiredGroups } from "@/lib/purge";
 import { pruneUnknownPlaces } from "@/lib/unknown-places";
+import { cleanOldNotifyLog } from "@/lib/notify-cleanup";
 import { cleanOldKeys } from "@/lib/offline/key-cleanup";
 import { PART_NAMES, makeStop, finishDailyRun, markDailyStarted, runClaimedParts } from "@/lib/daily-job";
 
@@ -12,7 +15,7 @@ import { PART_NAMES, makeStop, finishDailyRun, markDailyStarted, runClaimedParts
 // group's nudge is claimed before it is sent. It stops starting new work after 50
 // seconds and says what it left ("deferred"); the evening job picks up any
 // unfinished sending and bills (it is the second run of the day).
-// When CRON_SECRET is set (Vercel sends it), only that caller may run it.
+// When CRON_SECRET is set (Vercel sends it), only that caller may run it; on a live server with none set it refuses (401).
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -33,7 +36,7 @@ function makePart(failed: string[], deferred: string[], stop: () => boolean) {
     try {
       return await fn();
     } catch (err) {
-      console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
+      console.error(`daily job: ${name} failed`, safeErrorNote(err));
       failed.push(name);
       return { error: "failed" };
     }
@@ -42,6 +45,8 @@ function makePart(failed: string[], deferred: string[], stop: () => boolean) {
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
+  // Live server with no secret set: refuse (fail closed), never run open.
+  if (cronRefusedWithoutSecret(secret)) return Response.json({ error: "Not allowed" }, { status: 401 });
   if (secret && !sameSecret(req.headers.get("authorization"), secret)) {
     return Response.json({ error: "Not allowed" }, { status: 401 });
   }
@@ -84,6 +89,8 @@ export async function GET(req: Request) {
   await part("cleanup-collections", async () => (await db.collection.deleteMany({ where: { deletedAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   await part("cleanup-notes", async () => (await db.accountNote.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 90 * 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
+  // "Already sent" notes for one day or one month go after 60 days; one-time markers stay (src/lib/notify-cleanup.ts).
+  await part("cleanup-notify", () => cleanOldNotifyLog(now));
   // Places without a photo: forgotten after a year, or once a photo exists (the privacy page says so).
   await part("cleanup-places", pruneUnknownPlaces);
   // Kept emails (only written in preview/test mode): gone after a day.

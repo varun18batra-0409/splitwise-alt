@@ -1,8 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { allow, clientIp } from "@/lib/rate-limit";
+import { cronRefusedWithoutSecret } from "@/lib/cron-auth";
 import { sendDayPulse } from "@/lib/countdown-db";
-import { makeStop, runDeferredParts } from "@/lib/daily-job";
+import { safeErrorNote } from "@/lib/scrub";
+import { logJobFailure, makeStop, runDeferredParts } from "@/lib/daily-job";
 
 // The evening job (Vercel Cron, 21:30 India time): the day-end pulse for trips
 // happening today, and passport moments for trips that just started. Safe to
@@ -22,6 +24,8 @@ function sameSecret(given: string | null, secret: string) {
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
+  // Live server with no secret set: refuse (fail closed), never run open.
+  if (cronRefusedWithoutSecret(secret)) return Response.json({ error: "Not allowed" }, { status: 401 });
   if (secret && !sameSecret(req.headers.get("authorization"), secret)) return Response.json({ error: "Not allowed" }, { status: 401 });
   if (!secret && !(await allow(`cron-evening:${clientIp(await headers())}`, 6, 3600))) return Response.json({ error: "Too many runs" }, { status: 429 });
   try {
@@ -31,13 +35,22 @@ export async function GET(req: Request) {
     // Passport moments for anyone whose trip started today or yesterday (a new stamp).
     const { celebrateRecentTrips } = await import("@/lib/passport-db");
     const day = (d: Date) => new Date(d.getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
-    const moments = await celebrateRecentTrips(day(now), day(new Date(now.getTime() - 86_400_000))).catch(() => 0);
+    const moments = await celebrateRecentTrips(day(now), day(new Date(now.getTime() - 86_400_000))).catch(async () => {
+      await logJobFailure("cron/evening", "evening job: passport moments failed");
+      return 0;
+    });
     // Catch-up for the morning job (never fails the evening job).
     const failed: string[] = [];
-    const catchUp = await runDeferredParts(now, stop, failed).catch(() => ({ results: {}, deferred: ["all"] }));
+    const catchUp = await runDeferredParts(now, stop, failed).catch(async () => {
+      await logJobFailure("cron/evening", "evening job: catch-up of the morning parts failed");
+      return { results: {}, deferred: ["all"] };
+    });
+    // Parts that failed again tonight are written to the error log, so the morning email lists them.
+    if (failed.length) await logJobFailure("cron/evening", `evening catch-up failed: ${failed.join(", ")}`);
     return Response.json({ ok: true, pulse, moments, catchUp: catchUp.results, deferred: catchUp.deferred, failed });
   } catch (err) {
-    console.error("evening job failed", String(err).slice(0, 300));
+    console.error("evening job failed", safeErrorNote(err));
+    await logJobFailure("cron/evening", `evening job failed: ${safeErrorNote(err)}`);
     return Response.json({ ok: false }, { status: 500 });
   }
 }

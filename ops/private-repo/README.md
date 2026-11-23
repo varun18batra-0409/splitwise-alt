@@ -58,3 +58,8 @@ not on a public page.
    `TURSO_AUTH_TOKEN=<its token> node scripts/restore.mjs backup.json libsql://<new-db-url>`
 4. Point the app's `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` (in Vercel) at it and redeploy.
    Photos kept in Blob storage are not in the backup (the restore says how many rows point at one).
+
+## Photos
+
+The nightly backup does not contain photos. A separate weekly job copies them to a second Blob store; see
+`ops/photo-backup/README.md`.

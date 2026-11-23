@@ -19,6 +19,35 @@ export function mailConfigured(): boolean {
 
 // One connection, reused while the server is warm (a new secure connection to
 // the mail server for every email took a second or more).
+// A slow mail server must never hold a sign-in request for minutes (nodemailer's own limits are minutes long):
+// connecting, the server's hello and a silent connection each give up after a few seconds, and one whole send
+// (both tries together) is cut off after 10 seconds.
+export const MAIL_TIMEOUTS = { connectionTimeout: 5_000, greetingTimeout: 5_000, socketTimeout: 8_000 } as const;
+export const MAIL_SEND_LIMIT_MS = 10_000;
+/** Resolves with the promise's result, or rejects with "timeout" once `ms` have passed (the timer never outlives the call). */
+export function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), Math.max(0, ms));
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
+/** True when a failed send ran out of time: our own 10 seconds, nodemailer's own timeouts (ETIMEDOUT), or a failure after the server was already taking the message (a second try could send it twice). */
+export function isOutOfTime(err: unknown, elapsedMs: number, limitMs: number = MAIL_SEND_LIMIT_MS): boolean {
+  const e = err as { code?: string; message?: string; command?: string } | null;
+  if (elapsedMs >= limitMs || e?.message === "timeout" || e?.code === "ETIMEDOUT") return true;
+  return e?.command === "DATA" || e?.command === "DATA END";
+}
+/** A connection kept from an earlier email that the server dropped while idle fails at once (well inside this window). A drop later than that may have happened mid-send, so a second try could send the email twice. */
+export const STALE_DROP_WINDOW_MS = 1_500;
+const DROP_CODES = new Set(["ESOCKET", "ECONNECTION", "ECONNRESET", "EPIPE"]);
+/** True only for an immediate connection drop (a stale pooled connection). Never for permanent failures (EAUTH, EENVELOPE, a refusal from the server) or anything slower. */
+export function isStaleDrop(err: unknown, attemptMs: number): boolean {
+  const e = err as { code?: string; responseCode?: number } | null;
+  return attemptMs <= STALE_DROP_WINDOW_MS && typeof e?.code === "string" && DROP_CODES.has(e.code) && !(typeof e.responseCode === "number" && e.responseCode >= 400);
+}
+// Tests only may shorten the limit (MAIL_SEND_LIMIT_MS); on the live app it is always 10 seconds.
+const sendLimit = () => (process.env.VITEST ? Number(process.env.MAIL_SEND_LIMIT_MS) || MAIL_SEND_LIMIT_MS : MAIL_SEND_LIMIT_MS);
 let pooled: Transporter | null = null;
 function transport() {
   if (!pooled) {
@@ -29,6 +58,7 @@ function transport() {
       host: process.env.SMTP_HOST ?? "smtp.gmail.com",
       port,
       secure: port === 465,
+      ...MAIL_TIMEOUTS,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
   }
@@ -136,15 +166,23 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     html,
     ...(list ? { list, headers: { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
   };
+  const startedAt = Date.now();
   for (let attempt = 0; attempt < 2; attempt++) {
+    const attemptAt = Date.now();
     try {
-      await transport().sendMail(message);
+      await withDeadline(transport().sendMail(message), sendLimit() - (Date.now() - startedAt));
       return true;
     } catch (err) {
-      // A kept connection the mail server dropped while idle: start a fresh one once.
-      pooled?.close();
-      pooled = null;
-      if (attempt === 1) console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
+      // Retry (on a fresh connection) only for an immediate drop of a kept connection. Slower failures, timeouts and permanent errors
+      // (wrong password, refused address) are never retried and never close the shared connection other emails may be using.
+      const again = attempt === 0 && !isOutOfTime(err, Date.now() - startedAt, sendLimit()) && isStaleDrop(err, Date.now() - attemptAt);
+      if (again) {
+        pooled?.close();
+        pooled = null;
+        continue;
+      }
+      console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
+      break;
     }
   }
   await noteFailure("send");

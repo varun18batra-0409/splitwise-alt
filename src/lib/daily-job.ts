@@ -6,6 +6,7 @@ import { sendBillAsks } from "./home/bill-asks";
 import { sendMemoryLane, sendTripCountdowns } from "./countdown-db";
 import { noteOpenedPostcards } from "./postcards/open-db";
 import { db } from "./db";
+import { safeErrorNote, scrubPersonal } from "./scrub";
 import { keyStarting } from "./key-range";
 import { DEFAULT_TIME_ZONE, dayKey } from "./dates";
 import { isNudgeHour } from "./local-time";
@@ -133,7 +134,7 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
       results[name] = r;
       if ((r as { deferred?: boolean } | null)?.deferred === true) deferred.push(name);
     } catch (err) {
-      console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
+      console.error(`daily job: ${name} failed`, safeErrorNote(err));
       failed.push(name);
       if ((err as { deferred?: boolean } | null)?.deferred === true) deferred.push(name); // failed AND unfinished: the evening run finishes it
       results[name] = { error: "failed" };
@@ -171,7 +172,7 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
           sent += (await checkBudgets(b.groupId, now, { legacy, held })).length;
         } catch (err) {
           errors++;
-          console.error("daily job: budgets check failed", String(err).slice(0, 200));
+          console.error("daily job: budgets check failed", safeErrorNote(err));
         }
       }
       if (errors) throw new Error(`budgets: ${errors} group(s) failed`);
@@ -187,4 +188,16 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
     return r;
   });
   return { results, deferred };
+}
+
+// Writes a job failure into the error log (path "cron/evening" etc.), so the next morning's admin email reports it.
+// Never throws: logging a failure must not become a second failure.
+export async function logJobFailure(path: string, message: string): Promise<boolean> {
+  try {
+    // Through the scrubber first: no email addresses, phone numbers or long ids in what is stored (the morning email shows it).
+    await db.errorLog.create({ data: { path, message: scrubPersonal(message).slice(0, 200) } });
+    return true;
+  } catch {
+    return false;
+  }
 }

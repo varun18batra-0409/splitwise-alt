@@ -2,7 +2,7 @@ import { SideRow } from "@/components/SideRow";
 import { recapScope } from "@/lib/recap-scope";
 import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
-import { loadMyGroups } from "@/lib/group-data";
+import { loadMyGroupsSearch } from "@/lib/group-data";
 import { buildActivity, byDay, filterActivity } from "@/lib/activity";
 import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap, recapRows, type Grain } from "@/lib/search";
 import { Insights, type InsightsData } from "./Insights";
@@ -36,7 +36,7 @@ export default async function SearchPage({
   // One category only (tapped from "Where it went" or a group's charts).
   const cat = sp.c && isCategory(sp.c) ? sp.c : undefined;
   const period = cleanPeriod(sp.y, sp.m, sp.w);
-  const all = await loadMyGroups(await getMemberships());
+  const all = await loadMyGroupsSearch(await getMemberships(), q);
   const groupId = all.some((g) => g.group.id === sp.g) ? sp.g : undefined;
   const groups = groupId ? all.filter((g) => g.group.id === groupId) : all;
 

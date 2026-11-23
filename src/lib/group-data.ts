@@ -11,6 +11,7 @@ import { netBalancesDb, settleDataDb } from "./balances-db";
 import type { Prisma } from "@prisma/client";
 import { isDirect, NOT_DIRECT } from "./direct";
 import { finishBalances, readBalancesRows } from "./balances-view-db";
+import { candidateIdsQuery, canPrefilter, searchWords } from "./search-prefilter";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
 const active = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r) => !r.deletedAt);
@@ -243,6 +244,42 @@ export async function loadMyGroups(memberships: Record<string, string>, opts: { 
       // How many people to say are in it: for a leaver, as it was on the day they left.
       const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
       return { group: cut ? coverSeenBy(g, cut.leftAt) : g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
+    }),
+  );
+}
+
+// The Search screen's version of loadMyGroups, for when words are typed: for people still in a group, only the expenses that could match
+// the words are read (search-prefilter.ts says which; the same look-through then runs on them, so the matches are the same ones).
+// Someone who left keeps the full loader (their rows are shown as they were on their last day, which the database can't pre-judge), and so
+// does any search the database can't pre-judge with certainty. Returns what the Search screen reads: group, expenses, payments, myId, leaver.
+export async function loadMyGroupsSearch(memberships: Record<string, string>, q: string) {
+  const words = searchWords(q);
+  if (!canPrefilter(words)) return loadMyGroups(memberships);
+  const groups = await db.group.findMany({
+    where: { id: { in: Object.keys(memberships) }, deletedAt: null, ...NOT_DIRECT },
+    include: { members: { select: { id: true, name: true, phone: true, leftAt: true, removedAt: true, accountId: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+    orderBy: { createdAt: "desc" },
+  });
+  const mine = groups.filter((g) => g.members.some((m) => m.id === memberships[g.id]));
+  const leaverIds = mine.filter((g) => leaverCut(g.members.find((m) => m.id === memberships[g.id])!)).map((g) => g.id);
+  const leavers = leaverIds.length ? await loadMyGroups(Object.fromEntries(leaverIds.map((id) => [id, memberships[id]]))) : [];
+  const leaverById = new Map(leavers.map((l) => [l.group.id, l]));
+  return Promise.all(
+    mine.map(async (g) => {
+      const held = leaverById.get(g.id);
+      if (held) return held;
+      const myId = memberships[g.id];
+      const query = candidateIdsQuery(g.id, words, g.members, myId);
+      const ids = query ? (await db.$queryRaw<{ id: string }[]>(query)).map((r) => r.id) : null;
+      const [expenses, payments] = await Promise.all([
+        ids === null
+          ? db.expense.findMany({ where: { groupId: g.id }, include: { shares: true }, orderBy: { createdAt: "desc" } })
+          : Promise.all(Array.from({ length: Math.ceil(ids.length / 500) }, (_, i) => db.expense.findMany({ where: { id: { in: ids.slice(i * 500, i * 500 + 500) } }, include: { shares: true } }))).then((parts) =>
+              parts.flat().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? -1 : 1)),
+            ),
+        db.payment.findMany({ where: { groupId: g.id }, orderBy: { createdAt: "desc" } }),
+      ]);
+      return { group: { ...g, expenses, payments }, expenses: active(expenses), payments: active(payments), myId, leaver: null as LeaverCut | null };
     }),
   );
 }

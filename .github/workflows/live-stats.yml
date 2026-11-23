@@ -11,14 +11,19 @@ on:
 jobs:
   stats:
     runs-on: ubuntu-24.04
-    env:
-      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-      HOURS: ${{ github.event.inputs.hours }}
+    environment: live-read # holds the read-only database key and the address
+    # The database key is given only to the step that reads, and it is the READ-ONLY one (this job never writes).
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - run: npm install --no-save --ignore-scripts @libsql/client@0.15.0
-      - run: node scripts/live-stats.mjs && cat live-stats.md >> "$GITHUB_STEP_SUMMARY"
+          cache: npm # the downloaded packages are kept between runs (keyed by package-lock.json)
+          cache-dependency-path: package-lock.json
+      - run: npm install --no-save --ignore-scripts --prefer-offline --no-audit --no-fund @libsql/client@0.15.0
+      - name: Read the numbers
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
+          HOURS: ${{ github.event.inputs.hours }}
+        run: node scripts/live-stats.mjs && cat live-stats.md >> "$GITHUB_STEP_SUMMARY"

@@ -25,6 +25,7 @@ permissions:
 jobs:
   report:
     runs-on: ubuntu-24.04
+    environment: live-read # holds the read-only database key and the address
     env:
       REPORTS_REPO: ${{ vars.REPORTS_REPO }}
     steps:

@@ -23,6 +23,7 @@ import { GuestCard } from "./_components/GuestCard";
 import { SigninPrompt } from "@/components/SigninPrompt";
 import { readNotes } from "@/lib/flash";
 import { ActivityTab } from "./_components/ActivityTab";
+import { shownExpenseIds } from "@/lib/activity";
 import { PeopleTab } from "./_components/PeopleTab";
 import { RecapTab } from "./_components/RecapTab";
 import { OverviewTab, GroupFooter } from "./_components/OverviewTab";
@@ -174,7 +175,34 @@ export default async function GroupPage({
   ]);
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
   // Reactions on expenses, for the Activity list (someone who left sees only those made by their last day).
-  const reactions = tab === "activity" && group.expenses.length ? await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) }, ...(leaver ? { createdAt: { lte: leaver.leftAt } } : {}) }, select: { expenseId: true, memberId: true, emoji: true } }) : [];
+  // Only the rows on the page are read; the quick row's "most used first" comes from counts per emoji over the whole group (a person who left keeps the old read of every visible expense).
+  const activityFilter = {
+    q: sp.q?.slice(0, 80),
+    cat: sp.cat,
+    who: sp.who,
+    type: (["expense", "payment", "refund", "change"] as const).find((t) => t === sp.type),
+    from: /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from : undefined,
+    to: /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to : undefined,
+    by: sp.by,
+    min: sp.min?.slice(0, 15),
+    max: sp.max?.slice(0, 15),
+    tz: v.tz,
+    currency: group.currency,
+  };
+  const reactionRows = { select: { expenseId: true, memberId: true, emoji: true } } as const;
+  const showReactions = tab === "activity" && group.expenses.length > 0;
+  let reactions: { expenseId: string; memberId: string; emoji: string }[] = [];
+  let reactionTally: Map<string, number> | undefined;
+  if (showReactions && leaver) {
+    reactions = await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) }, createdAt: { lte: leaver.leftAt } }, ...reactionRows });
+  } else if (showReactions) {
+    const [rows, tally] = await Promise.all([
+      db.reaction.findMany({ where: { expenseId: { in: fv ? shownExpenseIds(fv, activityFilter, Number(sp.n) || undefined) : [] } }, ...reactionRows }),
+      db.reaction.groupBy({ by: ["emoji"], where: { expense: { groupId: group.id } }, _count: { _all: true } }),
+    ]);
+    reactions = rows;
+    reactionTally = new Map(tally.map((t) => [t.emoji, t._count._all]));
+  }
   // Results of finished games: they change through the game (other card-game rows, e.g. imported ones, are ordinary).
   // Loaded whatever the group type now is: a card-night group can later become a trip and keep its games.
   const gameResultIds = tab === "activity" ? (await db.potGame.findMany({ where: { groupId: group.id, resultId: { not: "" } }, select: { resultId: true } })).map((g) => g.resultId) : [];
@@ -288,22 +316,11 @@ export default async function GroupPage({
       {tab === "activity" && fv && (
         <ActivityTab
           v={fv}
-          filter={{
-            q: sp.q?.slice(0, 80),
-            cat: sp.cat,
-            who: sp.who,
-            type: (["expense", "payment", "refund", "change"] as const).find((t) => t === sp.type),
-            from: /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from : undefined,
-            to: /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to : undefined,
-            by: sp.by,
-            min: sp.min?.slice(0, 15),
-            max: sp.max?.slice(0, 15),
-            tz: v.tz,
-            currency: group.currency,
-          }}
+          filter={activityFilter}
           shown={Number(sp.n) || undefined}
           openId={sp.open?.slice(0, 40)}
           reactions={reactions}
+          reactionTally={reactionTally}
           receipts={receipts}
           gameResultIds={gameResultIds}
           signin={guestHere ? { groups: await guestGroupsOnPhone(), google: googleConfigured(), back: `/groups/${group.id}?tab=activity` } : undefined}

@@ -302,3 +302,22 @@ export function cardFeeLabel(bp: number): string {
   const pct = bp / 100;
   return `incl. ${Number.isInteger(pct) ? pct : pct.toFixed(2).replace(/0$/, "")}% card fee`;
 }
+
+// Busy groups show the latest PAGE items first, with "Show more".
+export const ACTIVITY_PAGE = 60;
+
+// The expenses on the page the Activity tab draws for these filters (the tab and the screen's reaction read share this one list,
+// so reactions are only read for rows that are shown). `shown` is how many rows were asked for ("Show more").
+export function shownExpenseIds(
+  v: { group: { members: { id: string; name: string }[]; expenses: ExpenseRow[]; payments: PaymentRow[]; events: EventRow[] }; myId: string; moveOutIds?: Set<string> },
+  filter: ActivityFilter,
+  shown: number = ACTIVITY_PAGE,
+): string[] {
+  const { group, myId } = v;
+  const searchName = (id: string) => {
+    const name = group.members.find((m) => m.id === id)?.name ?? "";
+    return id === myId ? `${name} you` : name;
+  };
+  const items = filterActivity(buildActivity(group.expenses, group.payments, myId, group.events, v.moveOutIds), filter, searchName);
+  return items.slice(0, Math.max(ACTIVITY_PAGE, Math.min(5000, shown))).filter((i) => i.kind === "expense").map((i) => i.id);
+}
