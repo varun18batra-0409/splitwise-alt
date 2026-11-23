@@ -7,7 +7,7 @@ import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, isStopp
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
-import { finishStoppedBill, parseSplit, stopWordsFor } from "./bills-db";
+import { cutAt, finishStoppedBill, parseSplit, stopWordsFor } from "./bills-db";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 
 // Setting bills up and changing them (database side, checked here).
@@ -23,30 +23,6 @@ const STOPPED_RESUME = (bill: string) => `${bill} has been stopped, so it can’
 const PAUSED_TYPE = (bill: string) => `${bill} is paused, so its type can’t change. Start it again first.`;
 const CHANGED_NOW = (bill: string) => `${bill} changed just now. Check it and try again.`;
 const dayLabel = (day: string) => `${Number(day.slice(8, 10))} ${SHORT_MONTHS[Number(day.slice(5, 7)) - 1] ?? ""}`;
-// A Date that falls on this day in the bill's time zone (the start of a cut that has to begin on a given day).
-function dateOnDay(day: string, tz: string, fallback: Date): Date {
-  for (const h of [12, 0, 23, 6, 18]) {
-    const d = new Date(`${day}T${String(h).padStart(2, "0")}:00:00Z`);
-    if (dayKey(d, tz) === day) return d;
-  }
-  return fallback;
-}
-
-// When a pause or stop of a running daily bill starts to cut days: today, unless someone's last day (a move-out charge for "add it now")
-// is today or later in this month: that day was charged to them, so the cut starts the day after it and the month end still counts it.
-async function cutAt(bill: { nature: string; tz: string; prepaid: string }, now: Date): Promise<Date> {
-  if (bill.nature !== "daily") return now;
-  const tz = bill.tz || DEFAULT_TIME_ZONE;
-  const today = dayKey(now, tz);
-  const list = parsePrepaid(bill.prepaid)[today.slice(0, 7)] ?? [];
-  if (!list.length) return now;
-  const alive = new Set((await db.expense.findMany({ where: { id: { in: list.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
-  const last = list.filter((x) => alive.has(x.e) && x.d).map((x) => x.d as string).sort().pop();
-  if (!last || last < today) return now;
-  const next = new Date(new Date(`${last}T12:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10);
-  return dateOnDay(next, tz, now);
-}
-
 class BillLocked extends Error {}
 // The split as people, not as text: the same people and amounts compare equal whatever order or spacing the JSON has.
 const splitKey = (json: string) => {
@@ -261,11 +237,13 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
   } else if (command === "stop") {
     // A stop is a pause with an end month: nothing is charged now, and the bill goes once nothing is left to add (finishStoppedBill).
     if (!isStopped(bill)) {
-      // A paused daily bill with no pause day: there are no days to add, so it is closed with nothing added (writing "now" would make the paused days chargeable).
+      // A paused daily bill with no pause day has no days to add (writing "now" would make the paused days chargeable). It becomes stopped
+      // as it is, and goes at once unless an earlier month is still waiting: then it stays until that month is added or skipped.
       if (bill.paused && !bill.pausedAt && bill.nature === "daily") {
-        const closed = await db.bill.updateMany({ where: { id: billId, deletedAt: null, paused: true, pausedAt: null, endMonth: "" }, data: { endMonth: dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7), deletedAt: now } });
-        if (closed.count !== 1) return { ok: false, error: CHANGED_NOW(bill.name) };
+        const ended = await db.bill.updateMany({ where: { id: billId, deletedAt: null, paused: true, pausedAt: null, endMonth: "" }, data: { endMonth: dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7) } });
+        if (ended.count !== 1) return { ok: false, error: CHANGED_NOW(bill.name) };
         await logEvent(db, { groupId, actorId, kind: "bill_changed", text: `stopped ${bill.name}` });
+        await finishStoppedBill(billId, now);
         return { ok: true, id: billId };
       }
       const at = bill.pausedAt ?? (await cutAt(bill, now));

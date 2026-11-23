@@ -698,7 +698,7 @@ describe("H1: a pause or stop on the day of someone's last day does not count th
     return f;
   }
 
-  it("C's last day is 20 Nov (add it now): C pays 20 × 2,000 = 40,000; stop the same day; 1 Dec adds 120,000 − 40,000 = 80,000, 40,000 each for A and B; A +80,000, B −40,000, C 0", async () => {
+  it("C's last day is 20 Nov (add it now): C pays 20 × 2,000 = 40,000; stop the same day; 1 Dec adds 120,000 − 40,000 = 80,000, 40,000 each for A and B; A +40,000, B −40,000, C 0", async () => {
     const f = await leaveThenCut("h1a", "2026-11-20", "stop");
     expect((await live(f.groupId)).map((e) => e.amount)).toEqual([40000]);
     expect((await billOf(f)).pausedAt).toEqual(new Date("2026-11-21T12:00:00Z")); // the cut starts on 21 Nov
@@ -707,36 +707,36 @@ describe("H1: a pause or stop on the day of someone's last day does not count th
     const end = list.find((e) => e.description === "Milk")!;
     expect([end.amount, shareMap(end)]).toEqual([80000, { [f.a]: 40000, [f.b]: 40000 }]);
     expect(sum(list.map((e) => e.amount))).toBe(120000); // 20 days × 6,000, once
-    expect(await nets(f)).toEqual([80000, -40000, 0]);
+    expect(await nets(f)).toEqual([40000, -40000, 0]);
     expect((await billOf(f)).deletedAt).not.toBeNull(); // nothing left to add: the bill is gone
     await settleUp(f);
   });
 
-  it("the same with a pause instead of a stop: 1 Dec adds 80,000 (40,000 each); A +80,000, B −40,000, C 0", async () => {
+  it("the same with a pause instead of a stop: 1 Dec adds 80,000 (40,000 each); A +40,000, B −40,000, C 0", async () => {
     const f = await leaveThenCut("h1b", "2026-11-20", "pause");
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const end = (await live(f.groupId)).find((e) => e.description === "Milk")!;
     expect([end.amount, shareMap(end)]).toEqual([80000, { [f.a]: 40000, [f.b]: 40000 }]);
-    expect(await nets(f)).toEqual([80000, -40000, 0]);
+    expect(await nets(f)).toEqual([40000, -40000, 0]);
     await settleUp(f);
   });
 
-  it("extreme: C's last day is 1 Nov and the stop is the same day: C pays 1 × 2,000; 1 Dec adds 6,000 − 2,000 = 4,000 (2,000 each); A +4,000, B −2,000, C 0", async () => {
+  it("extreme: C's last day is 1 Nov and the stop is the same day: C pays 1 × 2,000; 1 Dec adds 6,000 − 2,000 = 4,000 (2,000 each); A +2,000, B −2,000, C 0", async () => {
     const f = await leaveThenCut("h1c", "2026-11-01", "stop");
     expect((await live(f.groupId)).map((e) => e.amount)).toEqual([2000]);
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const end = (await live(f.groupId)).find((e) => e.description === "Milk")!;
     expect([end.amount, shareMap(end)]).toEqual([4000, { [f.a]: 2000, [f.b]: 2000 }]);
-    expect(await nets(f)).toEqual([4000, -2000, 0]);
+    expect(await nets(f)).toEqual([2000, -2000, 0]);
     await settleUp(f);
   });
 
-  it("C's last day is 30 Nov (the month's last day), stopped the same day: C pays 30 × 2,000 = 60,000; 1 Dec adds 180,000 − 60,000 = 120,000 (60,000 each); A +120,000, B −60,000, C 0", async () => {
+  it("C's last day is 30 Nov (the month's last day), stopped the same day: C pays 30 × 2,000 = 60,000; 1 Dec adds 180,000 − 60,000 = 120,000 (60,000 each); A +60,000, B −60,000, C 0", async () => {
     const f = await leaveThenCut("h1d", "2026-11-30", "stop");
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const end = (await live(f.groupId)).find((e) => e.description === "Milk")!;
     expect([end.amount, shareMap(end)]).toEqual([120000, { [f.a]: 60000, [f.b]: 60000 }]);
-    expect(await nets(f)).toEqual([120000, -60000, 0]);
+    expect(await nets(f)).toEqual([60000, -60000, 0]);
     await settleUp(f);
   });
 });
@@ -763,6 +763,56 @@ describe("H3 and H4: paused daily bills", () => {
     const end = (await live(f.groupId)).find((e) => e.description === "Milk")!;
     expect([end.amount, shareMap(end)]).toEqual([114000, { [f.a]: 38000, [f.b]: 38000, [f.c]: 38000 }]);
     expect(await nets(f)).toEqual([76000, -38000, -38000]);
+    await settleUp(f);
+  });
+});
+
+describe("H6, H7, H8: words, time zone cap, waiting month", () => {
+  it("H6: with C's last day 20 Nov charged, the stop words count 1–20 Nov (₹1,200, less ₹400) and the note after the stop says the same", async () => {
+    const f = await flat("h6a");
+    await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-20", addDaily: true, requestKey: `bps-h6a-${stamp}-abcdefgh` }, at("2026-11-20"));
+    expect((await stopWordsFor(f.billId, at("2026-11-20")))!.words.stop).toBe(
+      "Stop Milk? Milk stops now. 1–20 Nov (₹1,200, less ₹400 C already paid when they moved out) is added on 1 Dec with the monthly bill. Expenses already added stay.",
+    );
+    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"))).ok).toBe(true);
+    expect((await stopWordsFor(f.billId, at("2026-11-20")))!.words.stoppedNote).toBe(
+      "Stopped from 21 Nov. 1–20 Nov (₹1,200, less ₹400 C already paid when they moved out) is added on 1 Dec with the monthly bill, then Milk ends.",
+    );
+    expect(await nets(f)).toEqual([0, 0, 0]);
+    await settleUp(f);
+  });
+
+  it("H6: with C's last day 30 Nov, November (₹1,800 − ₹600 = ₹1,200) is still to come, before and after the stop", async () => {
+    const f = await flat("h6b");
+    await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-30", addDaily: true, requestKey: `bps-h6b-${stamp}-abcdefgh` }, at("2026-11-30"));
+    expect((await stopWordsFor(f.billId, at("2026-11-30")))!.words.stop).toBe("Stop Milk? November (₹1,200) is still added with the monthly bill. Expenses already added stay.");
+    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-30"))).ok).toBe(true);
+    expect((await stopWordsFor(f.billId, at("2026-11-30")))!.words.stoppedNote).toBe("Stopped from 1 Dec. November (₹1,200) is added on 1 Dec with the monthly bill, then Milk ends.");
+    expect(await nets(f)).toEqual([0, 0, 0]);
+    await settleUp(f);
+  });
+
+  it("H7: a last day written as 25 Nov (ahead of today, 20 Nov) moves the cut only to 21 Nov, one day after today", async () => {
+    const f = await flat("h7");
+    await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-20", addDaily: true, requestKey: `bps-h7-${stamp}-abcdefgh` }, at("2026-11-20"));
+    const pre = JSON.parse((await billOf(f)).prepaid) as Record<string, { d?: string }[]>;
+    for (const x of pre["2026-11"]) x.d = "2026-11-25";
+    await db.bill.update({ where: { id: f.billId }, data: { prepaid: JSON.stringify(pre) } });
+    expect((await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"))).ok).toBe(true);
+    expect((await billOf(f)).pausedAt).toEqual(new Date("2026-11-21T12:00:00Z"));
+  });
+
+  it("H8: stopping a paused bill with no pause day while October still waits keeps it (stopped) until October is skipped; then it goes; books at 0", async () => {
+    const f = await flat("h8", { startMonth: "2026-10" });
+    await db.billRun.create({ data: { billId: f.billId, period: "2026-10", status: "waiting", reason: "" } });
+    await db.bill.update({ where: { id: f.billId }, data: { paused: true, pausedAt: null } });
+    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-25"))).ok).toBe(true);
+    const mid = await billOf(f);
+    expect([mid.deletedAt, mid.endMonth]).toEqual([null, "2026-11"]);
+    expect((await billCommand(f.groupId, f.a, f.billId, "skip", at("2026-11-26"))).ok).toBe(true);
+    expect((await billOf(f)).deletedAt).not.toBeNull();
+    expect(await live(f.groupId)).toHaveLength(0);
+    expect(await nets(f)).toEqual([0, 0, 0]);
     await settleUp(f);
   });
 });

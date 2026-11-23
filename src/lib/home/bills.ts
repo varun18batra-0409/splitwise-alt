@@ -154,7 +154,7 @@ export function stopDone(
 ): boolean {
   if (!isStopped(b)) return false;
   if (runs.some((r) => r.status === "adding" || (r.status === "waiting" && r.reason !== "deleted"))) return false;
-  if (b.nature === "daily") {
+  if (b.nature === "daily" && b.pausedAt) { // (no pause day: no days to add)
     const thisMonth = dayKey(now, b.tz || DEFAULT_TIME_ZONE).slice(0, 7);
     for (const p of [addMonths(thisMonth, -1), thisMonth]) {
       if (p < b.startMonth || p > b.endMonth) continue;
@@ -223,10 +223,16 @@ export function stopLines(w: StopWords): { stop: string; pause: string; stoppedN
     ? `Pause ${w.name}? ${sofar ? `${sofar} is added on ${day1} with the monthly bill. ` : ""}${last ? `${last} ` : ""}Nothing more is added until you start it again.`
     : `Pause ${w.name}? Nothing more is added until you start it again.`;
   const from = `${w.day} ${SHORT_MONTH_NAMES[Number(w.month.slice(5, 7)) - 1] ?? ""}`;
-  const stoppedNote = sofar
+  // (No days so far, but a month before the cut is still to come: say so, not "nothing more is added".)
+  const lastLine = w.lastMonth ? `${longMonth(w.lastMonth.period)} (${w.lastMonth.money}) is added on ${firstOfNext(w.lastMonth.period)} with the monthly bill` : "";
+  const stoppedNote = !sofar && lastLine
+    ? `Stopped from ${from}. ${lastLine}, then ${w.name} ends.`
+    : sofar
     ? `Stopped from ${from}. ${sofar} is added on ${day1} with the monthly bill, then ${w.name} ends.`
     : `Stopped from ${from}. Nothing more is added, then ${w.name} ends.`;
-  const pausedNote = sofar
+  const pausedNote = !sofar && lastLine
+    ? `Paused from ${from}. ${lastLine}. Nothing more is added until you start it again.`
+    : sofar
     ? `Paused from ${from}. ${sofar} is added on ${day1} with the monthly bill. Nothing more is added until you start it again.`
     : `Paused from ${from}. Nothing more is added until you start it again.`;
   return { stop, pause, stoppedNote, pausedNote };

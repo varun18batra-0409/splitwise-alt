@@ -432,16 +432,44 @@ export async function finishStoppedBill(billId: string, now = new Date()): Promi
   return done.count === 1;
 }
 
+// A Date that falls on this day in the bill's time zone (the start of a cut that has to begin on a given day).
+function dateOnDay(day: string, tz: string, fallback: Date): Date {
+  for (const h of [12, 0, 23, 6, 18]) {
+    const d = new Date(`${day}T${String(h).padStart(2, "0")}:00:00Z`);
+    if (dayKey(d, tz) === day) return d;
+  }
+  return fallback;
+}
+
+// When a pause or stop of a running daily bill starts to cut days: today, unless someone's last day (a move-out charge for "add it now")
+// is today or later in this month: that day was charged to them, so the cut starts the day after it and the month end still counts it.
+// The cut is never more than one day after today in the bill's own time zone (a last day recorded from a zone ahead cannot push it further).
+// (If the move-out is undone after the pause, the cut stays where it was: the days up to it are simply added with the month. Accepted.)
+export async function cutAt(bill: { nature: string; tz: string; prepaid: string }, now: Date): Promise<Date> {
+  if (bill.nature !== "daily") return now;
+  const tz = bill.tz || DEFAULT_TIME_ZONE;
+  const today = dayKey(now, tz);
+  const list = parsePrepaid(bill.prepaid)[today.slice(0, 7)] ?? [];
+  if (!list.length) return now;
+  const alive = new Set((await db.expense.findMany({ where: { id: { in: list.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
+  const last = list.filter((x) => alive.has(x.e) && x.d).map((x) => x.d as string).sort().pop();
+  if (!last || last < today) return now;
+  const dayAfter = (day: string) => new Date(new Date(`${day}T12:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10);
+  const next = [dayAfter(last), dayAfter(today)].sort()[0];
+  return dateOnDay(next, tz, now);
+}
+
 // The words for pausing or stopping a bill right now (the confirm, and the note on the bill page once it is paused or stopped).
 export async function stopWordsFor(billId: string, now = new Date()): Promise<{ words: ReturnType<typeof stopLines>; ended: boolean } | null> {
   const bill = await db.bill.findFirst({ where: { id: billId, deletedAt: null }, include: { group: { include: { members: true } }, runs: { select: { period: true, status: true, reason: true } } } });
   if (!bill) return null;
   const tz = bill.tz || DEFAULT_TIME_ZONE;
   const cur = bill.group.currency;
-  // Paused or stopped: the day it was; running: today (the day itself is not counted).
-  const day = dayKey(bill.paused && bill.pausedAt ? bill.pausedAt : now, tz);
+  // Paused or stopped: the day it was; running: the day the cut would start (today, or the day after a last day already charged).
+  const cutDate = bill.paused && bill.pausedAt ? bill.pausedAt : await cutAt(bill, now);
+  const day = dayKey(cutDate, tz);
   const month = day.slice(0, 7);
-  const cut = { ...bill, paused: true, pausedAt: bill.paused && bill.pausedAt ? bill.pausedAt : now };
+  const cut = { ...bill, paused: true, pausedAt: cutDate };
   // (A month that already has its answer, added or skipped, has nothing more to add.)
   const monthDone = bill.runs.some((r) => r.period === month);
   const days = bill.nature === "daily" && !monthDone ? dailyTotal(cut, month) : { days: 0, amount: 0 };
@@ -450,8 +478,9 @@ export async function stopWordsFor(billId: string, now = new Date()): Promise<{ 
   const less = pre.entries.map((x) => ({ who: named(x.m), money: formatMoney(x.a, cur) }));
   // Last month's bill, if it is due and not added yet (a running daily bill only).
   let lastMonth: StopWords["lastMonth"] = null;
-  if (bill.nature === "daily" && !bill.paused) {
-    for (const p of periodsDue(bill, now)) {
+  // (It also shows when the cut falls in a later month than today: the month before it is still to come.)
+  if (bill.nature === "daily" && (!bill.paused || month > dayKey(now, tz).slice(0, 7))) {
+    for (const p of periodsDue(bill, cutDate)) {
       if (bill.runs.some((r) => r.period === p)) continue;
       const lastPre = await prepaidFor(bill, p);
       const amount = Math.max(0, dailyTotal(bill, p).amount - lastPre.total);
