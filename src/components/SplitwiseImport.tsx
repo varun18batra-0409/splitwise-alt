@@ -5,9 +5,10 @@ import { useFormStatus } from "react-dom";
 import { importFromSplitwise } from "@/app/actions";
 import { GROUP_TYPES, type GroupType } from "@/lib/group-types";
 import { MAX_IMPORT_BYTES, balanceGapText, balancesOf, planRow, previewText } from "@/lib/splitwise-csv";
-import { detectFormat, parseImport, type ColumnMap, type Detected } from "@/lib/import-formats";
+import { detectFormat, guessMe, parseImport, type ColumnMap, type Detected } from "@/lib/import-formats";
 import { POPULAR_CURRENCIES } from "@/lib/money";
 import { inputClass, primaryButtonClass } from "./ui";
+import { FreshKeyInput } from "@/components/FreshKeyInput";
 import { SelectField } from "@/components/SelectField";
 import { ChevronDown } from "@/components/icons";
 
@@ -50,19 +51,13 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
   const matches = ok?.expected && net ? ok.expected.every((x, i) => x === net[i]) : null;
   const gapText = ok?.expected && net ? balanceGapText(ok.expected, net, ok.people, ok.currency) : null;
   // You: picked from your name, until you pick someone else.
-  const guessedMe = ok
-    ? (() => {
-        const exact = ok.people.findIndex((x) => x.trim().toLowerCase() === yourName.trim().toLowerCase());
-        if (exact >= 0) return exact;
-        const first = yourName.trim().toLowerCase().split(" ")[0];
-        return first ? ok.people.findIndex((x) => x.trim().toLowerCase().split(" ")[0] === first) : -1;
-      })()
-    : -1;
+  const guessedMe = ok ? guessMe(ok.people, yourName) : -1;
   const meNow = ok && me >= 0 && me < ok.people.length ? me : guessedMe;
   const generic = detected?.ok && detected.format === "generic" ? detected : null;
 
   return (
     <form action={importFromSplitwise} className="space-y-6">
+      <FreshKeyInput name="rid" />
       <label className="block rounded-[18px] border border-dashed border-line bg-white px-5 py-6 text-center">
         <span className="block text-[17px] font-semibold">{detected ? "Pick a different file" : "Pick the exported file"}</span>
         <span className="mt-1 block text-sm text-gray-500">A .csv spreadsheet from the other app</span>

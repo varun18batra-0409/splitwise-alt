@@ -4,7 +4,7 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, wit
 import { loadGroup } from "./group-data";
 import { logEvent, markUndone, type UndoMark } from "./events";
 import { formatMoney } from "./money";
-import { createPayment, RestoreRefused, restorePayments } from "./payments";
+import { createPayment, PaymentTooBig, RestoreRefused, restorePayments } from "./payments";
 import { bringBackAfterDelete, NotSquare, paymentsPartyRefusal } from "./payment-change";
 import { partiesToTell, partyMessages, pushAllToReceivers } from "./payment-claims";
 import type { Transfer } from "./settle";
@@ -100,6 +100,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
     });
    }, { timeout: 15000 });
   } catch (err) {
+    if (err instanceof PaymentTooBig) return { ok: false, error: err.message };
     if (String((err as Error)?.message) === "already-closed") return { ok: false, error: "This group is already closed." };
     if (String((err as Error)?.message) === "plan-changed") return { ok: false, error: PLAN_CHANGED };
     if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "This group is already closed." : groupChangedText(err) };
@@ -259,7 +260,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true };
     if (err instanceof PlanChanged) return { ok: false, error: PLAN_CHANGED };
-    if (err instanceof LeaverBreak) return { ok: false, error: err.message };
+    if (err instanceof LeaverBreak || err instanceof PaymentTooBig) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }

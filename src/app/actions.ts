@@ -50,7 +50,7 @@ import { countGuestJoin, guestJoinAllowed, joinExisting, joinExistingAsGuest, jo
 import { GUEST_REFUSAL, gateGuest, isGuestMember, refusalNotes, renameRefusal } from "@/lib/guest-rules";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 import { flashTo, type Notes } from "@/lib/flash";
-import { formCurrencyRefusal } from "@/lib/form-currency";
+import { FORM_OUT_OF_DATE, formCurrencyRefusal } from "@/lib/form-currency";
 
 
 export async function createGroup(formData: FormData) {
@@ -111,7 +111,11 @@ export async function importFromSplitwise(formData: FormData) {
   const account = await getAccount();
   if (!account) redirect(`/signin?${new URLSearchParams({ back: "/import" })}`);
   if (!(await allow(`import:${(await originAndIp()).ip}`, 10, 3600))) redirect(await flashTo("/import", { error: "Lots of imports from here in the last hour. Wait a bit and try again." }));
+  // The one-time key from the form: without it (a page opened before this update) the screen is out of date, and nothing is made.
+  const key = cleanKey(formData.get("rid"));
+  if (!key) redirect(await flashTo("/import", { error: FORM_OUT_OF_DATE }));
   const r = await importSplitwise(account, {
+    key,
     text: String(formData.get("csv") ?? ""),
     groupName: String(formData.get("groupName") ?? ""),
     type: String(formData.get("type") ?? "other"),

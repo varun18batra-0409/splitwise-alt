@@ -26,6 +26,7 @@ import { Initial, SettleCard, type MenuItem } from "@/components/SettleUp";
 import { BIG_CREAM } from "@/lib/settle-ui";
 import { directEntryOn } from "@/lib/direct";
 import { filterDirect, type DirectEntry } from "@/lib/direct-db";
+import { PAYMENT_TOO_BIG_SHORT } from "@/lib/payments";
 
 // Smart Settle across all your groups: one payment per person. Each person is a card (founder's design, 15 Nov): the exact amount, "View breakdown",
 // one big button and a ⋮ menu. "Record payment" opens a bottom sheet; confirming it records the payment in each group (settleAcrossGroups, exactly as the old
@@ -414,6 +415,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       {notice === "changed" && <Notice params={["settle"]} className="mb-3">Balances just changed. Here’s the latest.</Notice>}
       {notice === "stale" && <Notice tone="error" params={["settle"]} className="mb-3">{STALE_KEY_ERROR}</Notice>}
       {notice === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
+      {notice === "toobig" && <Notice tone="error" params={["settle"]} className="mb-3">{PAYMENT_TOO_BIG_SHORT}</Notice>}
       {notice === "busy" && <Notice tone="error" params={["settle"]} className="mb-3">{PAY_CHANGE_LIMIT_TEXT}</Notice>}
 
       {all.length === 0 && direct.length === 0 ? (

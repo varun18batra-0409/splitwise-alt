@@ -120,7 +120,7 @@ test("a Loopin group spreadsheet is brought over as it was: Ann +â‚¹500 / Ben âˆ
     "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Ann's share (INR),Ben's share (INR)\r\n" +
     "2026-10-18,Expense,Flight,,Transport,Ann,1000.00,,,,,,,500.00,500.00\r\n";
   await page.getByLabel("Spreadsheet to import").setInputFiles({ name: "goa-expenses.csv", mimeType: "text/csv", buffer: Buffer.from(loopinStyle) });
-  await expect(page.getByText("Read as: Loopin spreadsheet")).toBeVisible();
+  await expect(page.getByText("Read as: Loopin download")).toBeVisible();
   await expect(page.getByText("Found 1 expense and 0 payments in INR")).toBeVisible();
   await page.getByRole("button", { name: "Bring it over" }).click();
   await page.waitForURL(/imported=1\.0\.na/);

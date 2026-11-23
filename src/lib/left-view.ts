@@ -189,7 +189,10 @@ export const memberMark = (memberId: string) => `${MARK}member=${memberId}`;
 // Only the exact forms count: a line a person typed that merely starts with "@mark:" (a member named "@mark:Bob" in a share line)
 // is an ordinary line and stays visible.
 const MEMBER_MARK = /^@mark:member=([A-Za-z0-9_-]+)$/;
-export const isMark = (line: string) => line === PHOTO_ONLY_MARK || MEMBER_MARK.test(line);
+// "Clear both": payments across groups that cancel each other out (what you get in one group is what you pay in the other), so no money moves.
+// The history line carries this mark; the spreadsheet reads it to call those payments "Cleared across groups".
+export const CLEARING_MARK = `${MARK}clearing`;
+export const isMark = (line: string) => line === PHOTO_ONLY_MARK || line === CLEARING_MARK || MEMBER_MARK.test(line);
 
 // Which person a "member_left" / "member_rejoined" line is about: it is in the saved undo text ({ type: "member_set", memberId }),
 // or, for lines with no undo, in a member mark in the details.

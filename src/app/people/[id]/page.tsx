@@ -25,6 +25,7 @@ import { inputClass, primaryButtonClass } from "@/components/ui";
 import { BIG_OUTLINE } from "@/lib/settle-ui";
 import { STALE_KEY_ERROR } from "@/lib/once";
 import { readNotes } from "@/lib/flash";
+import { PAYMENT_TOO_BIG_SHORT } from "@/lib/payments";
 
 // A person you share expenses with directly (no group): who owes whom, a way to settle, and the history between the two of you.
 // Only the two of you can open it (a name nobody else has joined is visible to its owner alone). It never mentions any group.
@@ -147,6 +148,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       {sp.settle === "done" && <Notice params={["settle"]} className="mb-3">Recorded.</Notice>}
       {sp.settle === "changed" && <Notice params={["settle"]} className="mb-3">The balance just changed. Here’s the latest.</Notice>}
       {sp.settle === "stale" && <Notice tone="error" params={["settle"]} className="mb-3">{STALE_KEY_ERROR}</Notice>}
+      {sp.settle === "toobig" && <Notice tone="error" params={["settle"]} className="mb-3">{PAYMENT_TOO_BIG_SHORT}</Notice>}
       {sp.settle === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
       {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-3">Payment recorded.</Notice>}
       {sp.invited === "1" && <Notice tone="success" params={["invited"]} className="mb-3">Invitation sent.</Notice>}

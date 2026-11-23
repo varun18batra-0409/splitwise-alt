@@ -4,7 +4,7 @@ import { db } from "./db";
 import { claimKey, isDuplicateKey, retryOnceIfBusy } from "./once";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
-import { createPayment } from "./payments";
+import { createPayment, PaymentTooBig } from "./payments";
 import { tellParties } from "./payment-claims";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./money-guard";
 
@@ -114,6 +114,7 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
     return { kind: "done", did };
   } catch (err) {
     if (err instanceof Used) return { kind: "duplicate" };
+    if (err instanceof PaymentTooBig) return { kind: "refused", error: err.message };
     if (err instanceof LeftOut) return { kind: "refused", error: `${err.message} has left the group, so a payment with them can't be recorded.` };
     if (err instanceof Over) return { kind: "over", limit: err.limit, side: err.side };
     if (err instanceof GroupChanged) return { kind: "refused", error: groupChangedText(err) };

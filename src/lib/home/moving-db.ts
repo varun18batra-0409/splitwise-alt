@@ -7,7 +7,7 @@ import { formatMoney, parseAmount } from "../money";
 import { typedZero } from "../zero-amount";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 import { niceDate } from "../format";
-import { createPayment } from "../payments";
+import { createPayment, PaymentTooBig } from "../payments";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
@@ -538,7 +538,7 @@ export async function moveOut(
     const msg = String((err as Error)?.message ?? err);
     if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
-    if (err instanceof LeaverBreak || err instanceof InOpenGame) return { ok: false, error: err.message };
+    if (err instanceof LeaverBreak || err instanceof InOpenGame || err instanceof PaymentTooBig) return { ok: false, error: err.message };
     if (msg.includes("BALANCES_CHANGED") || msg.includes("NOT_SQUARE")) return { ok: false, error: "Balances just changed. Check the move-out again." };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     if (msg.includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };

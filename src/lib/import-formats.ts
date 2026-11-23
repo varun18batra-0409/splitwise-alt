@@ -61,6 +61,19 @@ export function currencyCell(raw: string | undefined, main = ""): { code: string
   return /^[A-Z]{3}$/.test(t) ? { code: t, text } : { code: "", text };
 }
 
+// Which person in the file is probably you: only an exact full-name match that is the only one (ignoring capitals and extra spaces).
+// A first name alone ("Ravi" for "Ravi Sharma" and "Ravi Rao") or two people with the same full name picks nobody: the person chooses.
+export function guessMe(people: string[], yourName: string): number {
+  const key = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+  const mine = key(yourName);
+  if (!mine) return -1;
+  const hits = people.flatMap((p, i) => (key(p) === mine ? [i] : []));
+  return hits.length === 1 ? hits[0] : -1;
+}
+
+// What the "Read as:" line says for a Loopin download: it only carries balances, so what it leaves out is said up front.
+export const LOOPIN_LABEL = "Loopin download (balances only: solo expenses, notes and card fees don’t come over)";
+
 export function detectFormat(text: string): Detected {
   if (text.length > MAX_IMPORT_BYTES) return { ok: false, error: "That file is too big. Export one group at a time." };
   const table = readCsv(text).filter((r) => r.some((c) => c.trim() !== ""));
@@ -72,7 +85,7 @@ export function detectFormat(text: string): Detected {
   }
   if (["date", "description", "category", "cost", "currency"].every((x, i) => h[i] === x)) return { ok: true, format: "splitwise", label: "Spreadsheet from another app" };
   if (h[0] === "date" && h[1] === "type" && h[2] === "description" && h[5] === "paid by" && /^amount \(/.test(h[6] ?? "")) {
-    return { ok: true, format: "loopin", label: "Loopin spreadsheet" };
+    return { ok: true, format: "loopin", label: LOOPIN_LABEL };
   }
   const guess = guessColumns(head);
   const curCol = h.findIndex((x) => /^currency$|currency code/.test(x));
@@ -263,7 +276,7 @@ export function parseLoopinCsv(text: string): SwParsed {
     const amount = looseAmount(cells[6] ?? "", currency);
     if (amount === null || amount === 0) return skipped.push({ line, reason: "no amount" });
     const nets = people.map(() => 0);
-    if (type === "payment") {
+    if (type === "payment" || type === "cleared across groups") {
       // "Asha paid Ravi": from the Paid by column, to the other name in the description.
       const from = index.get(nameKey(cells[5] ?? ""));
       const rest = nameKey((cells[2] ?? "").replace(new RegExp(`^${escapeRe(cells[5] ?? "")}\\s+paid\\s+`, "i"), ""));

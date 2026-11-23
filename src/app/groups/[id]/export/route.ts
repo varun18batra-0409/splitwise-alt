@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { csvFileName, groupCsv } from "@/lib/csv";
+import { withClearing } from "@/lib/clearing-db";
 import { getTimeZone } from "@/lib/tz";
 import { laterRowEvents, readableWhere } from "@/lib/left-view-db";
 import { asOfCut, hideLaterNotes, leaverCut } from "@/lib/left-view";
@@ -33,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // Rows added before they left are written as they were that day (MA-3).
   const rowEvents = cut ? await laterRowEvents(group.id, cut.leftAt) : null;
   const asOf = cut && rowEvents ? asOfCut({ expenses: rawExpenses, payments: rawPayments }, rowEvents.events, me.id, cut.leftAt, { complete: rowEvents.complete }) : { expenses: rawExpenses, payments: rawPayments };
-  const payments = asOf.payments;
+  const payments = await withClearing(asOf.payments);
   const expenses = cut ? hideLaterNotes(asOf.expenses, cut.leftAt) : asOf.expenses;
   const body = groupCsv(group, group.members, expenses, payments, await getTimeZone(), { onlyInvolved: Boolean(scope) });
   return new Response(body, {

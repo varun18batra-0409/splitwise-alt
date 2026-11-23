@@ -103,12 +103,9 @@ export const MAX_MINOR = 2_000_000_000;
 // "1,250.5" / "₹ 99" / "3000" → smallest units. Null if it isn't a valid amount.
 export function parseAmount(input: string, currency = "INR"): number | null {
   const d = decimalsOf(currency);
-  let t = input.replace(/[₹$€£¥฿\s]/g, "");
-  // A comma used as the decimal point ("12,50", as some phone keyboards type it):
-  // one comma followed by one or two digits is never a thousands separator.
-  if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(",", ".");
-  const s = t.replace(/,/g, "");
-  const m = /^(\d*)(?:\.(\d*))?$/.exec(s);
+  const read = readCommas(input.replace(/[₹$€£¥฿\s]/g, ""));
+  if (!read.ok) return null;
+  const m = /^(\d*)(?:\.(\d*))?$/.exec(read.text);
   if (!m || (m[1] === "" && !m[2])) return null;
   const frac = m[2] ?? "";
   if (frac.length > d) return null;
@@ -117,13 +114,30 @@ export function parseAmount(input: string, currency = "INR"): number | null {
   return total;
 }
 
+export const BAD_COMMAS_TEXT = "Check the commas: write 1,23,456 or 123456.";
+
+// How commas in a typed amount are read (the text has its currency signs and spaces taken off already):
+//  - one comma and one or two digits after it is a decimal comma ("12,50", as some phone keyboards type it);
+//  - otherwise commas must group the whole part the Western way (1,234,567) or the Indian way (12,34,567);
+//  - a comma followed by exactly 3 digits is always thousands, in every currency ("12,345" is 12,345 even in dinar).
+// Anything else ("1,2,3", "12,3456") used to have its commas thrown away, which could turn a typo into a different amount.
+function readCommas(t: string): { ok: true; text: string } | { ok: false } {
+  if (!t.includes(",")) return { ok: true, text: t };
+  if (/^\d+,\d{1,2}$/.test(t)) return { ok: true, text: t.replace(",", ".") };
+  const dot = t.indexOf(".");
+  const whole = dot < 0 ? t : t.slice(0, dot);
+  const rest = dot < 0 ? "" : t.slice(dot);
+  if (!(/^\d{1,3}(,\d{3})+$/.test(whole) || /^\d{1,2}(,\d{2})*,\d{3}$/.test(whole)) || rest.includes(",")) return { ok: false };
+  return { ok: true, text: whole.replace(/,/g, "") + rest };
+}
+
 // Why an amount was refused, in words people can act on.
 export function amountError(input: string, currency = "INR"): string {
   const d = decimalsOf(currency);
   // Read the comma exactly as parseAmount does, so the message matches the reason.
-  let raw = input.replace(/[₹$€£¥฿\s]/g, "");
-  if (/^\d+,\d{1,2}$/.test(raw)) raw = raw.replace(",", ".");
-  const t = raw.replace(/,/g, "");
+  const read = readCommas(input.replace(/[₹$€£¥฿\s]/g, ""));
+  if (!read.ok) return BAD_COMMAS_TEXT;
+  const t = read.text;
   const m = /^(\d*)(?:\.(\d*))?$/.exec(t);
   if (!t || !m || (m[1] === "" && !m[2])) return d ? `Enter the amount as a number, like 250 or 99.${"5".padEnd(d, "0")}.` : "Enter the amount as a whole number, like 1500.";
   if ((m[2] ?? "").length > d) return d === 0 ? `${currency} amounts are whole numbers: no decimals.` : `Use no more than ${d} decimal place${d === 1 ? "" : "s"}.`;

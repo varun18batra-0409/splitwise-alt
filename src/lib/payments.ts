@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { formatMoney } from "./money";
+import { formatMoney, MAX_MINOR } from "./money";
 import { receiverOnlyText } from "./refused-payment";
 
 // The ONE place a payment row is written. Every route that records a payment
@@ -22,7 +22,20 @@ export type NewPayment = {
   asksReceiver?: true; // move-out square-up only: the person paid can say "Got it" / "Not received" (payment-ok.ts)
 };
 
+// One payment is a whole number of the smallest unit between 1 and MAX_MINOR (the database's Int limit is 2,147,483,647, so a bigger
+// one could not be stored). A debt bigger than that is recorded as two payments. Thrown inside the caller's transaction, so nothing is saved.
+export class PaymentTooBig extends Error {}
+
+// Where the currency isn't at hand (the combined Settle up screens): the same sentence without the figure.
+export const PAYMENT_TOO_BIG_SHORT = "That’s more than one payment can record. Record it as two payments.";
+
+export const paymentTooBigText = (currency: string) => `That’s more than one payment can record (${formatMoney(MAX_MINOR, currency)}). Record it as two payments.`;
+
 export async function createPayment(tx: Tx, p: NewPayment) {
+  if (!Number.isSafeInteger(p.amount) || p.amount < 1 || p.amount > MAX_MINOR) {
+    const g = await tx.group.findUnique({ where: { id: p.groupId }, select: { currency: true } });
+    throw new PaymentTooBig(paymentTooBigText(g?.currency ?? "INR"));
+  }
   return tx.payment.create({
     data: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount, createdById: p.createdById, needsOk: Boolean(p.asksReceiver), okAt: null },
   });

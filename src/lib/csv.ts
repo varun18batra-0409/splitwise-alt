@@ -26,7 +26,12 @@ type Expense = {
   deletedAt: Date | null;
   shares: { memberId: string; amount: number }[];
 };
-type Payment = { fromId: string; toId: string; amount: number; createdAt: Date; deletedAt: Date | null };
+// `id` and `clearing` are optional: a payment that was one of "Clear both" is written with the type "Cleared across groups" (it moved no money).
+type Payment = { id?: string; fromId: string; toId: string; amount: number; createdAt: Date; deletedAt: Date | null; clearing?: boolean };
+
+export const PAYMENT_TYPE = "Payment";
+export const CLEARING_TYPE = "Cleared across groups";
+export const paymentTypeLabel = (p: { clearing?: boolean }) => (p.clearing ? CLEARING_TYPE : PAYMENT_TYPE);
 
 export function cell(v: string | number): string {
   const s = String(v);
@@ -120,7 +125,7 @@ export function groupCsv(
     rows.push({
       date: p.createdAt,
       cells: [
-        dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, wasNote("", p.amount, !!p.deletedAt), "", name(p.fromId), p.deletedAt ? "" : plain(p.amount, cur),
+        dayKey(p.createdAt, tz), paymentTypeLabel(p), `${name(p.fromId)} paid ${name(p.toId)}`, wasNote("", p.amount, !!p.deletedAt), "", name(p.fromId), p.deletedAt ? "" : plain(p.amount, cur),
         "", "", "", "", "", p.deletedAt ? "Deleted" : "", "", ...cols.map(() => ""),
       ],
     });
@@ -253,7 +258,7 @@ export function myDataCsv(
         group: g.name,
         date: p.createdAt,
         cells: [
-          g.name, g.type, dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, p.deletedAt ? `Deleted (it was ${plain(p.amount, cur)})` : "", "", name(p.fromId),
+          g.name, g.type, dayKey(p.createdAt, tz), paymentTypeLabel(p), `${name(p.fromId)} paid ${name(p.toId)}`, p.deletedAt ? `Deleted (it was ${plain(p.amount, cur)})` : "", "", name(p.fromId),
           p.deletedAt ? "" : plain(p.amount, cur), cur, "", !p.deletedAt && change ? plain(change, cur) : "", "", "", status(p.deletedAt), "",
         ],
       });

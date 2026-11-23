@@ -5,7 +5,8 @@ import { hasLeft } from "./active";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, retryOnceIfBusy } from "./once";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
-import { createPayment } from "./payments";
+import { createPayment, PaymentTooBig } from "./payments";
+import { CLEARING_MARK } from "./left-view";
 import { tellAcross, tellParties, type AcrossPart } from "./payment-claims";
 import { paymentText } from "./pay-record";
 import { GroupChanged, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./money-guard";
@@ -21,7 +22,13 @@ import { GroupChanged, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./mon
 // Each person is told once, with what it comes to for them in total.
 
 export type CrossPart = { groupId: string; fromId: string; toId: string; amount: number };
-export type CrossOutcome = "done" | "changed" | "stale" | "error";
+export type CrossOutcome = "done" | "changed" | "stale" | "error" | "toobig";
+
+// Several parts in one currency whose signed amounts add to 0 (+ what the person is owed, - what they owe): the payments cancel out and no money moves.
+export function isClearing(parts: CrossPart[], memberships: Record<string, string>): boolean {
+  if (parts.length < 2) return false;
+  return parts.reduce((t, p) => t + (p.toId === memberships[p.groupId] ? p.amount : -p.amount), 0) === 0;
+}
 
 class Stale extends Error {}
 
@@ -78,6 +85,7 @@ export async function settleAcrossCore(
   await opts.afterRead?.();
   const sorted = [...parts].sort((a, b) => a.groupId.localeCompare(b.groupId)); // always the same order, so two settles can't wait on each other
   const bundle = sorted.length > 1 ? randomUUID() : "";
+  const clearing = isClearing(sorted, memberships);
   const made: AcrossPart[] = [];
   try {
     await retryOnceIfBusy(() =>
@@ -103,12 +111,16 @@ export async function settleAcrossCore(
           for (const m of made) {
             const c = info.get(m.groupId)!;
             const myId = memberships[m.groupId];
+            const otherId = m.fromId === myId ? m.toId : m.fromId;
             await logEvent(tx, {
               groupId: m.groupId,
               actorId: myId,
               undo: { type: "payment_delete", paymentId: m.paymentId, ...(across ? { across } : {}) },
               kind: "payment_recorded",
-              text: `${paymentText(myId, m.fromId, m.toId, c.names.get(m.fromId) ?? "Someone", c.names.get(m.toId) ?? "Someone", formatMoney(m.amount, c.currency))}${c.direct ? "" : " (Smart Settle across groups)"}`,
+              ...(clearing ? { details: [CLEARING_MARK] } : {}),
+              text: clearing
+                ? `cleared ${formatMoney(m.amount, c.currency)} with ${c.names.get(otherId) ?? "Someone"} across groups (no money moved)`
+                : `${paymentText(myId, m.fromId, m.toId, c.names.get(m.fromId) ?? "Someone", c.names.get(m.toId) ?? "Someone", formatMoney(m.amount, c.currency))}${c.direct ? "" : " (Smart Settle across groups)"}`,
               paymentId: m.paymentId,
             });
           }
@@ -117,6 +129,7 @@ export async function settleAcrossCore(
       ),
     );
   } catch (err) {
+    if (err instanceof PaymentTooBig) return "toobig";
     if (err instanceof Stale || err instanceof GroupChanged) return "changed";
     if (isDuplicateKey(err)) return "done";
     throw err;

@@ -5,7 +5,7 @@ import { niceDate } from "./format";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { guardGroup, ledgerInTx } from "./money-guard";
-import { createPayment } from "./payments";
+import { createPayment, PaymentTooBig } from "./payments";
 import { changePayment } from "./payment-change";
 
 // Batch C data step: the "I've paid" notes still waiting on the live app. A note is a claim that never counted; from Batch C nothing waits
@@ -128,6 +128,7 @@ async function convertOne(c: ClaimRow, now: Date): Promise<Change> {
   } catch (err) {
     // The note changed between the read and the write: it is closed instead (the same transaction rolled back, so nothing half-done is left).
     if (err instanceof Skip) return expireOne(c, err.reason, now);
+    if (err instanceof PaymentTooBig) return expireOne(c, "more-than-owed", now); // too big to record as one payment: closed like any note that can't be counted
     throw err;
   }
 }

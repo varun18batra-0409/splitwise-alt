@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { cleanNames } from "./names";
@@ -7,6 +7,8 @@ import { logEvent } from "./events";
 import { isGroupType } from "./group-types";
 import { balanceGapText, balancesOf, mapCategory, planRow } from "./splitwise-csv";
 import { parseImport, type ColumnMap } from "./import-formats";
+import { MAX_MINOR } from "./money";
+import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "./once";
 
 // Saving a Splitwise export as a new Loopin group (the reading is in splitwise-csv.ts).
 
@@ -23,7 +25,7 @@ export type ImportResult =
 // over their name.
 export async function importSplitwise(
   account: { id: string; name?: string | null },
-  input: { text: string; groupName: string; type: string; me: number; map?: ColumnMap; currency?: string },
+  input: { text: string; groupName: string; type: string; me: number; map?: ColumnMap; currency?: string; key?: string },
 ): Promise<ImportResult> {
   const parsed = parseImport(input.text, { map: input.map, currency: input.currency });
   if (!parsed.ok) return parsed;
@@ -33,6 +35,14 @@ export async function importSplitwise(
   const groupName = input.groupName.trim().replace(/\s+/g, " ").slice(0, 60);
   if (!groupName) return { ok: false, error: "Give the group a name." };
 
+  // The same form sent again (a retry, a double tap) gives back the group the first one made, never a second copy. A form opened afresh has a
+  // fresh key, so a copy made on purpose still works. The same key with a different file, name or person (or after 2 minutes) is a stale screen.
+  const type = isGroupType(input.type) ? input.type : "other";
+  const fp = fingerprintOf("import", account.id, createHash("sha256").update(input.text).digest("hex"), input.me, groupName, type);
+  const earlier = await keyState(input.key, fp);
+  if (earlier.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (earlier.state === "done") return savedResult(earlier.result);
+
   const plans = rows.map(planRow);
   const net = balancesOf(plans, people.length);
   // Checked before anything is saved: every expense's payers and shares must each add up to its amount, a payment must be a real amount
@@ -40,7 +50,7 @@ export async function importSplitwise(
   // an amount that was read wrongly) would leave the new group's balances not adding up, so it is refused instead of saved.
   const sumOf = (xs: { a: number }[]) => xs.reduce((t, x) => t + x.a, 0);
   const unsafe =
-    plans.some((p) => (p.type === "payment" ? !(p.amount > 0) || p.from === p.to : !(p.amount > 0) || !p.payers.length || sumOf(p.payers) !== p.amount || sumOf(p.shares) !== p.amount)) ||
+    plans.some((p) => (p.type === "payment" ? !(p.amount > 0) || p.amount > MAX_MINOR || p.from === p.to : !(p.amount > 0) || !p.payers.length || sumOf(p.payers) !== p.amount || sumOf(p.shares) !== p.amount)) ||
     net.reduce((t, x) => t + x, 0) !== 0;
   if (unsafe) return { ok: false, error: "This file couldn’t be read safely, so nothing was brought over. Check the names and amounts in it and try again." };
   const matches = parsed.expected ? parsed.expected.every((x, i) => x === net[i]) : null;
@@ -50,7 +60,6 @@ export async function importSplitwise(
 
   const memberIds = people.map(() => newId());
   const groupId = newId();
-  const type = isGroupType(input.type) ? input.type : "other";
   const now = new Date();
   const dayOf = (d: string) => (d ? new Date(`${d}T12:00:00.000Z`) : now);
   const valid = (d: Date) => !Number.isNaN(d.getTime()) && d.getTime() <= now.getTime() + 36 * 3600_000;
@@ -100,8 +109,12 @@ export async function importSplitwise(
   }
 
   const chunks = <T,>(list: T[], n = 400) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
+  const result: ImportResult = { ok: true, groupId, meMemberId: memberIds[input.me], expenses: expenses.length, payments: payments.length, matches };
+  try {
   await db.$transaction(
     async (tx) => {
+      // First, so a second request with this key fails here and nothing is made.
+      await claimKey(tx, input.key, JSON.stringify(result), fp);
       await tx.group.create({
         data: {
           id: groupId,
@@ -131,7 +144,29 @@ export async function importSplitwise(
     },
     { timeout: 60_000, maxWait: 10_000 },
   );
+  } catch (err) {
+    // Two requests with the same key at the same moment: the other one won, so this one gives back its group.
+    if (isDuplicateKey(err)) {
+      const again = await keyState(input.key, fp);
+      if (again.state === "done") return savedResult(again.result);
+      return { ok: false, error: STALE_KEY_ERROR };
+    }
+    throw err;
+  }
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: names[input.me] } });
-  return { ok: true, groupId, meMemberId: memberIds[input.me], expenses: expenses.length, payments: payments.length, matches };
+  return result;
+}
+
+// What an earlier request with the same key saved (see claimKey in the import's transaction).
+function savedResult(json: string): ImportResult {
+  try {
+    const r = JSON.parse(json);
+    if (typeof r?.groupId === "string" && typeof r?.meMemberId === "string") {
+      return { ok: true, groupId: r.groupId, meMemberId: r.meMemberId, expenses: Number(r.expenses) || 0, payments: Number(r.payments) || 0, matches: typeof r.matches === "boolean" ? r.matches : null };
+    }
+  } catch {
+    /* fall through */
+  }
+  return { ok: false, error: STALE_KEY_ERROR };
 }
 
