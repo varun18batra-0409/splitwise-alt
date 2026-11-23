@@ -521,6 +521,75 @@ if (!desktop && !hosted) {
     await c.close();
   }
 }
+// All-groups Settle up for someone owed in two currencies (outside review G27, for the founder's approval of the look). The viewer owes Asha $50
+// in a USD group and Asha owes the viewer ₹4,200 in an INR group: two cards, one per currency, each with its own exact amount, never netted.
+// For comparison, a second viewer who only owes Asha $50 (one currency, so one card exactly as before). A throwaway rate (1 cent = 84 paise)
+// is saved so the dollar group has a card at all. Local database only. Files: XC-settle-two-currencies-390/320, XC-settle-record-usd,
+// XC-settle-one-currency-390/320 (in the iPhone run the same names are saved to screenshots/ios).
+if (!desktop && !hosted) {
+  const db = patient((await import("../src/lib/db")).db);
+  const stampXc = Date.now();
+  const acct = (name: string, tag: string) => db.account.create({ data: { email: `shots-xc-${tag}-${stampXc}@uat.loopin.test`, name } });
+  const [viewer, viewerB, asha] = [await acct("Varun", "v"), await acct("Meera", "m"), await acct("Asha", "a")];
+  await db.exchangeRate.create({ data: { base: "USD", quote: "INR", rate: "84", date: new Date().toISOString().slice(0, 10) } });
+  await db.exchangeRate.create({ data: { base: "INR", quote: "USD", rate: "0.0119", date: new Date().toISOString().slice(0, 10) } });
+  // A group of two people who both have accounts; `payer` paid `amount`, split half and half (the amounts are even, so the shares add up exactly).
+  const pairGroup = async (name: string, currency: string, who: { name: string; id: string }, amount: number, payerIsViewer: boolean) => {
+    const g = await db.group.create({
+      data: {
+        name, type: "trip", currency, inviteCode: `shotsxc${stampXc.toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        members: { create: [{ name: who.name, accountId: who.id, claimedAt: new Date(), createdAt: new Date(2026, 0, 1) }, { name: "Asha", accountId: asha.id, claimedAt: new Date(), createdAt: new Date(2026, 0, 2) }] },
+      },
+      include: { members: true },
+    });
+    const [me, her] = [g.members.find((m) => m.name === who.name)!, g.members.find((m) => m.name === "Asha")!];
+    const payer = payerIsViewer ? me : her;
+    await db.expense.create({
+      data: {
+        groupId: g.id, description: name === "NYC trip" ? "Hotel" : "Groceries", splitType: "equal", amount, originalAmount: amount, convertedAmount: amount,
+        originalCurrency: currency, baseCurrency: currency, paidById: payer.id, createdById: payer.id,
+        shares: { create: [{ memberId: me.id, amount: amount / 2 }, { memberId: her.id, amount: amount / 2 }] },
+      },
+    });
+  };
+  // Viewer: owes Asha $50 (Asha paid $100 = 10,000 cents, 5,000 each) and is owed ₹4,200 (viewer paid ₹8,400 = 840,000 paise, 420,000 each).
+  await pairGroup("NYC trip", "USD", viewer, 10000, false);
+  await pairGroup("Flat 402", "INR", viewer, 840000, true);
+  // Viewer B: only the dollar group, owes Asha $50.
+  await pairGroup("NYC trip", "USD", viewerB, 10000, false);
+  const xcShot = async (acc: { id: string }, name: string, widths: readonly (readonly [number, number, string])[], sheetUsd = false) => {
+    const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+    await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: acc.id, v: 0 }), url: base }]);
+    const p = await c.newPage();
+    for (const [w, h, suffix] of widths) {
+      try {
+        await p.setViewportSize({ width: w, height: h });
+        await gotoQuiet(p, base + "/settle");
+        await p.waitForTimeout(700);
+        await fullShot(p, `${out}/${name}-${suffix}.png`, true);
+        console.log(`✓ ${name}-${suffix}`);
+        if (sheetUsd && w === 390) {
+          // The Record sheet on the dollar card (its id ends in _USD).
+          const open = p.locator("li[id$='_USD'] [data-record-open]").first();
+          await open.evaluate((el) => el.scrollIntoView({ block: "center" }));
+          for (let tries = 0; tries < 6; tries++) {
+            await open.click({ force: true }).catch(() => {});
+            if (await p.locator("[data-record-sheet]").waitFor({ timeout: 1500 }).then(() => true, () => false)) break;
+          }
+          await p.locator("[data-record-sheet]").waitFor({ timeout: 5000 });
+          await p.waitForTimeout(300);
+          await fullShot(p, `${out}/XC-settle-record-usd.png`, false);
+          console.log("✓ XC-settle-record-usd");
+        }
+      } catch (e) {
+        console.log(`✗ ${name}-${suffix}`, String(e).split("\n")[0]);
+      }
+    }
+    await c.close();
+  };
+  await xcShot(viewer, "XC-settle-two-currencies", [[390, 844, "390"], [320, 640, "320"]], true);
+  await xcShot(viewerB, "XC-settle-one-currency", [[390, 844, "390"], [320, 640, "320"]]);
+}
 // Home's money card in every state (phones only). The demo data only shows one of them, so this puts the viewer's money into each
 // state in turn, takes Home at 390, 360 and 320, then puts everything back. How:
 //   - the viewer's live expenses and payments in the three open groups (trip, flat, couple) are soft-deleted (deletedAt set), so every
