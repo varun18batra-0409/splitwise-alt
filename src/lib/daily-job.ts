@@ -27,6 +27,8 @@ export function makeStop(budgetMs = DAILY_BUDGET_MS, nowMs: () => number = Date.
 }
 
 export type PartsReport = { results: Record<string, unknown>; deferred: string[] };
+// `onlyGroups` is for tests only: the bills part looks at just these groups (so leftovers from other tests can't change the answer).
+export type JobOpts = { onlyGroups?: string[] };
 
 // The parts, in the order they run.
 export const PART_NAMES = ["bills", "bill-asks", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"] as const;
@@ -97,14 +99,14 @@ export async function deferredToday(now: Date): Promise<string[]> {
 
 // The evening catch-up: run only the parts the morning left undone (nothing deferred = nothing at all).
 // A part that gets through is crossed off; the groups it already did are not repeated (their own claims).
-export async function runDeferredParts(now: Date, stop: () => boolean, failed: string[]): Promise<PartsReport> {
+export async function runDeferredParts(now: Date, stop: () => boolean, failed: string[], opts: JobOpts = {}): Promise<PartsReport> {
   const noted = await deferredToday(now);
   const state = await dailyState(now);
   // The morning did not start, or did not get to the end: nothing says what it missed, so try every part.
   const everything = !state.started || !state.finished;
   const todo: string[] = everything ? [...PART_NAMES] : noted;
   if (!todo.length) return { results: {}, deferred: [] };
-  const report = await runClaimedParts(now, stop, failed, todo);
+  const report = await runClaimedParts(now, stop, failed, todo, opts);
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const finished = todo.filter((p) => !report.deferred.includes(p) && !failed.includes(p));
   if (finished.length) await db.notifyLog.deleteMany({ where: { key: { in: finished.map((p) => `${deferredPrefix(today)}${p}`) } } }).catch(() => undefined);
@@ -119,7 +121,7 @@ export async function runDeferredParts(now: Date, stop: () => boolean, failed: s
 // Each part runs on its own: one failing doesn't stop the rest. A part that
 // can't start (time is short) or that stops early is listed as deferred.
 // `only`: run just these parts (the evening catch-up).
-export async function runClaimedParts(now: Date, stop: () => boolean, failed: string[], only?: readonly string[]): Promise<PartsReport> {
+export async function runClaimedParts(now: Date, stop: () => boolean, failed: string[], only?: readonly string[], opts: JobOpts = {}): Promise<PartsReport> {
   const results: Record<string, unknown> = {};
   const deferred: string[] = [];
   const part = async (name: string, fn: () => Promise<unknown>) => {
@@ -152,7 +154,7 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
   // A bill that could not be added this time (a dropped connection, a group or bill that changed in the middle) is reported as a failure
   // AND left for the evening run, which tries it again (each bill month is added at most once, so trying again is safe).
   await part("bills", async () => {
-    const r = await runAllBills(now, stop);
+    const r = await runAllBills(now, stop, opts);
     if (r.failed > 0) throw Object.assign(new Error(`bills: ${r.failed} month(s) failed`), { deferred: true });
     return r;
   });

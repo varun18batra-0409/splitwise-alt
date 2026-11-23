@@ -139,7 +139,7 @@ class BillMoved extends Error {}
 
 // The fields an automatic month depends on, as one comparable text.
 const billMoney = (b: BillRow) =>
-  JSON.stringify([b.amount, b.nature, b.split, b.payer, b.rotation, b.paused, b.deletedAt?.getTime() ?? 0, b.missed, b.prepaid]);
+  JSON.stringify([b.amount, b.nature, b.split, b.payer, b.rotation, b.paused, b.deletedAt?.getTime() ?? 0, b.missed, b.prepaid, b.every, b.startMonth, b.endMonth, b.day]);
 
 // What a leaver already paid for a daily bill's month at move-out (their share of the days they were
 // there). Each charge counts for what it is NOW (edited since: the new amount) and only while its expense
@@ -194,8 +194,9 @@ async function claimRun(billId: string, period: string, now: Date) {
   }
 }
 
-// `afterRead` is for tests only: it runs after the group has been read for the save and before the write begins.
-type RunHooks = { afterRead?: () => Promise<void> };
+// `afterRead` is for tests only: it runs after the group has been read for the save and before the write begins; `afterSave` runs after the
+// expense is saved and before the month is marked.
+type RunHooks = { afterRead?: () => Promise<void>; afterSave?: () => Promise<void> };
 
 // Turn one due (bill, month) into an expense, once.
 async function runOne(first: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date, opts: RunHooks = {}) {
@@ -227,7 +228,8 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
     return "added";
   }
   const wait = async (reason: string) => {
-    await db.billRun.update({ where: { id: run.id }, data: { status: "waiting", reason, requestKey: "" } });
+    // (A deleted month being added again that crashed keeps its "deleted" mark: its old expense is still on the run.)
+    await db.billRun.update({ where: { id: run.id }, data: { status: "waiting", reason: reason === "" && run.expenseId ? "deleted" : reason, requestKey: "" } });
     return "waiting";
   };
   // An "Enter amount" that never finished: ask for it again.
@@ -279,8 +281,12 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
   if (note) input.notes = note;
   // The month is refused (and its claim removed, so the next run starts again from fresh numbers) when the group or the bill changed
   // while this was being worked out. Removed only if the claim is still this run's own.
+  // Only this month's row is removed (the next run, today or tonight, takes it again). An older month is outside the job's window and would
+  // be lost, so it becomes a waiting month a person can see and add.
   const retryLater = async () => {
-    await db.billRun.deleteMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt } });
+    const thisMonth = dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7);
+    if (period === thisMonth) await db.billRun.deleteMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt } });
+    else await db.billRun.updateMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt }, data: { status: "waiting", reason: run.expenseId ? "deleted" : "", requestKey: "" } });
     return "failed" as const;
   };
   const worked = billMoney(bill);
@@ -309,9 +315,11 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
   }
   // Added (a repeat of an answer already given comes back here too): the month is marked and the move-out charge credited, once.
   const addedId = r.id;
+  await opts.afterSave?.();
+  // Only a month still "adding" is marked: if it was marked already (the step above) or the expense was deleted in the meantime, it stays as it is.
   await db.$transaction(async (tx) => {
-    await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: addedId, reason: "" } });
-    await syncChargePayer(tx, group.id, charges, payer);
+    const marked = await tx.billRun.updateMany({ where: { id: run.id, status: "adding" }, data: { status: "added", expenseId: addedId, reason: "" } });
+    if (marked.count === 1) await syncChargePayer(tx, group.id, charges, payer);
   });
   return "added";
 }
@@ -339,33 +347,68 @@ export async function runBillsForGroup(groupId: string, now = new Date(), opts: 
       else if (r === "waiting") counts.waiting++;
       else if (r === "skipped") counts.skipped++;
     }
-    await settleStuckRuns(bill, periodsDue(bill, now), now).catch((err) => console.error("bill stuck check failed", bill.id, String(err).slice(0, 200)));
+    await settleStuckRuns(bill, group, periodsDue(bill, now), now).catch((err) => console.error("bill stuck check failed", bill.id, String(err).slice(0, 200)));
     await finishStoppedBill(bill.id, now).catch(() => false); // a stopped bill with nothing left to add is finished
   }
   return counts;
 }
 
+// What a person sees on a month that may already have been added (an old claim with nothing to prove either way): "On hold · Fix it".
+// It is never "Add it": adding it by hand could charge the month twice.
+export const STUCK_HOLD = "it may already have been added";
+const KEY_KEEP_MS = 29 * 86_400_000; // a retry key is cleaned away after 30 days, so it proves nothing after that
+
+// The expense a bill's month became, found from its own history line (an automatic month is written as "paid <bill> (…) · repeat bill") and
+// its due day. null = none. A deleted one is still returned (the month then shows "Deleted · Add it again", never added again by itself).
+async function findBillExpense(bill: BillRow, groupId: string, period: string): Promise<{ id: string; deletedAt: Date | null } | null> {
+  const events = await db.groupEvent.findMany({
+    where: { groupId, kind: "expense_added", expenseId: { not: null }, AND: [{ text: { startsWith: `paid ${bill.name} (` } }, { text: { contains: REPEAT_BILL_MARK } }] },
+    select: { expenseId: true },
+  });
+  const ids = events.map((e) => e.expenseId).filter((x): x is string => Boolean(x));
+  if (!ids.length) return null;
+  const day = bill.nature === "daily" ? dueKey(period, "last") : dueKey(period, bill.day >= 31 ? "last" : bill.day);
+  const hit = await db.expense.findFirst({ where: { id: { in: ids }, groupId, description: bill.name, spentAt: new Date(`${day}T12:00:00.000Z`) }, select: { id: true, deletedAt: true } });
+  return hit ?? null;
+}
+
 // A month left "adding" by a run that crashed, in a period the daily run no longer looks at (older than last month), would never be
-// finished or shown. After 10 minutes: if its expense was saved after all, it is marked added; otherwise it becomes a waiting month
-// a person can see and add. Never charged automatically (the amount may be out of date by now).
-async function settleStuckRuns(bill: BillRow, due: string[], now: Date): Promise<void> {
-  const stuck = await db.billRun.findMany({ where: { billId: bill.id, status: "adding", period: { notIn: due }, claimedAt: { lt: new Date(now.getTime() - STALE_MS) } } });
+// finished or shown. After 10 minutes the run is looked at again, and never charged automatically (the amount may be out of date by now):
+//  - its expense exists (by its saved key, or found in the history by bill and day): the month is marked added (or "Deleted" if that expense was deleted);
+//  - no expense, and the claim is under 29 days old with its key still there: the key would have shown it, so it is waiting for a person (add it);
+//  - otherwise there is no proof either way: it is put on hold ("Fix it"), never "Add it".
+async function settleStuckRuns(bill: BillRow, group: { id: string; members: Member[] }, due: string[], now: Date): Promise<void> {
+  const old = new Date(now.getTime() - STALE_MS);
+  const stuck = await db.billRun.findMany({ where: { billId: bill.id, status: "adding", period: { notIn: due }, OR: [{ claimedAt: null }, { claimedAt: { lt: old } }] } });
+  const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
   for (const run of stuck) {
-    const saved = await previousResult(run.requestKey || `bill-${run.id}`);
-    if (saved) {
+    const mine = { id: run.id, status: "adding", claimedAt: run.claimedAt };
+    const proof = await previousResult(run.requestKey || `bill-${run.id}`);
+    const found = proof ? await db.expense.findUnique({ where: { id: proof }, select: { id: true, deletedAt: true } }) : await findBillExpense(bill, group.id, run.period);
+    const expenseId = proof ?? found?.id ?? "";
+    if (proof || found) {
+      if (found?.deletedAt) {
+        await db.billRun.updateMany({ where: mine, data: { status: "waiting", reason: "deleted", expenseId, requestKey: "" } });
+        continue;
+      }
+      const payer = payerFor(bill, run.period, active);
+      const charges = bill.nature === "daily" && payer ? (await prepaidFor(bill, run.period)).entries : [];
       await db.$transaction(async (tx) => {
-        const c = await tx.billRun.updateMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt }, data: { status: "added", expenseId: saved, reason: "" } });
-        if (c.count === 1) await noteReplaced(tx, run.expenseId, saved);
+        const c = await tx.billRun.updateMany({ where: mine, data: { status: "added", expenseId, reason: "" } });
+        if (c.count !== 1) return;
+        await noteReplaced(tx, run.expenseId, expenseId);
+        await syncChargePayer(tx, group.id, charges, payer ?? "");
       });
-    } else {
-      await db.billRun.updateMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt }, data: { status: "waiting", reason: "", requestKey: "" } });
+      continue;
     }
+    const young = run.claimedAt !== null && now.getTime() - run.claimedAt.getTime() < KEY_KEEP_MS && run.requestKey !== "";
+    await db.billRun.updateMany({ where: mine, data: young ? { status: "waiting", reason: run.expenseId ? "deleted" : "", requestKey: "" } : { status: "waiting", reason: STUCK_HOLD, requestKey: "" } });
   }
 }
 
 // The daily job: every group that has bills.
-export async function runAllBills(now = new Date(), stop: () => boolean = () => false) {
-  const groups = await db.bill.findMany({ where: { deletedAt: null, group: { deletedAt: null } }, select: { groupId: true }, distinct: ["groupId"] });
+export async function runAllBills(now = new Date(), stop: () => boolean = () => false, opts: { onlyGroups?: string[] } = {}) {
+  const groups = await db.bill.findMany({ where: { deletedAt: null, group: { deletedAt: null }, ...(opts.onlyGroups ? { groupId: { in: opts.onlyGroups } } : {}) }, select: { groupId: true }, distinct: ["groupId"] });
   const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0, failed: 0, deferred: false };
   for (const g of groups) {
     // Out of time: the rest wait for the next run (each bill month is added at most once, so repeating is safe).

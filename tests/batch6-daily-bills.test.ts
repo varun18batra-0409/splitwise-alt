@@ -54,7 +54,7 @@ describe("L22: a failed bill is retried that evening and reported", () => {
     const failed: string[] = [];
     let report: Awaited<ReturnType<typeof runClaimedParts>>;
     try {
-      report = await runClaimedParts(morning, () => false, failed, ["bills"]);
+      report = await runClaimedParts(morning, () => false, failed, ["bills"], { onlyGroups: [broken.id, fine.id] });
     } finally {
       fake.breakFor = "";
     }
@@ -69,7 +69,7 @@ describe("L22: a failed bill is retried that evening and reported", () => {
     await markDailyStarted(morning);
     expect(await finishDailyRun(morning, report.deferred)).toBe(true);
     const eveningFailed: string[] = [];
-    const catchUp = await runDeferredParts(evening, () => false, eveningFailed);
+    const catchUp = await runDeferredParts(evening, () => false, eveningFailed, { onlyGroups: [broken.id, fine.id] });
     expect(eveningFailed).toEqual([]);
     expect(catchUp.deferred).toEqual([]);
 

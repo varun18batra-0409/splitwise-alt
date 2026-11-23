@@ -220,15 +220,19 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
     // (added, being added, already skipped, taken by the daily job in the gap) is refused and nothing is logged.
     let done: "ok" | "quiet" | "charged" | "added" | "none";
     try {
-      done = await db.$transaction(async (tx) => {
+      done = await withRetry(() => db.$transaction(async (tx) => {
         if (await charged(tx)) return "charged" as const;
         const row = await tx.billRun.findUnique({ where: { billId_period: { billId, period } } });
         if (row) {
           if (row.status === "waiting" && row.reason === "deleted") return "none" as const; // waiting because its expense was deleted: not skipped here
-          if (row.status === "skipped") return "quiet" as const; // a double tap or a resend: already skipped, nothing more to write or tell
-          if (row.status !== "waiting") return "added" as const;
-          const c = await tx.billRun.updateMany({ where: { id: row.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
-          if (c.count !== 1) return "added" as const;
+          // Already skipped by a person (a double tap or a resend): nothing more to write or tell. A month skipped by the job itself
+          // (paused, no days…) is not a person's skip: it goes on as before.
+          if (row.status === "skipped" && row.reason === "skipped") return "quiet" as const;
+          if (row.status !== "waiting" && row.status !== "skipped") return "added" as const;
+          if (row.status === "waiting") {
+            const c = await tx.billRun.updateMany({ where: { id: row.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
+            if (c.count !== 1) return "added" as const;
+          }
         } else {
           // A stopped bill only has a waiting month left to skip: its last month must not be skipped away. A paused daily bill still has the
           // month it was paused in to add: skipping it would lose the days used before the pause.
@@ -245,7 +249,7 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
         const back = await tx.billRun.findUnique({ where: { billId_period: { billId, period } }, select: { status: true } });
         if (back?.status !== "skipped") throw new SkipRefused();
         return "ok" as const;
-      });
+      }));
     } catch (err) {
       if (!(err instanceof SkipRefused)) throw err;
       done = "added";
