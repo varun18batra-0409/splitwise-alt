@@ -228,6 +228,8 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
           // Already skipped by a person (a double tap or a resend): nothing more to write or tell. A month skipped by the job itself
           // (paused, no days…) is not a person's skip: it goes on as before.
           if (row.status === "skipped" && row.reason === "skipped") return "quiet" as const;
+          // "covered" keeps a move-out charge locked for that month: never rewrite it (a repeat Skip there is simply quiet).
+          if (row.status === "skipped" && row.reason === "covered") return "quiet" as const;
           if (row.status !== "waiting" && row.status !== "skipped") return "added" as const;
           if (row.status === "waiting") {
             const c = await tx.billRun.updateMany({ where: { id: row.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });

@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { STUCK_HOLD } from "@/lib/home/bills";
 
 // An automatic bill's expense and its month are tied together by the bill's month row (BillRun.expenseId).
 // Deleting that expense puts the month back to "waiting" (reason "deleted", the expense id is kept) so the month can be added
@@ -24,8 +25,11 @@ export async function noteReplaced(tx: Prisma.TransactionClient, oldExpenseId: s
 // added again since (or is being added again right now), or null. No guessing by name or date.
 export async function billAddedAgain(tx: Prisma.TransactionClient, e: { id: string }): Promise<string | null> {
   const replaced = await tx.requestKey.findUnique({ where: { key: `${REPLACED_PREFIX}${e.id}` }, select: { result: true } });
-  const run = await tx.billRun.findFirst({ where: { expenseId: e.id }, select: { status: true, bill: { select: { name: true } } } });
+  const run = await tx.billRun.findFirst({ where: { expenseId: e.id }, select: { status: true, reason: true, bill: { select: { name: true } } } });
   if (run && run.status === "adding") return run.bill.name; // being added again at this moment
+  // A month on hold because it may already have been added again (a crash, with the proof since cleaned away): bringing the old
+  // expense back could count the month twice, so it stays deleted.
+  if (run && run.status === "waiting" && run.reason === STUCK_HOLD) return run.bill.name;
   if (!replaced) return null;
   const now = replaced.result ? await tx.billRun.findFirst({ where: { expenseId: replaced.result }, select: { bill: { select: { name: true } } } }) : null;
   return now?.bill.name ?? "bill";

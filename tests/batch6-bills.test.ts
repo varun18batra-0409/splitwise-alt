@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { billCommand } from "@/lib/home/bill-setup";
+import { billAddedAgain } from "@/lib/home/bill-run-link";
 import { STUCK_HOLD, addWaitingBill, billExpenseInput, billStatuses, holdReasonNow, runBillsForGroup } from "@/lib/home/bills-db";
 import { billHold } from "@/lib/home/bills";
 import { setExpenseDeleted } from "@/lib/save-expense";
@@ -419,7 +420,7 @@ describe("N1: a month held because it may already have been added can never be a
     const members = await db.member.findMany({ where: { groupId: f.id }, orderBy: { createdAt: "asc" } });
     const input = billExpenseInput(bill, f.id, "INR", "2026-09", 1000000, f.asha, members);
     const r = await addWaitingBill(input, f.asha, rate, { billId: bill.id, period: "2026-09" }, `b6-n1-${stamp}`);
-    expect(r).toEqual({ ok: false, error: "Rent for this month has already been added. You’ll find it in Activity." });
+    expect(r).toEqual({ ok: false, error: "Rent for this month is on hold: it may already have been added. Check Activity, then skip it if it was." });
     expect(await expensesOf(f.id, "Rent")).toHaveLength(0);
     const sep = await runOf(bill.id, "2026-09");
     expect([sep?.status, sep?.reason]).toEqual(["waiting", STUCK_HOLD]);
@@ -570,5 +571,24 @@ describe("G42: 'Next month, about' counts only bills due next month", () => {
     expect((await insights(f, f.asha, "2026-11-12")).forecast).toBeNull();
     // January is: (380,000 + 420,000) / 2 = 400,000; Asha's half is 200,000.
     expect((await insights(f, f.asha, "2026-12-12")).forecast).toEqual({ total: 400000, mine: 200000 });
+  });
+});
+
+describe("Third review: a held month's old expense stays deleted; a covered month keeps its lock", () => {
+  it("restoring the old expense of a month on hold is refused (it could count the month twice)", async () => {
+    const f = await flat();
+    const bill = await mk(f, { startMonth: "2026-09" });
+    await run(bill.id, "2026-09", "waiting", { reason: STUCK_HOLD, expenseId: `old-${stamp}` });
+    expect(await billAddedAgain(db, { id: `old-${stamp}` })).toBe("Rent");
+  });
+
+  it("a Skip on a month skipped as 'covered' (move-out charge) is quiet and leaves 'covered' in place", async () => {
+    const f = await flat();
+    const bill = await mk(f, { startMonth: "2026-10" });
+    await run(bill.id, "2026-10", "skipped", { reason: "covered" });
+    const before = await skippedLines(f.id);
+    expect((await billCommand(f.id, f.ravi, bill.id, "skip", at("2026-11-20"), { period: "2026-10" })).ok).toBe(true);
+    expect((await runOf(bill.id, "2026-10"))?.reason).toBe("covered");
+    expect(await skippedLines(f.id)).toBe(before);
   });
 });

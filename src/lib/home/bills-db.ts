@@ -507,6 +507,8 @@ export async function addWaitingBill(
   if (claimed.count !== 1) {
     const again = await previousResult(requestKey);
     if (again !== null) return { ok: true, id: again };
+    const held = await db.billRun.findFirst({ where: { ...where, status: "waiting", reason: STUCK_HOLD }, select: { id: true } });
+    if (held) return { ok: false, error: `${bill.name} for this month is on hold: it may already have been added. Check Activity, then skip it if it was.` };
     return { ok: false, error: `${bill.name} for this month has already been added. You’ll find it in Activity.` };
   }
   const release = () => db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "waiting", requestKey: "" } });
