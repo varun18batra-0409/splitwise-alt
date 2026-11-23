@@ -4165,16 +4165,23 @@ async function main() {
     const still = await db.expense.findUniqueOrThrow({ where: { id: snackId } });
     assert(still.description === before.description && still.amount === before.amount && (await db.expense.count({ where: { groupId: gid, description: "Forged" } })) === 0, "a refused forged save still changed the group");
   });
-  await step(V, "Permissions", "Varun removes Zoe; she can't get back in with the old invite link or the old group address", async () => {
+  await step(V, "Permissions", "Varun removes Zoe: the old invite link stops working, and neither the new link nor the old group address lets her back in", async () => {
     await go(V, `${rules}/people`);
     await V.locator("details summary").filter({ hasText: "Zoe" }).first().click();
     await clickAndWait(V, V.getByRole("button", { name: "Remove Zoe" }));
     const zoeAcc = await db.account.findUniqueOrThrow({ where: { email: email("zoe") } });
     await until("Zoe being removed", () => db.member.findFirst({ where: { groupId: rules.split("/").pop()!, accountId: zoeAcc.id, removedAt: { not: null } } }));
+    // Removing someone makes a new invite link (founder, 23 Nov): the old link no longer works for anyone...
     await go(Z, `/join/${rulesCode}`);
-    await Z.locator("[data-join-removed]").waitFor();
-    assert(/removed you from this group/.test(await Z.locator("[data-join-removed]").innerText()), "the old link doesn't say she was removed");
+    await Z.locator("[data-join-gone]").waitFor();
     assert((await Z.getByRole("button", { name: /^Join / }).count()) === 0, "the old link still offers Join to a removed person");
+    const newCode = (await db.group.findUniqueOrThrow({ where: { id: rules.split("/").pop()! } })).inviteCode;
+    assert(newCode !== rulesCode, "removing Zoe didn't make a new invite link");
+    // ...and even with the new link, Zoe is told she was removed instead of being let back in.
+    await go(Z, `/join/${newCode}`);
+    await Z.locator("[data-join-removed]").waitFor();
+    assert(/removed you from this group/.test(await Z.locator("[data-join-removed]").innerText()), "the new link doesn't say she was removed");
+    assert((await Z.getByRole("button", { name: /^Join / }).count()) === 0, "the new link offers Join to a removed person");
     await go(Z, rules);
     await Z.locator("[data-left-banner]").waitFor();
     assert(/You were removed/.test(await Z.locator("[data-left-banner]").innerText()), "the banner doesn't say she was removed");
@@ -4184,8 +4191,8 @@ async function main() {
     const { joinExisting, joinNew } = await import("../src/lib/join");
     const zoeRow = await db.member.findFirstOrThrow({ where: { groupId: rules.split("/").pop()!, accountId: zoeAcc.id } });
     const who = { id: zoeAcc.id, name: zoeAcc.name, email: zoeAcc.email };
-    const asSelf = await joinExisting(rulesCode, who, zoeRow.id);
-    const asNew = await joinNew(rulesCode, who, "Zoe");
+    const asSelf = await joinExisting(newCode, who, zoeRow.id);
+    const asNew = await joinNew(newCode, who, "Zoe");
     assert(!asSelf.ok && !asNew.ok, `a removed person got back in with a forged join: ${JSON.stringify({ asSelf, asNew })}`);
     const kept = await db.member.findUniqueOrThrow({ where: { id: zoeRow.id } });
     assert(kept.removedAt !== null, "Zoe's removal was undone by the refused join");
