@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { logEvent, type Db } from "../events";
-import { withRetry } from "../once";
+import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, withRetry } from "../once";
+import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
 import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
 import { typedZero } from "../zero-amount";
 import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, isStopped, monthsBetween, ordinalDay, pausedDays, periodsDue, toggleMissed } from "./bills";
@@ -42,6 +43,8 @@ export type BillInput = {
   ids: string[]; // when split = some
   pct?: Record<string, string>; // when split = percent: "50" per person
   amt?: Record<string, string>; // when split = amounts: "18000" per person
+  key?: string; // a new bill: the form's one-time key (a retry or double tap gives back the same bill, never a second one)
+  currency?: string; // the currency the page was drawn in: the write refuses if the group's currency changed meanwhile
 };
 
 export async function saveBillFor(groupId: string, actorId: string, input: BillInput, now = new Date()): Promise<Result> {
@@ -112,6 +115,8 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
     if (isStopped(existing)) return { ok: false, error: STOPPED_CHANGE(existing.name) };
     try {
       await db.$transaction(async (tx) => {
+        // First: the group is still in the currency the amount was typed in (a closed group could always have its bills edited), and this person still in it.
+        await guardGroup(tx, groupId, { currency: input.currency ?? group.currency, actorId, allowClosed: true });
         // A daily bill with a move-out share charged for a month that isn't added yet: the share was worked out at today's price, type
         // and split, so those can't change until the month is added (the name and who pays still can). Read again here, in the write.
         const cur = await tx.bill.findFirst({ where: { id: existing.id, groupId, deletedAt: null } });
@@ -131,6 +136,7 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
       });
     } catch (err) {
       if (err instanceof BillLocked) return { ok: false, error: err.message };
+      if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
       throw err;
     }
     return { ok: true, id: existing.id };
@@ -138,14 +144,32 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
 
   const tz = DEFAULT_TIME_ZONE;
   const startMonth = firstMonth(data.day, nature, now, tz);
-  const bill = await db.$transaction(async (tx) => {
-    // A daily bill set up mid-month counts only from today: earlier days are marked as not come.
-    const missed = nature === "daily" ? daysBefore(startMonth, dayKey(now, tz)) : "{}";
-    const b = await tx.bill.create({ data: { ...data, groupId, startMonth, tz, createdById: actorId, missed } });
-    await logEvent(tx, { groupId, actorId, kind: "bill_added", text: `set up ${name} (${what}, ${when})` });
-    return b;
-  });
-  return { ok: true, id: bill.id };
+  // The same form sent twice (a double tap, or a retry after a lost reply) is one bill: the key is claimed in the same write as the bill.
+  const fp = fingerprintOf("bill-new", groupId, data.name, data.nature, data.amount, data.day, data.payer, data.split);
+  const ks = await keyState(input.key, fp);
+  if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (ks.state === "done") return { ok: true, id: ks.result };
+  try {
+    const bill = await withRetry(() => db.$transaction(async (tx) => {
+      await guardGroup(tx, groupId, { currency: input.currency ?? group.currency, actorId, allowClosed: true });
+      // A daily bill set up mid-month counts only from today: earlier days are marked as not come.
+      const missed = nature === "daily" ? daysBefore(startMonth, dayKey(now, tz)) : "{}";
+      const b = await tx.bill.create({ data: { ...data, groupId, startMonth, tz, createdById: actorId, missed } });
+      await claimKey(tx, input.key, b.id, fp); // a second request with this key fails here and rolls the whole bill back
+      await logEvent(tx, { groupId, actorId, kind: "bill_added", text: `set up ${name} (${what}, ${when})` });
+      return b;
+    }));
+    return { ok: true, id: bill.id };
+  } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (isDuplicateKey(err)) {
+      // Another request with this key won the race: give back its bill.
+      const again = await keyState(input.key, fp);
+      if (again.state === "done") return { ok: true, id: again.result };
+      return { ok: false, error: STALE_KEY_ERROR };
+    }
+    throw err;
+  }
 }
 
 // Skip this month, pause, resume or stop a bill.

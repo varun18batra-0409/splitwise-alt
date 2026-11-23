@@ -169,6 +169,8 @@ export default async function MoveOutPage({
           {/* What this page worked out: the move-out refuses if the final payments are different by the time it is confirmed. */}
           <input type="hidden" name="expectKey" value={p.expectKey} />
           <input type="hidden" name="expectKeyDaily" value={p.expectKeyDaily} />
+          {/* The deposit this person holds, as shown: the move-out refuses if it is different by then. */}
+          <input type="hidden" name="expectDeposit" value={p.deposit ? String(p.deposit.amount) : ""} />
           <FreshKey name="rid" />
 
           {squaring}

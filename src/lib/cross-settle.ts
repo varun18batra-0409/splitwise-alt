@@ -36,9 +36,13 @@ export type CrossPart = {
 };
 
 export type CrossItem = {
-  key: string;
+  key: string; // the person
+  id: string; // this card: the person's key, with the currency added for the person's second (and later) card, so anchors and ?pay= stay unique
+  currency: string; // the currency of the groups in this card: a person owed in two currencies gets one card per currency, never one netted card
+  netOwn: number; // exact, in `currency`: + they pay you, − you pay them. Every "who pays whom" decision uses this, never `net`
+  mixed: boolean; // the same person also has a card in another currency
   name: string;
-  net: number; // in the common currency: + they pay you, − you pay them
+  net: number; // in the common currency, for sorting and the "≈" totals only (informational): + they pay you, − you pay them
   parts: CrossPart[];
   converted: boolean; // some parts were converted from another currency
 };
@@ -135,6 +139,7 @@ export function crossSettle(
   commonCurrency: string,
   toCommon: (amount: number, currency: string) => number | null,
 ): { items: CrossItem[]; skippedGroups: string[] } {
+  // One card per person AND group currency: ₹4,200 owed in one group is never netted against $50 owed in another.
   const byPerson = new Map<string, CrossItem>();
   const skippedGroups: string[] = [];
   for (const g of groups) {
@@ -150,16 +155,26 @@ export function crossSettle(
         continue;
       }
       const key = crossPersonKey(other, g.groupId);
-      const item = byPerson.get(key) ?? { key, name: other.name, net: 0, parts: [], converted: false };
+      const slot = `${key}|${g.currency}`;
+      const item = byPerson.get(slot) ?? { key, id: key, currency: g.currency, netOwn: 0, mixed: false, name: other.name, net: 0, parts: [], converted: false };
       const iPay = t.from === g.myId;
       item.net += iPay ? -amountCommon : amountCommon;
+      item.netOwn += iPay ? -t.amount : t.amount;
       item.converted ||= g.currency !== commonCurrency;
       item.parts.push({ groupId: g.groupId, groupName: g.groupName, currency: g.currency, fromId: t.from, toId: t.to, amount: t.amount, iPay });
-      byPerson.set(key, item);
+      byPerson.set(slot, item);
     }
   }
 
-  const items = [...byPerson.values()].sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name));
+  const items = [...byPerson.values()].sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name) || a.currency.localeCompare(b.currency));
+  // A person's first card (the one in the display currency if there is one) keeps the old anchor id (Home links to it); the others get the currency added.
+  const seenKeys = new Set<string>();
+  for (const it of [...items].sort((a, b) => Number(b.currency === commonCurrency) - Number(a.currency === commonCurrency))) {
+    if (seenKeys.has(it.key)) {
+      it.id = `${it.key}|${it.currency}`;
+      for (const o of items) if (o.key === it.key) o.mixed = true;
+    } else seenKeys.add(it.key);
+  }
   return { items, skippedGroups };
 }
 
@@ -173,11 +188,15 @@ export function crossActionLabel(net: number): "Mark paid" | "Record payment" {
 // Each group's part is exact (in that group's own currency). Only the combined
 // total can be converted, so only the total carries ≈.
 export function crossPreview(item: CrossItem, common: string): { lines: string[]; total: string; text: string; button: string } {
+  // A person with cards in two currencies: the total is exact, in the card's own currency (nothing is converted).
+  const exact = item.mixed;
+  const net = exact ? item.netOwn : item.net;
+  const cur = exact ? item.currency : common;
   // A fixed order, whatever order the groups loaded in: what you pay first, then what you get, each by group name.
   const parts = [...item.parts].sort((a, b) => Number(b.iPay) - Number(a.iPay) || a.groupName.localeCompare(b.groupName));
   const lines = parts.map((p) => `${p.groupName}: ${p.iPay ? `you pay ${item.name} ${formatMoney(p.amount, p.currency)}` : `${item.name} pays you ${formatMoney(p.amount, p.currency)}`}`);
-  const amount = `${item.converted ? "≈ " : ""}${formatMoney(Math.abs(item.net), common)}`;
-  const total = item.net < 0 ? `Together: you pay ${item.name} ${amount}` : item.net > 0 ? `Together: ${item.name} pays you ${amount}` : `Together: you and ${item.name} are even`;
+  const amount = `${item.converted && !exact ? "≈ " : ""}${formatMoney(Math.abs(net), cur)}`;
+  const total = net < 0 ? `Together: you pay ${item.name} ${amount}` : net > 0 ? `Together: ${item.name} pays you ${amount}` : `Together: you and ${item.name} are even`;
   const n = item.parts.length;
   return { lines, total, text: `${[...lines, total].join(" · ")}.`, button: `Record in ${n} ${n === 1 ? "group" : "groups"}` };
 }

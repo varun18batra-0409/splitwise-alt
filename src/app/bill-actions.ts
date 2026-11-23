@@ -21,7 +21,7 @@ import { after } from "next/server";
 import { flashTo } from "@/lib/flash";
 import { getTimeZone } from "@/lib/tz";
 import { gateGuest, refusalNotes } from "@/lib/guest-rules";
-import { formCurrencyRefusal } from "@/lib/form-currency";
+import { FORM_OUT_OF_DATE, formCurrencyRefusal } from "@/lib/form-currency";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
@@ -72,6 +72,8 @@ export async function saveBill(formData: FormData) {
     ids: formData.getAll("ids").map(String),
     pct: perPerson(formData, "p_"),
     amt: perPerson(formData, "a_"),
+    key: billId ? undefined : cleanKey(formData.get("rid")),
+    currency: String(formData.get("currency") ?? ""),
   });
   if (!r.ok) redirect(await flashTo(billId ? ["groups", groupId, "bills", billId] : ["groups", groupId, "bills", "new"], { error: r.error }));
   redirect(`/groups/${groupId}?tab=bills&saved=bill`);
@@ -134,10 +136,14 @@ export async function listGoingShopping(formData: FormData) {
 export async function saveBudgets(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const amounts: Record<string, string> = {};
-  for (const [k, v] of formData.entries()) if (k.startsWith("b_")) amounts[k.slice(2)] = String(v);
+  const was: Record<string, string> = {}; // what each box showed (the amount in minor units, or "")
+  for (const [k, v] of formData.entries()) {
+    if (k.startsWith("b_")) amounts[k.slice(2)] = String(v);
+    else if (k.startsWith("was_")) was[k.slice(4)] = String(v).slice(0, 14);
+  }
   const stale = await staleForm(groupId, formData);
   if (stale) redirect(await flashTo(["groups", groupId, "budgets"], { error: stale }));
-  const r = await saveBudgetsFor(groupId, await me(groupId), amounts);
+  const r = await saveBudgetsFor(groupId, await me(groupId), amounts, { was, currency: String(formData.get("currency") ?? "") });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "budgets"], { error: r.error }));
   redirect(`/groups/${groupId}`);
 }
@@ -173,12 +179,18 @@ export async function moveOutAction(formData: FormData) {
   if (expectKey === null) {
     redirect(await flashTo(["groups", groupId, "people", leaverId, "move"], { error: MOVE_OUT_KEY_CHANGED }, { day: lastDay }));
   }
+  // The leaver's held deposit the page showed ("" = none). Missing = a form from before this check: look again.
+  const expectDeposit = formData.get("expectDeposit");
+  if (expectDeposit === null) {
+    redirect(await flashTo(["groups", groupId, "people", leaverId, "move"], { error: FORM_OUT_OF_DATE }, { day: lastDay }));
+  }
   const r = await moveOut(groupId, myId, {
     leaverId,
     lastDay,
     depositTo: String(formData.get("depositTo") ?? "") || undefined,
     addDaily,
     expectKey: String(expectKey),
+    expectDeposit: String(expectDeposit),
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   }, new Date(), { tz: await getTimeZone() });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "people", leaverId, "move"], { error: r.error }, { day: lastDay }));
@@ -189,10 +201,14 @@ export async function moveOutAction(formData: FormData) {
 export async function saveDeposit(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const amounts: Record<string, string> = {};
-  for (const [k, v] of formData.entries()) if (k.startsWith("d_")) amounts[k.slice(2)] = String(v);
+  const versions: Record<string, string> = {}; // what each box showed (see depositVersion)
+  for (const [k, v] of formData.entries()) {
+    if (k.startsWith("d_")) amounts[k.slice(2)] = String(v);
+    else if (k.startsWith("v_")) versions[k.slice(2)] = String(v).slice(0, 60);
+  }
   const stale = await staleForm(groupId, formData);
   if (stale) redirect(await flashTo(["groups", groupId, "deposit"], { error: stale }));
-  const r = await saveDepositFor(groupId, await me(groupId), { heldBy: String(formData.get("heldBy") ?? ""), amounts });
+  const r = await saveDepositFor(groupId, await me(groupId), { heldBy: String(formData.get("heldBy") ?? ""), amounts, versions, currency: String(formData.get("currency") ?? "") });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "deposit"], { error: r.error }));
   redirect(`/groups/${groupId}/deposit?saved=1`);
 }
@@ -201,7 +217,7 @@ export async function returnDeposit(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const stale = await staleForm(groupId, formData);
   if (stale) redirect(await flashTo(["groups", groupId, "deposit"], { error: stale }));
-  const r = await returnDepositFor(groupId, await me(groupId), String(formData.get("deductions") ?? ""));
+  const r = await returnDepositFor(groupId, await me(groupId), String(formData.get("deductions") ?? ""), { currency: String(formData.get("currency") ?? "") });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "deposit"], { error: r.error }));
   redirect(`/groups/${groupId}/deposit?returned=1`);
 }

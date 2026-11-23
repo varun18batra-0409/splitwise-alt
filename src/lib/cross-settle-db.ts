@@ -57,6 +57,10 @@ export async function settleAcrossCore(
     info.set(p.groupId, { direct: g.type === "direct", name: g.name, currency: g.currency, names: new Map(g.members.map((m) => [m.id, m.name])) });
   }
 
+  // One payment across groups is always in ONE currency: a bundle that mixes currencies would record a swap at the app's rate (a request
+  // built by hand; the Settle page makes one card per currency).
+  if (parts.length > 1 && new Set([...info.values()].map((c) => c.currency)).size > 1) return "error";
+
   // One payment across groups is always with ONE other person: the same account in every part. (A request made by hand could pair
   // a debt to Asha in one group with a debt to Bob in another as one linked payment that neither of them could delete.) A part whose
   // other person has no account can't be shown to be the same person, so it is never netted with another group.

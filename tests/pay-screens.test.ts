@@ -138,7 +138,7 @@ describe("restyle only: every action, field and hook is still on the pages", () 
     expect(src("src/components/PayScreens.tsx")).toContain("sr-only");
   });
   it("all-groups Settle up keeps its actions, ids and hooks", () => {
-    for (const s of ["settleAcrossGroups", "data-cross-preview", "data-cross-record", "data-cross-lines", "data-cross-total", "data-remind", "settleRowId(", 'settleRowId(way === "in" ? "remind" : "pay", it.key)', 'id="pay"', 'id="remind"', 'name="parts"', "crossActionLabel(it.net)", "crossPreview(it, common)"]) expect(all).toContain(s);
+    for (const s of ["settleAcrossGroups", "data-cross-preview", "data-cross-record", "data-cross-lines", "data-cross-total", "data-remind", "settleRowId(", 'settleRowId(way === "in" ? "remind" : "pay", it.id)', 'id="pay"', 'id="remind"', 'name="parts"', "crossActionLabel(it.netOwn)", "crossPreview(it, common)"]) expect(all).toContain(s);
   });
   it("all-groups Settle up has the new cards and sheet, with the hooks the tests read (15 Nov design)", () => {
     const cards = src("src/components/SettleUp.tsx");

@@ -10,39 +10,83 @@ import { BUDGET_CATEGORIES, budgetLevelsCrossed, budgetStatus } from "./budgets"
 import { monthSummary } from "./summary";
 import { monthKey } from "./month";
 import { monthWindow, onDate } from "./home-data";
+import { FORM_OUT_OF_DATE } from "../form-currency";
+import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
 
 type Result = { ok: true } | { ok: false; error: string };
 
 // Save the budget amounts (blank = no budget for that category).
-export async function saveBudgetsFor(groupId: string, actorId: string, amounts: Record<string, string>): Promise<Result> {
+// `was` (the form's hidden was_<category>, the amount in minor units the box showed, or "") makes the save only change the boxes the person
+// changed, and only if that category is still exactly as shown: an old form never clears or overwrites someone else's newer limit.
+// `currency` is the one the page was drawn in, checked again inside the write. Without `was` (older callers) every box is written as typed.
+export async function saveBudgetsFor(
+  groupId: string,
+  actorId: string,
+  amounts: Record<string, string>,
+  opts: { was?: Record<string, string>; currency?: string; afterRead?: () => Promise<void> } = {},
+): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change budgets." };
-  const set: { category: string; amount: number }[] = [];
-  const clear: string[] = [];
+  const set: { category: string; amount: number; was: number | null }[] = [];
+  const clear: { category: string; was: number | null }[] = [];
   for (const [category, raw] of Object.entries(amounts)) {
     if (!BUDGET_CATEGORIES.includes(category)) continue;
-    if (!raw.trim() || typedZero(raw)) {
-      clear.push(category);
-      continue;
+    let was: number | null = null;
+    if (opts.was) {
+      const w = opts.was[category];
+      if (w === undefined || !/^\d{0,12}$/.test(w)) return { ok: false, error: FORM_OUT_OF_DATE }; // a form from before this check: look again
+      was = w === "" ? null : Number(w);
     }
-    const amount = parseAmount(raw, group.currency);
-    if (amount === null || amount <= 0) return { ok: false, error: `Enter ${getCategory(category).label} as a number, like 5000.` };
-    set.push({ category, amount });
+    let amount: number | null = null;
+    if (raw.trim() && !typedZero(raw)) {
+      amount = parseAmount(raw, group.currency);
+      if (amount === null || amount <= 0) return { ok: false, error: `Enter ${getCategory(category).label} as a number, like 5000.` };
+    }
+    if (opts.was && amount === was) continue; // the box still says what it showed: not a change
+    if (amount === null) clear.push({ category, was });
+    else set.push({ category, amount, was });
   }
-  await db.$transaction(async (tx) => {
-    await tx.budget.deleteMany({ where: { groupId, category: { in: clear } } });
-    for (const b of set) await tx.budget.upsert({ where: { groupId_category: { groupId, category: b.category } }, create: { groupId, ...b }, update: { amount: b.amount } });
-    await logEvent(tx, {
-      groupId,
-      actorId,
-      kind: "bill_changed",
-      text: "updated the monthly budgets",
-      details: set.map((b) => `${getCategory(b.category).label}: ${formatMoney(b.amount, group.currency)}`),
+  if (opts.was && !set.length && !clear.length) return { ok: true }; // nothing changed: nothing written, no line in Activity
+  await opts.afterRead?.(); // tests only: runs after the reads, before the write begins
+  try {
+    await db.$transaction(async (tx) => {
+      // First: the group is still in the currency the page showed (and this person still in it).
+      await guardGroup(tx, groupId, { currency: opts.currency ?? group.currency, actorId, allowClosed: true });
+      for (const c of [...clear.map((x) => ({ ...x, amount: null as number | null })), ...set]) {
+        const now = await tx.budget.findUnique({ where: { groupId_category: { groupId, category: c.category } } });
+        if (opts.was && (now?.amount ?? null) !== c.was) throw new BudgetMoved(c.category, now?.amount ?? null);
+        if (c.amount === null) {
+          if (now) await tx.budget.deleteMany({ where: { id: now.id, amount: now.amount } });
+        } else if (!now) {
+          await tx.budget.create({ data: { groupId, category: c.category, amount: c.amount } });
+        } else {
+          const done = await tx.budget.updateMany({ where: { id: now.id, amount: now.amount }, data: { amount: c.amount } });
+          if (done.count !== 1) throw new BudgetMoved(c.category, now.amount);
+        }
+      }
+      await logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "bill_changed",
+        text: "updated the monthly budgets",
+        details: set.map((b) => `${getCategory(b.category).label}: ${formatMoney(b.amount, group.currency)}`),
+      });
     });
-  });
+  } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof BudgetMoved) {
+      return { ok: false, error: `${getCategory(err.category).label} ${err.now === null ? "was cleared" : `changed to ${formatMoney(err.now, group.currency)}`} since you opened this page, so nothing was saved.` };
+    }
+    throw err;
+  }
   return { ok: true };
+}
+class BudgetMoved extends Error {
+  constructor(public category: string, public now: number | null) {
+    super("BUDGET_MOVED");
+  }
 }
 
 // This month's budgets for a group, with what's been spent.

@@ -36,13 +36,15 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   const { all, common, settleItems, skippedLinks, othersPending, direct, toCommon } = await loadOverview(await getMemberships(), visitorRegion(await headers()).currency);
   // Pay buttons for people you owe who added their UPI ID / pay link (people in groups, and people you share expenses with directly).
   const owedAccounts = [
-    ...settleItems.filter((it) => it.net < 0 && !it.converted && it.key.startsWith("acc:")).map((it) => it.key.slice(4)),
+    ...settleItems.filter((it) => it.netOwn < 0 && !it.converted && it.key.startsWith("acc:")).map((it) => it.key.slice(4)),
     ...direct.filter((e) => e.net < 0 && e.other.accountId).map((e) => e.other.accountId!),
   ];
   const accounts = owedAccounts.length ? await db.account.findMany({ where: { id: { in: owedAccounts } }, select: { id: true, upiId: true, payLink: true } }) : [];
 
   type Item = (typeof settleItems)[number];
-  const amt = (it: Item, n: number, fmt: (minor: number) => string = (x) => formatMoney(x, common)) => `${it.converted ? "≈ " : ""}${fmt(Math.abs(n))}`;
+  // A person who has cards in two currencies shows each card's exact own-currency amount (nothing converted, no "≈"); everyone else is as before.
+  const amt = (it: Item, n: number, fmt: (minor: number) => string = (x) => formatMoney(x, common)) =>
+    it.mixed ? formatMoney(Math.abs(it.netOwn), it.currency) : `${it.converted ? "≈ " : ""}${fmt(Math.abs(n))}`;
   // The TO PAY and TO RECEIVE cards: if any has paise, every amount keeps its two decimals so they line up (₹2,670.00 beside ₹30,723.44).
   const listFmt = listMoney(settleItems.map((it) => Math.abs(it.net)), common);
   // The picture on the stub: the group of this person's biggest part (the first one listed).
@@ -51,7 +53,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     return g ? { cover: { id: g.id, cover: coverFor(g), photo: tripPhotoSrc(g), name: g.name }, mark: groupMark(g.type) } : { mark: "plane" };
   };
   const payButtonsOf = (it: Item) => {
-    if (it.net < 0 && !it.converted) {
+    if (it.netOwn < 0 && it.currency === common) {
       const a = accounts.find((x) => `acc:${x.id}` === it.key);
       return { ways: a ? { upiId: a.upiId, payLink: a.payLink } : null, buttons: payButtons(a, { amount: -it.net, currency: common, toName: it.name, note: "Loopin settle-up" }) };
     }
@@ -62,7 +64,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const pv = crossPreview(it, common);
     return (
       <details className="group flex-1 basis-40 open:basis-full" data-cross-preview>
-        <summary className={`${summaryClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>{crossActionLabel(it.net)}</summary>
+        <summary className={`${summaryClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>{crossActionLabel(it.netOwn)}</summary>
         <div className="mt-3 rounded-[20px] border border-line bg-white px-4 py-3.5">
           <p className="text-sm font-semibold">This will record:</p>
           <ul className="mt-2 space-y-1 text-sm text-fg/80" data-cross-lines>
@@ -122,7 +124,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   }
 
   // ---- Pay Nupur: the steps ----
-  const payItem = pay ? settleItems.find((it) => it.net < 0 && it.key === pay) : undefined;
+  const payItem = pay ? settleItems.find((it) => it.netOwn < 0 && it.id === pay) : undefined;
   if (payItem) {
     const { ways, buttons } = payButtonsOf(payItem);
     const c = coverOf(payItem);
@@ -145,9 +147,9 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   // ---- The overview ----
   const evenList = settleItems.filter(isEvenItem);
   // People I pay. A person who is even in ONE currency is in the Even section instead; a mixed-currency person whose converted net is 0 stays here, as before.
-  const outList = settleItems.filter((it) => it.net <= 0 && !isEvenItem(it)); // even across groups: nothing to pay, "Clear both" cancels the two sides
-  const inList = settleItems.filter((it) => it.net > 0); // people who pay me
-  const oweItems = settleItems.filter((it) => it.net < 0);
+  const outList = settleItems.filter((it) => it.netOwn <= 0 && !isEvenItem(it)); // even across groups: nothing to pay, "Clear both" cancels the two sides
+  const inList = settleItems.filter((it) => it.netOwn > 0); // people who pay me
+  const oweItems = settleItems.filter((it) => it.netOwn < 0);
   const sumOf = (xs: Item[]) => xs.reduce((t, it) => t + Math.abs(it.net), 0); // integer minor units in the common currency
   const approx = (xs: Item[]) => (xs.some((it) => it.converted) ? "≈ " : "");
   // People I share expenses with directly add to the same totals: the same currency exactly, another currency at the saved rate ("≈"),
@@ -187,8 +189,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const names = [...new Set(parts.map((p) => p.groupName))];
     const groupLine = names.length <= 2 ? names.join(" · ") : `${names.length} groups`;
     const even = way === "even";
-    const tone = even ? ("even" as const) : it.net > 0 ? ("owed" as const) : ("owe" as const);
-    const amount = even ? "Even across groups" : it.net === 0 ? "Even" : amt(it, it.net, listFmt);
+    const tone = even ? ("even" as const) : it.netOwn > 0 ? ("owed" as const) : ("owe" as const);
+    const amount = even ? "Even across groups" : it.netOwn === 0 ? "Even" : amt(it, it.net, listFmt);
     const pv = crossPreview(it, common);
     // Remind about a part where they owe you (never one where you're the one paying).
     const biggest = [...parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
@@ -197,7 +199,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const menu: MenuItem[] = [];
     if (way === "in") menu.push({ key: "received", label: "Mark received", opensSheet: true, attrs: { "data-mark-received": "" } });
     if (partHref) menu.push({ key: "part", label: way === "in" ? "Received a different amount" : "Pay part", href: partHref, attrs: { "data-different-amount": "" } });
-    if (way === "out" && it.net < 0) menu.push({ key: "details", label: "Payment details", href: `/settle?pay=${encodeURIComponent(it.key)}` });
+    if (way === "out" && it.netOwn < 0) menu.push({ key: "details", label: "Payment details", href: `/settle?pay=${encodeURIComponent(it.id)}` });
     for (const p of parts) {
       menu.push(
         parts.length === 1
@@ -208,8 +210,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     }
     return (
       <SettleCard
-        key={it.key}
-        id={settleRowId(way === "in" ? "remind" : "pay", it.key)}
+        key={it.id}
+        id={settleRowId(way === "in" ? "remind" : "pay", it.id)}
         caption={even ? evenCaption(it) : undefined}
         name={it.name}
         groupLine={groupLine}

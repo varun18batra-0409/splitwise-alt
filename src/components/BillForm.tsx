@@ -9,6 +9,7 @@ import { formatMoney, parseAmount } from "@/lib/money";
 import { regroupAmount } from "@/lib/amount-input";
 import { inputClass, primaryButtonClass } from "./ui";
 import { SelectField } from "@/components/SelectField";
+import { FreshKeyInput } from "./FreshKeyInput";
 
 type Member = { id: string; name: string };
 export type BillFormInitial = {
@@ -122,6 +123,8 @@ export function BillForm({
       <input type="hidden" name="groupId" value={groupId} />
       <input type="hidden" name="currency" value={currency} />
       {initial?.billId && <input type="hidden" name="billId" value={initial.billId} />}
+      {/* A new bill carries a one-time key, so a double tap or a retry after a lost reply is one bill, never two. */}
+      {!initial?.billId && <FreshKeyInput name="rid" />}
       <input type="hidden" name="template" value={template} />
       <input type="hidden" name="nature" value={nature} />
       <input type="hidden" name="day" value={day} />

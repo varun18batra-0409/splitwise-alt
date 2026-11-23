@@ -8,6 +8,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonC
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { returnDeposit, saveDeposit } from "@/app/bill-actions";
 import { formatMoney, toInputAmount } from "@/lib/money";
+import { depositVersion } from "@/lib/home/moving-db";
 import { leaverDepositRows } from "@/lib/leaver-rows";
 import { leaverOf } from "@/lib/left-view-db";
 import { readNotes } from "@/lib/flash";
@@ -73,6 +74,8 @@ export default async function DepositPage({
               .map((m) => (
                 <li key={m.id}>
                   <label className="flex items-center gap-3 px-4 py-3">
+                    {/* What this box showed (the share's last change and amount, or nothing): the save only changes boxes that were changed, and only if still as shown. */}
+                    <input type="hidden" name={`v_${m.id}`} value={depositVersion(held.find((x) => x.memberId === m.id))} />
                     <span className="flex-1">{name(m.id)}</span>
                     <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
                       <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>

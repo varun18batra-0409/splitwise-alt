@@ -42,6 +42,8 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
             return (
               <li key={c}>
                 <label className="flex items-center gap-3 px-4 py-3">
+                  {/* What this box showed (minor units, or nothing): the save only changes boxes that were changed, and only if still as shown. */}
+                  <input type="hidden" name={`was_${c}`} value={String(group.budgets.find((x) => x.category === c)?.amount ?? "")} />
                   <ExpenseGlyph title="" category={c} size={34} />
                   <span className="flex-1">{cat.label}</span>
                   <span className="flex w-32 items-center rounded-xl border border-line px-3 focus-within:border-accent">

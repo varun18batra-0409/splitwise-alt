@@ -72,10 +72,10 @@ describe("a money form drawn in another currency, or with none, saves nothing", 
   it("budgets: USD and a missing currency write no budget; INR writes 5,000.00 rupees = 500,000 paise", async () => {
     const w = await world();
     for (const cur of [{ currency: "USD" }, {}]) {
-      await redirectOf(() => B.saveBudgets(form({ groupId: w.gid, b_food: "5000", ...cur })));
+      await redirectOf(() => B.saveBudgets(form({ groupId: w.gid, b_food: "5000", was_food: "", ...cur })));
       expect(await db.budget.count({ where: { groupId: w.gid } })).toBe(0);
     }
-    await redirectOf(() => B.saveBudgets(form({ groupId: w.gid, b_food: "5000", currency: "INR" })));
+    await redirectOf(() => B.saveBudgets(form({ groupId: w.gid, b_food: "5000", was_food: "", currency: "INR" })));
     expect((await db.budget.findMany({ where: { groupId: w.gid } })).map((b) => [b.category, b.amount])).toEqual([["food", 500000]]);
   });
 
@@ -104,7 +104,7 @@ describe("a money form drawn in another currency, or with none, saves nothing", 
 
   it("deposit: a USD page saves no deposit and returns none; the same form in INR saves ₹5,000 (500,000 paise) each", async () => {
     const w = await world();
-    const post = (currency: string) => B.saveDeposit(form({ groupId: w.gid, heldBy: "Landlord", [`d_${w.asha}`]: "5000", [`d_${w.ravi}`]: "5000", currency }));
+    const post = (currency: string) => B.saveDeposit(form({ groupId: w.gid, heldBy: "Landlord", [`d_${w.asha}`]: "5000", [`d_${w.ravi}`]: "5000", [`v_${w.asha}`]: "", [`v_${w.ravi}`]: "", currency })); // v_: what each box showed (no share yet)
     await redirectOf(() => post("USD"));
     expect(await db.deposit.count({ where: { groupId: w.gid } })).toBe(0);
     await redirectOf(() => B.returnDeposit(form({ groupId: w.gid, deductions: "100", currency: "USD" })));

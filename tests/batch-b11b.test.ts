@@ -10,7 +10,7 @@ import { TONE } from "@/lib/settle-ui";
 const src = (f: string) => readFileSync(path.resolve(__dirname, "..", f), "utf8");
 
 const even: CrossItem = {
-  key: "acc:a", name: "Asha", net: 0, converted: false,
+  key: "acc:a", id: "acc:a", currency: "INR", netOwn: 0, mixed: false, name: "Asha", net: 0, converted: false,
   parts: [
     { groupId: "g1", groupName: "Thailand trip", currency: "INR", fromId: "me1", toId: "a1", amount: 420000, iPay: true },
     { groupId: "g2", groupName: "Flat 402", currency: "INR", fromId: "a2", toId: "me2", amount: 420000, iPay: false },
@@ -28,11 +28,11 @@ describe("1. Even across groups", () => {
   });
   it("the page: To pay is only net < 0, Even has its own section, Clear both uses settleAcrossGroups, no Payment details for net 0", () => {
     const page = src("src/app/settle/page.tsx");
-    expect(page).toContain("const oweItems = settleItems.filter((it) => it.net < 0)"); // the summary count
+    expect(page).toContain("const oweItems = settleItems.filter((it) => it.netOwn < 0)"); // the summary count
     expect(page).toContain('sectionHead("EVEN ACROSS GROUPS"');
     expect(page).toContain('label: even ? "Clear both"');
     expect(page).toContain("action={settleAcrossGroups}");
-    expect(page).toContain('way === "out" && it.net < 0');
+    expect(page).toContain('way === "out" && it.netOwn < 0');
   });
 });
 
@@ -129,7 +129,7 @@ describe("6. Screenshots", () => {
 
 describe("Review fixes: even needs one currency", () => {
   const part = (currency: string, amount: number, iPay: boolean) => ({ groupId: `g${currency}${amount}${iPay}`, groupName: "G", currency, fromId: "f", toId: "t", amount, iPay });
-  const item = (parts: ReturnType<typeof part>[]): CrossItem => ({ key: "k", name: "Asha", net: 0, converted: parts.some((p) => p.currency !== "INR"), parts });
+  const item = (parts: ReturnType<typeof part>[]): CrossItem => ({ key: "k", id: "k", currency: parts[0]?.currency ?? "INR", netOwn: 0, mixed: false, name: "Asha", net: 0, converted: parts.some((p) => p.currency !== "INR"), parts });
   it("₹4,200 against $50 at rate 84 is not even (converted net is 0, currencies differ)", () => {
     // hand: 5000 cents x 84 = 420000 paise = ₹4,200, so the converted net is -420000 + 420000 = 0
     expect(-420000 + Math.round(5000 * 84)).toBe(0);
@@ -144,9 +144,9 @@ describe("Review fixes: even needs one currency", () => {
   });
   it("the page filters match: even people are only in Even; others keep their old section", () => {
     const page = src("src/app/settle/page.tsx");
-    expect(page).toContain("settleItems.filter((it) => it.net <= 0 && !isEvenItem(it))");
-    expect(page).toContain("settleItems.filter((it) => it.net > 0)");
-    expect(page).toContain('it.net === 0 ? "Even" : amt(it, it.net, listFmt)');
+    expect(page).toContain("settleItems.filter((it) => it.netOwn <= 0 && !isEvenItem(it))");
+    expect(page).toContain("settleItems.filter((it) => it.netOwn > 0)");
+    expect(page).toContain('it.netOwn === 0 ? "Even" : amt(it, it.net, listFmt)');
   });
   it("all square is not shown while there are even people", () => {
     const page = src("src/app/settle/page.tsx");
