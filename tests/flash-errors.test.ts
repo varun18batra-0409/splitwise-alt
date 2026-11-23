@@ -191,7 +191,7 @@ describe("no free text from the address is shown unsigned", () => {
   });
 
   it("every redirect that carries a message goes through flashTo (fixed short codes excepted)", () => {
-    const FIXED = /error=(busy|name|claimed|removed|private|none|limit|markup|admin|currency|missing|left|full)\b/;
+    const FIXED = /error=(busy|name|claimed|removed|private|none|limit|markup|admin|currency|missing|left|full|phone)\b/;
     const KEY = /\b(error|skipped|invited|payError|inviteError)\b\s*[=:,}]/;
     for (const f of [...files, ...walk("src/lib")]) {
       const src = readFileSync(f, "utf8");

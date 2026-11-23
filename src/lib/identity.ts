@@ -2,6 +2,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
+import { retryOnceIfBusy } from "./once";
 import { confirmUsedAmong, isPending } from "./membership";
 import { coverFor } from "./covers";
 import { removedByEmail } from "./removal-marks";
@@ -157,6 +158,9 @@ export async function guestCookieRoom(m: Record<string, string>, rest: { a?: str
   return lo;
 }
 
+// A name in a group that is still there, that its person has not left and was not removed from.
+const LIVE_NAME = { removedAt: null, leftAt: null, group: { deletedAt: null } } satisfies Prisma.MemberWhereInput;
+
 // A name's id is about 25 characters; this stands in for "one more name" with room to spare (30 characters, a 2-digit epoch).
 const WORST_GRANT = () => grantValue("m".repeat(30), 99);
 
@@ -170,7 +174,8 @@ export async function guestCookieHasRoomFor(groupId: string): Promise<boolean> {
 // because deleting the account raises it). `room` is how many of those groups a cookie can hold, `total` how many there are.
 export async function guestCookieAfterDelete(groups: Record<string, string>): Promise<{ fits: boolean; room: number; total: number }> {
   const ids = Object.values(groups);
-  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids } }, select: { id: true, grantEpoch: true } }) : [];
+  // Only groups the person is really in (not deleted, not left, not removed): what their own list shows, and all that is kept (see keepGroupsDropAccount).
+  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids }, ...LIVE_NAME }, select: { id: true, grantEpoch: true } }) : [];
   const epoch = new Map(rows.map((r) => [r.id, r.grantEpoch]));
   const m: Record<string, string> = {};
   for (const [groupId, id] of Object.entries(groups)) if (epoch.has(id)) m[groupId] = grantValue(id, (epoch.get(id) ?? 0) + 1);
@@ -192,13 +197,16 @@ class TwoNames extends Error {}
 // Links one guest name to an account inside a transaction (write first, then count): if the account would then hold two names in
 // that group (two phones linking at the same moment), this throws TwoNames and the whole write is undone. Returns rows linked (0 or 1).
 async function linkOne(accountId: string, where: Prisma.MemberWhereInput): Promise<number> {
-  return db.$transaction(async (tx) => {
-    const target = await tx.member.findFirst({ where, select: { id: true, groupId: true } });
-    if (!target) return 0;
-    const w = await tx.member.updateMany({ where: { ...where, id: target.id }, data: { accountId, grantEpoch: { increment: 1 } } });
-    if (w.count === 1 && (await tx.member.count({ where: { groupId: target.groupId, accountId } })) > 1) throw new TwoNames();
-    return w.count;
-  });
+  // The database being busy with another phone's write at the same instant is waited out once, not shown as an error.
+  return retryOnceIfBusy(() =>
+    db.$transaction(async (tx) => {
+      const target = await tx.member.findFirst({ where, select: { id: true, groupId: true } });
+      if (!target) return 0;
+      const w = await tx.member.updateMany({ where: { ...where, id: target.id }, data: { accountId, grantEpoch: { increment: 1 } } });
+      if (w.count === 1 && (await tx.member.count({ where: { groupId: target.groupId, accountId } })) > 1) throw new TwoNames();
+      return w.count;
+    }),
+  );
 }
 
 // Only works inside a server action (form submit) or route handler.
@@ -418,15 +426,31 @@ export async function signOutOtherPhones() {
   return true;
 }
 
-// After deleting the account: this phone keeps every group it could see before (pass them in: work them out BEFORE
+// After deleting the account: this phone keeps the groups it could see before (pass them in: work them out BEFORE
 // deleting the account, which unlinks the names), just without the email link. Call this AFTER the account is deleted
 // so the fresh grant epochs are written into the cookie.
+// Names for removed people and for deleted groups give no access, so they are dropped. Every live name is kept (the delete check
+// made sure they fit). Groups the person LEFT still open for reading ("Groups you left"), so they are added too, most recently left
+// first, for as long as the cookie still fits.
 export async function keepGroupsDropAccount(groups: Record<string, string>) {
   const ids = Object.values(groups);
-  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids }, accountId: null }, select: { id: true, grantEpoch: true } }) : [];
-  const epoch = new Map(rows.map((r) => [r.id, r.grantEpoch]));
+  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids }, accountId: null, removedAt: null, group: { deletedAt: null } }, select: { id: true, grantEpoch: true, leftAt: true } }) : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
   const m: Record<string, string> = {};
-  for (const [groupId, id] of Object.entries(groups)) if (epoch.has(id)) m[groupId] = grantValue(id, epoch.get(id) ?? 0);
+  const left: { groupId: string; value: string; leftAt: Date }[] = [];
+  for (const [groupId, id] of Object.entries(groups)) {
+    const r = byId.get(id);
+    if (!r) continue;
+    const value = grantValue(id, r.grantEpoch);
+    if (r.leftAt) left.push({ groupId, value, leftAt: r.leftAt });
+    else m[groupId] = value;
+  }
+  left.sort((a, b) => b.leftAt.getTime() - a.leftAt.getTime());
+  for (const l of left) {
+    const next = { ...m, [l.groupId]: l.value };
+    if (!(await guestCookieFits(next))) break;
+    Object.assign(m, next);
+  }
   await writeSession({ m });
 }
 

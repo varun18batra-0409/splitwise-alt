@@ -909,6 +909,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
 
 class MembersMoved extends Error {}
 class MemberInUse extends Error {}
+class AccountTwice extends Error {}
 
 export const memberInUseText = (name: string) => `${name} is already part of expenses, payments, moments, the deposit, a goal or a game, so they can’t be removed.`;
 
@@ -919,7 +920,9 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
   const existing = await db.member.findMany({ where: { groupId } });
   const clash = members.find((m) => existing.some((x) => x.name.toLowerCase() === m.name.toLowerCase()));
   if (clash) return { ok: false, error: `Someone called ${clash.name} is already in the group.` };
-  const eventId = await db.$transaction(async (tx) => {
+  let eventId: string;
+  try {
+  eventId = await db.$transaction(async (tx) => {
     await markUndone(tx, mark);
     for (const m of members) {
       // Back as they were: still linked to their sign-in (unless they've joined again since), same share.
@@ -950,6 +953,8 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
             : {}),
         },
       });
+      // Written first, then counted: if the same sign-in joined this group again in the meantime, it never ends up with two names here.
+      if (accountId && (await tx.member.count({ where: { groupId, accountId } })) > 1) throw new AccountTwice();
     }
     return logEvent(tx, {
       groupId,
@@ -959,5 +964,9 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
       undo: { type: "members_remove", memberIds: members.map((m) => m.id) },
     });
   });
+  } catch (err) {
+    if (err instanceof AccountTwice) return { ok: false, error: "Someone changed the people in this group just now. Check People and try again." };
+    throw err;
+  }
   return { ok: true, eventId };
 }

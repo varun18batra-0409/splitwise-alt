@@ -75,7 +75,7 @@ async function party(opts: { ravi?: boolean } = {}) {
     include: { members: { orderBy: { createdAt: "asc" } } },
   });
   groupIds.push(g.id);
-  return { g, code: g.inviteCode, varun, R: g.members.find((m) => m.name === "Ravi")?.id ?? "" };
+  return { g, code: g.inviteCode, varun, V: g.members[0].id, R: g.members.find((m) => m.name === "Ravi")?.id ?? "" };
 }
 const people = (groupId: string) => db.member.count({ where: { groupId } });
 const rotate = (groupId: string) => async () => void (await db.group.update({ where: { id: groupId }, data: { inviteCode: `rotated-${cid()}` } })); // a removal or "new link" landing in the gap
@@ -198,7 +198,7 @@ describe("L34: a join finishes with the group it joined, and a lost reply can be
     const src = readFileSync("src/app/actions.ts", "utf8");
     const body = (name: string) => src.slice(src.indexOf(`export async function ${name}`), src.indexOf("\n}\n", src.indexOf(`export async function ${name}`)));
     for (const name of ["joinAsNew", "joinAsExisting"]) {
-      expect(body(name)).toContain("finishJoin(r.groupId");
+      expect(body(name)).toContain("finishJoin(code, r.groupId");
       expect(body(name)).toContain("cleanKey(formData.get(\"rid\"))");
     }
     expect(body("joinAsNew").split("inviteCode: code").length - 1).toBe(1); // only the lookup BEFORE joining (for the phone's held name)
@@ -378,5 +378,144 @@ describe("G06 follow-up: every other path that calls setMyMemberId is account-on
     expect(Object.keys(s?.m ?? {})).toHaveLength(55); // the same 55, the new group is not added to the cookie
     expect(s?.m[made.id]).toBeUndefined();
     expect(await db.member.count({ where: { groupId: made.id, accountId: me.id } })).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+describe("review fixes: an old join key is not a way back in (H1), a lost reply still works after a link change (M3), a replay uses no limits (L5)", () => {
+  const ipKey = () => `join-guest-ip:${state.ip}`;
+  const ipCount = async () => (await db.rateLimit.findUnique({ where: { key: ipKey() } }))?.count ?? 0;
+  const newLink = (groupId: string) => db.group.update({ where: { id: groupId }, data: { inviteCode: `b8-newlink-${cid()}` } });
+
+  it("Ben claims Ravi with key R; the admin frees the name and makes a new link: replaying R from another phone gets nothing and changes nothing", async () => {
+    const f = await party();
+    const rid = key("h1-free");
+    state.cookie = "";
+    expect(await go(A.joinAsExisting, { code: f.code, memberId: f.R, rid })).toBe(`/groups/${f.g.id}`);
+    expect(await join.releaseGuestName(f.g.id, f.V, f.R)).toMatchObject({ ok: true });
+    await newLink(f.g.id);
+    state.cookie = ""; // not Ben's phone
+    expect(await go(A.joinAsExisting, { code: f.code, memberId: f.R, rid })).toBe(`/join/${f.code}`); // the old link is gone: refused
+    expect(state.cookie).toBe("");
+    expect(await db.member.findUniqueOrThrow({ where: { id: f.R } })).toMatchObject({ accountId: null, claimedAt: null });
+    // And in the library: the key does not match the name any more (its epoch went up), so it is refused as gone too.
+    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toEqual({ ok: false, reason: "gone" });
+  });
+
+  it("Ben claims Ravi with key R, the name is freed and Cat claims it: replaying R is refused (claimed), Cat keeps it", async () => {
+    const f = await party();
+    const rid = key("h1-cat");
+    const ben = await join.joinExistingAsGuest(f.code, f.R, undefined, { rid });
+    expect(ben).toMatchObject({ ok: true, memberId: f.R });
+    expect(await join.releaseGuestName(f.g.id, f.V, f.R)).toMatchObject({ ok: true });
+    const cat = await join.joinExistingAsGuest(f.code, f.R);
+    expect(cat).toMatchObject({ ok: true, memberId: f.R });
+    const epochNow = (await db.member.findUniqueOrThrow({ where: { id: f.R } })).grantEpoch;
+    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toEqual({ ok: false, reason: "claimed" });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.R } })).grantEpoch).toBe(epochNow); // nothing was written
+  });
+
+  it("a key older than 2 minutes is refused, even for the same join", async () => {
+    const f = await party();
+    const rid = key("h1-stale");
+    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toMatchObject({ ok: true });
+    await db.requestKey.update({ where: { key: rid }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
+    await newLink(f.g.id);
+    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toEqual({ ok: false, reason: "gone" });
+    // Within the window the same replay still works (the normal lost reply), even after a new link:
+    const g2 = await party();
+    const rid2 = key("h1-fresh");
+    const first = await join.joinExistingAsGuest(g2.code, g2.R, undefined, { rid: rid2 });
+    await newLink(g2.g.id);
+    expect(await join.joinExistingAsGuest(g2.code, g2.R, undefined, { rid: rid2 })).toEqual(first);
+  });
+
+  it("a typed name that looks like a picked row can't borrow its key (the prints start with new: and that:)", async () => {
+    const f = await party();
+    const rid = key("h1-print");
+    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toMatchObject({ ok: true });
+    const r = await join.joinNewAsGuest(f.code, `that:${f.R}`, undefined, { rid });
+    expect((r as { memberId?: string }).memberId).not.toBe(f.R); // never the picked row (a new person under the normal rules, or a plain refusal of the odd name)
+  });
+
+  it("M3 + L5: claim saved, reply lost, the link changed, retry lands in the group; the retry uses no network limit and no link count", async () => {
+    const f = await party();
+    const rid = key("m3");
+    state.cookie = "";
+    expect(await go(A.joinAsExisting, { code: f.code, memberId: f.R, rid })).toBe(`/groups/${f.g.id}`);
+    const used = await ipCount();
+    const linkKey = `join-guest-link:${f.code.slice(0, 60)}`;
+    const linkBefore = (await db.rateLimit.findUnique({ where: { key: linkKey } }))?.count ?? 0;
+    const before = await people(f.g.id);
+    state.cookie = ""; // the reply never arrived
+    await newLink(f.g.id); // somebody else was removed / a new link was made meanwhile
+    expect(await go(A.joinAsExisting, { code: f.code, memberId: f.R, rid })).toBe(`/groups/${f.g.id}`);
+    expect(Object.keys((await decodeSession(state.cookie))?.m ?? {})).toEqual([f.g.id]);
+    expect(await people(f.g.id)).toBe(before);
+    expect(await ipCount()).toBe(used);
+    expect((await db.rateLimit.findUnique({ where: { key: linkKey } }))?.count ?? 0).toBe(linkBefore);
+  });
+
+  it("the same for a new name: members +1 only, no 'Ben 2'", async () => {
+    const f = await party({ ravi: false });
+    const rid = key("m3-new");
+    const before = await people(f.g.id);
+    state.cookie = "";
+    expect(await go(A.joinAsNew, { code: f.code, name: "Ben", rid })).toBe(`/groups/${f.g.id}`);
+    state.cookie = "";
+    await newLink(f.g.id);
+    expect(await go(A.joinAsNew, { code: f.code, name: "Ben", rid })).toBe(`/groups/${f.g.id}`);
+    expect(await people(f.g.id)).toBe(before + 1);
+    expect(await db.member.count({ where: { groupId: f.g.id, name: "Ben 2" } })).toBe(0);
+  });
+
+  it("L4: two taps with one key at the same moment give the same person, never 'claimed'", async () => {
+    const f = await party();
+    const rid = key("l4");
+    const [a, b] = await Promise.all([join.joinExistingAsGuest(f.code, f.R, undefined, { rid }), join.joinExistingAsGuest(f.code, f.R, undefined, { rid })]);
+    expect(a).toMatchObject({ ok: true, memberId: f.R });
+    expect(b).toMatchObject({ ok: true, memberId: f.R });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+describe("H2: deleting an account counts only the groups the person is really in, and keeps left groups as far as the cookie allows", () => {
+  it("30 live + 20 left + 10 removed or deleted: delete is allowed; the cookie has all 30 live, the 18 most recently left that fit, none of the removed or deleted", async () => {
+    // Hand-worked: each entry is 58 characters of JSON (25-char group id, 25-char member id, "~1"); the rest of the value is 17.
+    // N entries: (58N + 17) * 4/3 (base64, no padding) + 44 (signature and dot) <= 3,800  ->  N <= 48. So 30 live + 18 left = 48 fit, 49 would not.
+    const me = await account("Nia");
+    const rows = await manyGroups(60, me.id, "h2");
+    const live = rows.slice(0, 30);
+    const left = rows.slice(30, 50); // left on day 1 + i: i = 19 is the most recent
+    const removed = rows.slice(50, 55);
+    const deleted = rows.slice(55, 60);
+    for (const [i, r] of left.entries()) await db.member.update({ where: { id: r.memberId }, data: { leftAt: new Date(2026, 0, 1 + i) } });
+    await db.member.updateMany({ where: { id: { in: removed.map((r) => r.memberId) } }, data: { removedAt: new Date() } });
+    await db.group.updateMany({ where: { id: { in: deleted.map((r) => r.groupId) } }, data: { deletedAt: new Date() } });
+    await asAccount(me.id);
+    expect(await go(A.deleteMyAccount, {})).toBe("/?deleted=account");
+    expect(await db.account.count({ where: { id: me.id } })).toBe(0);
+    const s = await decodeSession(state.cookie);
+    const kept = Object.keys(s?.m ?? {});
+    for (const r of live) expect(kept).toContain(r.groupId);
+    const keptLeft = left.filter((r) => kept.includes(r.groupId));
+    expect(keptLeft).toHaveLength(18);
+    expect(keptLeft.map((r) => r.groupId)).toEqual(left.slice(2).map((r) => r.groupId)); // the two left longest ago are the ones not kept
+    for (const r of [...removed, ...deleted]) expect(kept).not.toContain(r.groupId);
+    expect(kept).toHaveLength(48);
+    expect(state.cookie.length).toBeLessThanOrEqual(3800);
+  });
+
+  it("a person whose live groups alone fit can always delete, however many left groups they have", async () => {
+    const me = await account("Omar");
+    const rows = await manyGroups(70, me.id, "h2b");
+    await db.member.updateMany({ where: { id: { in: rows.slice(10).map((r) => r.memberId) } }, data: { leftAt: new Date() } }); // 10 live, 60 left
+    await asAccount(me.id);
+    expect(await go(A.deleteMyAccount, {})).toBe("/?deleted=account");
+    expect(await db.account.count({ where: { id: me.id } })).toBe(0);
+    const kept = Object.keys((await decodeSession(state.cookie))?.m ?? {});
+    for (const r of rows.slice(0, 10)) expect(kept).toContain(r.groupId);
+    expect(kept.length).toBeGreaterThanOrEqual(46);
+    expect(kept.length).toBeLessThanOrEqual(50);
   });
 });

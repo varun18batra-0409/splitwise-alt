@@ -47,7 +47,7 @@ import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { CLOSED_PAY_ERROR, hasLeft, LEFT_ERROR } from "@/lib/active";
 import { parseWas, saveAllSettings } from "@/lib/settings-save";
-import { countGuestJoin, guestJoinAllowed, joinExisting, joinExistingAsGuest, joinNew, joinNewAsGuest, newInviteLink, releaseGuestName, type JoinFail } from "@/lib/join";
+import { countGuestJoin, guestJoinAllowed, joinExisting, joinExistingAsGuest, joinNew, joinNewAsGuest, joinReplay, newInviteLink, releaseGuestName, type JoinFail } from "@/lib/join";
 import { GUEST_REFUSAL, gateGuest, isGuestMember, refusalNotes, renameRefusal } from "@/lib/guest-rules";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 import { flashTo, type Notes } from "@/lib/flash";
@@ -221,7 +221,10 @@ async function joinContext(code: string) {
   return { account };
 }
 
-async function finishJoin(groupId: string, memberId: string, account: { id: string; email: string } | null) {
+async function finishJoin(code: string, groupId: string, memberId: string, account: { id: string; email: string } | null) {
+  // A phone with no sign-in must be able to hold one more name in its cookie: checked here too, so nothing is ever written that would not fit
+  // (the earlier check, before the join, is the one that keeps a new member from being made at all).
+  if (!account && !(await guestCookieHasRoomFor(groupId))) redirect(`/join/${code}?step=name&error=phone`);
   // Only an account has email invitations to close and phones to copy; a guest just gets the name written on this phone.
   if (account) {
     await db.invite.updateMany({ where: { groupId, email: account.email, acceptedAt: null }, data: { acceptedAt: new Date() } });
@@ -256,6 +259,11 @@ async function guestJoinBusy(code: string, ip: string): Promise<boolean> {
 export async function joinAsExisting(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   const { account } = await joinContext(code);
+  const memberId = String(formData.get("memberId") ?? "");
+  const rid = cleanKey(formData.get("rid")); // the form's one-time key: a lost reply can be sent again and gets the same person back
+  // The same form again (its reply was lost) is answered first: it uses none of the limits and counts nothing a second time, even if the link has changed since.
+  const replayed = await joinReplay(rid, code, "that", memberId, account);
+  if (replayed) return finishJoin(code, replayed.groupId, replayed.memberId, account);
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
   const ip = (await originAndIp()).ip;
@@ -263,12 +271,10 @@ export async function joinAsExisting(formData: FormData) {
   if (!account && !held && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
   // A phone with no sign-in keeps its groups in one small cookie: refuse BEFORE joining if one more would not fit (nothing is created).
   if (!account && !held && !(await guestCookieHasRoomFor(group.id))) redirect(`/join/${code}?step=name&error=phone`);
-  const memberId = String(formData.get("memberId") ?? "");
-  const rid = cleanKey(formData.get("rid")); // the form's one-time key: a lost reply can be sent again and gets the same person back
   const r = account ? await joinExisting(code, account, memberId, { rid }) : await joinExistingAsGuest(code, memberId, await getMyMemberId(group.id), { rid });
   if (!r.ok) joinRefused(code, r, account ? "" : "step=name");
   if (!account && r.memberId !== held) await countGuestJoin(code); // a new guest really joined: one more for this link today
-  await finishJoin(r.groupId, r.memberId, account);
+  await finishJoin(code, r.groupId, r.memberId, account);
 }
 
 // Join as yourself (your verified account), or as a new name with no account.
@@ -276,6 +282,9 @@ export async function joinAsNew(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   const ip = (await originAndIp()).ip;
   const { account } = await joinContext(code);
+  const rid = cleanKey(formData.get("rid")); // the form's one-time key (see joinAsExisting)
+  const replayed = await joinReplay(rid, code, "new", String(formData.get("name") ?? ""), account); // a lost reply sent again: no limits used, nothing counted twice
+  if (replayed) return finishJoin(code, replayed.groupId, replayed.memberId, account);
   const groupRow = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   // A phone that already holds a name in this group goes straight to it, without counting against any limit.
   const held = account ? undefined : await heldGuestName(groupRow?.id);
@@ -283,7 +292,6 @@ export async function joinAsNew(formData: FormData) {
   if (!held && !(await allow(`join:${ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
   if (!account && !held && groupRow && !(await guestCookieHasRoomFor(groupRow.id))) redirect(`/join/${code}?step=name&error=phone`); // see joinAsExisting
   if (!account && !held && (await guestJoinBusy(code, ip))) redirect(`/join/${code}?step=name&error=busy`);
-  const rid = cleanKey(formData.get("rid")); // the form's one-time key (see joinAsExisting)
   const r = account ? await joinNew(code, account, String(formData.get("name") ?? ""), { rid }) : await joinNewAsGuest(code, String(formData.get("name") ?? ""), groupRow ? await getMyMemberId(groupRow.id) : undefined, { rid });
   // Someone whose move-out can still be undone is not quietly put back in: People explains and offers Undo my move-out.
   if (!r.ok && r.reason === "moved_out" && r.groupId && r.memberId) {
@@ -292,7 +300,7 @@ export async function joinAsNew(formData: FormData) {
   }
   if (!r.ok) joinRefused(code, r, account ? "" : "step=name");
   if (!account && r.memberId !== held) await countGuestJoin(code); // a new guest really joined: one more for this link today
-  await finishJoin(r.groupId, r.memberId, account); // the group this join really landed in (not looked up again by the link, which may have changed)
+  await finishJoin(code, r.groupId, r.memberId, account); // the group this join really landed in (not looked up again by the link, which may have changed)
 }
 
 // The Join / Not now buttons on an invitation (Home, Alerts and the group's own screen).

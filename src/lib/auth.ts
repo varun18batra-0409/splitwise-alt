@@ -15,14 +15,17 @@ const MAX_TRIES = 5;
 import { cleanEmail } from "./email-clean";
 export { cleanEmail };
 
-function devPepper(): string {
+// The salt for login codes. On the live app only a non-empty AUTH_SECRET counts (an empty one is missing, and the database token is never
+// used); where AUTH_SECRET is set this is the same salt as before, so codes hashed earlier still verify. Preview and development keep their fallbacks.
+function pepper(): string {
+  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
   if (process.env.VERCEL_ENV === "production") throw new Error("Sign-in is not set up: AUTH_SECRET is missing on the live app.");
-  return "loopin-dev";
+  return process.env.TURSO_AUTH_TOKEN || "loopin-dev";
 }
 
 export function hashLoginCode(email: string, code: string): string {
-  const pepper = process.env.AUTH_SECRET ?? process.env.TURSO_AUTH_TOKEN ?? devPepper();
-  return createHash("sha256").update(`${pepper}:${email}:${code}`).digest("hex");
+  const salt = pepper();
+  return createHash("sha256").update(`${salt}:${email}:${code}`).digest("hex");
 }
 
 // A keyed fingerprint of an email (never the email itself): see fingerprint.ts.

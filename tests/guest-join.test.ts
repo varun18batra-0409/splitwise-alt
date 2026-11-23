@@ -112,7 +112,7 @@ describe("taking over a name (That's me), with no account", () => {
     const f = await party();
     await db.pushSubscription.create({ data: { memberId: f.R, endpoint: `https://push.test/${stamp}-r`, p256dh: "k", auth: "a" } });
     const r = await join.joinExistingAsGuest(f.code, f.R);
-    expect(r).toEqual({ ok: true, memberId: f.R });
+    expect(r).toMatchObject({ ok: true, memberId: f.R });
     const m = await db.member.findUniqueOrThrow({ where: { id: f.R } });
     expect(m.accountId).toBeNull();
     expect(m.claimedAt).not.toBeNull();
@@ -163,7 +163,7 @@ describe("taking over a name (That's me), with no account", () => {
     expect((await join.invitedNameRows(f.g.id, { forGuest: true })).has(row.memberId)).toBe(true);
     expect((await join.invitedNameRows(f.g.id)).has(row.memberId)).toBe(false);
     // An account (the invited email, or anyone with an account) keeps today's rule: the closed invitation no longer blocks.
-    expect(await join.joinExisting(code, { id: uma.id, name: "Uma", email: uma.email }, row.memberId)).toEqual({ ok: true, memberId: row.memberId });
+    expect(await join.joinExisting(code, { id: uma.id, name: "Uma", email: uma.email }, row.memberId)).toMatchObject({ ok: true, memberId: row.memberId });
   });
   it("Not now (declining) keeps the name reserved for guests too", async () => {
     const f = await party();
@@ -183,12 +183,12 @@ describe("taking over a name (That's me), with no account", () => {
     const { cancelInvitation } = await import("@/lib/invites");
     expect((await cancelInvitation(f.g.id, f.V, row.memberId)).ok).toBe(true);
     expect(await join.joinExistingAsGuest(f.code, row.memberId)).toMatchObject({ ok: false, reason: "claimed" });
-    expect(await join.joinExisting(f.code, { id: uma.id, name: "Uma", email: uma.email }, row.memberId)).toEqual({ ok: true, memberId: row.memberId }); // an account still can
+    expect(await join.joinExisting(f.code, { id: uma.id, name: "Uma", email: uma.email }, row.memberId)).toMatchObject({ ok: true, memberId: row.memberId }); // an account still can
   });
   it("a name that never had an invitation is free to take", async () => {
     const f = await party();
     expect(await join.reservedForGuest(f.g.id, f.R)).toBe(false);
-    expect(await join.joinExistingAsGuest(f.code, f.R)).toEqual({ ok: true, memberId: f.R });
+    expect(await join.joinExistingAsGuest(f.code, f.R)).toMatchObject({ ok: true, memberId: f.R });
   });
 });
 
@@ -198,7 +198,7 @@ describe("someone who left, or was removed, coming back through the link as a gu
     const me = (await join.joinNewAsGuest(f.code, "Lee")) as { memberId: string };
     await db.member.update({ where: { id: me.memberId }, data: { leftAt: new Date() } });
     const r = await join.joinNewAsGuest(f.code, "Lee", me.memberId);
-    expect(r).toEqual({ ok: true, memberId: me.memberId });
+    expect(r).toMatchObject({ ok: true, memberId: me.memberId });
     expect((await db.member.findUniqueOrThrow({ where: { id: me.memberId } })).leftAt).toBeNull();
     expect(await db.groupEvent.count({ where: { groupId: f.g.id, kind: "member_rejoined", actorId: me.memberId } })).toBe(1);
     expect(await db.member.count({ where: { groupId: f.g.id, name: { startsWith: "Lee" } } })).toBe(1);

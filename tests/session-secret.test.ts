@@ -43,6 +43,15 @@ describe("session key on the live app", () => {
     await expect(encodeSession({ m: {} })).rejects.toThrow(/AUTH_SECRET is missing/);
   });
 
+  it("login codes: production with an empty AUTH_SECRET throws; with AUTH_SECRET the salt is the same as before, so earlier codes still verify", () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.TURSO_AUTH_TOKEN = "test-token-not-real";
+    process.env.AUTH_SECRET = "";
+    expect(() => hashLoginCode("a@b.co", "123456")).toThrow(/AUTH_SECRET is missing/);
+    process.env.AUTH_SECRET = "fake-auth-secret-for-tests";
+    expect(hashLoginCode("a@b.co", "123456")).toBe(createHash("sha256").update("fake-auth-secret-for-tests:a@b.co:123456").digest("hex"));
+  });
+
   it("production with AUTH_SECRET signs with it", async () => {
     process.env.VERCEL_ENV = "production";
     process.env.AUTH_SECRET = "fake-auth-secret-for-tests";
