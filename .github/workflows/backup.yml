@@ -1,8 +1,8 @@
 # Daily backup of the online database. The file is ENCRYPTED before it is
 # stored, because this repository is public. Kept for 14 days.
 # INTERIM: this moves to a private repo (see ops/private-repo/README.md) and is then deleted.
-# Needs three repository secrets: TURSO_DATABASE_URL, TURSO_READONLY_TOKEN (a READ-ONLY key: this job only reads, so the
-# full key is never given to it) and BACKUP_PASSPHRASE. 
+# Needs TURSO_DATABASE_URL and TURSO_READONLY_TOKEN (a READ-ONLY key: this job only reads, so the full key is never given to
+# it), both from the environment live-read, and the repository secret BACKUP_PASSPHRASE. If any is missing the run FAILS (red).
 #
 # Every run also does a restore drill: the backup is rebuilt into a scratch
 # database, every table is checked, and so is the data (references, shares,
@@ -38,11 +38,12 @@ jobs:
             echo "::error title=Backup FAILED::TURSO_DATABASE_URL or TURSO_READONLY_TOKEN is missing from the live-read environment (Settings > Environments > live-read)."
             exit 1
           fi
-          if [ -n "$BACKUP_PASSPHRASE" ]; then
-            echo "ok=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning title=Backup skipped::Add BACKUP_PASSPHRASE in Settings → Secrets → Actions."
+          # No passphrase means no way to encrypt, so no backup: also a failure, never a quiet skip.
+          if [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error title=Backup FAILED::BACKUP_PASSPHRASE is missing (Settings > Secrets and variables > Actions)."
+            exit 1
           fi
+          echo "ok=1" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.ready.outputs.ok == '1'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

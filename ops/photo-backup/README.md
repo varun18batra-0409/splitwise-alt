@@ -33,6 +33,8 @@ from files copied now.
    (see `ops/private-repo/README.md`), never in the public repository. For that reason the workflow is a template in this
    folder (`photo-backup.yml`), not an active workflow in `.github/workflows` of the public repo: there it would do
    nothing, and a token that is not there cannot leak.
+If you added `LIVE_BLOB_READ_WRITE_TOKEN` to the public repository before, delete it there.
+
 4. In the private ops repo, copy `ops/photo-backup/photo-backup.yml` to `.github/workflows/photo-backup.yml`, replace
    `REPLACE_WITH_40_CHARACTER_COMMIT_ID` with the public repo's trusted commit id (as for the other ops jobs), and add these
    secrets (Settings > Secrets and variables > Actions):

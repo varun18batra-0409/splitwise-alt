@@ -130,15 +130,20 @@ describe("the photo backup workflow template and the other changed workflows (R1
     expect(read("live-stats.yml")).not.toMatch(/^ {4}env:/m);
     expect(read("backup.yml")).toContain("secrets.BACKUP_PASSPHRASE"); // a repository secret, still read from inside the environment
   });
-  it("a missing database key fails the backup (red), only a missing passphrase skips", () => {
+  it("a missing database key or a missing passphrase fails the backup (red); nothing skips quietly", () => {
     const t = read("backup.yml");
     const check = t.slice(t.indexOf("- name: Check the secrets are set"), t.indexOf("- uses: actions/checkout"));
     expect(check).toMatch(/-z "\$TURSO_DATABASE_URL" \] \|\| \[ -z "\$TURSO_AUTH_TOKEN" \][\s\S]*?exit 1/);
-    expect(check).toContain("::error title=Backup FAILED");
-    expect(check.indexOf("exit 1")).toBeLessThan(check.indexOf("Backup skipped"));
+    expect(check).toMatch(/-z "\$BACKUP_PASSPHRASE" \][\s\S]*?::error title=Backup FAILED::BACKUP_PASSPHRASE[\s\S]*?exit 1/);
+    expect(check).not.toContain("::warning");
+    expect(check).not.toContain("skipped");
+    expect(t.split("\n").slice(0, 8).join("\n")).toContain("live-read"); // the header comment says where the database settings come from
+  });
+  it("unknown-places reads its read-only key from the live-read environment too", () => {
+    expect(read("unknown-places.yml")).toMatch(/^ {4}environment: live-read/m);
   });
   it("the founder's setup steps exist and say the live token goes only in the private repo", () => {
     const t = readFileSync("ops/photo-backup/README.md", "utf8");
-    for (const s of ["BACKUP_BLOB_READ_WRITE_TOKEN", "LIVE_BLOB_READ_WRITE_TOKEN", "restore drill", "ONLY in the private ops repo"]) expect(t).toContain(s);
+    for (const s of ["BACKUP_BLOB_READ_WRITE_TOKEN", "LIVE_BLOB_READ_WRITE_TOKEN", "restore drill", "ONLY in the private ops repo", "If you added `LIVE_BLOB_READ_WRITE_TOKEN` to the public repository before, delete it there."]) expect(t).toContain(s);
   });
 });

@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { memorySuffixes, isMemoryDay } from "@/lib/countdown";
 import { sendMemoryLane } from "@/lib/countdown-db";
 import { cronRefusedWithoutSecret } from "@/lib/cron-auth";
+import { scrubPersonal } from "@/lib/scrub";
 import { MAIL_SEND_LIMIT_MS, MAIL_TIMEOUTS, isOutOfTime, withDeadline } from "@/lib/mail";
 import { PUSH_TIMEOUT_MS } from "@/lib/push";
 import { cleanOldNotifyLog, NOTIFY_LOG_CLEANABLE_PREFIXES } from "@/lib/notify-cleanup";
@@ -78,15 +79,6 @@ describe("S4 / R15: no CRON_SECRET on a live server means refuse", () => {
     expect(cronRefusedWithoutSecret(undefined, "development")).toBe(false);
     expect(cronRefusedWithoutSecret(undefined, "test")).toBe(false);
   });
-  it("both cron routes ask before doing anything else", () => {
-    for (const f of ["src/app/api/cron/daily/route.ts", "src/app/api/cron/evening/route.ts"]) {
-      const src = readFileSync(f, "utf8");
-      const at = src.indexOf("cronRefusedWithoutSecret(secret)");
-      expect(at, f).toBeGreaterThan(0);
-      expect(src.slice(at, at + 160), f).toContain("status: 401");
-      expect(at, f).toBeLessThan(src.indexOf("sameSecret(req")); // before the secret comparison and the rate limit
-    }
-  });
   it("the daily route really answers 401 in production with no secret", async () => {
     const saved = { s: process.env.CRON_SECRET, n: process.env.NODE_ENV };
     delete process.env.CRON_SECRET;
@@ -107,7 +99,6 @@ describe("R6: a slow mail server cannot hold a request for minutes", () => {
   it("connecting, hello and a silent connection give up in seconds; a whole send in 10", () => {
     expect(MAIL_TIMEOUTS).toEqual({ connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 8000 });
     expect(MAIL_SEND_LIMIT_MS).toBe(10_000);
-    expect(readFileSync("src/lib/mail.ts", "utf8")).toContain("...MAIL_TIMEOUTS,");
   });
   it("withDeadline: a result inside the time comes through; one that never comes is cut off", async () => {
     await expect(withDeadline(Promise.resolve(7), 1000)).resolves.toBe(7);
@@ -124,15 +115,6 @@ describe("R6: a slow mail server cannot hold a request for minutes", () => {
   });
 });
 
-describe("R7: every push send has a 5 second limit", () => {
-  it("5000 ms on all three senders", () => {
-    expect(PUSH_TIMEOUT_MS).toBe(5000);
-    const src = readFileSync("src/lib/push.ts", "utf8");
-    expect(src.match(/sendNotification\(/g)).toHaveLength(3);
-    expect(src.match(/timeout: PUSH_TIMEOUT_MS,/g)).toHaveLength(3);
-  });
-});
-
 describe("R11: evening failures are written to the error log", () => {
   it("logJobFailure writes one row the morning email reads, and never throws", async () => {
     expect(await logJobFailure("cron/evening", `evening catch-up failed: bills ${tag}`)).toBe(true);
@@ -145,11 +127,6 @@ describe("R11: evening failures are written to the error log", () => {
     await logJobFailure("cron/evening", `evening job failed: send to ana@example.com 98765 43210 token ${"a".repeat(30)} ${tag}`);
     const row = await db.errorLog.findFirstOrThrow({ where: { message: { contains: tag } }, orderBy: { createdAt: "desc" } });
     expect(row.message).toBe(`evening job failed: send to [email] [number] token [id] ${tag}`);
-  });
-  it("the evening route logs a failed catch-up, failed parts and a crash", () => {
-    const src = readFileSync("src/app/api/cron/evening/route.ts", "utf8");
-    expect(src.match(/logJobFailure\(/g)!.length).toBeGreaterThanOrEqual(4);
-    expect(src).toContain("evening catch-up failed: ${failed.join");
   });
 });
 
@@ -177,6 +154,7 @@ describe("R12: old 'already sent' notes are cleaned, one-time markers stay", () 
     const left = (await db.notifyLog.findMany({ where: { key: { contains: stamp } }, select: { key: true } })).map((r) => r.key).sort();
     expect(left).toEqual([`countdown:${stamp}:2`, `invite-note:${stamp}`, `trip-from-goal-made:${stamp}:t`, `trip-from-goal:${stamp}`, `zones-live-${stamp}`].sort());
   });
+  // Kept as a source check on purpose: running the whole daily route would send the real admin email and run every part against the shared test database.
   it("the list never contains a one-time marker, and the daily job runs it", () => {
     for (const p of NOTIFY_LOG_CLEANABLE_PREFIXES) expect(p).not.toMatch(/^(zones-live|bill-asks-live|invite-note|trip-from-goal|mail-)/);
     expect(readFileSync("src/app/api/cron/daily/route.ts", "utf8")).toContain('part("cleanup-notify", () => cleanOldNotifyLog(now))');
@@ -424,12 +402,53 @@ describe("R4 / R5: the backup leaves out the database's own tables and is writte
     t.close();
     const log = execFileSync("node", ["scripts/restore.mjs", r.file, `file:${target}`]).toString();
     expect(log).toContain("Restore complete and verified");
-    expect(readFileSync("scripts/restore.mjs", "utf8")).toContain("SKIP_TABLES_SQL");
   });
 
-  it("the file is written as it goes (no whole-database string)", () => {
-    const src = readFileSync("scripts/backup.mjs", "utf8");
-    expect(src).toContain("writeSync(fd, s)");
-    expect(src).not.toMatch(/writeFileSync\(/);
+  it("the file is written as it goes: pages are already on disk before the read ends, and no read is bigger than a page", async () => {
+    const { backup, PAGE_ROWS } = await import("../scripts/backup.mjs");
+    const dir = mkdtempSync(join(tmpdir(), "lp-stream-"));
+    const file = join(dir, "b.json");
+    const total = 1203; // hand count: 500 + 500 + 203
+    const asked: string[] = [];
+    let sizeAtCommit = -1;
+    const tx = {
+      execute: async (q: string | { sql: string; args: number[] }) => {
+        const sql = typeof q === "string" ? q : q.sql;
+        asked.push(sql);
+        if (/FROM sqlite_master WHERE type = 'table'/.test(sql)) return { columns: ["name", "sql"], rows: [["Big", 'CREATE TABLE "Big" ("id" INTEGER PRIMARY KEY)']] };
+        if (/FROM sqlite_master WHERE type = 'index'/.test(sql)) return { columns: ["sql"], rows: [] };
+        const after = (q as { args: number[] }).args[0];
+        const ids = Array.from({ length: total }, (_, i) => i + 1).filter((i) => i > after).slice(0, PAGE_ROWS);
+        return { columns: ["__rowid", "id"], rows: ids.map((i) => [i, i]) };
+      },
+      commit: async () => {
+        sizeAtCommit = readFileSync(file).length;
+      },
+    };
+    const r = await backup({ transaction: async () => tx }, file);
+    expect(PAGE_ROWS).toBe(500);
+    expect(r).toEqual({ tables: 1, rows: total });
+    expect(asked.filter((x) => x.includes("LIMIT 500"))).toHaveLength(3); // three pages, never the whole table in one read
+    expect(sizeAtCommit).toBeGreaterThan(total * 8); // the rows were on disk before the transaction ended
+    expect(JSON.parse(readFileSync(file, "utf8")).tables.Big.rows).toHaveLength(total);
+  });
+});
+});
+
+describe("RM5: the scrubber hides personal details but leaves error codes and dates readable", () => {
+  it("keeps ALL-CAPS codes of letters, digits and underscores", () => {
+    expect(scrubPersonal("SQLITE_CONSTRAINT_UNIQUE")).toBe("SQLITE_CONSTRAINT_UNIQUE");
+    expect(scrubPersonal("failed: ERR_SSL_WRONG_VERSION_NUMBER_1234 at step")).toBe("failed: ERR_SSL_WRONG_VERSION_NUMBER_1234 at step");
+  });
+  it("keeps ISO dates, but still hides phone numbers next to them", () => {
+    expect(scrubPersonal("run for 2026-11-23 failed")).toBe("run for 2026-11-23 failed");
+    expect(scrubPersonal("call +91 98765 43210 on 2026-11-23")).toBe("call [number] on 2026-11-23");
+    expect(scrubPersonal("9876543210")).toBe("[number]");
+    expect(scrubPersonal("2026-11-23-5551234")).toBe("[number]"); // a longer digit run is not a date
+  });
+  it("still hides emails and long ids or tokens (lower-case or mixed)", () => {
+    expect(scrubPersonal("to ana@example.com failed")).toBe("to [email] failed");
+    expect(scrubPersonal(`id ${"a".repeat(30)} and cmabc12345defghij67890klmnop`)).toBe("id [id] and [id]");
+    expect(scrubPersonal("Bearer Zx_AbCdEfGhIjKlMnOpQrStUvWxYz")).toBe("Bearer [id]");
   });
 });

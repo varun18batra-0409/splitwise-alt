@@ -38,6 +38,14 @@ export function isOutOfTime(err: unknown, elapsedMs: number, limitMs: number = M
   if (elapsedMs >= limitMs || e?.message === "timeout" || e?.code === "ETIMEDOUT") return true;
   return e?.command === "DATA" || e?.command === "DATA END";
 }
+/** A connection kept from an earlier email that the server dropped while idle fails at once (well inside this window). A drop later than that may have happened mid-send, so a second try could send the email twice. */
+export const STALE_DROP_WINDOW_MS = 1_500;
+const DROP_CODES = new Set(["ESOCKET", "ECONNECTION", "ECONNRESET", "EPIPE"]);
+/** True only for an immediate connection drop (a stale pooled connection). Never for permanent failures (EAUTH, EENVELOPE, a refusal from the server) or anything slower. */
+export function isStaleDrop(err: unknown, attemptMs: number): boolean {
+  const e = err as { code?: string; responseCode?: number } | null;
+  return attemptMs <= STALE_DROP_WINDOW_MS && typeof e?.code === "string" && DROP_CODES.has(e.code) && !(typeof e.responseCode === "number" && e.responseCode >= 400);
+}
 // Tests only may shorten the limit (MAIL_SEND_LIMIT_MS); on the live app it is always 10 seconds.
 const sendLimit = () => (process.env.VITEST ? Number(process.env.MAIL_SEND_LIMIT_MS) || MAIL_SEND_LIMIT_MS : MAIL_SEND_LIMIT_MS);
 let pooled: Transporter | null = null;
@@ -160,19 +168,21 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   };
   const startedAt = Date.now();
   for (let attempt = 0; attempt < 2; attempt++) {
+    const attemptAt = Date.now();
     try {
       await withDeadline(transport().sendMail(message), sendLimit() - (Date.now() - startedAt));
       return true;
     } catch (err) {
-      const overTime = isOutOfTime(err, Date.now() - startedAt, sendLimit());
-      // Only a kept connection the server dropped while idle needs a fresh one, and only for the next try. After a timeout the shared
-      // connection is left alone (closing it would cut other emails that are being sent on it right now).
-      if (!overTime) {
+      // Retry (on a fresh connection) only for an immediate drop of a kept connection. Slower failures, timeouts and permanent errors
+      // (wrong password, refused address) are never retried and never close the shared connection other emails may be using.
+      const again = attempt === 0 && !isOutOfTime(err, Date.now() - startedAt, sendLimit()) && isStaleDrop(err, Date.now() - attemptAt);
+      if (again) {
         pooled?.close();
         pooled = null;
+        continue;
       }
-      if (attempt === 1 || overTime) console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
-      if (overTime) break; // out of time: no second try inside the same request
+      console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
+      break;
     }
   }
   await noteFailure("send");

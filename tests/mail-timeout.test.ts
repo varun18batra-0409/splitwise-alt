@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // R6 / RL3: a slow or broken mail server, with a stand-in transport (nothing leaves this machine). Each send is one real sendMail call.
-const mocks = vi.hoisted(() => ({ send: vi.fn(async (_m: unknown): Promise<unknown> => ({})), close: vi.fn(() => undefined) }));
-vi.mock("nodemailer", () => ({ default: { createTransport: () => ({ sendMail: mocks.send, close: mocks.close }) } }));
+const mocks = vi.hoisted(() => ({ options: undefined as Record<string, unknown> | undefined, send: vi.fn(async (_m: unknown): Promise<unknown> => ({})), close: vi.fn(() => undefined) }));
+vi.mock("nodemailer", () => ({ default: { createTransport: (o: Record<string, unknown>) => ((mocks.options = o), { sendMail: mocks.send, close: mocks.close }) } }));
 
 const { db } = await import("@/lib/db");
 const { sendMail } = await import("@/lib/mail");
@@ -36,6 +36,12 @@ afterAll(async () => {
 });
 
 describe("a slow mail server", () => {
+  it("the connection is made with the short timeouts (5 s connect, 5 s hello, 8 s silence)", async () => {
+    mocks.send.mockResolvedValue({});
+    expect(await go()).toBe(true);
+    // (The connection is made once and kept: if an earlier test made it, the options are still the ones it was made with.)
+    expect(mocks.options).toMatchObject({ connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 8000 });
+  });
   it("a server that never answers: the send gives up at the limit, tries once, and leaves the shared connection alone", async () => {
     mocks.send.mockImplementation(() => new Promise(() => undefined));
     const t0 = Date.now();
@@ -55,11 +61,35 @@ describe("a slow mail server", () => {
     expect(await go()).toBe(false);
     expect(mocks.send).toHaveBeenCalledTimes(1);
   });
-  it("an idle connection the server dropped is still retried once on a fresh connection", async () => {
+  it("an idle connection the server dropped (reset at once) is still retried once on a fresh connection", async () => {
     mocks.send.mockRejectedValueOnce(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" })).mockResolvedValueOnce({});
     expect(await go()).toBe(true);
     expect(mocks.send).toHaveBeenCalledTimes(2);
     expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
+  it("a drop after 2 seconds may have happened mid-send: never retried, connection left alone", async () => {
+    process.env.MAIL_SEND_LIMIT_MS = "10000";
+    mocks.send.mockImplementation(() => new Promise((_, no) => setTimeout(() => no(Object.assign(new Error("Connection closed"), { code: "ESOCKET", command: "CONN" })), 2000)));
+    expect(await go()).toBe(false);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.close).not.toHaveBeenCalled();
+  }, 10_000);
+  it("an immediate drop (command CONN) is the stale-connection case: one retry on a fresh connection", async () => {
+    mocks.send.mockRejectedValueOnce(Object.assign(new Error("Connection closed"), { code: "ESOCKET", command: "CONN" })).mockResolvedValueOnce({});
+    expect(await go()).toBe(true);
+    expect(mocks.send).toHaveBeenCalledTimes(2);
+    expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["a wrong password", { code: "EAUTH", responseCode: 535 }],
+    ["a refused address", { code: "EENVELOPE", responseCode: 550 }],
+    ["a server refusal", { code: "EMESSAGE", responseCode: 554 }],
+    ["something unknown", {}],
+  ])("%s is permanent: no retry, nothing closed", async (_name, extra) => {
+    mocks.send.mockRejectedValue(Object.assign(new Error("refused"), extra));
+    expect(await go()).toBe(false);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.close).not.toHaveBeenCalled();
   });
   it("a quick, healthy send is untouched", async () => {
     mocks.send.mockResolvedValue({});
