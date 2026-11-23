@@ -327,6 +327,8 @@ describe("G13-G14: the pay link and a pair", () => {
     const token = await payLinkFor(w.gid, asha, ravi, by);
     const form = new FormData();
     form.set("token", token);
+    form.set("amount", "40000"); // what the page showed (the fixture's debt)
+    form.set("currency", "INR");
     return { token, form };
   };
   const tap = (action: (f: FormData) => Promise<void>, form: FormData) =>
@@ -346,6 +348,7 @@ describe("G13-G14: the pay link and a pair", () => {
     expect(pays.map((p) => [p.fromId, p.toId, p.amount, p.needsOk])).toEqual([[A, R, 40000, false]]);
     expect(await db.paymentClaim.count({ where: { groupId: w.gid } })).toBe(0);
     expect(await readPayLink(token)).toMatchObject({ kind: "paid", amount: 40000 });
+    form.set("paymentId", (await db.payLink.findUniqueOrThrow({ where: { token } })).paymentId); // the Done page carries the payment it showed
     await tap(L.undoIPaidAction, form);
     expect(await w.payments()).toHaveLength(0);
     expect(await readPayLink(token)).toMatchObject({ kind: "owes", amount: 40000 });
@@ -358,6 +361,7 @@ describe("G13-G14: the pay link and a pair", () => {
     const { token, form } = await owing(w, A, R, M);
     await tap(L.iPaidAction, form);
     expect((await leave(w, A)).ok).toBe(true);
+    form.set("paymentId", (await db.payLink.findUniqueOrThrow({ where: { token } })).paymentId);
     await tap(L.undoIPaidAction, form);
     expect(await w.payments()).toHaveLength(1);
     expect((await w.row(A)).leftAt).not.toBeNull();

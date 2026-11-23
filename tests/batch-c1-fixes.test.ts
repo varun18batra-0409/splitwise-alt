@@ -213,7 +213,7 @@ describe("4: the pay link records a payment right away, for everyone", () => {
     expect(s.kind).toBe("owes");
     if (s.kind !== "owes") return;
     // The action itself.
-    const url = await redirectOf(() => L.iPaidAction(form({ token })));
+    const url = await redirectOf(() => L.iPaidAction(form({ token, amount: "30000", currency: "INR" })));
     expect(url.pathname).toBe(`/p/${token}`);
     expect(url.searchParams.get("paid")).toBe("1");
     const p = await db.payment.findFirstOrThrow({ where: { groupId: w.gid } });
@@ -234,7 +234,7 @@ describe("4: the pay link records a payment right away, for everyone", () => {
     const w = await world();
     await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
     const token = await payLinkFor(w.gid, w.r, w.a, w.a);
-    await redirectOf(() => L.iPaidAction(form({ token })));
+    await redirectOf(() => L.iPaidAction(form({ token, amount: "30000", currency: "INR" })));
     expect(await payCount(w.gid)).toBe(1);
     expect(await db.paymentClaim.count({ where: { groupId: w.gid } })).toBe(0);
   });

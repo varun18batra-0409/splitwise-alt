@@ -197,6 +197,8 @@ describe("N2/N3: the bill run and a pay link don't make anyone joined", () => {
     const token = await payLinkFor(t.g.id, row.id, t.ashaId, t.ashaId);
     const f = new FormData();
     f.set("token", token);
+    f.set("amount", "1000"); // the amount and currency the page showed
+    f.set("currency", t.g.currency);
     await iPaidAction(f).catch((err: Error) => {
       if (!/^NEXT_REDIRECT/.test(String(err.message))) throw err;
     });

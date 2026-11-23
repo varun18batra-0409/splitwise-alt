@@ -158,6 +158,9 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
         {step(2, `Then let ${to} know`)}
         <form action={iPaidAction}>
           <input type="hidden" name="token" value={token} />
+          {/* The amount and currency this page showed: "I've paid" records exactly these, or nothing. */}
+          <input type="hidden" name="amount" value={String(s.amount)} />
+          <input type="hidden" name="currency" value={s.group.currency} />
           {/* The one cream button: "Open payment app" when there is one, otherwise this. */}
           <button type="submit" className={upi || other ? secondaryButtonClass : "pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]"} data-i-paid data-haptic="success">
             I’ve paid
@@ -189,6 +192,7 @@ function Done({ s, money, to, from, token, justPaid, tz }: { tz: string; s: Show
       {s.kind === "paid" && (
         <form action={undoIPaidAction} className="mt-6">
           <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="paymentId" value={s.link.paymentId} />
           <button type="submit" className="inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">
             Tapped by mistake? Take it back
           </button>
