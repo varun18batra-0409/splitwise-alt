@@ -145,9 +145,11 @@ export function ActivityRow({
   const o = item.original;
   const shown = (orig: number, base: number) => {
     const exact = o ? formatMoney(orig, o.currency) : money(base);
+    // On Home (`whole`) an amount in the group's own currency reads in whole units like the rest of Home ($48.50 reads $49); a foreign amount stays exact.
+    const text = whole && !o ? homeMoney(base, currency) : exact;
     return (
       <span className="whitespace-nowrap" title={exact} data-exact={exact}>
-        {exact}
+        {text}
       </span>
     );
   };

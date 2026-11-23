@@ -38,17 +38,20 @@ describe("whole units on Home's Latest", () => {
   it("a ₹48.50 row reads ₹49 on Home (whole) and ₹48.50 in a group; the exact amount stays in the row", async () => {
     const e = await addExpense(pair.groupId, { paidBy: pair.aRow, amount: 4850, shares: { [pair.aRow]: 2425, [pair.rRow]: 2425 } });
     await db.expense.update({ where: { id: e.id }, data: { description: "Coffee" } });
-    const full = await db.expense.findUniqueOrThrow({ where: { id: e.id }, include: { shares: true } });
-    const item = buildActivity([full], [], pair.aRow, [], new Set())[0];
-    const render = (whole: boolean) => renderToStaticMarkup(React.createElement(ActivityRow, { item, currency: "INR", nameOf: (id: string) => (id === pair.aRow ? "You" : "Rohan"), whole }));
-    const text = (html: string) => [...html.matchAll(/>([^<]+)</g)].map((m) => m[1]).join(" ");
-    expect(text(render(true))).toContain("₹49");
-    expect(text(render(true))).not.toContain("48.50");
-    expect(text(render(false))).toContain("₹48.50");
-    expect(render(true)).toContain("48.50"); // the exact amount is still there (tooltip)
-    const net = await checkBooks(pair.groupId); // Lunch 30,000 + Coffee 2,425: Rohan owes Asha 32,425
-    expect([net[pair.aRow], net[pair.rRow]]).toEqual([32425, -32425]);
-    await db.expense.delete({ where: { id: e.id } });
+    try {
+      const full = await db.expense.findUniqueOrThrow({ where: { id: e.id }, include: { shares: true } });
+      const item = buildActivity([full], [], pair.aRow, [], new Set())[0];
+      const render = (whole: boolean) => renderToStaticMarkup(React.createElement(ActivityRow, { item, currency: "INR", nameOf: (id: string) => (id === pair.aRow ? "You" : "Rohan"), whole }));
+      const text = (html: string) => [...html.matchAll(/>([^<]+)</g)].map((m) => m[1]).join(" ");
+      expect(text(render(true))).toContain("₹49");
+      expect(text(render(true))).not.toContain("48.50");
+      expect(text(render(false))).toContain("₹48.50");
+      expect(render(true)).toContain("48.50"); // the exact amount is still there (tooltip)
+      const net = await checkBooks(pair.groupId); // Lunch 30,000 + Coffee 2,425: Rohan owes Asha 32,425
+      expect([net[pair.aRow], net[pair.rRow]]).toEqual([32425, -32425]);
+    } finally {
+      await db.expense.delete({ where: { id: e.id } }); // so no other test sees it
+    }
   });
 });
 
