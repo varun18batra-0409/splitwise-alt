@@ -2,7 +2,7 @@ import { roundToWhole } from "@/lib/round-whole";
 import Link from "@/components/Link";
 import type { BillStatus } from "@/lib/home/bills-db";
 import { Notice } from "@/components/Notice";
-import { BILL_EMOJI, billBadge, billHold, ordinalDay, type BillBadge } from "@/lib/home/bills";
+import { BILL_EMOJI, billBadge, billHold, isStopped, ordinalDay, type BillBadge } from "@/lib/home/bills";
 import { keepDots, niceDate } from "@/lib/format";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { CalendarIcon, CheckIcon, ChevronRight, PlusIcon } from "@/components/icons";
@@ -35,7 +35,7 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
     const who = payer === myId ? "you pay" : payer ? `${nameOf(payer)} pays` : "taking turns";
     const turns = !b.bill.payer && payer ? " this month" : ""; // taking turns: "Asha pays this month"
     const hold = billHold({ nature: b.bill.nature, reason: b.reason, payerId: b.payerId });
-    const badge = billBadge({ nature: b.bill.nature, status: b.status, due: b.due, payerId: b.payerId, reason: b.reason, recordedThisMonth: b.recordedThisMonth, tz: b.bill.tz, now: new Date() });
+    const badge = billBadge({ nature: b.bill.nature, status: b.status, due: b.due, payerId: b.payerId, reason: b.reason, recordedThisMonth: b.recordedThisMonth, tz: b.bill.tz, now: new Date(), ended: isStopped(b.bill) });
     const cadence = b.bill.nature === "daily" ? "Daily" : b.bill.every > 1 ? `Every ${b.bill.every} months` : "Monthly";
     // The status line: the bill's own state if it has one, else "Review days" (daily) or when it is next due.
     // "Needs amount" says what the "Enter amount" button already says, so it is not shown twice.

@@ -540,7 +540,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
     if (err instanceof BillAddedAgain) return { ok: false, error: `This month’s ${err.message} was already added, so this can’t come back.` };
-    if (err instanceof MonthAdded) return { ok: false, error: err.status === "part" ? chargeLockedText(err.message, err.status) : err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
+    if (err instanceof MonthAdded) return { ok: false, error: err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };
     throw err;
   }

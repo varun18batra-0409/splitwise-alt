@@ -10,7 +10,7 @@ import { niceDate } from "../format";
 import { createPayment } from "../payments";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
-import { addPrepaid, dailyPrecharge, depositRefunds, lastPartDay, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
+import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
 import { monthsBetween, payerFor } from "./bills";
 import type { Transfer } from "../settle";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, LeaverBreak, leaverBalanceBreaks, leaversOffZero } from "../money-guard";
@@ -77,36 +77,12 @@ async function billExpensesFor(flat: Flat, leaverId: string, fromMonth: string) 
 }
 type BillExpense = Awaited<ReturnType<typeof billExpensesFor>>[number];
 
-// A pause or stop charge (the month so far a daily bill adds) and a move-out charge never share a month: a move-out can't be recorded
-// for a month that has one, or any later month, on ANY daily bill of the group (a stopped bill too). Lives charges only (an erased one covers nothing).
-// Oldest month first, and in each month the last day that was added.
-async function partChargesFrom(client: Client, groupId: string, fromPeriod: string): Promise<{ bill: string; period: string; day: number }[]> {
-  const bills = await client.bill.findMany({ where: { groupId, nature: "daily" }, select: { name: true, prepaid: true } });
-  const out: { bill: string; period: string; day: number }[] = [];
-  for (const b of bills) {
-    for (const [period, list] of Object.entries(parsePrepaid(b.prepaid))) {
-      const parts = period < fromPeriod ? [] : list.filter((x) => x.k === "part");
-      if (!parts.length) continue;
-      const live = new Set((await client.expense.findMany({ where: { id: { in: parts.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
-      const day = lastPartDay(parts.filter((x) => live.has(x.e)));
-      if (day > 0) out.push({ bill: b.name, period, day });
-    }
-  }
-  return out.sort((x, y) => x.period.localeCompare(y.period) || y.day - x.day);
-}
-
-async function partChargeRefusal(client: Client, groupId: string, lastDay: string): Promise<string | null> {
-  const [p] = await partChargesFrom(client, groupId, lastDay.slice(0, 7));
-  return p ? `${p.bill} was already added up to ${p.day} ${monthName(p.period).slice(0, 3)} when it was paused or stopped, so a move-out can’t be recorded for this month. Add a money-back expense if needed.` : null;
-}
-class PartCharged extends Error {}
-
 // Daily bills (milk, water cans) whose month hasn't been added yet: the leaver's share of the
 // days they were there, which would otherwise never reach them (only people still here share the month-end bill).
 type DailyOffer = { bill: Awaited<ReturnType<typeof db.bill.findMany>>[number]; period: string; d: DailyPrecharge };
 async function dailyOffers(flat: Flat, leaverId: string, lastDay: string): Promise<DailyOffer[]> {
   const period = lastDay.slice(0, 7);
-  const bills = await db.bill.findMany({ where: { groupId: flat.id, nature: "daily", deletedAt: null, paused: false }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  const bills = await db.bill.findMany({ where: { groupId: flat.id, nature: "daily", deletedAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   const runs = await db.billRun.findMany({ where: { period, billId: { in: bills.map((b) => b.id) } }, select: { billId: true, status: true } });
   const members = flat.members.map((m) => ({ id: m.id, splitWeight: m.splitWeight, joinedFrom: m.joinedFrom, leftAt: m.leftAt }));
   const out: DailyOffer[] = [];
@@ -151,7 +127,6 @@ async function pendingHandovers(flat: Flat, leaverId: string, othersIds: string[
       if (run?.status === "adding" && list.some((x) => flat.expenses.some((y) => y.id === x.e && y.paidById === leaverId && !y.payers))) out.adding ??= `${bill.name} for ${monthName(period)} is being added right now. Try again in a minute.`;
       if (run && run.status !== "waiting") continue;
       for (const x of list) {
-        if (x.k === "part") continue; // a pause or stop charge keeps its payer (the leaver's square-up settles the money)
         const e = flat.expenses.find((y) => y.id === x.e);
         // (A charge with several payers written on it is left as it is: handing it on would move the other payers' credit too.)
         if (!e || e.paidById !== leaverId || e.payers) continue;
@@ -243,7 +218,7 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT } as Fail;
   if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
-  const bad = checkDay(lastDay, now, tz) ?? (await partChargeRefusal(db, flat.id, lastDay));
+  const bad = checkDay(lastDay, now, tz);
   if (bad) return { ok: false, error: bad } as Fail;
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
@@ -306,7 +281,7 @@ export async function moveOut(
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const leaver = flat.members.find((m) => m.id === input.leaverId && !m.leftAt);
   if (!leaver) return { ok: false, error: "That person isn’t in the flat." };
-  const bad = checkDay(input.lastDay, now, opts.tz) ?? (await partChargeRefusal(db, flat.id, input.lastDay));
+  const bad = checkDay(input.lastDay, now, opts.tz);
   if (bad) return { ok: false, error: bad };
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaver.id);
   if (!others.length) return { ok: false, error: "Someone has to stay in the flat." };
@@ -365,8 +340,6 @@ export async function moveOut(
       }
       // Claim the move-out first: if two people confirm it at the same moment,
       // only the first one goes through (the second finds them already gone).
-      const partRefused = await partChargeRefusal(tx, groupId, input.lastDay); // read again here: a pause can commit in the gap
-      if (partRefused) throw new PartCharged(partRefused);
       const claimed = await tx.member.updateMany({ where: { id: leaver.id, leftAt: null }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });
       if (claimed.count !== 1) throw new Error("ALREADY_MOVED");
       // The bills as they are now: an edit made meanwhile isn't overwritten.
@@ -405,8 +378,9 @@ export async function moveOut(
         const run = await tx.billRun.findUnique({ where: { billId_period: { billId: c.bill.id, period: c.period } }, select: { status: true } });
         if (run && run.status !== "waiting") throw new Error("BILLS_CHANGED");
         // The share was worked out from the bill's price, days it didn't come, kind and split as read: a change to any of them meanwhile refuses it.
-        const fresh = await tx.bill.findUnique({ where: { id: c.bill.id }, select: { prepaid: true, missed: true, amount: true, split: true, nature: true, deletedAt: true } });
-        if (!fresh || fresh.deletedAt || fresh.missed !== c.bill.missed || fresh.prepaid !== c.bill.prepaid || fresh.amount !== c.bill.amount || fresh.split !== c.bill.split || fresh.nature !== c.bill.nature) throw new Error("BILLS_CHANGED");
+        const fresh = await tx.bill.findUnique({ where: { id: c.bill.id }, select: { prepaid: true, missed: true, amount: true, split: true, nature: true, deletedAt: true, paused: true, pausedAt: true, endMonth: true } });
+        // (A pause or stop meanwhile changes which days count, so it refuses too.)
+        if (!fresh || fresh.deletedAt || fresh.missed !== c.bill.missed || fresh.amount !== c.bill.amount || fresh.split !== c.bill.split || fresh.nature !== c.bill.nature || fresh.paused !== c.bill.paused || fresh.pausedAt?.getTime() !== c.bill.pausedAt?.getTime() || fresh.endMonth !== c.bill.endMonth) throw new Error("BILLS_CHANGED");
         const label = `${c.bill.name} · ${stayLabel(input.lastDay, leaver.joinedFrom)} (${leaver.name}’s share)`;
         const made = await tx.expense.create({
           data: {
@@ -545,7 +519,7 @@ export async function moveOut(
     const msg = String((err as Error)?.message ?? err);
     if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
-    if (err instanceof LeaverBreak || err instanceof InOpenGame || err instanceof PartCharged) return { ok: false, error: err.message };
+    if (err instanceof LeaverBreak || err instanceof InOpenGame) return { ok: false, error: err.message };
     if (msg.includes("BALANCES_CHANGED") || msg.includes("NOT_SQUARE")) return { ok: false, error: "Balances just changed. Check the move-out again." };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     if (msg.includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };
@@ -758,11 +732,6 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
   const mo = info.money;
   const g = await client.group.findUnique({ where: { id: groupId }, select: { currency: true } });
   if (mo && g && g.currency !== mo.currency) return stop(CURRENCY_SINCE, MOVE_OUT_GONE_FOR_GOOD);
-  // A pause or stop charge written after the move-out (in its month or later, on any daily bill, a stopped one too) was worked out without
-  // the leaver's charge in it: taking the move-out back would leave the days wrong. Part charges can't be deleted, so this is for good.
-  const leftOn = (await client.member.findUnique({ where: { id: memberId }, select: { leftAt: true } }))?.leftAt;
-  const [part] = leftOn ? await partChargesFrom(client, groupId, leftOn.toISOString().slice(0, 7)) : [];
-  if (part) return stop(`${part.bill} for this month was already added when it was paused or stopped, so this move-out can’t be undone. Add a money-back expense if needed.`, MOVE_OUT_GONE_FOR_GOOD);
   if (mo) {
     const sig = (xs: { memberId: string; amount: number }[]) => xs.map((x) => `${x.memberId}:${x.amount}`).sort().join("|");
     // Everything the move-out changed must still be exactly as it left it.

@@ -1,7 +1,7 @@
 import { allocateByWeights } from "../split";
 import type { Transfer } from "../settle";
 import { daysInMonth } from "./month";
-import { missedDays } from "./bills";
+import { countedMissed } from "./bills";
 
 // Moving in and out of a flat, and the deposit (pure rules).
 
@@ -27,15 +27,12 @@ export function proRataShares(shares: Share[], leaverId: string, daysStayed: num
 
 // Weights for a month's bills when someone moved in part-way: each person's
 // weight × the days they're there (people there all month count every day).
-// `range` (days of the month, both included): only those days count (a part charge, or the days after one).
-export function joinWeights(members: { id: string; splitWeight: number; joinedFrom: Date | null }[], period: string, range?: { from: number; to: number }): Record<string, number> {
+export function joinWeights(members: { id: string; splitWeight: number; joinedFrom: Date | null }[], period: string): Record<string, number> {
   const days = daysInMonth(period);
-  const first = range?.from ?? 1;
-  const last = range?.to ?? days;
   return Object.fromEntries(
     members.map((m) => {
       const from = m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : "";
-      const present = from.slice(0, 7) === period ? Math.max(0, last - Math.max(first, Number(from.slice(8, 10))) + 1) : from.slice(0, 7) > period ? 0 : Math.max(0, last - first + 1);
+      const present = from.slice(0, 7) === period ? days - Number(from.slice(8, 10)) + 1 : from.slice(0, 7) > period ? 0 : days;
       return [m.id, m.splitWeight * present];
     }),
   );
@@ -93,7 +90,7 @@ export function depositRefunds(shares: Share[], deductions: number, weights: Rec
 // at move-out if they say so ("Add it now"). At month end the bill is added for
 // the total less what they already paid, shared by the others.
 
-export type DailyBillRule = { amount: number; missed: string; split: string };
+export type DailyBillRule = { amount: number; missed: string; split: string; paused?: boolean; pausedAt?: Date | null; tz?: string };
 export type DailyMember = { id: string; splitWeight: number; joinedFrom: Date | null; leftAt: Date | null };
 export type DailyPrecharge = {
   days: number; // days they were there and the bill came
@@ -139,7 +136,7 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
     const to = m.leftAt ? m.leftAt.toISOString().slice(0, 10) : "";
     return (!from || from <= key(d)) && (!to || to >= key(d));
   };
-  const missed = missedDays(bill.missed, period);
+  const missed = countedMissed(bill, period); // (the days a pause cuts off count as not come)
   const weightOf = (m: DailyMember) =>
     split.mode === "group" ? m.splitWeight : split.mode === "equal" ? 100 : split.mode === "some" ? (split.ids.includes(m.id) ? 100 : 0) : split.mode === "percent" ? (split.pct[m.id] ?? 0) : 0;
   let days = 0;
@@ -175,13 +172,7 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
 
 // What a daily bill has already had charged for a month at move-out: {"2026-11":[{m,a,e,d}]}
 // (m = who, a = their share, e = the expense that charged it, d = their last day).
-// k = "part": the month so far, charged to everyone when the bill was paused or stopped (m is empty, d is the last day it covers).
-export type Prepaid = { m: string; a: number; e: string; d?: string; k?: "part" }; // part charges are permanent (never deleted)
-
-// The last day of the month that live part charges cover (0 = none).
-export function lastPartDay(list: Prepaid[]): number {
-  return list.filter((x) => x.k === "part").reduce((n, x) => Math.max(n, Number((x.d ?? "").slice(8, 10)) || 0), 0);
-}
+export type Prepaid = { m: string; a: number; e: string; d?: string };
 
 export function parsePrepaid(json: string): Record<string, Prepaid[]> {
   try {

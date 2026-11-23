@@ -80,10 +80,7 @@ export async function saveBill(formData: FormData) {
 export async function changeBill(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const billId = String(formData.get("billId") ?? "");
-  // The amount the confirm showed (the month so far that a pause, stop or start-again adds). Missing = nothing was shown.
-  const shown = String(formData.get("expect") ?? "");
-  const expect = /^\d{1,12}$/.test(shown) ? Number(shown) : null;
-  const r = await billCommand(groupId, await me(groupId), billId, String(formData.get("command") ?? ""), new Date(), { expect });
+  const r = await billCommand(groupId, await me(groupId), billId, String(formData.get("command") ?? ""));
   if (!r.ok) redirect(await flashTo(["groups", groupId, "bills", billId], { error: r.error }));
   redirect(formData.get("command") === "stop" ? `/groups/${groupId}?tab=bills` : `/groups/${groupId}/bills/${billId}?saved=1`);
 }

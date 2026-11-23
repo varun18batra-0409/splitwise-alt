@@ -26,7 +26,7 @@ export const BILL_TEMPLATES: { id: string; name: string; category: string; natur
 // The picture each bill tile shows (an emoji the line-icon drawing is picked from): the same on Bills, This month, Search and Add a bill.
 export const BILL_EMOJI: Record<string, string> = { rent: "🏠", society: "🏢", electricity: "⚡", wifi: "📶", help: "🧹", cook: "🍳", milk: "🥛", water: "💧", groceries: "🛒", gas: "🔥", streaming: "📺", mobile: "📱" };
 
-type DueRule = { day: number; every: number; startMonth: string; endMonth: string; paused: boolean; tz: string; nature: string };
+type DueRule = { day: number; every: number; startMonth: string; endMonth: string; paused: boolean; pausedAt?: Date | null; tz: string; nature: string };
 
 // Months between two "2026-10" keys (b − a).
 export function monthsBetween(a: string, b: string): number {
@@ -39,12 +39,16 @@ export function monthsBetween(a: string, b: string): number {
 // was down for a while catches up, but never adds old months), within the
 // bill's start/end, every N months, and once the due day has come in the
 // bill's time zone. A daily bill is due once its month is over.
+// A paused daily bill still has the month it was paused in (the days before the pause are added with that month's bill, on the 1st);
+// nothing later is due. A paused bill of any other kind, or one with no pause day, has nothing due.
 export function periodsDue(b: DueRule, now: Date): string[] {
-  if (b.paused) return [];
+  if (b.paused && !(b.nature === "daily" && b.pausedAt)) return [];
   const today = dayKey(now, b.tz || DEFAULT_TIME_ZONE);
   const thisMonth = today.slice(0, 7);
+  const pauseMonth = b.paused && b.pausedAt ? dayKey(b.pausedAt, b.tz || DEFAULT_TIME_ZONE).slice(0, 7) : "";
   const out: string[] = [];
   for (const p of [addMonths(thisMonth, -1), thisMonth]) {
+    if (pauseMonth && p > pauseMonth) continue;
     if (p < b.startMonth) continue;
     if (b.endMonth && p > b.endMonth) continue;
     if (monthsBetween(b.startMonth, p) % Math.max(1, b.every) !== 0) continue;
@@ -112,45 +116,58 @@ export function missedDays(missed: string, period: string): number[] {
   }
 }
 
-// A daily bill for a month: the rate × the days it came.
-export function dailyTotal(b: { amount: number; missed: string }, period: string): { days: number; amount: number } {
-  const days = daysInMonth(period) - missedDays(b.missed, period).length;
+// The days of a month that a pause cuts off: from the day it was paused (in the bill's own time zone) to the month's end, and every day of a
+// later month. Worked out from `pausedAt`, never written down, so Start again has nothing to un-mark (and days someone marked
+// "didn't come" ahead of time stay marked).
+export function pausedDays(b: { paused?: boolean; pausedAt?: Date | null; tz?: string; nature?: string }, period: string): number[] {
+  if (!b.paused || !b.pausedAt || (b.nature && b.nature !== "daily")) return [];
+  const from = dayKey(b.pausedAt, b.tz || DEFAULT_TIME_ZONE);
+  const pauseMonth = from.slice(0, 7);
+  if (period < pauseMonth) return [];
+  const first = period === pauseMonth ? Number(from.slice(8, 10)) : 1;
+  return Array.from({ length: daysInMonth(period) - first + 1 }, (_, i) => first + i);
+}
+
+// The days a daily bill didn't come, plus the days a pause cuts off.
+export function countedMissed(b: { missed: string; paused?: boolean; pausedAt?: Date | null; tz?: string; nature?: string }, period: string): number[] {
+  return [...new Set([...missedDays(b.missed, period), ...pausedDays(b, period)])].sort((x, y) => x - y);
+}
+
+// A daily bill for a month: the rate × the days it came (and, if it is paused, only the days before the pause).
+export function dailyTotal(b: { amount: number; missed: string; paused?: boolean; pausedAt?: Date | null; tz?: string }, period: string): { days: number; amount: number } {
+  const days = daysInMonth(period) - countedMissed(b, period).length;
   return { days, amount: days * b.amount };
 }
 
-// The month so far of a daily bill, for a pause or a stop (the days it came, up to the day before `until`):
-//   days   – days after the last part charge (or the 1st) up to yesterday, leaving out the days it didn't come
-//   gross  – days × the daily rate
-//   less   – move-out charges made since the last part charge (an earlier one was already taken off by that part charge)
-//   amount – gross − less, never below 0
-// `entries` are the month's live charges in the order they were written ("part" = an earlier part charge).
-// Hand-worked: ₹60 a day (6,000), 1–19 Nov, nothing missed, nothing charged: 19 × 6,000 = 114,000.
-export type MonthSoFar = { fromDay: number; toDay: number; lastDay: number; days: number; gross: number; less: number; amount: number };
+// A stopped bill is a paused bill with an end month (the month it was stopped in). Live code never writes an end month, so a bill
+// that is only paused (or one from before this) is never mistaken for a stopped one.
+export function isStopped(b: { paused: boolean; endMonth: string }): boolean {
+  return b.paused && b.endMonth !== "";
+}
 
-// Part charges are permanent and each covers every day from the 1st (or the day after the part charge before it) to its own last day, whether
-// the bill came or not; the calendar locks those days. So what is still to charge is always one block after the last part charge, with
-// only "didn't come" days left out of it.
-//   fromDay..lastDay – the days this charge covers: the day after the last part charge up to yesterday (a day it didn't come is inside it, at no cost).
-//   This is the one label (name, confirm and month-end note) for the charge.
-export function monthSoFar(b: { amount: number; missed: string }, period: string, until: string, entries: { a: number; k?: string; d?: string }[]): MonthSoFar {
-  const toDay = until.slice(0, 7) === period ? Number(until.slice(8, 10)) - 1 : until.slice(0, 7) > period ? daysInMonth(period) : 0;
-  let lastPartAt = -1;
-  entries.forEach((x, i) => {
-    if (x.k === "part") lastPartAt = i;
-  });
-  const lastPart = lastPartAt >= 0 ? Number((entries[lastPartAt].d ?? "").slice(8, 10)) || 0 : 0;
-  const fromDay = lastPart + 1;
-  const missed = missedDays(b.missed, period);
-  const open: number[] = [];
-  for (let d = fromDay; d <= toDay; d++) if (!missed.includes(d)) open.push(d);
-  const days = open.length;
-  const gross = days * b.amount;
-  // (A move-out charge and a part charge no longer share a month; this only matters for a bill paused before that rule, in an older month.)
-  const less = entries.slice(lastPartAt + 1).filter((x) => x.k !== "part").reduce((n, x) => n + x.a, 0);
-  return { fromDay, toDay, lastDay: toDay, days, gross, less, amount: Math.max(0, gross - less) };
+// A stopped bill is finished (and goes) once nothing of it is left to add: no month waiting or being added, and, for a daily bill,
+// last month and this month (up to the end month) each have their run, or came to no days.
+export function stopDone(
+  b: { paused: boolean; endMonth: string; startMonth: string; every: number; nature: string; amount: number; missed: string; pausedAt?: Date | null; tz: string },
+  runs: { period: string; status: string; reason: string }[],
+  now: Date,
+): boolean {
+  if (!isStopped(b)) return false;
+  if (runs.some((r) => r.status === "adding" || (r.status === "waiting" && r.reason !== "deleted"))) return false;
+  if (b.nature === "daily") {
+    const thisMonth = dayKey(now, b.tz || DEFAULT_TIME_ZONE).slice(0, 7);
+    for (const p of [addMonths(thisMonth, -1), thisMonth]) {
+      if (p < b.startMonth || p > b.endMonth) continue;
+      if (monthsBetween(b.startMonth, p) % Math.max(1, b.every) !== 0) continue;
+      if (runs.some((r) => r.period === p)) continue;
+      if (b.amount > 0 && dailyTotal(b, p).days > 0) return false;
+    }
+  }
+  return true;
 }
 
 const SHORT_MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const LONG_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 // "1–19 Nov" (or "19 Nov" for one day).
 export function dayRangeLabel(period: string, from: number, to: number): string {
   const mon = SHORT_MONTH_NAMES[Number(period.slice(5, 7)) - 1] ?? "";
@@ -162,6 +179,57 @@ export function nextBillLabel(s: { status: string; nature: string; reason: strin
   if (s.status !== "waiting") return "Next bill";
   const hold = billHold(s);
   return hold === "payer" ? "Needs a payer" : hold === "amount" ? "Waiting for amount" : "Overdue";
+}
+
+// ---------- The words for pausing and stopping ----------
+// A pause or stop adds nothing now. The days used so far (up to the day before) are added with the normal monthly bill on the 1st.
+// `money` is the amount of the days so far, e.g. "₹1,140"; `less` the move-out charges already paid for them (name + amount text).
+export type StopWords = {
+  name: string;
+  nature: string;
+  month: string; // the month it is paused or stopped in, "2026-11"
+  day: number; // the day it is paused or stopped on (that day is not counted)
+  days: number; // days counted so far this month
+  money: string; // those days at the daily price
+  less: { who: string; money: string }[];
+  lastMonth: { period: string; money: string } | null; // last month, if its bill is still to come
+  waiting: { period: string; varies: boolean } | null; // a month still waiting to be added (not a daily one)
+};
+const longMonth = (period: string) => LONG_MONTH_NAMES[Number(period.slice(5, 7)) - 1] ?? period;
+const firstOfNext = (period: string) => `1 ${SHORT_MONTH_NAMES[Number(addMonths(period, 1).slice(5, 7)) - 1] ?? ""}`;
+
+// What "this adds on the 1st": "1–19 Nov (₹1,140, less ₹200 C already paid when they moved out)" – "" when no day was counted.
+function soFar(w: StopWords): string {
+  if (w.nature !== "daily" || w.days <= 0 || w.day <= 1) return "";
+  const less = w.less.map((x) => `, less ${x.money} ${x.who} already paid when they moved out`).join("");
+  return `${dayRangeLabel(w.month, 1, w.day - 1)} (${w.money}${less})`;
+}
+
+export function stopLines(w: StopWords): { stop: string; pause: string; stoppedNote: string; pausedNote: string } {
+  const sofar = soFar(w);
+  const last = w.lastMonth ? `${longMonth(w.lastMonth.period)} (${w.lastMonth.money}) is still added with the monthly bill.` : "";
+  const day1 = firstOfNext(w.month);
+  let stop: string;
+  if (w.waiting) {
+    stop = w.waiting.varies
+      ? `Stop ${w.name}? ${longMonth(w.waiting.period)} is still waiting for its amount. It stays in Bills until you enter it or skip it. Nothing new is added after that.`
+      : `Stop ${w.name}? ${longMonth(w.waiting.period)} is still waiting to be added. It stays in Bills until you add it or skip it. Nothing new is added after that.`;
+  } else if (sofar || last) {
+    stop = `Stop ${w.name}? ${sofar ? `${w.name} stops now. ${sofar} is added on ${day1} with the monthly bill. ` : ""}${last ? `${last} ` : ""}Expenses already added stay.`;
+  } else {
+    stop = `Stop ${w.name}? Expenses already added stay.`;
+  }
+  const pause = sofar || last
+    ? `Pause ${w.name}? ${sofar ? `${sofar} is added on ${day1} with the monthly bill. ` : ""}${last ? `${last} ` : ""}Nothing more is added until you start it again.`
+    : `Pause ${w.name}? Nothing more is added until you start it again.`;
+  const from = `${w.day} ${SHORT_MONTH_NAMES[Number(w.month.slice(5, 7)) - 1] ?? ""}`;
+  const stoppedNote = sofar
+    ? `Stopped from ${from}. ${sofar} is added on ${day1} with the monthly bill, then ${w.name} ends.`
+    : `Stopped from ${from}. Nothing more is added, then ${w.name} ends.`;
+  const pausedNote = sofar
+    ? `Paused from ${from}. ${sofar} is added on ${day1} with the monthly bill. Nothing more is added until you start it again.`
+    : `Paused from ${from}. Nothing more is added until you start it again.`;
+  return { stop, pause, stoppedNote, pausedNote };
 }
 
 // Tap a day on the calendar: missed ⇄ came.
@@ -252,8 +320,9 @@ export function billBadge(b: {
   recordedThisMonth: boolean;
   tz: string;
   now: Date;
+  ended?: boolean; // stopped (paused with an end month): the same grey chip, another word
 }): BillBadge | null {
-  if (b.status === "paused") return { id: "paused", label: "Paused", tone: "grey" };
+  if (b.status === "paused") return { id: "paused", label: b.ended ? "Stopped" : "Paused", tone: "grey" };
   if (b.status === "waiting") {
     const hold = billHold(b);
     return hold === "payer"

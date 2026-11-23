@@ -4,11 +4,10 @@ import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense
 import { sendPushTo } from "../push";
 import { askBill } from "./bill-asks";
 import { toInputAmount, formatMoney } from "../money";
-import { dailyTotal, dayRangeLabel, monthSoFar, monthsBetween, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
-import { allocateByWeights } from "../split";
+import { dailyTotal, isStopped, payerFor, periodsDue, nextDueDay, ordinalDay, stopDone, stopLines, type StopWords } from "./bills";
 import { addMonths, daysInMonth, dueKey } from "./month";
 import { noteReplaced } from "./bill-run-link";
-import { addPrepaid, joinWeights, lastPartDay, parsePrepaid, type Prepaid } from "./moving";
+import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
 import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
 import { previousResult } from "../once";
@@ -71,10 +70,7 @@ export function holdReasonNow(bill: { split: string; nature: string; amount: num
 
 // How an automatic expense is shared: the group's own split, equally, only
 // some, by percentage or by fixed amounts.
-// `range`: only the days from..to of the month are being added (a part charge, or the days after one); someone who moved in
-// part-way is weighted by the exact days they were there, as amounts (shares allow at most 20, a month has up to 31 days).
-export type DayRange = { from: number; to: number; amount: number };
-export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR", range?: DayRange): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> & Partial<Pick<SaveExpenseInput, "percent" | "exact">> {
+export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR"): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> & Partial<Pick<SaveExpenseInput, "percent" | "exact">> {
   const active = members.filter((m) => !m.leftAt);
   const split = parseSplit(splitJson);
   if (split.mode === "percent") {
@@ -86,15 +82,6 @@ export function splitFields(splitJson: string, members: Member[], period?: strin
     return { forMode: "selected", selected: ids, splitType: "exact", exact: Object.fromEntries(ids.map((id) => [id, toInputAmount(split.amt[id], currency)])), percent: {} };
   }
   const some = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)).map((m) => m.id) : [];
-  if (range && period && split.mode !== "some") {
-    const base = (m: Member) => (split.mode === "group" ? m.splitWeight : 100);
-    const w = joinWeights(active.map((m) => ({ id: m.id, splitWeight: base(m), joinedFrom: m.joinedFrom ?? null })), period, range);
-    // Always the days of the range (never the whole month's weights): someone who moved in on the 15th and a range of 20-30 Nov is weighted for 11 days, as the others are.
-    const parts = allocateByWeights(range.amount, active.map((m) => ({ memberId: m.id, weight: w[m.id] })));
-    if (parts.length) {
-      return { forMode: "selected", selected: parts.map((p) => p.memberId), splitType: "exact", exact: Object.fromEntries(parts.map((p) => [p.memberId, toInputAmount(p.amount, currency)])), percent: {} };
-    }
-  }
   // Someone moved in this month: they share only for the days they're there.
   if (period && split.mode !== "some" && active.some((m) => m.joinedFrom && m.joinedFrom.toISOString().slice(0, 7) >= period)) {
     const days = daysInMonth(period);
@@ -117,7 +104,7 @@ export function splitFields(splitJson: string, members: Member[], period?: strin
 }
 
 // The expense a bill becomes (also used to prefill "Enter amount").
-export function billExpenseInput(bill: BillRow, groupId: string, currency: string, period: string, amount: number, payerId: string, members: Member[], range?: DayRange): SaveExpenseInput {
+export function billExpenseInput(bill: BillRow, groupId: string, currency: string, period: string, amount: number, payerId: string, members: Member[]): SaveExpenseInput {
   const day = bill.nature === "daily" ? dueKey(period, "last") : dueKey(period, bill.day >= 31 ? "last" : bill.day);
   return {
     groupId,
@@ -129,7 +116,7 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
     onePersonId: "",
     exact: {},
     percent: {},
-    ...splitFields(bill.split, members, period, currency, range),
+    ...splitFields(bill.split, members, period, currency),
     paymentMethod: "cash",
     markupChoice: "group",
     markupCustom: "",
@@ -157,9 +144,7 @@ export async function prepaidFor(bill: { prepaid: string }, period: string): Pro
 // The month-end daily bill is paid by that month's payer, so the move-out charge (which only the leaver shares)
 // is credited to that same person: the payer ends up credited for the whole month. Shares don't change.
 // A short line goes in the history for each charge that changes payer ("Asha now paid Milk · 1–14 Nov"), so nothing moves silently.
-export async function syncChargePayer(tx: Prisma.TransactionClient, groupId: string, allEntries: Prepaid[], payer: string): Promise<void> {
-  // A pause or stop charge is locked: it stays paid by whoever paid it. Only move-out charges follow the month's payer.
-  const entries = allEntries.filter((x) => x.k !== "part");
+export async function syncChargePayer(tx: Prisma.TransactionClient, groupId: string, entries: Prepaid[], payer: string): Promise<void> {
   if (!payer || !entries.length) return;
   // A charge whose current payer has left stays theirs: moving the credit would move a balance that has to stay exactly 0 (the move-out
   // hands such a charge on while the person is still here; this is the backstop for anything older).
@@ -199,10 +184,20 @@ async function claimRun(billId: string, period: string, now: Date) {
 }
 
 // Turn one due (bill, month) into an expense, once.
-async function runOne(bill: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date) {
+async function runOne(first: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date) {
   // Claim the month first. If someone else already did, there's nothing to do.
-  const run = await claimRun(bill.id, period, now);
+  const run = await claimRun(first.id, period, now);
   if (!run) return "already";
+  // A daily bill is read again once the month is claimed: a pause, a start again or a day marked meanwhile changes what the month comes to.
+  let bill = first;
+  if (first.nature === "daily") {
+    const fresh = await db.bill.findUnique({ where: { id: first.id } });
+    if (!fresh || fresh.deletedAt) {
+      await db.billRun.update({ where: { id: run.id }, data: { status: "skipped", reason: "bill gone" } });
+      return "skipped";
+    }
+    bill = fresh;
+  }
   const key = run.requestKey || `bill-${run.id}`;
   // Taking over a crashed run: if its expense was saved after all, just finish.
   const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
@@ -245,7 +240,6 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   let amount = bill.amount;
   let note = "";
   let charges: Prepaid[] = [];
-  let range: DayRange | undefined;
   if (bill.nature === "daily") {
     const d = dailyTotal(bill, period);
     if (d.days <= 0 || bill.amount <= 0) {
@@ -261,23 +255,13 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
       return "skipped";
     }
     note = `${d.days} days × ${formatMoney(bill.amount, group.currency)}`;
-    // After a part charge (a pause or stop earlier this month) only the days after it are being added: weight people by those days.
-    const covered = lastPartDay(pre.entries);
-    if (covered > 0) range = { from: covered + 1, to: daysInMonth(period), amount };
-    let partEnd = 0;
     for (const x of pre.entries) {
-      if (x.k === "part") {
-        const end = Number((x.d ?? "").slice(8, 10)) || 1;
-        note += `, less ${formatMoney(x.a, group.currency)} already added for ${dayRangeLabel(period, partEnd + 1, end)}`; // from the day after the part charge before it
-        partEnd = end;
-        continue;
-      }
       note += `, less ${formatMoney(x.a, group.currency)} ${group.members.find((m) => m.id === x.m)?.name ?? "someone"}’s share${x.d ? ` (moved out ${niceDate(x.d)})` : ""}`;
     }
   }
   if (amount <= 0) return wait("no amount");
 
-  const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members, range);
+  const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members);
   if (note) input.notes = note;
   const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) ${REPEAT_BILL_MARK}` });
   if (!r.ok) return wait(r.error.slice(0, 120));
@@ -297,7 +281,8 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
   });
   const counts = { added: 0, waiting: 0, skipped: 0, failed: 0 };
   if (!group || group.deletedAt) return counts;
-  const bills = await db.bill.findMany({ where: { groupId, deletedAt: null, paused: false } });
+  // (A paused daily bill still has the month it was paused in: periodsDue says which months are due.)
+  const bills = await db.bill.findMany({ where: { groupId, deletedAt: null } });
   for (const bill of bills) {
     for (const period of periodsDue(bill, now)) {
       // One bill failing (a dropped connection) mustn't stop the others; its
@@ -311,13 +296,14 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
       else if (r === "waiting") counts.waiting++;
       else if (r === "skipped") counts.skipped++;
     }
+    await finishStoppedBill(bill.id, now).catch(() => false); // a stopped bill with nothing left to add is finished
   }
   return counts;
 }
 
 // The daily job: every group that has bills.
 export async function runAllBills(now = new Date(), stop: () => boolean = () => false) {
-  const groups = await db.bill.findMany({ where: { deletedAt: null, paused: false, group: { deletedAt: null } }, select: { groupId: true }, distinct: ["groupId"] });
+  const groups = await db.bill.findMany({ where: { deletedAt: null, group: { deletedAt: null } }, select: { groupId: true }, distinct: ["groupId"] });
   const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0, failed: 0, deferred: false };
   for (const g of groups) {
     // Out of time: the rest wait for the next run (each bill month is added at most once, so repeating is safe).
@@ -355,7 +341,7 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
   const amounts = new Map(
     (await db.expense.findMany({ where: { id: { in: runExpenseIds }, deletedAt: null }, select: { id: true, amount: true } })).map((e) => [e.id, e.amount]),
   );
-  return bills.map((bill) => {
+  return bills.filter((bill) => !stopDone(bill, bill.runs, now)).map((bill) => {
     const { runs, ...b } = bill;
     const thisMonth = dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7);
     const recordedThisMonth = runs.some((r) => r.period === thisMonth && r.status === "added");
@@ -428,204 +414,63 @@ export async function addWaitingBill(
     const e = await db.expense.findUnique({ where: { id: r.id }, select: { amount: true } });
     if (e) await db.bill.update({ where: { id: bill.id }, data: { amount: e.amount } });
   }
+  await finishStoppedBill(bill.id).catch(() => false); // the last month of a stopped bill was just added
   return r;
 }
 
-// ---------- Pausing or stopping a daily bill: the month so far is added first ----------
+// ---------- Stopping a bill ----------
 //
-// Milk at ₹60 a day, stopped on 20 Nov: 1–19 Nov (19 × 6,000 = 114,000) is added now as one expense, shared like the bill
-// is shared, so the days that came are never lost. It is written down on the bill as a "part" charge (the same record a
-// move-out charge uses), so the month-end bill takes it off, and the days it covers can't change any more.
+// A stop is a pause with an end month (the month it was stopped in). Nothing is charged at the moment of the stop: the days used so far are
+// added with the normal monthly bill on the 1st (a paused daily bill still gets that one month, see periodsDue). Once nothing is left to
+// add, the stopped bill is finished (deletedAt), exactly like a stopped bill always was.
 
-type GroupForBill = { id: string; currency: string; closed: boolean; members: Member[] };
-class PartChanged extends Error {}
-class PartRefused extends Error {}
-
-// A pause or stop charge and a move-out charge never share a month: while anyone's move-out (their last day) falls in this month,
-// a daily bill can't be paused or stopped (the days it didn't come are marked instead). Moving out is refused the other way round.
-export const MOVED_OUT_THIS_MONTH = (bill: string) => `Someone moved out this month, so ${bill} can’t be paused or stopped until next month. Mark the days it didn’t come instead.`;
-export async function movedOutIn(client: Pick<Prisma.TransactionClient, "member">, groupId: string, period: string): Promise<boolean> {
-  const from = new Date(`${period}-01T00:00:00Z`);
-  const to = new Date(`${addMonths(period, 1)}-01T00:00:00Z`);
-  return (await client.member.count({ where: { groupId, leftAt: { gte: from, lt: to } } })) > 0;
+// Finish a stopped bill that has nothing left to add. Only if it is still exactly as it was read (two people at once change it once).
+export async function finishStoppedBill(billId: string, now = new Date()): Promise<boolean> {
+  const bill = await db.bill.findUnique({ where: { id: billId }, include: { runs: { select: { period: true, status: true, reason: true } } } });
+  if (!bill || bill.deletedAt || !stopDone(bill, bill.runs, now)) return false;
+  const done = await db.bill.updateMany({ where: { id: billId, deletedAt: null, paused: true, endMonth: bill.endMonth, pausedAt: bill.pausedAt }, data: { deletedAt: now } });
+  return done.count === 1;
 }
 
-export const monthLongName = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" });
-const money = (n: number, currency: string) => formatMoney(n, currency);
-
-export const partChangedText = (bill: string, amount: number, currency: string) => `${bill} changed since you opened this. It now adds ${money(amount, currency)}. Check and try again.`;
-
-// What the month so far comes to for this bill right now (the same numbers the confirm shows and the server uses).
-export async function monthSoFarOf(bill: BillRow, period: string, until: string) {
-  const pre = await prepaidFor(bill, period);
-  return { pre, m: monthSoFar(bill, period, until, pre.entries) };
-}
-
-// Before a pause or stop: last month's bill, if it is due and not added yet, is added the normal way first. Returns a refusal
-// text if it can't be (the person is told what to fix), else "".
-export async function catchUpLastMonth(bill: BillRow, group: GroupForBill, now: Date, verb: string): Promise<string> {
-  for (const period of periodsDue(bill, now)) await runOne(bill, group, period, now);
-  const waiting = await db.billRun.findFirst({ where: { billId: bill.id, status: "waiting", reason: { not: "deleted" } }, orderBy: { period: "asc" } });
-  if (!waiting) return "";
-  return `${bill.name} for ${monthLongName(waiting.period)} is waiting to be added, so it can’t be ${verb} yet. Open it in the Bills tab, sort that out, then try again.`;
-}
-
-// This month already has its own answer (skipped, added, being added...): a pause or stop then adds nothing for it. Only a month
-// that waits because its expense was deleted may still get the days so far.
-export async function monthSettled(client: Pick<typeof db, "billRun">, billId: string, period: string): Promise<boolean> {
-  const run = await client.billRun.findUnique({ where: { billId_period: { billId, period } }, select: { status: true, reason: true } });
-  return Boolean(run) && !(run!.status === "waiting" && run!.reason === "deleted");
-}
-
-// A daily bill paused before part charges existed, in a month before this one, whose days before the pause were never added.
-// (Resume and Stop add them first.) `from` = the day it was paused.
-// `kept` is false when the pause month is older than the months the app keeps working with (KEPT_MONTHS, like the 36-month sweep that
-// closes old months on Start again): its days are then not added automatically, and the confirm says so.
-export const KEPT_MONTHS = 36;
-export const notAddedText = (period: string) => `Days before the pause in ${monthLongName(period)} aren’t added automatically.`;
-export async function legacyPauseMonth(bill: BillRow, now: Date, upTo: "last-1" | "this"): Promise<{ period: string; from: string; kept: boolean } | null> {
-  if (bill.nature !== "daily" || !bill.paused || !bill.pausedAt) return null;
-  const tz = bill.tz || DEFAULT_TIME_ZONE;
-  const from = dayKey(bill.pausedAt, tz);
-  const pm = from.slice(0, 7);
-  const thisMonth = dayKey(now, tz).slice(0, 7);
-  const limit = upTo === "this" ? thisMonth : addMonths(thisMonth, -1);
-  if (!(pm < limit) || pm < bill.startMonth) return null;
-  if (await db.billRun.findUnique({ where: { billId_period: { billId: bill.id, period: pm } } })) return null;
-  if ((parsePrepaid(bill.prepaid)[pm] ?? []).some((x) => x.k === "part")) return null;
-  return { period: pm, from, kept: monthsBetween(pm, thisMonth) <= KEPT_MONTHS };
-}
-
-type PartResult = { ok: true; amount: number; added: boolean } | { ok: false; error: string };
-
-// Adds the month so far (if there is any) and, in the very same transaction, runs `finish` (pause / stop / resume the bill).
-// Nothing is written if anything is wrong: no payer, a split that can't work, a closed group, or the bill changed since it was read.
-export async function addMonthSoFar(
-  bill: BillRow,
-  group: GroupForBill,
-  o: { period: string; until: string; verb: string; actorId: string; now: Date; expect?: number | null; finish: (tx: Prisma.TransactionClient) => Promise<void>; refuse?: (tx: Prisma.TransactionClient) => Promise<string | null> },
-): Promise<PartResult> {
-  // This month was skipped or already added: nothing is added for it, the bill is only paused or stopped.
-  if (await monthSettled(db, bill.id, o.period)) {
-    if (o.expect != null && o.expect !== 0) return { ok: false, error: partChangedText(bill.name, 0, group.currency) };
-    await db.$transaction((tx) => o.finish(tx));
-    return { ok: true, amount: 0, added: false };
-  }
-  const { pre, m } = await monthSoFarOf(bill, o.period, o.until);
-  if (o.expect != null && o.expect !== m.amount) return { ok: false, error: partChangedText(bill.name, m.amount, group.currency) };
-  if (m.amount <= 0) {
-    await db.$transaction((tx) => o.finish(tx));
-    return { ok: true, amount: 0, added: false };
-  }
-  const label = dayRangeLabel(o.period, m.fromDay, m.lastDay);
-  const active = group.members.filter((m2) => !m2.leftAt).map((m2) => m2.id);
-  const payer = payerFor(bill, o.period, active);
-  if (!payer) return { ok: false, error: `${bill.name} needs a payer before it can be ${o.verb}, so ${label} can be added. Pick who pays below.` };
-  if (group.closed) return { ok: false, error: `${bill.name} can’t be ${o.verb} while the group is closed, because ${label} still has to be added.` };
-  const problem = splitProblem(bill.split, active);
-  if (problem) return { ok: false, error: `${bill.name}’s split needs fixing (${problem}) before it can be ${o.verb}, so ${label} can be added. Fix it below.` };
-
-  const input = billExpenseInput(bill, group.id, group.currency, o.period, m.amount, payer, group.members, { from: lastPartDay(pre.entries) + 1, to: m.toDay, amount: m.amount } /* the same person-days rule as the month-end bill (joinWeights) */);
-  input.name = `${bill.name} · ${label}`;
-  input.date = `${o.period}-${String(m.toDay).padStart(2, "0")}`;
-  let note = `${m.days} days × ${money(bill.amount, group.currency)}`;
-  const after = pre.entries.slice(pre.entries.map((x) => x.k).lastIndexOf("part") + 1).filter((x) => x.k !== "part");
-  for (const x of after) note += `, less ${money(x.a, group.currency)} already charged when ${group.members.find((m2) => m2.id === x.m)?.name ?? "someone"} moved out`;
-  input.notes = note;
-  let wrote = false;
-  let r: Awaited<ReturnType<typeof saveExpense>>;
-  // The same request again (a double tap, two phones) finds its expense by this key. Part charges can never be deleted, so it is never stale.
-  const key = `bill-part-${bill.id}-${o.period}-${m.toDay}`;
-  try {
-    r = await saveExpense(input, payer, sameCurrencyRate, {
-      now: o.now,
-      requestKey: key,
-      eventText: `paid ${bill.name} for ${label} (${money(m.amount, group.currency)}) ${REPEAT_BILL_MARK}`,
-      alsoInTx: async (tx, expenseId) => {
-        // Read again here, in the write: if the days that didn't come, the charges, the price, the split or the pause changed, nothing is added.
-        const why = await o.refuse?.(tx); // (someone moved out in the gap)
-        if (why) throw new PartRefused(why);
-        const cur = await tx.bill.findUnique({ where: { id: bill.id } });
-        if (await monthSettled(tx as unknown as typeof db, bill.id, o.period)) throw new PartChanged(); // skipped or added in the gap
-        if (!cur || cur.deletedAt || cur.missed !== bill.missed || cur.prepaid !== bill.prepaid || cur.amount !== bill.amount || cur.split !== bill.split || cur.paused !== bill.paused) throw new PartChanged();
-        await tx.bill.update({ where: { id: bill.id }, data: { prepaid: addPrepaid(cur.prepaid, o.period, { m: "", a: m.amount, e: expenseId, d: input.date, k: "part" }) } });
-        await o.finish(tx);
-        wrote = true;
-      },
-    });
-  } catch (err) {
-    if (err instanceof PartRefused) return { ok: false, error: err.message };
-    if (err instanceof PartChanged) return { ok: false, error: `${bill.name} changed since you opened this. Check and try again.` };
-    throw err;
-  }
-  if (!r.ok) return { ok: false, error: r.error };
-  // The same request again (a double tap, or two phones at once): the expense is already there, so only finish (it can run twice safely).
-  if (!wrote) await db.$transaction((tx) => o.finish(tx));
-  return { ok: true, amount: m.amount, added: wrote };
-}
-
-// The one line the confirm shows before a pause, stop or start-again of a daily bill ("This adds Milk for 1–19 Nov, ₹1,140."),
-// and the amount the server must still work out the same (`expect`). null = nothing would be added.
-export type AddsLine = { amount: number; line: string };
-export async function billChangeLines(billId: string, now = new Date()): Promise<{ stop: AddsLine | null; resume: AddsLine | null; refused: string | null } | null> {
-  const bill = await db.bill.findFirst({ where: { id: billId, deletedAt: null }, include: { group: { include: { members: true } } } });
-  if (!bill || bill.nature !== "daily") return null;
+// The words for pausing or stopping a bill right now (the confirm, and the note on the bill page once it is paused or stopped).
+export async function stopWordsFor(billId: string, now = new Date()): Promise<{ words: ReturnType<typeof stopLines>; ended: boolean } | null> {
+  const bill = await db.bill.findFirst({ where: { id: billId, deletedAt: null }, include: { group: { include: { members: true } }, runs: { select: { period: true, status: true, reason: true } } } });
+  if (!bill) return null;
   const tz = bill.tz || DEFAULT_TIME_ZONE;
   const cur = bill.group.currency;
-  const today = dayKey(now, tz);
-  const period = today.slice(0, 7);
-  const pausedDay = bill.paused && bill.pausedAt ? dayKey(bill.pausedAt, tz) : "";
-  const named = (id: string) => bill.group.members.find((x) => x.id === id)?.name ?? "someone";
-  const item = (p: string, m: ReturnType<typeof monthSoFar>, entries: Prepaid[]) => {
-    const after = entries.slice(entries.map((x) => x.k).lastIndexOf("part") + 1).filter((x) => x.k !== "part");
-    const less = after.length === 0 ? "" : `, after ${money(m.less, cur)} already charged ${after.length === 1 ? `when ${named(after[0].m)} moved out` : "at move-out"}`;
-    return `${bill.name} for ${dayRangeLabel(p, m.fromDay, m.lastDay)}, ${money(m.amount, cur)}${less}`;
-  };
-  // Stop (or pause): last month first if it is due and not added yet, then the month so far.
-  const items: string[] = [];
-  if (!bill.paused) {
+  // Paused or stopped: the day it was; running: today (the day itself is not counted).
+  const day = dayKey(bill.paused && bill.pausedAt ? bill.pausedAt : now, tz);
+  const month = day.slice(0, 7);
+  const cut = { ...bill, paused: true, pausedAt: bill.paused && bill.pausedAt ? bill.pausedAt : now };
+  // (A month that already has its answer, added or skipped, has nothing more to add.)
+  const monthDone = bill.runs.some((r) => r.period === month);
+  const days = bill.nature === "daily" && !monthDone ? dailyTotal(cut, month) : { days: 0, amount: 0 };
+  const pre = bill.nature === "daily" ? await prepaidFor(bill, month) : { total: 0, entries: [] as Prepaid[] };
+  const named = (id: string) => bill.group.members.find((m) => m.id === id)?.name ?? "Someone";
+  const less = pre.entries.map((x) => ({ who: named(x.m), money: formatMoney(x.a, cur) }));
+  // Last month's bill, if it is due and not added yet (a running daily bill only).
+  let lastMonth: StopWords["lastMonth"] = null;
+  if (bill.nature === "daily" && !bill.paused) {
     for (const p of periodsDue(bill, now)) {
-      if (await db.billRun.findUnique({ where: { billId_period: { billId: bill.id, period: p } } })) continue;
-      const pre = await prepaidFor(bill, p);
-      const amount = Math.max(0, dailyTotal(bill, p).amount - pre.total);
-      if (amount > 0) items.push(`${bill.name} for ${monthLongName(p)}, ${money(amount, cur)}`);
+      if (bill.runs.some((r) => r.period === p)) continue;
+      const lastPre = await prepaidFor(bill, p);
+      const amount = Math.max(0, dailyTotal(bill, p).amount - lastPre.total);
+      if (amount > 0) lastMonth = { period: p, money: formatMoney(amount, cur) };
     }
   }
-  // A month that was skipped or already added gets nothing for the month so far (only the pause or stop happens).
-  const { pre, m } = await monthSoFarOf(bill, period, pausedDay && pausedDay < today ? pausedDay : today);
-  const settled = await monthSettled(db, bill.id, period);
-  let stop: AddsLine | null = null;
-  let stopAmount = 0;
-  // A bill paused before this release, in an earlier month: its days before the pause are added first (Stop does it, like Start again).
-  const legacy = await legacyPauseMonth(bill, now, "this");
-  let note = "";
-  if (legacy && !legacy.kept) {
-    note = ` ${notAddedText(legacy.period)}`;
-  } else if (legacy) {
-    const l = await monthSoFarOf(bill, legacy.period, legacy.from);
-    if (l.m.amount > 0) {
-      items.push(`${item(legacy.period, l.m, l.pre.entries)} (from before it was paused)`);
-      stopAmount = l.m.amount;
-    }
-  } else if (!settled && m.amount > 0) {
-    items.push(item(period, m, pre.entries));
-    stopAmount = m.amount;
-  }
-  if (items.length || note) stop = { amount: stopAmount, line: `${items.length ? `This adds ${items.join(", then ")}.` : ""}${note}`.trim() };
-  // Start again: a bill paused before part charges existed gets the days before its pause now.
-  let resume: AddsLine | null = null;
-  if (bill.paused && pausedDay) {
-    const old = await legacyPauseMonth(bill, now, "last-1");
-    if (old && !old.kept) resume = { amount: 0, line: notAddedText(old.period) };
-    else if (old) {
-      const r = await monthSoFarOf(bill, old.period, old.from);
-      if (r.m.amount > 0) resume = { amount: r.m.amount, line: `Starting again adds ${item(old.period, r.m, r.pre.entries)} (from before it was paused).` };
-    }
-  }
-  // Someone moved out this month: a running bill can't be paused or stopped now (the confirm and the page say so, the server refuses).
-  const refused = !bill.paused && (await movedOutIn(db, bill.groupId, period)) ? MOVED_OUT_THIS_MONTH(bill.name) : null;
-  if (refused) stop = { amount: 0, line: refused };
-  return { stop, resume, refused };
+  const open = bill.runs.filter((r) => r.status === "waiting" && r.reason !== "deleted").sort((x, y) => x.period.localeCompare(y.period))[0];
+  const words = stopLines({
+    name: bill.name,
+    nature: bill.nature,
+    month,
+    day: Number(day.slice(8, 10)),
+    days: days.days,
+    money: formatMoney(days.amount, cur),
+    less: pre.total > 0 && days.days > 0 ? less : [],
+    lastMonth,
+    waiting: open ? { period: open.period, varies: bill.nature === "varies" } : null,
+  });
+  return { words, ended: isStopped(bill) };
 }
 
 export { ordinalDay };

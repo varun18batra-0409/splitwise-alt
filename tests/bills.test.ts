@@ -202,12 +202,8 @@ describe("bills: edge cases from review", () => {
     await billCommand(groupId, you, b.id, "pause", new Date("2026-10-20T06:00:00Z"));
     await billCommand(groupId, you, b.id, "resume", new Date("2026-10-25T06:00:00Z"));
     await runBillsForGroup(groupId, new Date("2026-11-01T06:00:00Z"));
-    // Pausing on the 20th added 1–19 Oct (19 × 5,000 = 95,000) first; the month end adds the rest: 26 × 5,000 − 95,000 = 35,000.
-    const part = await db.expense.findFirstOrThrow({ where: { groupId, description: "Water cans · 1–19 Oct" } });
     const e = await db.expense.findFirstOrThrow({ where: { groupId, description: "Water cans" } });
-    expect(part.amount).toBe(19 * 5000);
-    expect(e.amount).toBe(26 * 5000 - 19 * 5000);
-    expect(part.amount + e.amount).toBe(26 * 5000); // the month's days that came, once
+    expect(e.amount).toBe(26 * 5000);
   });
 
   it("a bill shared by only some people waits when they've all left", async () => {

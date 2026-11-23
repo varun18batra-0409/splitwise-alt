@@ -8,8 +8,8 @@ import { BillForm } from "@/components/BillForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { changeBill, toggleMissedDay } from "@/app/bill-actions";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
-import { billHold, dailyTotal, missedDays, payerFor } from "@/lib/home/bills";
-import { billChangeLines, holdReasonNow, parseSplit } from "@/lib/home/bills-db";
+import { billHold, countedMissed, dailyTotal, isStopped, missedDays, payerFor } from "@/lib/home/bills";
+import { holdReasonNow, parseSplit, stopWordsFor } from "@/lib/home/bills-db";
 import { daysInMonth } from "@/lib/home/month";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
@@ -49,6 +49,8 @@ export default async function BillPage({
   const active = group.members.filter((m) => !m.leftAt);
   const name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const missed = missedDays(bill.missed, month);
+  const counted = countedMissed(bill, month); // (the days a pause cuts off are not counted either)
+  const stopped = isStopped(bill);
   const monthAdded = bill.runs.some((r) => r.period === month);
   const split = parseSplit(bill.split);
   // A held month is described from how things are now (the same words as the Bills tab chip).
@@ -57,8 +59,12 @@ export default async function BillPage({
     const reason = holdReasonNow(bill, active.map((m) => m.id), group.closed, payerId, bill.runs.find((r) => r.period === period && r.status === "waiting")?.reason ?? "");
     return { reason, hold: billHold({ nature: bill.nature, reason, payerId }) };
   };
-  // A daily bill: what pausing, stopping or starting again adds (worked out in the bill's own time zone, like the server does).
-  const lines = bill.nature === "daily" ? await billChangeLines(bill.id) : null;
+  // What pausing or stopping does, in words (the days so far are added with the monthly bill on the 1st).
+  const words = (await stopWordsFor(bill.id))?.words;
+  const waitingMonth = bill.runs.some((r) => r.status === "waiting" && r.reason !== "deleted");
+  const note = stopped
+    ? bill.nature === "daily" ? words?.stoppedNote : `Stopped. It stays here until its waiting month is dealt with, then ${bill.name} ends.`
+    : bill.paused ? (bill.nature === "daily" ? words?.pausedNote : "Paused. It won’t be added until you start it again.") : null;
   const runLabel: Record<string, string> = { added: "Added", waiting: "Waiting for the amount", skipped: "Skipped", adding: "Adding…" };
 
   return (
@@ -66,8 +72,7 @@ export default async function BillPage({
       <PageHeader title={bill.name} back={`/groups/${group.id}?tab=bills`} />
       {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       {sp.saved && <p className="mb-4 text-sm text-owed">Saved.</p>}
-      {bill.paused && <p className="mb-5 rounded-xl bg-mist px-4 py-3 text-sm">Paused. It won’t be added until you start it again.</p>}
-      {lines?.refused && <p className="mb-5 rounded-xl bg-mist px-4 py-3 text-sm">{lines.refused}</p>}
+      {note && <p className="mb-5 rounded-xl bg-mist px-4 py-3 text-sm">{note}</p>}
 
       {bill.nature === "daily" && (
         <section id="calendar" className="mb-8 scroll-mt-4 rounded-2xl border border-line bg-white px-4 py-4">
@@ -76,11 +81,12 @@ export default async function BillPage({
             <span className="money tabular-nums">{money(dailyTotal(bill, month).amount)}</span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {money(bill.amount)} a day · {daysInMonth(month) - missed.length} of {daysInMonth(month)} days
+            {money(bill.amount)} a day · {daysInMonth(month) - counted.length} of {daysInMonth(month)} days
           </p>
           <div className="mt-3 grid grid-cols-7 gap-1.5">
             {Array.from({ length: daysInMonth(month) }, (_, i) => i + 1).map((d) => {
-              const off = missed.includes(d);
+              const off = counted.includes(d);
+              const cut = counted.includes(d) && !missed.includes(d); // cut off by the pause or stop: it can't be tapped
               return (
                 <form key={d} action={toggleMissedDay}>
                   <input type="hidden" name="groupId" value={group.id} />
@@ -89,7 +95,7 @@ export default async function BillPage({
                   <input type="hidden" name="day" value={d} />
                   <button
                     type="submit"
-                    disabled={monthAdded}
+                    disabled={monthAdded || cut}
                     aria-label={`${d}: ${off ? "didn’t come" : "came"}`}
                     aria-pressed={off}
                     className={`h-9 w-full rounded-lg text-xs tabular-nums ${off ? "border border-dashed border-gray-400 text-gray-500 line-through" : "bg-mist text-fg"}`}
@@ -100,7 +106,7 @@ export default async function BillPage({
               );
             })}
           </div>
-          <p className="mt-3 text-xs text-gray-500">Tap a day it didn’t come. Added as one expense on the last day of the month. Pausing or stopping adds the days so far first.</p>
+          <p className="mt-3 text-xs text-gray-500">Tap a day it didn’t come. Added as one expense on the last day of the month.</p>
         </section>
       )}
 
@@ -134,7 +140,7 @@ export default async function BillPage({
       )}
 
       <section className="mb-8 grid grid-cols-2 gap-2">
-        {!bill.paused && (
+        {(!bill.paused || (stopped && waitingMonth)) && (
           <form action={changeBill}>
             <input type="hidden" name="groupId" value={group.id} />
             <input type="hidden" name="billId" value={bill.id} />
@@ -144,55 +150,59 @@ export default async function BillPage({
             </button>
           </form>
         )}
-        <form action={changeBill}>
-          <input type="hidden" name="groupId" value={group.id} />
-          <input type="hidden" name="billId" value={bill.id} />
-          <input type="hidden" name="command" value={bill.paused ? "resume" : "pause"} />
-          {lines && <input type="hidden" name="expect" value={bill.paused ? (lines.resume?.amount ?? 0) : (lines.stop?.amount ?? 0)} />}
-          {(bill.paused ? lines?.resume : lines?.stop) ? (
-            <ConfirmButton message={(bill.paused ? lines?.resume : lines?.stop)!.line} className={secondaryButtonClass}>
-              {bill.paused ? "Start again" : "Pause"}
-            </ConfirmButton>
-          ) : (
-            <button type="submit" className={secondaryButtonClass}>
-              {bill.paused ? "Start again" : "Pause"}
-            </button>
-          )}
-        </form>
+        {!stopped && (
+          <form action={changeBill}>
+            <input type="hidden" name="groupId" value={group.id} />
+            <input type="hidden" name="billId" value={bill.id} />
+            <input type="hidden" name="command" value={bill.paused ? "resume" : "pause"} />
+            {!bill.paused && bill.nature === "daily" && words ? (
+              <ConfirmButton message={words.pause} className={secondaryButtonClass}>
+                Pause
+              </ConfirmButton>
+            ) : (
+              <button type="submit" className={secondaryButtonClass}>
+                {bill.paused ? "Start again" : "Pause"}
+              </button>
+            )}
+          </form>
+        )}
       </section>
 
-      <h2 id="change" className="mb-4 scroll-mt-4 font-display text-xl font-semibold">Change it</h2>
-      <BillForm
-        groupId={group.id}
-        members={active.map(({ id: mid, name: n }) => ({ id: mid, name: n }))}
-        myId={myId}
-        splitName={splitNameFor(group.type)}
-        splitLabel={weightsLabel(active.map((m) => m.splitWeight))}
-        currency={group.currency}
-        initial={{
-          billId: bill.id,
-          template: bill.icon,
-          name: bill.name,
-          nature: (["fixed", "varies", "daily"] as const).find((n) => n === bill.nature) ?? "fixed",
-          amount: bill.amount ? toInputAmount(bill.amount, group.currency) : "",
-          day: bill.day,
-          payer: bill.payer || "turns",
-          split: split.mode,
-          ids: split.ids,
-          pct: Object.fromEntries(Object.entries(split.pct).map(([k, v]) => [k, String(v / 100)])),
-          amt: Object.fromEntries(Object.entries(split.amt).map(([k, v]) => [k, toInputAmount(v, group.currency)])),
-        }}
-      />
+      {!stopped && (
+        <>
+          <h2 id="change" className="mb-4 scroll-mt-4 font-display text-xl font-semibold">Change it</h2>
+          <BillForm
+            groupId={group.id}
+            members={active.map(({ id: mid, name: n }) => ({ id: mid, name: n }))}
+            myId={myId}
+            splitName={splitNameFor(group.type)}
+            splitLabel={weightsLabel(active.map((m) => m.splitWeight))}
+            currency={group.currency}
+            initial={{
+              billId: bill.id,
+              template: bill.icon,
+              name: bill.name,
+              nature: (["fixed", "varies", "daily"] as const).find((n) => n === bill.nature) ?? "fixed",
+              amount: bill.amount ? toInputAmount(bill.amount, group.currency) : "",
+              day: bill.day,
+              payer: bill.payer || "turns",
+              split: split.mode,
+              ids: split.ids,
+              pct: Object.fromEntries(Object.entries(split.pct).map(([k, v]) => [k, String(v / 100)])),
+              amt: Object.fromEntries(Object.entries(split.amt).map(([k, v]) => [k, toInputAmount(v, group.currency)])),
+            }}
+          />
 
-      <form action={changeBill} className="mt-10">
-        <input type="hidden" name="groupId" value={group.id} />
-        <input type="hidden" name="billId" value={bill.id} />
-        <input type="hidden" name="command" value="stop" />
-        {lines && <input type="hidden" name="expect" value={lines.stop?.amount ?? 0} />}
-        <ConfirmButton message={`Stop ${bill.name}? ${lines?.stop ? `${lines.stop.line} ` : ""}Expenses already added stay.`} className="w-full py-3 text-sm font-medium text-red-600">
-          Stop this bill
-        </ConfirmButton>
-      </form>
+          <form action={changeBill} className="mt-10">
+            <input type="hidden" name="groupId" value={group.id} />
+            <input type="hidden" name="billId" value={bill.id} />
+            <input type="hidden" name="command" value="stop" />
+            <ConfirmButton message={words?.stop ?? `Stop ${bill.name}? Expenses already added stay.`} className="w-full py-3 text-sm font-medium text-red-600">
+              Stop this bill
+            </ConfirmButton>
+          </form>
+        </>
+      )}
       <p className="mt-2 text-center text-xs text-gray-400">
         Set up {niceDate(dayKey(bill.createdAt, tz))} by {name(bill.createdById)}.
       </p>
