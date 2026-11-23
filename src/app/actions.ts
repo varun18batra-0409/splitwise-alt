@@ -14,7 +14,8 @@ import { headers } from "next/headers";
 import { ipCountry } from "@/lib/region";
 import { markLeft } from "@/lib/offline/left-cookie";
 import { cleanNames, sameName } from "@/lib/names";
-import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
+import { amountError, isSupportedCurrency, overCap, overpayHref, parseAmount, parsePercent } from "@/lib/money";
+import { paymentTooBigText } from "@/lib/payments";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
@@ -667,7 +668,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (!nameOf(fromId) || !nameOf(toId)) await back("Pick who paid and who they paid.");
   if (fromId === toId) await back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
-  if (amount === null || amount <= 0) await back(amountError(amountText, group.currency));
+  if (amount === null || amount <= 0) await back(overCap(amountText, group.currency) ? paymentTooBigText(group.currency) : amountError(amountText, group.currency));
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
   const fp = fingerprintOf("pay-custom", group.id, fromId, toId, amount, potGame, fromSettle);

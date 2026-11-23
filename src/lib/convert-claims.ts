@@ -3,7 +3,7 @@ import { db } from "./db";
 import { dayKey } from "./dates";
 import { niceDate } from "./format";
 import { logEvent } from "./events";
-import { formatMoney } from "./money";
+import { formatMoney, MAX_MINOR } from "./money";
 import { guardGroup, ledgerInTx } from "./money-guard";
 import { createPayment, PaymentTooBig } from "./payments";
 import { changePayment } from "./payment-change";
@@ -34,6 +34,8 @@ export async function judgeClaim(client: Tx, c: ClaimRow): Promise<Judged> {
   if (!group || group.deletedAt) return { ok: false, reason: "group-gone" };
   if (group.closed) return { ok: false, reason: "group-closed" };
   if (group.currency !== c.currency) return { ok: false, reason: "currency" };
+  // Too big to record as one payment (the real run closes it the same way when the payment writer refuses it).
+  if (!Number.isSafeInteger(c.amount) || c.amount > MAX_MINOR) return { ok: false, reason: "more-than-owed" };
   const people = await client.member.findMany({ where: { groupId: c.groupId, id: { in: [c.fromId, c.toId] } }, select: { id: true, leftAt: true, removedAt: true } });
   if (people.length !== 2) return { ok: false, reason: "person-missing" };
   if (people.some((m) => m.leftAt || m.removedAt)) return { ok: false, reason: "person-left" };

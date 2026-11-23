@@ -7,8 +7,8 @@ import { logEvent } from "./events";
 import { isGroupType } from "./group-types";
 import { balanceGapText, balancesOf, mapCategory, planRow } from "./splitwise-csv";
 import { parseImport, type ColumnMap } from "./import-formats";
-import { MAX_MINOR } from "./money";
-import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "./once";
+import { formatMoney, MAX_MINOR } from "./money";
+import { claimKey, fingerprintOf, isBusy, isDuplicateKey, keyState, retryOnceIfBusy, STALE_KEY_ERROR } from "./once";
 
 // Saving a Splitwise export as a new Loopin group (the reading is in splitwise-csv.ts).
 
@@ -38,10 +38,14 @@ export async function importSplitwise(
   // The same form sent again (a retry, a double tap) gives back the group the first one made, never a second copy. A form opened afresh has a
   // fresh key, so a copy made on purpose still works. The same key with a different file, name or person (or after 2 minutes) is a stale screen.
   const type = isGroupType(input.type) ? input.type : "other";
-  const fp = fingerprintOf("import", account.id, createHash("sha256").update(input.text).digest("hex"), input.me, groupName, type);
+  const fp = fingerprintOf("import", account.id, createHash("sha256").update(input.text).digest("hex"), input.me, groupName, type, JSON.stringify(input.map ?? null), input.currency ?? "");
   const earlier = await keyState(input.key, fp);
   if (earlier.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
-  if (earlier.state === "done") return savedResult(earlier.result);
+  if (earlier.state === "done") {
+    // The first request may have saved the group and then stopped before naming the account: that is finished here.
+    await nameAccountIfEmpty(account.id, cleanNames(people)[input.me]);
+    return savedResult(earlier.result);
+  }
 
   const plans = rows.map(planRow);
   const net = balancesOf(plans, people.length);
@@ -49,6 +53,10 @@ export async function importSplitwise(
   // between two different people, and everyone's balances together must be 0. A file that fails any of these (a name that was matched wrongly,
   // an amount that was read wrongly) would leave the new group's balances not adding up, so it is refused instead of saved.
   const sumOf = (xs: { a: number }[]) => xs.reduce((t, x) => t + x.a, 0);
+  // One expense is stored as a whole number up to MAX_MINOR (the database's Int limit is lower than what several payers could add up to).
+  if (plans.some((p) => p.type !== "payment" && p.amount > MAX_MINOR)) {
+    return { ok: false, error: `A line in this file is more than ${formatMoney(MAX_MINOR, currency)}, the most Loopin can hold for one expense, so nothing was brought over.` };
+  }
   const unsafe =
     plans.some((p) => (p.type === "payment" ? !(p.amount > 0) || p.amount > MAX_MINOR || p.from === p.to : !(p.amount > 0) || !p.payers.length || sumOf(p.payers) !== p.amount || sumOf(p.shares) !== p.amount)) ||
     net.reduce((t, x) => t + x, 0) !== 0;
@@ -111,7 +119,7 @@ export async function importSplitwise(
   const chunks = <T,>(list: T[], n = 400) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
   const result: ImportResult = { ok: true, groupId, meMemberId: memberIds[input.me], expenses: expenses.length, payments: payments.length, matches };
   try {
-  await db.$transaction(
+  await retryOnceIfBusy(() => db.$transaction(
     async (tx) => {
       // First, so a second request with this key fails here and nothing is made.
       await claimKey(tx, input.key, JSON.stringify(result), fp);
@@ -143,18 +151,29 @@ export async function importSplitwise(
       });
     },
     { timeout: 60_000, maxWait: 10_000 },
-  );
+  ));
   } catch (err) {
-    // Two requests with the same key at the same moment: the other one won, so this one gives back its group.
-    if (isDuplicateKey(err)) {
+    // Two requests with the same key at the same moment: the other one won (or the database was busy with it), so this one gives back
+    // that group once it is saved.
+    const racing = isDuplicateKey(err);
+    if (racing || isBusy(err)) {
       const again = await keyState(input.key, fp);
-      if (again.state === "done") return savedResult(again.result);
-      return { ok: false, error: STALE_KEY_ERROR };
+      if (again.state === "done") {
+        await nameAccountIfEmpty(account.id, names[input.me]);
+        return savedResult(again.result);
+      }
+      if (racing) return { ok: false, error: STALE_KEY_ERROR };
     }
     throw err;
   }
-  if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: names[input.me] } });
+  if (!account.name) await nameAccountIfEmpty(account.id, names[input.me]);
   return result;
+}
+
+// Names the account after the person it picked in the file, only while it has no name (and never over a name set meanwhile).
+async function nameAccountIfEmpty(accountId: string, name: string | undefined): Promise<void> {
+  if (!name) return;
+  await db.account.updateMany({ where: { id: accountId, name: "" }, data: { name } });
 }
 
 // What an earlier request with the same key saved (see claimKey in the import's transaction).

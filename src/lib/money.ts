@@ -114,7 +114,18 @@ export function parseAmount(input: string, currency = "INR"): number | null {
   return total;
 }
 
-export const BAD_COMMAS_TEXT = "Check the commas: write 1,23,456 or 123456.";
+// The example is written the way that currency's box groups digits: rupees the Indian way, everything else in threes.
+export const badCommasText = (currency = "INR") => `Check the commas: write ${currency === "INR" ? "1,23,456" : "123,456"} or 123456.`;
+
+// A well-formed amount that is simply more than MAX_MINOR (not a typo): a payment form then says "more than one payment can record".
+export function overCap(input: string, currency = "INR"): boolean {
+  const d = decimalsOf(currency);
+  const read = readCommas(input.replace(/[₹$€£¥฿\s]/g, ""));
+  if (!read.ok) return false;
+  const m = /^(\d*)(?:\.(\d*))?$/.exec(read.text);
+  if (!m || (m[1] === "" && !m[2]) || (m[2] ?? "").length > d) return false;
+  return Number(m[1] || "0") * 10 ** d + Number((m[2] ?? "").padEnd(d, "0") || "0") > MAX_MINOR;
+}
 
 // How commas in a typed amount are read (the text has its currency signs and spaces taken off already):
 //  - one comma and one or two digits after it is a decimal comma ("12,50", as some phone keyboards type it);
@@ -136,7 +147,7 @@ export function amountError(input: string, currency = "INR"): string {
   const d = decimalsOf(currency);
   // Read the comma exactly as parseAmount does, so the message matches the reason.
   const read = readCommas(input.replace(/[₹$€£¥฿\s]/g, ""));
-  if (!read.ok) return BAD_COMMAS_TEXT;
+  if (!read.ok) return badCommasText(currency);
   const t = read.text;
   const m = /^(\d*)(?:\.(\d*))?$/.exec(t);
   if (!t || !m || (m[1] === "" && !m[2])) return d ? `Enter the amount as a number, like 250 or 99.${"5".padEnd(d, "0")}.` : "Enter the amount as a whole number, like 1500.";

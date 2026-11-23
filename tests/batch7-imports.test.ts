@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { loadGroup } from "@/lib/group-data";
-import { amountError, BAD_COMMAS_TEXT, MAX_MINOR, parseAmount } from "@/lib/money";
+import { amountError, badCommasText, MAX_MINOR, overCap, parseAmount } from "@/lib/money";
 import { detectFormat, guessMe, LOOPIN_LABEL } from "@/lib/import-formats";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { createPayment, PaymentTooBig, paymentTooBigText } from "@/lib/payments";
@@ -53,7 +53,16 @@ describe("G30: commas in amounts", () => {
   it("more bad groupings are refused, and the message says what to write", () => {
     for (const t of ["12,3456", "1,2345", "12,34,5", "1,,000", ",500", "1,000,00", "1,000.5,0"]) expect(parseAmount(t, "INR"), t).toBeNull();
     expect(amountError("1,2,3", "INR")).toBe("Check the commas: write 1,23,456 or 123456.");
-    expect(BAD_COMMAS_TEXT).toBe("Check the commas: write 1,23,456 or 123456.");
+    expect(badCommasText("INR")).toBe("Check the commas: write 1,23,456 or 123456.");
+    expect(amountError("1,2,3", "USD")).toBe("Check the commas: write 123,456 or 123456.");
+    expect(amountError("1,2,3", "KWD")).toBe("Check the commas: write 123,456 or 123456.");
+    // overCap: a well-formed amount above the cap (not a typo)
+    expect(overCap("2,000,000,001", "VND")).toBe(true);
+    expect(overCap("2,000,000,000", "VND")).toBe(false);
+    expect(overCap("2400000000", "VND")).toBe(true);
+    expect(overCap("1,2,3", "VND")).toBe(false);
+    expect(overCap("abc", "VND")).toBe(false);
+    expect(overCap("20000000.01", "INR")).toBe(true);
     // A decimal comma in yen is still the old message (no decimals), and a good amount in a 3-decimal currency is read normally.
     expect(amountError("100,5", "JPY")).toBe("JPY amounts are whole numbers: no decimals.");
     expect(parseAmount("1,234.5", "KWD")).toBe(1_234_500);

@@ -3,7 +3,7 @@ import { db } from "./db";
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
-import { createPayment } from "./payments";
+import { createPayment, PaymentTooBig } from "./payments";
 import { tellParties } from "./payment-claims";
 import { guardGroup, ledgerInTx } from "./money-guard";
 import type { Prisma } from "@prisma/client";
@@ -95,7 +95,7 @@ export async function owedInTx(tx: Prisma.TransactionClient, groupId: string, fr
 
 // "I've paid" from the link: recorded as a payment right away (it counts now), and the person paid is told. Only the debt shown (`amount`)
 // is recorded, and only one tap wins: the link must still point at the payment it was read with.
-export async function recordLinkPayment(s: { link: { id: string; groupId: string; fromId: string; toId: string; paymentId: string }; amount: number; currency: string; toName: string; fromName?: string; groupName?: string }): Promise<boolean> {
+export async function recordLinkPayment(s: { link: { id: string; groupId: string; fromId: string; toId: string; paymentId: string }; amount: number; currency: string; toName: string; fromName?: string; groupName?: string }): Promise<boolean | "toobig"> {
   const amountText = formatMoney(s.amount, s.currency);
   // Only what is really owed right now (balances may have moved since the page was read).
   const fresh = await loadGroup(s.link.groupId, { events: false });
@@ -120,8 +120,8 @@ export async function recordLinkPayment(s: { link: { id: string; groupId: string
       });
       return { paymentId: p.id, eventId };
     });
-  } catch {
-    return false;
+  } catch (err) {
+    return err instanceof PaymentTooBig ? "toobig" : false; // "toobig": more than one payment can record, so nothing was recorded
   }
   tellParties({
     event: "recorded", actorId: s.link.fromId, actorName: fresh.group.members.find((m) => m.id === s.link.fromId)?.name ?? "Someone", fromId: s.link.fromId, toId: s.link.toId,

@@ -5,6 +5,7 @@ import { redirect } from "@/lib/fresh-redirect";
 import { flashTo } from "@/lib/flash";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { readPayLink, recordLinkPayment } from "@/lib/pay-link";
+import { paymentTooBigText } from "@/lib/payments";
 import { changePayment } from "@/lib/payment-change";
 import { formatMoney } from "@/lib/money";
 import { FORM_OUT_OF_DATE } from "@/lib/form-currency";
@@ -56,6 +57,7 @@ export async function iPaidAction(f: FormData) {
     });
   }
   const done = await recordLinkPayment({ link: s.link, amount, currency, toName: s.toName });
+  if (done === "toobig") await back(token, { error: paymentTooBigText(s.group.currency) });
   if (!done) await back(token, { error: "That didn’t go through. Open the link again to see where things stand." });
   await back(token, { paid: "1" });
 }
