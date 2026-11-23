@@ -1,0 +1,58 @@
+# Weekly copy of the photo store (Vercel Blob) into a SECOND store, then a check that a sample of the copies opens.
+# Photos are not in the database backup (the database only holds their file names), so this is their backup.
+# Inert until these repository secrets exist (Settings > Secrets and variables > Actions); without them it says so and stops, green:
+#   TURSO_DATABASE_URL            the live database address (already set for other jobs)
+#   TURSO_READONLY_TOKEN          the read-only database key (already set for other jobs)
+#   LIVE_BLOB_READ_WRITE_TOKEN    the live photo store's token (only read from)
+#   BACKUP_BLOB_READ_WRITE_TOKEN  the second photo store's token (written to)
+# Setup steps in plain English: ops/photo-backup/README.md. Each secret goes only to the one step that needs it.
+name: Photo backup
+on:
+  schedule:
+    - cron: "37 21 * * 0" # every Sunday, 03:07 India time
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  photos:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check the settings exist
+        id: ready
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
+          LIVE_BLOB_READ_WRITE_TOKEN: ${{ secrets.LIVE_BLOB_READ_WRITE_TOKEN }}
+          BACKUP_BLOB_READ_WRITE_TOKEN: ${{ secrets.BACKUP_BLOB_READ_WRITE_TOKEN }}
+        run: |
+          missing=""
+          for n in TURSO_DATABASE_URL TURSO_AUTH_TOKEN LIVE_BLOB_READ_WRITE_TOKEN BACKUP_BLOB_READ_WRITE_TOKEN; do
+            [ -n "${!n}" ] || missing="$missing $n"
+          done
+          if [ -z "$missing" ]; then
+            echo "ok=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Photo backup not set up::Nothing was copied. Missing:$missing (see ops/photo-backup/README.md)."
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.ready.outputs.ok == '1'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.ready.outputs.ok == '1'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install the two packages the copy needs (exact versions, no install scripts)
+        if: steps.ready.outputs.ok == '1'
+        run: npm install --no-save --ignore-scripts --prefer-offline --no-audit --no-fund @libsql/client@0.15.0 @vercel/blob@2.9.0
+      - name: Copy the photos and open a sample
+        if: steps.ready.outputs.ok == '1'
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
+          LIVE_BLOB_READ_WRITE_TOKEN: ${{ secrets.LIVE_BLOB_READ_WRITE_TOKEN }}
+          BACKUP_BLOB_READ_WRITE_TOKEN: ${{ secrets.BACKUP_BLOB_READ_WRITE_TOKEN }}
+        run: node scripts/photo-backup.mjs

@@ -18,7 +18,7 @@ import { ActivityRow } from "@/components/ActivityRow";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Line } from "./Line";
 import { payersOf } from "@/lib/payers";
-import { ALL_REACTIONS, quickReactions, reactionSummary } from "@/lib/reactions";
+import { ALL_REACTIONS, quickFromCounts, quickReactions, reactionSummary } from "@/lib/reactions";
 import { reactAction } from "@/app/reaction-actions";
 import type { GroupEvent, GroupView } from "./view";
 import { DateField } from "@/components/DateField";
@@ -40,7 +40,18 @@ const whenIn = (tz: string) => {
 // Busy groups show the latest PAGE items first, with "Show more".
 const PAGE = 60;
 
-export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], receipts = [], gameResultIds = [], signin }: { signin?: SignInContext; v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; receipts?: { id: string; expenseId: string }[]; gameResultIds?: string[] }) {
+// The expenses on the page that is shown for these filters (the same list ActivityTab draws), so the screen reads reactions for those rows only.
+export function shownExpenseIds(v: Pick<GroupView, "group" | "myId" | "moveOutIds">, filter: ActivityFilter, shown = PAGE): string[] {
+  const { group, myId } = v;
+  const searchName = (id: string) => {
+    const name = group.members.find((m) => m.id === id)?.name ?? "";
+    return id === myId ? `${name} you` : name;
+  };
+  const items = filterActivity(buildActivity(group.expenses, group.payments, myId, group.events, v.moveOutIds), filter, searchName);
+  return items.slice(0, Math.max(PAGE, Math.min(5000, shown))).filter((i) => i.kind === "expense").map((i) => i.id);
+}
+
+export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], reactionTally, receipts = [], gameResultIds = [], signin }: { signin?: SignInContext; v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; reactionTally?: Map<string, number>; receipts?: { id: string; expenseId: string }[]; gameResultIds?: string[] }) {
   const receiptOf = new Map(receipts.map((r) => [r.expenseId, r.id]));
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
@@ -398,7 +409,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                                 </button>
                               </form>
                             );
-                            const quick = quickReactions(reactions);
+                            const quick = reactionTally ? quickFromCounts(reactionTally) : quickReactions(reactions);
                             // Yours stays in reach even if it isn't one of the quick six.
                             const row = reacted.mine && !quick.includes(reacted.mine) ? [...quick.slice(0, 5), reacted.mine] : quick;
                             return (

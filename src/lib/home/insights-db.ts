@@ -112,7 +112,9 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
   const isFirst = (d: string) => d.slice(8, 10) === "01";
   // Someone a few hours ahead of or behind India can be on the 1st while India is not.
   if (![addDays(today, -1), today, addDays(today, 1)].some(isFirst)) return { sent: 0, deferred: false };
-  const legacyToday = isFirst(today);
+  // The 2nd is a second chance: a group the 1st ran out of time for (or that failed) is picked up. Each group's claim means a
+  // group already done is skipped, so nothing is sent twice.
+  const legacyToday = isFirst(today) || today.slice(8, 10) === "02";
   const groups = await db.group.findMany({ where: { type: { in: ["home", "couple"] }, deletedAt: null }, select: { id: true, members: { select: { id: true } } } });
   const zones = await zonesOf(groups.flatMap((g) => g.members.map((m) => m.id)), now);
   let sent = 0;

@@ -1,8 +1,8 @@
 # Daily backup of the online database. The file is ENCRYPTED before it is
 # stored, because this repository is public. Kept for 14 days.
 # INTERIM: this moves to a private repo (see ops/private-repo/README.md) and is then deleted.
-# Needs three repository secrets: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and
-# BACKUP_PASSPHRASE. Without them it skips quietly.
+# Needs three repository secrets: TURSO_DATABASE_URL, TURSO_READONLY_TOKEN (a READ-ONLY key: this job only reads, so the
+# full key is never given to it) and BACKUP_PASSPHRASE. Without them it skips quietly.
 #
 # Every run also does a restore drill: the backup is rebuilt into a scratch
 # database, every table is checked, and so is the data (references, shares,
@@ -27,13 +27,13 @@ jobs:
         id: ready
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           if [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ] && [ -n "$BACKUP_PASSPHRASE" ]; then
             echo "ok=1" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning title=Backup skipped::Add TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and BACKUP_PASSPHRASE in Settings → Secrets → Actions."
+            echo "::warning title=Backup skipped::Add TURSO_DATABASE_URL, TURSO_READONLY_TOKEN and BACKUP_PASSPHRASE in Settings → Secrets → Actions."
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.ready.outputs.ok == '1'
@@ -41,15 +41,17 @@ jobs:
         if: steps.ready.outputs.ok == '1'
         with:
           node-version: 22
+          cache: npm # the downloaded packages are kept between runs (keyed by package-lock.json)
+          cache-dependency-path: package-lock.json
       - name: Dump and encrypt
         if: steps.ready.outputs.ok == '1'
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           set -euo pipefail
-          npm install --no-save --ignore-scripts @libsql/client@0.15.0
+          npm install --no-save --ignore-scripts --prefer-offline --no-audit --no-fund @libsql/client@0.15.0
           node scripts/backup.mjs "$RUNNER_TEMP/backup.json"
           openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSPHRASE \
             -in "$RUNNER_TEMP/backup.json" -out "$RUNNER_TEMP/backup.json.enc"

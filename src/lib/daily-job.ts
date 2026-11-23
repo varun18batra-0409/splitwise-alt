@@ -188,3 +188,14 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
   });
   return { results, deferred };
 }
+
+// Writes a job failure into the error log (path "cron/evening" etc.), so the next morning's admin email reports it.
+// Never throws: logging a failure must not become a second failure.
+export async function logJobFailure(path: string, message: string): Promise<boolean> {
+  try {
+    await db.errorLog.create({ data: { path, message: message.slice(0, 200) } });
+    return true;
+  } catch {
+    return false;
+  }
+}

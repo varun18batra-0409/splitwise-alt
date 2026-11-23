@@ -326,3 +326,20 @@ export function countdownNames(
     .filter((m) => m.id === viewerMemberId || (!m.leftAt && !m.removedAt && (m.addedBy === "" || m.seenAt !== null) && !(m.accountId && blocked.has(m.accountId))))
     .map((m) => m.name.split(" ")[0]);
 }
+
+// Memory lane and 29 February: a trip that started on 29 Feb has its anniversary on 28 Feb in years without a 29th.
+const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+/** The "-MM-DD" endings a trip's start date may have to count as an anniversary on one of these days (YYYY-MM-DD). */
+export function memorySuffixes(days: string[]): string[] {
+  const out = new Set<string>();
+  for (const d of days) {
+    out.add(d.slice(4));
+    if (d.slice(4) === "-02-28" && !isLeapYear(Number(d.slice(0, 4)))) out.add("-02-29");
+  }
+  return [...out];
+}
+/** True when `day` (YYYY-MM-DD) is the anniversary of `tripStart` (29 Feb counts as 28 Feb in years without one). */
+export function isMemoryDay(tripStart: string, day: string): boolean {
+  if (tripStart.endsWith(day.slice(4))) return true;
+  return tripStart.endsWith("-02-29") && day.slice(4) === "-02-28" && !isLeapYear(Number(day.slice(0, 4)));
+}

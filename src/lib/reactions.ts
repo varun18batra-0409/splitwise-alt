@@ -8,8 +8,14 @@ export const isReaction = (e: string) => ALL_REACTIONS.includes(e);
 // The quick row for a group: the most used first, topped up with the usual six. Pure.
 export function quickReactions(list: { emoji: string }[], n = 6): string[] {
   const used = new Map<string, number>();
-  for (const r of list) if (isReaction(r.emoji)) used.set(r.emoji, (used.get(r.emoji) ?? 0) + 1);
-  const top = [...used].sort((a, b) => b[1] - a[1] || ALL_REACTIONS.indexOf(a[0]) - ALL_REACTIONS.indexOf(b[0])).map(([e]) => e);
+  for (const r of list) used.set(r.emoji, (used.get(r.emoji) ?? 0) + 1);
+  return quickFromCounts(used, n);
+}
+
+// The same row from counts per emoji (what the database can add up without reading every reaction). Pure.
+export function quickFromCounts(counts: Map<string, number>, n = 6): string[] {
+  const used = [...counts].filter(([e, c]) => isReaction(e) && c > 0);
+  const top = used.sort((a, b) => b[1] - a[1] || ALL_REACTIONS.indexOf(a[0]) - ALL_REACTIONS.indexOf(b[0])).map(([e]) => e);
   return [...new Set([...top, ...REACTIONS])].slice(0, n);
 }
 

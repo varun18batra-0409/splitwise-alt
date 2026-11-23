@@ -4,7 +4,7 @@ import { JOINED } from "./membership";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { addDays } from "./local-time";
 import { coveredByOldGroupRecord, coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "./nudge-zones";
-import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
+import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, isMemoryDay, memorySuffixes, placeOf } from "./countdown";
 
 // The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
 // 14, 7, 3 and 1 days before it starts, on the morning itself, and the day after it
@@ -191,7 +191,7 @@ export async function sendMemoryLane(now = new Date(), stop: () => boolean = () 
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const days = [addDays(today, -1), today, addDays(today, 1)];
   const trips = await db.group.findMany({
-    where: { type: "trip", deletedAt: null, OR: days.map((d) => ({ tripStart: { endsWith: d.slice(4) } })), tripStart: { lt: `${days[2].slice(0, 4)}-01-01` } },
+    where: { type: "trip", deletedAt: null, OR: memorySuffixes(days).map((suffix) => ({ tripStart: { endsWith: suffix } })), tripStart: { lt: `${days[2].slice(0, 4)}-01-01` } },
     select: { id: true, name: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
   const zones = await zonesOf(trips.flatMap((g) => g.members.map((m) => m.id)), now);
@@ -199,7 +199,7 @@ export async function sendMemoryLane(now = new Date(), stop: () => boolean = () 
   let deferred = false;
   const lineFor = (g: (typeof trips)[number], day: string, people: number) => {
     const years = Number(day.slice(0, 4)) - Number(g.tripStart.slice(0, 4));
-    if (years < 1 || !g.tripStart.endsWith(day.slice(4))) return null;
+    if (years < 1 || !isMemoryDay(g.tripStart, day)) return null;
     return { title: `📸 ${g.name}`, body: memoryText({ place: placeOf(g.name), years, people, days: g.tripEnd ? daysBetween(g.tripStart, g.tripEnd) + 1 : 1 }), url: `/groups/${g.id}/wrapped`, tag: `memory:${g.id}` };
   };
   for (const g of trips) {

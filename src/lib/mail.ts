@@ -19,6 +19,19 @@ export function mailConfigured(): boolean {
 
 // One connection, reused while the server is warm (a new secure connection to
 // the mail server for every email took a second or more).
+// A slow mail server must never hold a sign-in request for minutes (nodemailer's own limits are minutes long):
+// connecting, the server's hello and a silent connection each give up after a few seconds, and one whole send
+// (both tries together) is cut off after 10 seconds.
+export const MAIL_TIMEOUTS = { connectionTimeout: 5_000, greetingTimeout: 5_000, socketTimeout: 8_000 } as const;
+export const MAIL_SEND_LIMIT_MS = 10_000;
+/** Resolves with the promise's result, or rejects with "timeout" once `ms` have passed (the timer never outlives the call). */
+export function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), Math.max(0, ms));
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
 let pooled: Transporter | null = null;
 function transport() {
   if (!pooled) {
@@ -29,6 +42,7 @@ function transport() {
       host: process.env.SMTP_HOST ?? "smtp.gmail.com",
       port,
       secure: port === 465,
+      ...MAIL_TIMEOUTS,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
   }
@@ -136,15 +150,18 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     html,
     ...(list ? { list, headers: { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
   };
+  const startedAt = Date.now();
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await transport().sendMail(message);
+      await withDeadline(transport().sendMail(message), MAIL_SEND_LIMIT_MS - (Date.now() - startedAt));
       return true;
     } catch (err) {
       // A kept connection the mail server dropped while idle: start a fresh one once.
       pooled?.close();
       pooled = null;
-      if (attempt === 1) console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
+      const overTime = Date.now() - startedAt >= MAIL_SEND_LIMIT_MS || (err as Error)?.message === "timeout";
+      if (attempt === 1 || overTime) console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
+      if (overTime) break; // out of time: no second try inside the same request
     }
   }
   await noteFailure("send");
