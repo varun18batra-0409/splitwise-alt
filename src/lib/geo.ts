@@ -97,7 +97,7 @@ const PLACES: [RegExp, string, string][] = [
   [/\b(auli)\b/i, "Auli", "IN"],
   [/\b(nainital)\b/i, "Nainital", "IN"],
   [/\b(meghalaya|shillong|cherrapunji|dawki)\b/i, "Meghalaya", "IN"],
-  [/\b(agra|taj)\b/i, "Agra", "IN"],
+  [/\b(agra|taj mahal)\b/i, "Agra", "IN"],
   [/\b(varanasi|banaras|kashi)\b/i, "Varanasi", "IN"],
   [/\b(mumbai|bombay)\b/i, "Mumbai", "IN"],
   [/\b(delhi)\b/i, "Delhi", "IN"],
@@ -154,7 +154,8 @@ const PLACES: [RegExp, string, string][] = [
   [/\b(hong ?kong)\b/i, "Hong Kong", "HK"],
   [/\b(london)\b/i, "London", "GB"],
   [/\b(edinburgh)\b/i, "Edinburgh", "GB"],
-  [/\b(england|uk|scotland)\b/i, "", "GB"],
+  // No bare "uk": "UK trip" is as often Uttarakhand as the United Kingdom, so it is not guessed (the words below still are).
+  [/\b(england|scotland|united kingdom|great britain|britain)\b/i, "", "GB"],
   [/\b(paris)\b/i, "Paris", "FR"],
   [/\b(france|provence|riviera)\b/i, "", "FR"],
   [/\b(santorini)\b/i, "Santorini", "GR"],
@@ -236,12 +237,13 @@ const PLACES: [RegExp, string, string][] = [
   [/\b(kenya|masai mara|nairobi)\b/i, "", "KE"],
   [/\b(baku|azerbaijan)\b/i, "", "AZ"],
   [/\b(tbilisi|batumi)\b/i, "", "GE"],
-  [/\bgeorgia\b(?!,?\s*(usa|us|united states)\b)/i, "", "GE"],
+  [/\bgeorgia\b(?!['’]s\b)(?!,?\s*(usa|us|united states)\b)/i, "", "GE"],
   [/\b(almaty|kazakhstan)\b/i, "", "KZ"],
   [/\b(tashkent|samarkand|uzbekistan)\b/i, "", "UZ"],
   [/\b(mexico city|cdmx|ciudad de mexico)\b/i, "Mexico City", "MX"],
   [/\b(tulum|playa del carmen|riviera maya)\b/i, "Tulum", "MX"],
-  [/\b(cancun|mexico)\b/i, "", "MX"],
+  [/\bnew mexico\b/i, "New Mexico", "US"],
+  [/\b(cancun|(?<!new )mexico)\b/i, "", "MX"],
 ];
 
 export type Stop = { city: string; country: string }; // country = ISO code ("" = not known)

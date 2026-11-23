@@ -81,5 +81,5 @@ test("with a person: pick, add, see who owes what, the other side sees it, and i
   // The Settle screen lists the person in its own section, apart from groups.
   await page.goto("/settle");
   await settled(page);
-  await expect(page.getByText(/WITH PEOPLE DIRECTLY/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /WITH A PERSON/i })).toBeVisible();
 });

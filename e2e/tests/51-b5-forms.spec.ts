@@ -138,7 +138,8 @@ test("B8: a trip called NYC weekend shows New York as the hint and saves nothing
   await A.goto(`${g.path}/settings`);
   await settled(A);
   await expect(A.getByLabel("Places")).toHaveAttribute("placeholder", "New York");
-  await expect(A.getByRole("option", { name: /United States \(from the name\)/ })).toHaveCount(1);
+  // The empty country choice shows the guess (the "From the name" line above the boxes explains it, review 23 Nov VA1-16).
+  await expect(A.locator('select[name="tripCountry"] option[value=""]')).toHaveText(/United States/);
   await A.getByRole("button", { name: "Save settings" }).click();
   await settled(A);
   const row = await db.group.findUniqueOrThrow({ where: { id: gid }, select: { tripPlace: true, tripCountry: true } });

@@ -12,7 +12,7 @@ export function sheetFor(type: string, groupId: string): TypeSheet | null {
   if (type === "home") {
     return {
       kind: "home",
-      title: "Your home group is ready",
+      title: "Your flat or family group is ready",
       cards: [
         // Bills: fixed ones are added on their day, ones that change ask whoever pays to enter the amount, daily ones (milk) are added up at month end.
         { icon: "repeat", title: "Bills that repeat", body: "Add rent, Wi-Fi or milk once. Fixed bills are added on their day each month, and for ones that change, like electricity, whoever pays gets a nudge to enter the amount." },

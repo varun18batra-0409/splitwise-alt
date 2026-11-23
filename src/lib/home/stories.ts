@@ -1,4 +1,4 @@
-import type { TripPhase } from "../countdown";
+import { tripEmoji, type TripPhase } from "../countdown";
 import { placeSlot } from "../places";
 import { seedNum, storyLines } from "./story-lines";
 import { lineForPhoto } from "./photo-tags";
@@ -40,7 +40,8 @@ export type Story = {
 type Pic = { photo?: string; photos?: string[]; cover?: { kind: string; src?: string } };
 export type StoryInput = {
   now: Date;
-  trips: ({ id: string; name: string; phase: TripPhase; people: number; month?: number; stop?: { city?: string; country?: string; countryName?: string; flag?: string }; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
+  home?: string; // the viewer's own country (ISO code): trips at home don't say "new stamp" or "learn the local word"
+  trips: ({ id: string; name: string; phase: TripPhase; people: number; couple?: boolean; month?: number; stop?: { city?: string; country?: string; countryName?: string; flag?: string }; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
   games: { id: string; groupId: string; name: string; winner: string; won: string; youWon?: string; finishedAt: Date; table?: { name: string; net: string; up: boolean; even: boolean; share: number }[]; pays?: string[]; toSettle?: string; photos?: string[] }[];
   squared: ({ id: string; name: string; at: Date; spent?: string; payments?: number; people?: number } & Pic)[];
   collections: { id: string; code: string; title: string; paid: number; checked?: number; people: number; in?: string; reported?: string; target?: string; paidNames?: string[]; reportedNames?: string[]; dueNames?: string[] }[];
@@ -93,13 +94,13 @@ export function countdownPoster(days: number, where: string, photo?: string, v =
 const dayNumber = (p: TripPhase) => (p.kind === "before" ? 100 - p.days : p.kind === "today" ? 100 : p.kind === "during" ? 100 + p.day : 0);
 
 // `used` is shared by every story on the Home, so no two live stories show the same line; `v` is this trip's version of the fixed words.
-function tripFrames(t: StoryInput["trips"][number], used: Set<string>, v: number): Frame[] {
+function tripFrames(t: StoryInput["trips"][number], used: Set<string>, v: number, home?: string): Frame[] {
   const p = t.phase;
   const where = place(t.name);
   const photos = t.photos?.length ? t.photos : t.photo ? [t.photo] : [];
   const day = dayNumber(p);
   // Lines for this place, this kind of trip and this crew; they take turns day by day, written for the place, not the photo.
-  const caps = storyLines({ month: t.month, place: placeSlot(`${t.name} ${t.stop?.city ?? ""}`), country: t.stop?.country, countryName: t.stop?.countryName, flag: t.stop?.flag, city: t.stop?.city, mood: t.mood, people: t.people, seed: t.id, day, step: p.kind === "before" ? 2 : 1, avoid: used, n: 8 });
+  const caps = storyLines({ month: t.month, place: placeSlot(`${t.name} ${t.stop?.city ?? ""}`), placeText: `${t.name} ${t.stop?.city ?? ""}`, home, couple: t.couple, country: t.stop?.country, countryName: t.stop?.countryName, flag: t.stop?.flag, city: t.stop?.city, mood: t.mood, people: t.people, seed: t.id, day, step: p.kind === "before" ? 2 : 1, avoid: used, n: 8 });
   // A slide's words: the place's own lines on most slides, and on the middle one a line that fits its photo when we know what's in it
   // (a sunset line on a sunset). Never a line that is already on this story or another live story.
   const fromCaps = () => caps.find((c) => !used.has(c[1])) ?? null;
@@ -170,7 +171,7 @@ export function buildStories(i: StoryInput): Story[] {
       cover: t.cover,
       emoji: "✈️",
       big: p.kind === "before" ? (p.days === 1 ? "Tomorrow" : `${p.days} days`) : p.kind === "today" ? "Today" : `Day ${p.day}`,
-      frames: tripFrames(t, used, v),
+      frames: tripFrames(t, used, v, i.home),
       // Happening now first, then the soonest.
       at: now + (p.kind === "before" ? -p.days * 3_600_000 : 86_400_000),
     });
@@ -179,7 +180,7 @@ export function buildStories(i: StoryInput): Story[] {
     const photos = w.photos?.length ? w.photos : w.photo ? [w.photo] : [];
     const frames: Frame[] = [
       ...(photos[0] ? [{ kind: "photo", photo: photos[0], kicker: "Just in", head: `${place(w.name)}, wrapped`, line: "The trip, told in slides" } as Frame] : []),
-      ...(w.spent ? [{ kind: "poster", tone: "sun", kicker: "Together you spent", big: w.spent, line: "Worth every rupee? Discuss." } as Frame] : []),
+      ...(w.spent ? [{ kind: "poster", tone: "sun", kicker: "Together you spent", big: w.spent, line: "Was it worth it? Discuss." } as Frame] : []),
       ...(w.topCategory ? [{ kind: "poster", tone: "coral", kicker: "Most of it went on", big: w.topCategory, line: "No regrets. Mostly." } as Frame] : []),
       { kind: "poster", tone: "lilac", kicker: "Also inside", big: "Awards", line: "Who's the Banker? Who's the Snack Lord? Find out." },
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Ready when you are", head: "Watch the whole thing", line: "Then share it to the group" } as Frame] : []),
@@ -256,9 +257,12 @@ export function buildStories(i: StoryInput): Story[] {
   for (const m of i.memories) {
     const photos = m.photos?.length ? m.photos : m.photo ? [m.photo] : [];
     const ago = m.years === 1 ? "A year ago" : `${m.years} years ago`;
+    const mark = tripEmoji(m.name); // the trip's own emoji (a palm only for a beach), not always 🌴
+    const solo = m.people <= 1; // the head count is people still in the group: one person is "Just you", never "1 of you"
+    const together = solo ? "Just you" : `${m.people} of you`;
     const frames: Frame[] = [
-      photos[0] ? { kind: "photo", photo: photos[0], kicker: `${ago} today`, head: place(m.name), line: "Remember this? 🌴" } : { kind: "poster", tone: "coral", kicker: `${ago} today`, big: place(m.name), line: "Remember this? 🌴" },
-      { kind: "poster", tone: "sun", kicker: "The trip", big: `${m.days} ${m.days === 1 ? "day" : "days"}`, line: `${m.people} of you. Zero regrets.` },
+      photos[0] ? { kind: "photo", photo: photos[0], kicker: `${ago} today`, head: place(m.name), line: `Remember this? ${mark}` } : { kind: "poster", tone: "coral", kicker: `${ago} today`, big: place(m.name), line: `Remember this? ${mark}` },
+      { kind: "poster", tone: "sun", kicker: "The trip", big: `${m.days} ${m.days === 1 ? "day" : "days"}`, line: `${together}. Zero regrets.` },
       ...(m.spent ? [{ kind: "poster", tone: "pink", kicker: "Spent together", big: m.spent, line: "Money well spent, obviously" } as Frame] : []),
       ...(m.crew && m.crew.length > 1 ? [{ kind: "list", tone: "sky", kicker: "Who was there", rows: m.crew.slice(0, 8).map((n) => ({ label: n })), line: "Time for a sequel?" } as Frame] : []),
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Same time next year?", head: "Plan the sequel", line: "The group chat is waiting" } as Frame] : []),
@@ -269,7 +273,7 @@ export function buildStories(i: StoryInput): Story[] {
       label: place(m.name),
       short: m.years === 1 ? "A year ago" : `${m.years} yrs ago`,
       headline: `${ago}: ${place(m.name)}`,
-      line: `${m.people} of you${m.days > 1 ? `, ${m.days} days` : ""}. Remember that? 🌴`,
+      line: `${together}${m.days > 1 ? `, ${m.days} days` : ""}. Remember that? ${mark}`,
       cta: "Relive it",
       href: `/groups/${m.id}?tab=activity`,
       photo: photos[0],

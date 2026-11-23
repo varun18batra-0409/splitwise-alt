@@ -206,7 +206,7 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   }).length;
   const badge = (id: string, emoji: string, title: string, why: string, have: number, need: number): Badge => ({ id, emoji, title, why, earned: have >= need, have: Math.min(have, need), need });
   const badges: Badge[] = [
-    badge("first-abroad", "✈️", "First flight", "A trip abroad with Loopin", abroadTrips, 1),
+    badge("first-abroad", "✈️", "First trip abroad", "A trip abroad with Loopin", abroadTrips, 1),
     badge("beach", "🏖️", "Beach bum", "3 beach trips", count((t) => mood(t) === "🌴"), 3),
     badge("hills", "🏔️", "Mountain goat", "3 trips to the hills or snow", count((t) => ["🏔️", "❄️", "🏕️"].includes(mood(t))), 3),
     badge("city", "🌆", "City slicker", "3 big-city trips", count((t) => mood(t) === "🌆"), 3),

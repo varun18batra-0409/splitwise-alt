@@ -236,7 +236,7 @@ describe("'about' amounts round to a whole unit of the currency (forecast)", () 
 describe("travel facts (SEQ-FEAT-07)", () => {
   const all = (o: Parameters<typeof storyLines>[0]) => storyLines({ ...o, n: 10 }).map(([k, l]) => `${k}: ${l}`).join(" | ");
   it("Bulgaria uses the euro", () => {
-    const t = all({ country: "BG", countryName: "Bulgaria", flag: "", people: 4, seed: "x" });
+    const t = all({ country: "BG", countryName: "Bulgaria", flag: "", people: 4, seed: "x", home: "IN" });
     expect(t).toContain("euros");
     expect(t).not.toContain("lev");
   });

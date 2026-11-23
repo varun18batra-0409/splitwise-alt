@@ -323,18 +323,38 @@ export function windowLabel(from: string, to: string): string {
 }
 // What the album says under a stamp that is not on issue: its description, or its dates when the description only repeats the name
 // (Holi, Diwali, Songkran, Oktoberfest, Lunar New Year).
-export function rareWhen(id: string): string {
-  const r = RARE[baseStamp(id).replace(/^r:/, "")];
+export function rareWhen(id: string, now = new Date(), tz = "Asia/Kolkata"): string {
+  const key = baseStamp(id).replace(/^r:/, "");
+  const r = RARE[key];
   if (!r) return "";
-  return r.when.trim().toLowerCase() === r.name.trim().toLowerCase() ? windowLabel(r.from, r.to) : r.when;
+  const w = rareWindow(key, now, tz);
+  return r.when.trim().toLowerCase() === r.name.trim().toLowerCase() ? windowLabel(w.from, w.to) : r.when;
 }
 export const RARE_STAMP_IDS = Object.keys(RARE).map((r) => `r:${r}`);
+// Holi and Diwali move with the moon: the day each falls on, by year ("YYYY-MM-DD"), like the Home banner's festival dates. The stamp is
+// on issue from some days before to a few days after. A year not listed here uses the stamp's usual window above.
+const FESTIVAL_DAY: Record<string, Record<number, string>> = {
+  holi: { 2025: "2025-03-14", 2026: "2026-03-04", 2027: "2027-03-22", 2028: "2028-03-11", 2029: "2029-03-01", 2030: "2030-03-20", 2031: "2031-03-09", 2032: "2032-03-25" },
+  diwali: { 2025: "2025-10-20", 2026: "2026-11-08", 2027: "2027-10-29", 2028: "2028-10-17", 2029: "2029-11-05", 2030: "2030-10-26", 2031: "2031-11-14", 2032: "2032-11-02" },
+};
+const FESTIVAL_LEAD: Record<string, number> = { holi: 12, diwali: 14 };
+const FESTIVAL_TAIL = 3;
+const shiftMd = (day: string, by: number) => new Date(Date.parse(`${day}T12:00:00Z`) + by * 86_400_000).toISOString().slice(5, 10);
+// The window ("MM-DD" to "MM-DD") a rare stamp is on issue this year (for most stamps the same every year).
+export function rareWindow(key: string, now = new Date(), tz = "Asia/Kolkata"): { from: string; to: string } {
+  const r = RARE[key];
+  if (!r) return { from: "", to: "" };
+  const year = Number(new Intl.DateTimeFormat("en-CA", { year: "numeric", timeZone: tz }).format(now));
+  const day = FESTIVAL_DAY[key]?.[year];
+  return day ? { from: shiftMd(day, -FESTIVAL_LEAD[key]), to: shiftMd(day, FESTIVAL_TAIL) } : { from: r.from, to: r.to };
+}
 const mdIn = (tz: string, d: Date) => new Intl.DateTimeFormat("en-CA", { month: "2-digit", day: "2-digit", timeZone: tz }).format(d).replace("/", "-");
 export function rareOpen(id: string, now = new Date(), tz = "Asia/Kolkata"): boolean {
   const r = RARE[baseStamp(id).replace(/^r:/, "")];
   if (!r) return false;
   const md = mdIn(tz, now);
-  return r.from <= r.to ? md >= r.from && md <= r.to : md >= r.from || md <= r.to;
+  const { from, to } = rareWindow(baseStamp(id).replace(/^r:/, ""), now, tz);
+  return from <= to ? md >= from && md <= to : md >= from || md <= to;
 }
 // Is this rare stamp issued where you live? (No home known: the ones for everyone.)
 export function rareFor(id: string, home = ""): boolean {

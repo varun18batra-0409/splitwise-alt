@@ -201,7 +201,7 @@ test("group screens show exact amounts with paise from 1,000 up: ₹3,001.50 spl
 
 test("a flat (Home group) shows the exact balance on This month: owes ₹1,000.50, not ₹1,001", async () => {
   // Bob pays ₹2,001 for the two of them: Alice's half is ₹1,000.50.
-  const flat = await createGroup(A, groupName("Flat exact"), "Home");
+  const flat = await createGroup(A, groupName("Flat exact"), "Flat or family");
   await joinGroup(B, flat.invite, flat.path);
   await addEqualExpense(B, flat.path, "Rent top-up", "2001");
   await A.goto(flat.path);

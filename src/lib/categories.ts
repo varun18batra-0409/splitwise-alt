@@ -55,7 +55,7 @@ export const CATEGORIES: Category[] = [
       "trip", "sightseeing", "boat", "cruise", "trek", "snorkel", "snorkeling", "diving", "scuba", "rafting",
       "paragliding", "go karting", "gokarting", "adventure", "spa", "massage", "show", "movie", "cinema", "film",
       "pvr", "inox", "bookmyshow", "book my show", "concert", "party", "club", "bowling", "game", "gaming", "event",
-      "cover charge", "activity", "excursion", "safari", "disneyland", "disney land", "banana boat", "jeep safari", "elephant camp", "island hopping", "cooking class", "class", "workshop", "lift pass", "ski pass", "light and sound", "picnic", "guide", "poker", "buy-in", "buy in", "buyin", "teen patti", "casino",
+      "cover charge", "activity", "excursion", "safari", "dune", "dunes", "dune bashing", "desert safari", "disneyland", "disney land", "banana boat", "jeep safari", "elephant camp", "island hopping", "cooking class", "class", "workshop", "lift pass", "ski pass", "light and sound", "picnic", "guide", "poker", "buy-in", "buy in", "buyin", "teen patti", "casino",
       "entry fee", "entry ticket", "admission", "day pass", "theme park", "water park", "amusement park", "wonderla", "imagica", "disney", "universal studios", "legoland", "aquarium", "gallery", "exhibition", "monument", "taj mahal", "heritage", "tour guide", "boat ride", "jet ski", "banana ride", "parasailing", "bungee", "zipline", "zip line", "skydiving", "hot air balloon", "camel ride", "elephant ride", "horse ride", "ski", "skiing", "snowboard", "surfing", "kayak", "kayaking", "canoe", "hiking", "hike", "climbing", "yoga class", "workshop", "lesson", "match", "stadium", "ipl", "cricket", "football", "golf", "casino", "karaoke", "escape room", "arcade", "laser tag", "paintball", "nightclub", "festival", "fest", "gig", "standup", "stand-up", "comedy", "theatre", "theater", "opera", "photoshoot", "sauna", "sightseeing tour", "city tour", "safari jeep"],
   },
   {
@@ -251,7 +251,9 @@ export function analyzeName(name: string): CategoryGuess {
   return typo ? { category: final, suggestion: typo.suggestion } : { category: final };
 }
 
-export function guessCategory(description: string): string {
+// `india: false` (the expense is not in rupees): a lone "gas" is petrol, not the cooking-gas bill it is in India.
+export function guessCategory(description: string, opts: { india?: boolean } = {}): string {
+  if (opts.india === false && /^(gas|gas up|gas fill(-| )?up|gas station)$/i.test(description.replace(/[\d.,:$€£¥₹]/g, " ").replace(/\s+/g, " ").trim())) return "transport";
   return analyzeName(description).category;
 }
 

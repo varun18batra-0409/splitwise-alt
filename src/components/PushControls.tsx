@@ -162,7 +162,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
       </div>
       {state === "ios-install" && (
         <p className="mt-3 rounded-xl bg-mist px-3 py-2.5 text-sm text-gray-600">
-          On iPhone, notifications work once Loopin is on your Home Screen: tap <strong className="text-fg">Share ⬆︎</strong> →{" "}
+          On iPhone, notifications work once Loopin is on your Home Screen: tap <strong className="text-fg">⋯</strong> then <strong className="text-fg">Share ⬆︎</strong> (older iPhones: Share ⬆︎ in the bottom bar) →{" "}
           <strong className="text-fg">Add to Home Screen</strong>, open Loopin from there, then come back here. {PHONE_NOT_READY}
         </p>
       )}

@@ -7,7 +7,7 @@ import { getTimeZone } from "@/lib/tz";
 import { visitorRegion } from "@/lib/region";
 import { countryOf, tripStops } from "@/lib/geo";
 import { photoSet, placePhotos } from "@/lib/places";
-import { POSTCARD_FONTS_URL, RARE, baseStamp, isSitePhoto, openRareStamps, postDate, rareFor, rareOpen, withHome } from "@/lib/postcards/catalog";
+import { POSTCARD_FONTS_URL, baseStamp, isSitePhoto, openRareStamps, postDate, rareFor, rareOpen, rareWindow, withHome } from "@/lib/postcards/catalog";
 import { postcardPeople } from "@/lib/postcards/people";
 import { myPostcardUploads } from "@/lib/postcards/uploads";
 import { myMomentsForPostcard } from "@/lib/moments-db";
@@ -58,7 +58,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
   const fmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
   const rare = openRareStamps(now, home).map((rid) => {
     const id = withHome(rid, home);
-    const [mm, dd] = RARE[baseStamp(id).slice(2)].to.split("-").map(Number);
+    const [mm, dd] = rareWindow(baseStamp(id).slice(2), now).to.split("-").map(Number);
     let y = now.getFullYear();
     if (new Date(y, mm - 1, dd) < new Date(now.getFullYear(), now.getMonth(), now.getDate())) y++;
     return { id, until: fmt.format(new Date(y, mm - 1, dd)) };

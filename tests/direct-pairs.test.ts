@@ -201,6 +201,6 @@ describe("what other people are told", () => {
   it("a pair's changes show up as 'Direct' in the other person's updates", async () => {
     const n = await loadNotifications({ [pairId]: rRow });
     expect(n.items.length).toBeGreaterThan(0);
-    expect(n.items.every((i) => i.groupName === "Direct" && i.direct)).toBe(true);
+    expect(n.items.every((i) => i.groupName === "With a person" && i.direct)).toBe(true);
     });
 });

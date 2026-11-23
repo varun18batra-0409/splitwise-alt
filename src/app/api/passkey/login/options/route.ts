@@ -3,7 +3,7 @@ import { signInOptions } from "@/lib/passkeys";
 import { ownOrigin } from "@/lib/same-origin";
 import { allow, clientIp } from "@/lib/rate-limit";
 
-// Step 1 of signing in with fingerprint / face.
+// Step 1 of signing in with fingerprint or face.
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {

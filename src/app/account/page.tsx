@@ -88,7 +88,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </form>
           </details>
           <p className="mt-4 text-sm text-fg/55">
-            Your {groupCount} {groupCount === 1 ? "group is" : "groups are"} saved to this email. Sign in on any device to get them back.
+            Your {groupCount} {groupCount === 1 ? "group is" : "groups are"} saved to this email. Sign in on any device to get {groupCount === 1 ? "it" : "them"} back.
           </p>
         </section>
       ) : (

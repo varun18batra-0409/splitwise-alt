@@ -180,7 +180,7 @@ export default async function Home({
   // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
   const live = stillIn(open);
   const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
-  // The slim Net card: everything you're owed minus everything you owe, groups and non-group (direct pairs) together, with the two
+  // The slim Net card: everything you're owed minus everything you owe, groups and with-a-person (direct pairs) together, with the two
   // kinds as small lines. Only Home combines them; Settle up keeps them apart. Same balances and saved rates as Home's total always used.
   const netCard = homeNetCard({
     items: [
@@ -261,6 +261,7 @@ export default async function Home({
   );
   const stories = buildStories({
     now: new Date(),
+    home: (account?.homeCountry || region.country || "").toUpperCase() || undefined,
     // Moments are no stories: they live only in Memories, under the story circles.
     // Every trip that is coming up or on has its circle (founder, 15 Nov: stories always on top), as well as its card in Coming up.
     trips: trips.map((t) => ({
@@ -270,6 +271,7 @@ export default async function Home({
       photos: placePhotos(t.g.group.name, t.g.group.tripPlace),
       cover: coverFor(t.g.group),
       people: t.g.group.members.filter((m) => !m.leftAt).length,
+      couple: t.g.group.type === "couple",
       crew: crewOf(t.g),
       mood: moodOf(t.g.group.name),
       month: t.g.group.tripStart ? Number(t.g.group.tripStart.slice(5, 7)) - 1 : undefined,
@@ -341,7 +343,7 @@ export default async function Home({
             id: g.group.id,
             name: g.group.name,
             years,
-            people: g.group.members.length,
+            people: g.group.members.filter((m) => !m.leftAt).length,
             days: g.group.tripEnd ? daysBetween(start, g.group.tripEnd) + 1 : 1,
             photos: placePhotos(g.group.name, g.group.tripPlace, 2),
             cover: coverFor(g.group),
@@ -580,7 +582,7 @@ export default async function Home({
             <div className="lp-rise grid grid-cols-2 gap-4 px-1 pt-1">
               {[
                 ["trip", "Trip", "Goa trip"],
-                ["home", "Home", "Flat expenses"],
+                ["home", "Flat or family", "Flat expenses"],
               ].map(([type, label, name], i) => (
                 <Link
                   key={label}

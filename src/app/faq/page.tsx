@@ -16,7 +16,7 @@ const sections = (): { title: string; items: QA[] }[] => [
     items: [
       { q: "What is Loopin?", a: "A free way to split costs with friends on a trip, flatmates at home, or the two of you as a couple. Everyone adds what they paid, Loopin keeps the balances, and works out a short list of payments to settle up." },
       { q: "Is it really free? Any limits or ads?", a: "Yes, Loopin is free to use right now, with no ads. Add as many expenses as you like; there is only a safety limit, to stop robots, which normal use never reaches." },
-      { q: "Do my friends need to sign up?", a: "Only to join a group: sign in once with an email (or Google), about 30 seconds and no password. It means everyone in a group has a checked email, so updates reach the right device. People you add by name can wait and join later. To pay a Collect or use an “I’ve paid” link, no sign-up is needed." },
+      { q: "Do my friends need to sign up?", a: "No. Friends can join a group with just a name: open your link, tap Join and pick or type their name. Signing in (an email or Google, about 30 seconds, no password) is optional: it keeps their groups on every device they use, and it is needed for postcards and the passport. To pay a Collect or use an “I’ve paid” link, no sign-up is needed either." },
       {
         q: "What’s in the bar at the bottom?",
         a: "Home, Groups, Add, Settle and You. Add opens a new expense, Settle shows who pays whom, and You has your passport, postcards and settings (when you’re not signed in, those rows show with a lock and “Sign in to use”). Your updates are behind the bell at the top right, with a small dot when something needs you.",
@@ -100,7 +100,7 @@ const sections = (): { title: string; items: QA[] }[] => [
     items: [
       {
         q: "How do I invite friends?",
-        a: "Open Add people: copy the group’s link or tap Invite on WhatsApp. For more, open More ways to add people: the share sheet, a QR code, search by name or email, your contacts, or email. Got a link from a friend? Tap Join with a link and paste it. To invite someone to Loopin without making a group, tap Invite friends to Loopin on Home or the You page.",
+        a: "Open Add people: copy the group’s link or tap Invite on WhatsApp. For more, open More ways to add people: the share sheet, a QR code, search by name or email, your contacts, or email. Got a link from a friend? Tap Join with a link and paste it. To invite someone to Loopin without making a group, tap Invite friends to Loopin on the You page.",
       },
       { q: "Can I give a group a picture, or use my own photo?", a: "Yes. In the group’s settings, pick a drawn picture or a photo, or tap Your photo to choose one from your gallery. Your own photo is made small on your device first, and only people in the group can see it." },
       {
@@ -119,7 +119,7 @@ const sections = (): { title: string; items: QA[] }[] => [
     items: [
       {
         q: "How do rent and bills work for flatmates?",
-        a: "Make a Home group and set each bill to repeat once. Fixed ones are added on the day, ones that change ask whoever pays for the amount, and daily ones add up by the month. Anyone can skip or undo a month, and nothing is read from your bank or messages.",
+        a: "Make a Flat or family group and set each bill to repeat once. Fixed ones are added on the day, ones that change ask whoever pays for the amount, and daily ones add up by the month. Anyone can skip or undo a month, and nothing is read from your bank or messages.",
       },
       { q: "Can a couple split by income instead of 50/50?", a: "Yes. A Couple group can use 50/50, a ratio you choose, or one worked out from your incomes. The incomes are only used on your device to work out the ratio; they aren’t sent or saved." },
       {
@@ -127,7 +127,7 @@ const sections = (): { title: string; items: QA[] }[] => [
         a: "For cards, board games or any game you play together. Make a group and pick Game night, put chips in for everyone, count what everyone has at the end, and tap Calculate & settle: Loopin works out who came out ahead, who came out behind and the fewest payments to square up. Loopin keeps the score of games you play together. No betting happens in the app.",
       },
       { q: "Does Loopin hold the money or run the game?", a: "Neither. It only keeps the score, like a notebook at the table, and it never holds or moves money. You pay each other however you usually do." },
-      { q: "The money doesn’t add up. What now?", a: "Loopin won’t finish the game until every rupee that went in has come back. Check the amounts, or the host can fix the difference with a reason everyone can see." },
+      { q: "The money doesn’t add up. What now?", a: "Loopin won’t finish the game until every chip that went in has come back. Check the amounts, or the host can fix the difference with a reason everyone can see." },
       { q: "Do all the players need Loopin?", a: "No. Anyone else can just be a name, and they can join with the group’s link later and take over their name." },
     ],
   },

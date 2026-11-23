@@ -11,6 +11,9 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 // Written out by hand, so the phone and the server always agree: "2026-05-05" → "MAY 2026".
 export const stampMonth = (d: string) => (/^\d{4}-\d{2}/.test(d) ? `${MONTHS[Number(d.slice(5, 7)) - 1] ?? ""} ${d.slice(0, 4)}` : "");
 export const stampInk = (code: string, name: string) => STAMP_INKS[stampHash(code + name) % STAMP_INKS.length];
+// The long names that would be cut on a round stamp are written short, the way people say them.
+const SHORT_STAMP_NAMES: Record<string, string> = { "United Arab Emirates": "UAE", "United Kingdom": "UK", "United States": "USA", "United States of America": "USA" };
+export const stampShortName = (name: string) => SHORT_STAMP_NAMES[name] ?? name;
 // Between -8 and +8 degrees, the same for the same stamp.
 export const stampTilt = (id: string) => (stampHash(id) % 17) - 8;
 
@@ -75,7 +78,8 @@ function PageStamp({ s, size = 112, tilt, font = "var(--font-display), serif" }:
   const turn = tilt ?? stampTilt(s.id);
   const round = s.kind === "country";
   const line = s.byHand ? "dashed" : "solid";
-  const label = s.name.length > 12 ? `${s.name.slice(0, 11)}…` : s.name;
+  const shortName = stampShortName(s.name);
+  const label = shortName.length > 12 ? `${shortName.slice(0, 11)}…` : shortName;
   // The name must sit inside the ring: a round stamp's inner ring is narrow at the bottom, so the letters shrink to fit
   // (about 0.68em a letter) instead of running over the line.
   const labelPx = Math.round(Math.min(size * (label.length > 9 ? 0.105 : 0.13), round ? (size * 0.6) / (label.length * 0.68) : 99));

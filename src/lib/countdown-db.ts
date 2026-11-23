@@ -5,6 +5,7 @@ import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { addDays } from "./local-time";
 import { coveredByOldGroupRecord, coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "./nudge-zones";
 import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, isMemoryDay, memorySuffixes, placeOf } from "./countdown";
+import { ledgerInTx } from "./money-guard";
 
 // The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
 // 14, 7, 3 and 1 days before it starts, on the morning itself, and the day after it
@@ -66,12 +67,16 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
   // The day after a trip ends: "Back from Goa? Settle up in one tap" (only for trips where something was spent).
   for (const g of ended) {
     const endDay = g.tripEnd || g.tripStart;
+    // Nobody owes anybody: the push says so, and opens the group (there is nothing to settle). If it can't be worked out, it asks to settle as before.
+    const square = await db.$transaction((tx) => ledgerInTx(tx, g.id)).then((l) => l.transfers.length === 0, () => false);
+    const words = afterTripNudge(g, square);
+    const where = square ? `/groups/${g.id}` : `/groups/${g.id}/settle`;
     const { legacy, zoned } = splitByZone(g.members.map((m) => m.id), zones, now);
     if (endDay === yesterday && legacy.length) {
       if (stop()) { deferred = true; break; }
       const key = `countdown-after:${g.id}:${yesterday}`;
       if (legacyOk && (await claimJob(key, now))) {
-        sent += await sendPushTo(legacy, { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` }, "reminders.trips");
+        sent += await sendPushTo(legacy, { title: g.name, body: words, url: where, tag: `countdown:${g.id}` }, "reminders.trips");
         await markSentByOldPath(key, legacy, now);
         await finishJob(key);
       }
@@ -84,7 +89,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       const key = `${oldKey}:m:${p.id}`;
       if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(key, now))) continue;
-      sent += await sendPushTo([p.id], { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` }, "reminders.trips");
+      sent += await sendPushTo([p.id], { title: g.name, body: words, url: where, tag: `countdown:${g.id}` }, "reminders.trips");
       await finishJob(key);
     }
   }

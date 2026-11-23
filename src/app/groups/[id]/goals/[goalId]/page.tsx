@@ -143,7 +143,7 @@ export default async function GoalPage({
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="goalId" value={goal.id} />
           <button type="submit" className={primaryButtonClass}>
-            Start a “{goal.name}” trip group
+            {group.type === "trip" ? <>Start a “{goal.name}” trip group</> : <>Start a group for “{goal.name}”</>}
           </button>
         </form>
       ) : (

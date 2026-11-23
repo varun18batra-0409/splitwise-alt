@@ -221,7 +221,7 @@ export function PassFields({ fields }: { fields: PassField[] }) {
 }
 
 // ---- Home's money card: ONE slim "Net" card (founder, 16 Nov) ----
-// Left: a small label and the net amount in the display serif. Right: up to two small lines (Group / Non-group). The whole card is ONE link
+// Left: a small label and the net amount in the display serif. Right: up to two small lines (Group / With a person). The whole card is ONE link
 // to Settle up, so there are no buttons inside it (reminders live on Settle up). Nothing is worked out here: homeNetCard decides, this draws.
 export function MoneyCard({ card }: { card: NetCard }) {
   const base = "flex min-h-[80px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-[22px] bg-[#16161a] px-4 py-3.5 text-fg shadow-[inset_0_0_0_1px_#26262c] transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100 min-[360px]:px-[18px]";

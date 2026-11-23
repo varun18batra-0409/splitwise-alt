@@ -11,7 +11,7 @@ import { niceDate } from "@/lib/format";
 
 export const metadata = { title: "Sign-in & devices", robots: { index: false } };
 
-// You, Sign-in & devices: fingerprint / face sign-in, sign out of this device, sign out of every other device.
+// You, Sign-in & devices: fingerprint or face sign-in, sign out of this device, sign out of every other device.
 export default async function SignInDevicesPage({ searchParams }: { searchParams: Promise<{ others?: string }> }) {
   const { others } = await searchParams;
   const account = await getAccount();
@@ -40,7 +40,7 @@ export default async function SignInDevicesPage({ searchParams }: { searchParams
                 </span>
                 <form action={removeMyPasskey}>
                   <input type="hidden" name="id" value={p.id} />
-                  <ConfirmButton message="Remove this fingerprint / face sign-in?" className="rounded-full border border-line px-3.5 py-1.5 text-sm text-fg active:bg-mist">
+                  <ConfirmButton message="Remove this fingerprint or face sign-in?" className="rounded-full border border-line px-3.5 py-1.5 text-sm text-fg active:bg-mist">
                     Remove
                   </ConfirmButton>
                 </form>
@@ -48,7 +48,7 @@ export default async function SignInDevicesPage({ searchParams }: { searchParams
             ))}
           </ul>
         )}
-        <PasskeyAdd className={secondaryButtonClass} label={passkeys.length ? "Add this device too" : "Turn on fingerprint / face sign-in"} />
+        <PasskeyAdd className={secondaryButtonClass} label={passkeys.length ? "Add this device too" : "Turn on fingerprint or face sign-in"} />
       </section>
 
       <section className="mt-10 border-t border-line pt-8">
@@ -56,7 +56,7 @@ export default async function SignInDevicesPage({ searchParams }: { searchParams
         {onlyHere.length > 0 ? (
           <>
             <p className="mb-3 text-sm text-fg/80" data-only-here>
-              These groups are only on this device and will be lost from it: <span className="break-words font-medium">{lost}</span>. Your other groups stay safe in your email.
+              These groups are only on this device and will be lost from it: <span className="break-words font-medium">{lost}</span>. Your other groups stay safe in your account.
             </p>
             <GuestMoveButton groups={onlyHere} className="pop mb-3 block min-h-12 w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas">
               Move them first
@@ -70,7 +70,7 @@ export default async function SignInDevicesPage({ searchParams }: { searchParams
           </>
         ) : (
           <>
-            <p className="mb-4 text-sm text-gray-500">This device forgets your groups. They stay safe in your email — sign in again to get them back.</p>
+            <p className="mb-4 text-sm text-gray-500">This device forgets your groups. They stay safe in your account. Sign in again to get them back.</p>
             <form action={signOutThisPhone}>
               <PushEndpointField />
               <ConfirmButton wipesOffline message="Sign out of this device?" className={secondaryButtonClass}>

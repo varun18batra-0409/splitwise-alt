@@ -4,7 +4,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { photoType } from "@/lib/covers";
 import { cleanPhoto } from "@/lib/strip-meta";
-import { aiAllowed, readBill } from "@/lib/ai";
+import { AI_DOWN, AI_DOWN_BILL, aiAllowed, readBill } from "@/lib/ai";
 import { aiConsentFor, consentAccountId, consentRefusal } from "@/lib/ai-consent";
 
 // A bill photo while adding an expense: kept (camera details and location
@@ -51,6 +51,7 @@ export async function POST(req: Request) {
   const blocked = await aiAllowed(me.accountId ?? me.id);
   if (blocked) return Response.json({ ok: true, id: saved.id, note: blocked });
   const bill = await readBill(clean, type, me.group.currency);
+  if (bill === AI_DOWN) return Response.json({ ok: true, id: saved.id, note: AI_DOWN_BILL });
   if (!bill) return Response.json({ ok: true, id: saved.id, note: "Couldn’t read that bill. The photo is attached; fill in the rest." });
   return Response.json({ ok: true, id: saved.id, bill });
 }

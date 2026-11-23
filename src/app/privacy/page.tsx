@@ -50,7 +50,7 @@ export default function Privacy() {
         <li>Moments: a photo and a few words you add to a trip group. Camera details and location are removed, and only people in that group can see them.</li>
         <li>A photo of a bill, if someone adds one to an expense. Camera details and location are removed, and only people in that group can see it.</li>
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
-        <li>If you turn on fingerprint / face sign-in, a key your device made for Loopin. Your fingerprint or face never leaves your device.</li>
+        <li>If you turn on fingerprint or face sign-in, a key your device made for Loopin. Your fingerprint or face never leaves your device.</li>
         <li>A small cookie on your device that remembers which person you are in each group.</li>
         {offlineOn() && (
           <li data-offline-privacy>

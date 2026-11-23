@@ -155,7 +155,7 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
       </section>
 
       <section className="mt-7" aria-label="Tell them you paid">
-        {step(2, "Then tell them")}
+        {step(2, `Then let ${to} know`)}
         <form action={iPaidAction}>
           <input type="hidden" name="token" value={token} />
           {/* The one cream button: "Open payment app" when there is one, otherwise this. */}

@@ -60,7 +60,7 @@ function Section({ slot, art, title, children }: { slot?: Slot; art?: StoryKind;
       ) : (
         heading
       )}
-      {/* A named button or label ("Mark paid", "Non-group") never splits across two lines: the bold name moves down whole. */}
+      {/* A named button or label ("Mark paid", "With a person") never splits across two lines: the bold name moves down whole. */}
       <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-600 [&_strong]:inline-block [&_strong]:max-w-full">{children}</div>
     </section>
   );
@@ -173,7 +173,7 @@ export default async function HowItWorks() {
           ["#abroad", "Abroad & card fees"],
           ["#balances", "Who owes what"],
           ["#trips", "Trip report"],
-          ["#home", "Home"],
+          ["#home", "Flat or family"],
           ["#couples", "Couples"],
           ["#pot", "Game night"],
           ["#collect", "Collect money"],
@@ -190,9 +190,9 @@ export default async function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Create a group" title="Create a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in about 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
+            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Flat or family</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. Signing in (Google or your email, about 30 seconds, no password) keeps your groups on every device, and is needed for postcards and the passport. Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
-            <>The quickest way: copy the group’s link, or tap <strong>Invite on WhatsApp</strong>. The share sheet, the QR code, search, contacts and email are all under <strong>More ways to add people</strong>. Got a link from a friend? Tap <strong>Join with a link</strong> and paste it. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
+            <>The quickest way: copy the group’s link, or tap <strong>Invite on WhatsApp</strong>. The share sheet, the QR code, search, contacts and email are all under <strong>More ways to add people</strong>. Got a link from a friend? Tap <strong>Join with a link</strong> and paste it. Friends can join with just a name, no account needed, and show up on the People screen. Signing in is optional: it keeps their groups across devices. From then on everyone is told about every change.</>,
           ]}
         />
         <p>
@@ -279,7 +279,7 @@ export default async function HowItWorks() {
       <Section slot="friends" kicker="4 · Balances" title="Who owes what, and why">
         <p>
           The money card on Home, just under the story circles, shows where you stand across all your groups: <strong>Net · you’re owed</strong> in green, <strong>Net · you owe</strong> in orange,
-          or <strong>All square</strong>. When some money is in groups and some is with a person you share with directly, it shows the two parts as <strong>Group</strong> and <strong>Non-group</strong>.
+          or <strong>All square</strong>. When some money is in groups and some is with a person you share with directly, it shows the two parts as <strong>Group</strong> and <strong>With a person</strong>.
           Tap the card to open <strong>Settle up</strong>, where you pay (the person you owe) or <strong>Remind</strong> (the people who owe you, on WhatsApp).
           What needs your answer is behind the bell at the top right.
           A payment someone records with you counts straight away, and you’re told.
@@ -318,9 +318,9 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="home" className="scroll-mt-4" />
-      <Section slot="home" kicker="Living together" title="Home: the flat runs itself">
+      <Section slot="home" kicker="Living together" title="Flat or family: the home runs itself">
         <p>
-          Make a <strong>Home</strong> group. It opens on <strong>This month</strong>: your share, the flat’s total, who owes whom and what’s coming up.
+          Make a <strong>Flat or family</strong> group. It opens on <strong>This month</strong>: your share, the flat’s total, who owes whom and what’s coming up.
         </p>
         <Steps
           items={[

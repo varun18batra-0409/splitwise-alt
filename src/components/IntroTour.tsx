@@ -37,11 +37,11 @@ function Dot({ name, tone = "bg-mist" }: { name: string; tone?: string }) {
 }
 
 // Three of Loopin's own group pictures as polaroids, fanning in: a trip, a
-// home, the two of you. Under them, the kinds of group (the same names as New group).
+// flat, the two of you. Under them, the kinds of group (the same names as New group).
 function Cheers() {
   const shots: [CoverChoice, string, number, string][] = [
     ["beach", "Trip", -9, "rise-2"],
-    ["city", "Home", 2, "rise-3"],
+    ["city", "Flat or family", 2, "rise-3"],
     ["couple", "Couple", 10, "rise-4"],
   ];
   return (
@@ -57,7 +57,7 @@ function Cheers() {
         ))}
       </div>
       <div className="mt-7 [@media(max-height:700px)]:mt-4 flex flex-wrap justify-center gap-2">
-        {["Trip", "Home", "Couple", "Game night"].map((t, i) => (
+        {["Trip", "Flat or family", "Couple", "Game night"].map((t, i) => (
           <span key={t} className={`nobreak rise rise-${Math.min(i + 2, 5)} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>
@@ -177,7 +177,7 @@ function makeSlides(L: Local, momentPhoto?: string): Slide[] {
     {
       id: "group",
       title: "Make a group.",
-      caption: "One for a trip, a home, the two of you, a game night and more. Friends join from a link or a QR code.",
+      caption: "One for a trip, a flat or family, the two of you, a game night and more. Friends join from a link or a QR code, with just their name.",
       art: <Cheers />,
     },
     {
@@ -380,7 +380,7 @@ export function IntroTour({
         )}
         {/* The sign-in line shows on the last step only. */}
         {last && signInHref && (
-          <Link href={signInHref} className="block text-center text-xs text-gray-500">
+          <Link href={signInHref} onClick={seen} className="block text-center text-xs text-gray-500">
             Save your groups to your email · <span className="font-medium text-fg underline underline-offset-4">Sign up or sign in</span>
           </Link>
         )}

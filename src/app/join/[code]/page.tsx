@@ -110,7 +110,7 @@ export default async function JoinPage({
   const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
-  const kind = group.type === "trip" ? "Trip" : group.type === "home" ? "Home" : group.type === "couple" ? "Couple" : group.type === "pot" ? "Game night" : "Group";
+  const kind = group.type === "trip" ? "Trip" : group.type === "home" ? "Flat or family" : group.type === "couple" ? "Couple" : group.type === "pot" ? "Game night" : "Group";
   // The place photo for a trip (never the group's own photo: outsiders don't see it).
   const placeSrc = tripPhotoSrc(group);
   const invitedFirst = invitedBy ? invitedBy.trim().split(/\s+/)[0] || invitedBy : "";

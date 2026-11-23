@@ -8,6 +8,7 @@ import { PostcardShare } from "@/components/postcards/PostcardView";
 import { avatarTone } from "@/components/ui";
 import { DateField } from "@/components/DateField";
 import type { PostcardGroup } from "@/lib/postcards/people";
+import { sameDayLater } from "@/lib/dates";
 import { chip } from "./shared";
 
 // The last step: a look at the card, who it's for, when they can open it, then send. This one is an ordinary page (it can be longer than
@@ -103,8 +104,8 @@ function OpensOn({ value, onChange }: { value: string; onChange: (v: string) => 
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const quick = [
     { name: "New Year’s Day", d: new Date(now.getFullYear() + 1, 0, 1) },
-    { name: "In a month", d: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()) },
-    { name: "A year from today", d: new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()) },
+    { name: "In a month", d: sameDayLater(now, 1) },
+    { name: "A year from today", d: sameDayLater(now, 12) },
   ];
   const [picking, setPicking] = useState(false);
   const nice = value ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${value}T12:00:00`)) : "";

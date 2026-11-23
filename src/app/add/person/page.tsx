@@ -65,7 +65,7 @@ export default async function PickPerson({ searchParams }: { searchParams: Promi
                   <input type="hidden" name="kind" value="pair" />
                   <input type="hidden" name="groupId" value={p.groupId} />
                   <button type="submit" className={rowClass} data-person-row={p.other.name}>
-                    {person(p.other.name, p.shared ? "On Loopin" : "Only you")}
+                    {person(p.other.name, p.shared ? "On Loopin" : "Not on Loopin yet")}
                   </button>
                 </form>
               </li>
@@ -103,7 +103,7 @@ export default async function PickPerson({ searchParams }: { searchParams: Promi
           <input type="hidden" name="kind" value="new" />
           <label className="block">
             <span className="mb-1.5 block text-[13px] font-semibold text-fg/65">Their name</span>
-            <input name="name" required maxLength={40} defaultValue={sp.name ? sp.name.slice(0, 40) : sp.q && fromGroups.length + recent.length === 0 ? sp.q.slice(0, 40) : ""} placeholder="Rohan" autoComplete="off" className={inputClass} />
+            <input name="name" required maxLength={40} defaultValue={sp.name ? sp.name.slice(0, 40) : sp.q && fromGroups.length + recent.length === 0 ? sp.q.slice(0, 40) : ""} placeholder="Priya" autoComplete="off" className={inputClass} />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-[13px] font-semibold text-fg/65">Their email (optional)</span>

@@ -4,7 +4,7 @@ import { coverFor } from "@/lib/covers";
 import type { Invitation } from "@/lib/invitations";
 import { Initial } from "@/components/SettleUp";
 
-export const kindWord = (type: string) => (type === "trip" ? "Trip" : type === "home" ? "Home" : type === "couple" ? "Couple" : type === "pot" ? "Game night" : "Group");
+export const kindWord = (type: string) => (type === "trip" ? "Trip" : type === "home" ? "Flat or family" : type === "couple" ? "Couple" : type === "pot" ? "Game night" : "Group");
 
 // "Asha added you to Goa trip": Join or Not now. Shown on Home and in Alerts. The group isn't
 // in your groups until you tap Join; Not now just hides the card.
@@ -21,7 +21,7 @@ export function InvitationCard({ inv }: { inv: Invitation }) {
               <p className="font-display text-[24px] font-semibold leading-tight tracking-tight" data-invitation-name>
                 {inv.byName} shared expenses with you
               </p>
-              <p className="mt-0.5 text-sm text-fg/65">Direct · only the two of you</p>
+              <p className="mt-0.5 text-sm text-fg/65">With a person · only the two of you</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2.5">

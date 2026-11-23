@@ -239,7 +239,8 @@ describe("R1 item 9: the pay link page", () => {
     expect(page).toContain("data-paylink-amount");
     expect(page).not.toContain("{step(1, `Pay ${to} ${money}`)}");
     expect(page).not.toContain("I’ve paid {money}");
-    expect(page).toContain('step(2, "Then tell them")');
+    // Review 23 Nov (VI14): "Then tell them" was vague; the step names who to tell (first name only, never the sum).
+    expect(page).toContain("step(2, `Then let ${to} know`)");
   });
 });
 

@@ -14,19 +14,26 @@ const STRONG = process.env.ANTHROPIC_MODEL_STRONG || "claude-sonnet-5-5";
 export const aiReady = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
 // Calls for the whole app per day (AI_DAILY_CAP), and per person per day.
-export async function aiAllowed(who: string): Promise<string | null> {
-  if (!aiReady()) return "Reading bills isn’t switched on yet.";
+// `what`: the words say what the person was doing (a photographed bill, or a line they typed or said).
+export async function aiAllowed(who: string, what: "bill" | "line" = "bill"): Promise<string | null> {
+  const line = what === "line";
+  if (!aiReady()) return line ? "Reading typed lines isn’t switched on yet. Fill the form in by hand." : "Reading bills isn’t switched on yet.";
   const cap = Number(process.env.AI_DAILY_CAP ?? 400);
-  if (!(await allow(`ai:person:${who}`, 25, 86_400))) return "You’ve used today’s bill reading. Fill this one in by hand; it’s back tomorrow.";
-  if (!(await allow("ai:all", Math.max(1, cap), 86_400))) return "Bill reading is resting for today. Fill this one in by hand.";
+  if (!(await allow(`ai:person:${who}`, 25, 86_400))) return line ? "You’ve used today’s line reading. Fill this one in by hand; it’s back tomorrow." : "You’ve used today’s bill reading. Fill this one in by hand; it’s back tomorrow.";
+  if (!(await allow("ai:all", Math.max(1, cap), 86_400))) return line ? "Line reading is resting for today. Fill this one in by hand." : "Bill reading is resting for today. Fill this one in by hand.";
   return null;
 }
+
+// The helper didn't answer at all (an outage, a timeout, too busy): told apart from "answered, but nothing clear in it".
+export const AI_DOWN = "down" as const;
+export const AI_DOWN_LINE = "The helper isn’t answering right now. Fill the form in by hand, or try again in a minute.";
+export const AI_DOWN_BILL = "Bill reading isn’t answering right now. The photo is attached; fill in the rest, or try again in a minute.";
 
 type Content = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 type Tool = { name: string; description: string; input_schema: Record<string, unknown> };
 
 // One structured answer: the model must fill in `tool`'s fields.
-async function call<T>(model: string, system: string, content: Content[], tool: Tool, maxTokens: number): Promise<T | null> {
+async function call<T>(model: string, system: string, content: Content[], tool: Tool, maxTokens: number): Promise<T | null | typeof AI_DOWN> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 25_000);
   try {
@@ -38,14 +45,14 @@ async function call<T>(model: string, system: string, content: Content[], tool: 
     });
     if (!res.ok) {
       console.error("ai: request failed", res.status);
-      return null;
+      return AI_DOWN;
     }
     const body = (await res.json()) as { content?: { type: string; name?: string; input?: unknown }[] };
     const use = body.content?.find((c) => c.type === "tool_use" && c.name === tool.name);
     return (use?.input as T) ?? null;
   } catch (err) {
     console.error("ai: request error", String(err).slice(0, 120));
-    return null;
+    return AI_DOWN;
   } finally {
     clearTimeout(timer);
   }
@@ -111,18 +118,20 @@ export function cleanBill(raw: Record<string, unknown> | null, groupCurrency = "
 }
 
 // Fast model first; the stronger one only if it read a bill but found no total.
-export async function readBill(image: Uint8Array, type: string, groupCurrency = ""): Promise<ReadBill | null> {
+export async function readBill(image: Uint8Array, type: string, groupCurrency = ""): Promise<ReadBill | null | typeof AI_DOWN> {
   const content: Content[] = [
     { type: "image", source: { type: "base64", media_type: type, data: Buffer.from(image).toString("base64") } },
     { type: "text", text: "Read this bill." },
   ];
   const raw = await call<Record<string, unknown>>(FAST, BILL_SYSTEM, content, BILL_TOOL, 1500);
+  if (raw === AI_DOWN) return AI_DOWN;
   const first = cleanBill(raw, groupCurrency);
   if (first?.total) return first;
   // The stronger model only when the fast one did read a bill but found no total:
   // not for a photo that isn't a bill, and not after a failed call (each is a paid call).
   if (!raw || raw.is_bill === false) return null;
-  return cleanBill(await call<Record<string, unknown>>(STRONG, BILL_SYSTEM, content, BILL_TOOL, 1500), groupCurrency) ?? first;
+  const second = await call<Record<string, unknown>>(STRONG, BILL_SYSTEM, content, BILL_TOOL, 1500);
+  return second === AI_DOWN ? first : (cleanBill(second, groupCurrency) ?? first);
 }
 
 // ---- A spoken or typed line ---------------------------------------------
@@ -145,7 +154,7 @@ const LINE_TOOL: Tool = {
   },
 };
 
-export async function readLine(text: string, people: { id: string; name: string }[], meId: string, groupCurrency = ""): Promise<ReadLine | null> {
+export async function readLine(text: string, people: { id: string; name: string }[], meId: string, groupCurrency = ""): Promise<ReadLine | null | typeof AI_DOWN> {
   const list = people.map((p) => `${p.id}: ${p.name}${p.id === meId ? " (the speaker)" : ""}`).join("\n");
   const raw = await call<Record<string, unknown>>(
     FAST,
@@ -154,6 +163,7 @@ export async function readLine(text: string, people: { id: string; name: string 
     LINE_TOOL,
     400,
   );
+  if (raw === AI_DOWN) return AI_DOWN;
   if (!raw) return null;
   const ids = new Set(people.map((p) => p.id));
   // Rounded to the decimals of the currency said, else the group's, else 2.

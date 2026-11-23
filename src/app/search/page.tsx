@@ -299,11 +299,15 @@ export default async function SearchPage({
           <span className="min-w-0 flex-1">
             <span className="block font-display text-[17px] font-semibold">{keepAmp(getCategory(cat).label)}</span>
             <span className="block text-[13px] text-fg/60">
-              {shown.filter((r) => r.item.kind === "expense").length} expenses{groupId ? ` in ${groups[0].group.name}` : " across your groups"}
+              {(() => {
+                const n = shown.filter((r) => r.item.kind === "expense").length;
+                return `${n} ${n === 1 ? "expense" : "expenses"}`;
+              })()}
+              {groupId ? ` in ${groups[0].group.name}` : " across your groups"}
             </span>
           </span>
           <Link href={href({ c: null })} className="shrink-0 rounded-full border border-line px-3 py-1.5 text-sm text-fg/70 active:bg-mist" aria-label="Show all categories">
-            All ✕
+            Clear ✕
           </Link>
         </div>
       )}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { startAuthentication, startRegistration, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { useGuestCheck, type GuestGroupRow } from "@/components/GuestMoveSheet";
 
-// "Sign in with fingerprint or face" and "Turn on fingerprint / face sign-in".
+// "Sign in with fingerprint or face" and "Turn on fingerprint or face sign-in".
 
 async function post(url: string, body?: unknown) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -27,7 +27,7 @@ export function usePasskeySupport() {
   return ok;
 }
 
-// This device has used fingerprint / face sign-in before (then the button is
+// This device has used fingerprint or face sign-in before (then the button is
 // shown big; otherwise it's a small line, so new people aren't sent down a
 // path that can't work for them yet).
 const USED_KEY = "lp_pk";
@@ -91,7 +91,7 @@ export function PasskeySignIn({ back, className, groups = [] }: { back: string; 
   );
 }
 
-export function PasskeyAdd({ className, label = "Turn on fingerprint / face sign-in", onDone }: { className: string; label?: string; onDone?: () => void }) {
+export function PasskeyAdd({ className, label = "Turn on fingerprint or face sign-in", onDone }: { className: string; label?: string; onDone?: () => void }) {
   const supported = usePasskeySupport();
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [error, setError] = useState("");

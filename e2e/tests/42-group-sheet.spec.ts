@@ -9,7 +9,7 @@ test("a new flat shows its two-card sheet once, and “Got it” hides it for go
   const asha = await signUp("Asha", testEmail("sheet-asha"));
   const ctx = await contextFor(browser, asha);
   const page = await ctx.newPage();
-  const g = await createGroup(page, groupName("Sheet flat"), "Home");
+  const g = await createGroup(page, groupName("Sheet flat"), "Flat or family");
 
   // Test browsers keep the sheet switched off; this one turns it back on, like a real phone.
   await page.addInitScript(() => {
@@ -21,7 +21,7 @@ test("a new flat shows its two-card sheet once, and “Got it” hides it for go
   });
   await page.goto(g.path);
   await settled(page);
-  const sheet = page.getByRole("dialog", { name: "Your home group is ready" });
+  const sheet = page.getByRole("dialog", { name: "Your flat or family group is ready" });
   await expect(sheet).toBeVisible();
   await expect(sheet.getByText("Bills that repeat")).toBeVisible();
   await expect(sheet.getByText("Moving in or out")).toBeVisible();
@@ -45,9 +45,9 @@ test("a new flat shows its two-card sheet once, and “Got it” hides it for go
   // Shown once: not on a reload, and not on the next visit.
   await page.reload();
   await settled(page);
-  await expect(page.getByRole("dialog", { name: "Your home group is ready" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Your flat or family group is ready" })).toHaveCount(0);
   await page.goto(g.path);
   await settled(page);
-  await expect(page.getByRole("dialog", { name: "Your home group is ready" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Your flat or family group is ready" })).toHaveCount(0);
   await ctx.close();
 });

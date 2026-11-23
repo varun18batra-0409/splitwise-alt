@@ -91,7 +91,8 @@ export function Insights({ d }: { d: InsightsData }) {
             <p className="mt-2 text-xs">
               {running ? (
                 <span className="text-fg/60" title={before !== null ? formatMoney(before, d.currency) : undefined} data-exact={before !== null ? formatMoney(before, d.currency) : undefined}>
-                  So far{before !== null && before > 0 ? ` · ${lastWord.toLowerCase()} ${approx}${overviewMoney(before, d.currency)}` : ""}
+                  {now === 0 ? `Nothing spent this ${d.grain === "w" ? "week" : d.grain === "m" ? "month" : "year"} yet` : "So far"}
+                  {before !== null && before > 0 ? ` · ${lastWord.toLowerCase()} ${approx}${overviewMoney(before, d.currency)}` : now === 0 ? "." : ""}
                 </span>
               ) : change === null ? (
                 <span className="text-fg/60">Nothing to compare with yet</span>

@@ -310,7 +310,7 @@ async function saveExpenseOnce(
   }
 
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80) || "Expense";
-  const category = isCategory(input.category) ? input.category : guessCategory(name);
+  const category = isCategory(input.category) ? input.category : guessCategory(name, { india: group.currency === "INR" || input.currency === "INR" });
   const notes = input.notes === undefined ? (existing?.notes ?? "") : input.notes.trim().replace(/\r\n/g, "\n").slice(0, 500);
   const fields = {
     description: name,
