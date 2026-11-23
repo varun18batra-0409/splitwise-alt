@@ -429,28 +429,34 @@ export async function signOutOtherPhones() {
 // After deleting the account: this phone keeps the groups it could see before (pass them in: work them out BEFORE
 // deleting the account, which unlinks the names), just without the email link. Call this AFTER the account is deleted
 // so the fresh grant epochs are written into the cookie.
-// Names for removed people and for deleted groups give no access, so they are dropped. Every live name is kept (the delete check
-// made sure they fit). Groups the person LEFT still open for reading ("Groups you left"), so they are added too, most recently left
-// first, for as long as the cookie still fits.
+// Names for deleted groups give no access, so they are dropped. Every live name is kept (the delete check made sure they fit). Then, for as
+// long as the cookie still fits: groups the person LEFT (they still open for reading, "Groups you left"), most recently left first, and
+// groups they were REMOVED from (so the phone can still say "You were removed", and the removed-person checks still see the name), most
+// recent first. If what is about to be written does not fit after all, the last optional names added go first, never a live one.
 export async function keepGroupsDropAccount(groups: Record<string, string>) {
   const ids = Object.values(groups);
-  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids }, accountId: null, removedAt: null, group: { deletedAt: null } }, select: { id: true, grantEpoch: true, leftAt: true } }) : [];
+  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids }, accountId: null, group: { deletedAt: null } }, select: { id: true, grantEpoch: true, leftAt: true, removedAt: true } }) : [];
   const byId = new Map(rows.map((r) => [r.id, r]));
   const m: Record<string, string> = {};
-  const left: { groupId: string; value: string; leftAt: Date }[] = [];
+  const left: { groupId: string; value: string; at: number }[] = [];
+  const removed: { groupId: string; value: string; at: number }[] = [];
   for (const [groupId, id] of Object.entries(groups)) {
     const r = byId.get(id);
     if (!r) continue;
     const value = grantValue(id, r.grantEpoch);
-    if (r.leftAt) left.push({ groupId, value, leftAt: r.leftAt });
+    if (r.removedAt) removed.push({ groupId, value, at: r.removedAt.getTime() });
+    else if (r.leftAt) left.push({ groupId, value, at: r.leftAt.getTime() });
     else m[groupId] = value;
   }
-  left.sort((a, b) => b.leftAt.getTime() - a.leftAt.getTime());
-  for (const l of left) {
-    const next = { ...m, [l.groupId]: l.value };
-    if (!(await guestCookieFits(next))) break;
-    Object.assign(m, next);
+  const optional = [...left.sort((a, b) => b.at - a.at), ...removed.sort((a, b) => b.at - a.at)];
+  const added: string[] = [];
+  for (const o of optional) {
+    if (!(await guestCookieFits({ ...m, [o.groupId]: o.value }))) break;
+    m[o.groupId] = o.value;
+    added.push(o.groupId);
   }
+  // A last look at exactly what will be written.
+  while (added.length && !(await guestCookieFits(m))) delete m[added.pop()!];
   await writeSession({ m });
 }
 

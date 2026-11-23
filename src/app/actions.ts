@@ -221,12 +221,14 @@ async function joinContext(code: string) {
   return { account };
 }
 
-async function finishJoin(code: string, groupId: string, memberId: string, account: { id: string; email: string } | null) {
+// `replayed`: the same form sent again after a lost reply. The first time already did everything else (closed the invitations, copied the
+// phones), so this only puts the name on this phone and goes to the group.
+async function finishJoin(code: string, groupId: string, memberId: string, account: { id: string; email: string } | null, replayed = false) {
   // A phone with no sign-in must be able to hold one more name in its cookie: checked here too, so nothing is ever written that would not fit
   // (the earlier check, before the join, is the one that keeps a new member from being made at all).
   if (!account && !(await guestCookieHasRoomFor(groupId))) redirect(`/join/${code}?step=name&error=phone`);
   // Only an account has email invitations to close and phones to copy; a guest just gets the name written on this phone.
-  if (account) {
+  if (account && !replayed) {
     await db.invite.updateMany({ where: { groupId, email: account.email, acceptedAt: null }, data: { acceptedAt: new Date() } });
     await setMyMemberId(groupId, memberId);
     await copyPushTo(account.id, memberId);
@@ -263,7 +265,7 @@ export async function joinAsExisting(formData: FormData) {
   const rid = cleanKey(formData.get("rid")); // the form's one-time key: a lost reply can be sent again and gets the same person back
   // The same form again (its reply was lost) is answered first: it uses none of the limits and counts nothing a second time, even if the link has changed since.
   const replayed = await joinReplay(rid, code, "that", memberId, account);
-  if (replayed) return finishJoin(code, replayed.groupId, replayed.memberId, account);
+  if (replayed) return finishJoin(code, replayed.groupId, replayed.memberId, account, true);
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
   const ip = (await originAndIp()).ip;
@@ -284,7 +286,7 @@ export async function joinAsNew(formData: FormData) {
   const { account } = await joinContext(code);
   const rid = cleanKey(formData.get("rid")); // the form's one-time key (see joinAsExisting)
   const replayed = await joinReplay(rid, code, "new", String(formData.get("name") ?? ""), account); // a lost reply sent again: no limits used, nothing counted twice
-  if (replayed) return finishJoin(code, replayed.groupId, replayed.memberId, account);
+  if (replayed) return finishJoin(code, replayed.groupId, replayed.memberId, account, true);
   const groupRow = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   // A phone that already holds a name in this group goes straight to it, without counting against any limit.
   const held = account ? undefined : await heldGuestName(groupRow?.id);

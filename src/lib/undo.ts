@@ -923,10 +923,13 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
   let eventId: string;
   try {
   eventId = await db.$transaction(async (tx) => {
+    const linkedHere = new Set<string>(); // accounts already given back to a row in this restore (fresh for every try)
     await markUndone(tx, mark);
     for (const m of members) {
       // Back as they were: still linked to their sign-in (unless they've joined again since), same share.
-      const accountId = m.accountId && !existing.some((x) => x.accountId === m.accountId) ? m.accountId : null;
+      // Only the first row for an account keeps the sign-in: older data with two rows for one account can't make this undo refuse for ever.
+      const accountId = m.accountId && !existing.some((x) => x.accountId === m.accountId) && !linkedHere.has(m.accountId) ? m.accountId : null;
+      if (accountId) linkedHere.add(accountId);
       await tx.member.create({
         data: {
           id: m.id,

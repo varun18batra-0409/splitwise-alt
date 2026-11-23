@@ -9,7 +9,7 @@ import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { ownMoveOut, undoViewerFor } from "./undo";
 import { removedByEmail } from "./removal-marks";
 import { allow } from "./rate-limit";
-import { claimKey, fingerprintOf, KEY_FRESH_MS } from "./once";
+import { claimKey, fingerprintOf } from "./once";
 import { GUEST_REFUSAL } from "./guest-rules";
 
 // Joining a group from its invite link, and making a new link. Pure database
@@ -93,11 +93,14 @@ async function linkStillGood(tx: Prisma.TransactionClient, groupId: string, code
 // What a join form was for (the key's fingerprint): the link, what was asked for and who. `what` starts with "new:" (a typed name) or
 // "that:" (a name row picked), so a typed name can never look like a picked row. `who` is the account id, or "guest".
 const joinPrint = (code: string, what: string, who: string) => fingerprintOf("join", code, what, who);
+// How long a join key can still bring back the person it made (a lost reply is sent again within seconds or minutes; the epoch, claimed and
+// account checks below do the real work, this only stops a very old key being used as a way in).
+export const JOIN_KEY_FRESH_MS = 30 * 60_000;
 // What a key remembers: the person it made and that name's epoch right after (so a name freed or handed on since no longer matches).
 const keyResult = (memberId: string, epoch: number) => `${memberId}~${epoch}`;
 
 // The form's one-time key ("rid"). The same key used again for the same join (a lost reply, a second tap) gets the same person back,
-// even if the link was changed since, but ONLY while it is still the same join: the key is under 2 minutes old, the name is still at the
+// even if the link was changed since, but ONLY while it is still the same join: the key is under 30 minutes old (JOIN_KEY_FRESH_MS), the name is still at the
 // epoch the key saw, still not removed, and still held the same way (a guest name: no account, still claimed; an account's name: that very
 // account). Anything else, or a key used for something else, or no key at all (an older page), simply isn't used: the join goes ahead
 // under the normal rules (the link must still work, the name must still be free), there is just no retry protection.
@@ -107,7 +110,7 @@ async function keyFor(rid: string | undefined, fp: string, accountId: string | n
   const row = await db.requestKey.findUnique({ where: { key: rid } });
   if (!row) return { rid, replay: null };
   const none = { rid: undefined, replay: null };
-  if (row.fingerprint !== fp || now.getTime() - row.createdAt.getTime() >= KEY_FRESH_MS) return none;
+  if (row.fingerprint !== fp || now.getTime() - row.createdAt.getTime() >= JOIN_KEY_FRESH_MS) return none;
   const at = row.result.lastIndexOf("~");
   const epoch = Number(row.result.slice(at + 1));
   if (at < 1 || !Number.isInteger(epoch)) return none;

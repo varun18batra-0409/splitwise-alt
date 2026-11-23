@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { decodeSession, encodeSession } from "@/lib/session";
 import { hashLoginCode } from "@/lib/auth";

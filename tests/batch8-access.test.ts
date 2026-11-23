@@ -415,13 +415,16 @@ describe("review fixes: an old join key is not a way back in (H1), a lost reply 
     expect((await db.member.findUniqueOrThrow({ where: { id: f.R } })).grantEpoch).toBe(epochNow); // nothing was written
   });
 
-  it("a key older than 2 minutes is refused, even for the same join", async () => {
+  it("a key older than 30 minutes is refused, even for the same join (10 minutes old still works)", async () => {
     const f = await party();
     const rid = key("h1-stale");
     expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toMatchObject({ ok: true });
+    expect(join.JOIN_KEY_FRESH_MS).toBe(30 * 60_000);
     await db.requestKey.update({ where: { key: rid }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
     await newLink(f.g.id);
-    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toEqual({ ok: false, reason: "gone" });
+    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toMatchObject({ ok: true, memberId: f.R }); // 10 minutes: still the same lost reply
+    await db.requestKey.update({ where: { key: rid }, data: { createdAt: new Date(Date.now() - 40 * 60_000) } });
+    expect(await join.joinExistingAsGuest(f.code, f.R, undefined, { rid })).toEqual({ ok: false, reason: "gone" }); // 40 minutes: refused
     // Within the window the same replay still works (the normal lost reply), even after a new link:
     const g2 = await party();
     const rid2 = key("h1-fresh");
@@ -517,5 +520,63 @@ describe("H2: deleting an account counts only the groups the person is really in
     for (const r of rows.slice(0, 10)) expect(kept).toContain(r.groupId);
     expect(kept.length).toBeGreaterThanOrEqual(46);
     expect(kept.length).toBeLessThanOrEqual(50);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+describe("re-audit: removed names are kept after left ones (N3), restores give a sign-in to one row only (N4), a replayed join repeats nothing (N5)", () => {
+  it("N3: 30 live + 5 left + 20 removed + 5 deleted: the cookie has 30 live, the 5 left, the 13 most recently removed that fit (48 entries, hand-worked as above), no deleted", async () => {
+    const me = await account("Pia");
+    const rows = await manyGroups(60, me.id, "n3");
+    const live = rows.slice(0, 30);
+    const left = rows.slice(30, 35);
+    const removed = rows.slice(35, 55); // removed on day 1 + i: i = 19 is the most recent
+    const deleted = rows.slice(55, 60);
+    for (const [i, r] of left.entries()) await db.member.update({ where: { id: r.memberId }, data: { leftAt: new Date(2026, 0, 1 + i) } });
+    for (const [i, r] of removed.entries()) await db.member.update({ where: { id: r.memberId }, data: { leftAt: new Date(2026, 1, 1 + i), removedAt: new Date(2026, 1, 1 + i) } });
+    await db.group.updateMany({ where: { id: { in: deleted.map((r) => r.groupId) } }, data: { deletedAt: new Date() } });
+    await asAccount(me.id);
+    expect(await go(A.deleteMyAccount, {})).toBe("/?deleted=account");
+    const kept = Object.keys((await decodeSession(state.cookie))?.m ?? {});
+    for (const r of [...live, ...left]) expect(kept).toContain(r.groupId);
+    expect(removed.filter((r) => kept.includes(r.groupId)).map((r) => r.groupId)).toEqual(removed.slice(7).map((r) => r.groupId)); // 13 kept: the newest
+    for (const r of deleted) expect(kept).not.toContain(r.groupId);
+    expect(kept).toHaveLength(48);
+    expect(state.cookie.length).toBeLessThanOrEqual(3800);
+  });
+
+  it("N4: a restore with two rows for one account gives the sign-in to the first only; the other comes back as a plain name", async () => {
+    const f = await party({ ravi: false });
+    const zed = await account("Zed");
+    const one = cid();
+    const two = cid();
+    const ev = await db.groupEvent.create({
+      data: {
+        groupId: f.g.id, actorId: f.V, kind: "members_removed", text: "removed Zed (old data)",
+        undo: JSON.stringify({ type: "members_restore", members: [
+          { id: one, name: "Zed", phone: "", createdAt: new Date(2026, 0, 5).toISOString(), accountId: zed.id },
+          { id: two, name: "Zed again", phone: "", createdAt: new Date(2026, 0, 6).toISOString(), accountId: zed.id },
+        ] }),
+      },
+    });
+    const { undoEvent } = await import("@/lib/undo");
+    const done = await undoEvent(ev.id, f.V);
+    if (!done.ok) throw new Error(done.error);
+    expect((await db.member.findUniqueOrThrow({ where: { id: one } })).accountId).toBe(zed.id);
+    expect((await db.member.findUniqueOrThrow({ where: { id: two } })).accountId).toBeNull();
+    expect(await db.member.count({ where: { groupId: f.g.id, accountId: zed.id } })).toBe(1);
+  });
+
+  it("N5: a signed-in join sent again after a lost reply closes no invitation and copies nothing; it only sets the cookie and goes to the group", async () => {
+    const f = await party({ ravi: false });
+    const bea = await account("Bea");
+    const rid = key("n5");
+    await asAccount(bea.id);
+    expect(await go(A.joinAsNew, { code: f.code, name: "Bea", rid })).toBe(`/groups/${f.g.id}`);
+    const later = await db.invite.create({ data: { groupId: f.g.id, email: bea.email, invitedById: f.V } }); // arrived after the first join
+    await asAccount(bea.id);
+    expect(await go(A.joinAsNew, { code: f.code, name: "Bea", rid })).toBe(`/groups/${f.g.id}`);
+    expect((await db.invite.findUniqueOrThrow({ where: { id: later.id } })).acceptedAt).toBeNull(); // the replay did not close it
+    expect(await db.member.count({ where: { groupId: f.g.id, accountId: bea.id } })).toBe(1);
   });
 });
