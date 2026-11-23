@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { STUCK_HOLD } from "@/lib/home/bills";
+import { STUCK_HOLD } from "./bills";
 
 // An automatic bill's expense and its month are tied together by the bill's month row (BillRun.expenseId).
 // Deleting that expense puts the month back to "waiting" (reason "deleted", the expense id is kept) so the month can be added
