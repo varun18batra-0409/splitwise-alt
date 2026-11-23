@@ -36,7 +36,7 @@ import { ListTab } from "./_components/ListTab";
 import { usualItems } from "@/lib/home/list";
 import { budgetsNow } from "@/lib/home/budgets-db";
 import { monthInsights } from "@/lib/home/insights-db";
-import { billStatuses } from "@/lib/home/bills-db";
+import { STUCK_HOLD, billStatuses } from "@/lib/home/bills-db";
 import { nextBillLabel } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
@@ -226,7 +226,7 @@ export default async function GroupPage({
       amount: b.bill.nature === "varies" ? (b.usual ? `~${v.money(b.usual)}` : "") : b.bill.nature === "daily" ? `${v.money(b.bill.amount)} a day` : v.money(b.bill.amount),
       status: (b.status === "waiting" ? "enter" : "due") as "enter" | "due",
       label: nextBillLabel({ status: b.status, nature: b.bill.nature, reason: b.reason, payerId: b.payerId }),
-      href: b.status === "waiting" ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined,
+      href: b.status === "waiting" && b.reason !== STUCK_HOLD ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined, // (a month held for a check has no add link)
     }));
 
   const deposit = depositShares.length

@@ -232,6 +232,9 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
           if (row.status === "waiting") {
             const c = await tx.billRun.updateMany({ where: { id: row.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
             if (c.count !== 1) return "added" as const;
+          } else {
+            // Skipped by the job itself (paused, no days, covered): now a person's skip too, so a second tap is quiet.
+            await tx.billRun.updateMany({ where: { id: row.id, status: "skipped" }, data: { reason: "skipped" } });
           }
         } else {
           // A stopped bill only has a waiting month left to skip: its last month must not be skipped away. A paused daily bill still has the
@@ -248,6 +251,8 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
         // Read it back: only a month that now says "skipped" counts (nothing is rolled forward on a guess).
         const back = await tx.billRun.findUnique({ where: { billId_period: { billId, period } }, select: { status: true } });
         if (back?.status !== "skipped") throw new SkipRefused();
+        // The Activity line is written in this same step (a busy-retry after the save can't lose it, and a refusal writes none).
+        await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `skipped ${bill.name} this time` });
         return "ok" as const;
       }));
     } catch (err) {
@@ -259,6 +264,7 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
     if (done === "none") return { ok: false, error: "There’s no coming month to skip." };
     if (done === "added") return { ok: false, error: `${bill.name} was just added, so it wasn’t skipped. You’ll find it in Activity.` };
     await finishStoppedBill(billId, now).catch(() => false); // skipping the last waiting month of a stopped bill finishes it
+    return { ok: true, id: billId }; // (its Activity line was written above)
   } else if (command === "pause") {
     // Nothing is charged now: the days so far are added with the monthly bill on the 1st (see periodsDue).
     if (!bill.paused) {

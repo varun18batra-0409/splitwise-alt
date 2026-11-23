@@ -14,7 +14,7 @@ import { splitNameFor } from "@/lib/group-types";
 import { initialFromExpense } from "@/lib/expense-initial";
 import { todayKey } from "@/lib/dates";
 import { formatMoney, toInputAmount } from "@/lib/money";
-import { billExpenseInput, prepaidFor } from "@/lib/home/bills-db";
+import { STUCK_HOLD, billExpenseInput, prepaidFor } from "@/lib/home/bills-db";
 import { dailyTotal, payerFor } from "@/lib/home/bills";
 import type { ExpenseInitial } from "@/lib/expense-initial";
 import { OfflineFix } from "@/components/offline/OfflineFix";
@@ -87,7 +87,7 @@ export default async function AddExpensePage({
   // "Enter amount" for a bill that's waiting: everything filled in except the amount.
   const waitingRun =
     sp.bill && sp.period && /^\d{4}-\d{2}$/.test(sp.period)
-      ? await db.billRun.findFirst({ where: { billId: sp.bill, period: sp.period, status: "waiting", bill: { groupId: group.id, deletedAt: null } }, include: { bill: true } })
+      ? await db.billRun.findFirst({ where: { billId: sp.bill, period: sp.period, status: "waiting", reason: { not: STUCK_HOLD }, bill: { groupId: group.id, deletedAt: null } }, include: { bill: true } })
       : null;
   const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId, (await prepaidFor(waitingRun.bill, sp.period!)).total) : undefined;
   const initial = source

@@ -5,7 +5,7 @@ import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense
 import { sendPushTo } from "../push";
 import { askBill } from "./bill-asks";
 import { toInputAmount, formatMoney } from "../money";
-import { dailyTotal, isStopped, payerFor, periodsDue, nextDueDay, nextDueAfter, ordinalDay, stopDone, stopLines, type StopWords } from "./bills";
+import { STUCK_HOLD, dailyTotal, missedDays, isStopped, payerFor, periodsDue, nextDueDay, nextDueAfter, ordinalDay, stopDone, stopLines, type StopWords } from "./bills";
 import { daysInMonth, dueKey } from "./month";
 import { noteReplaced } from "./bill-run-link";
 import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
@@ -61,6 +61,7 @@ export function splitProblem(splitJson: string, activeIds: string[]): string {
 export const RECOMPUTABLE_HOLDS = ["deleted", "group closed", "payer left", "nobody left to share it", "someone in the split has left", "no amount"];
 
 export function holdReasonNow(bill: { split: string; nature: string; amount: number }, activeIds: string[], closed: boolean, payer: string | null, saved = ""): string {
+  if (saved === STUCK_HOLD) return STUCK_HOLD; // first: a month that may already have been added is never offered for adding
   if (closed) return "group closed";
   if (!payer) return "payer left";
   const problem = splitProblem(bill.split, activeIds);
@@ -138,8 +139,9 @@ const sameCurrencyRate = async (from: string, to: string): Promise<RateAnswer> =
 class BillMoved extends Error {}
 
 // The fields an automatic month depends on, as one comparable text.
-const billMoney = (b: BillRow) =>
-  JSON.stringify([b.amount, b.nature, b.split, b.payer, b.rotation, b.paused, b.deletedAt?.getTime() ?? 0, b.missed, b.prepaid, b.every, b.startMonth, b.endMonth, b.day]);
+// Days marked "didn't come" and move-out charges are compared only for the month being run (a tick on next month's calendar changes nothing here).
+const billMoney = (b: BillRow, period: string) =>
+  JSON.stringify([b.amount, b.nature, b.split, b.payer, b.rotation, b.paused, b.pausedAt?.getTime() ?? 0, b.deletedAt?.getTime() ?? 0, missedDays(b.missed, period), parsePrepaid(b.prepaid)[period] ?? [], b.every, b.startMonth, b.endMonth, b.day]);
 
 // What a leaver already paid for a daily bill's month at move-out (their share of the days they were
 // there). Each charge counts for what it is NOW (edited since: the new amount) and only while its expense
@@ -289,7 +291,7 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
     else await db.billRun.updateMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt }, data: { status: "waiting", reason: run.expenseId ? "deleted" : "", requestKey: "" } });
     return "failed" as const;
   };
-  const worked = billMoney(bill);
+  const worked = billMoney(bill, period);
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
     r = await saveExpense(input, payer, sameCurrencyRate, {
@@ -300,7 +302,7 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
       // In the same step as the expense: the bill is still exactly as it was when the amount was worked out, and the month is marked added.
       alsoInTx: async (tx, expenseId) => {
         const now2 = await tx.bill.findUnique({ where: { id: bill.id } });
-        if (!now2 || billMoney(now2) !== worked) throw new BillMoved();
+        if (!now2 || billMoney(now2, period) !== worked) throw new BillMoved();
         await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId, reason: "" } });
         await syncChargePayer(tx, group.id, charges, payer);
       },
@@ -355,21 +357,24 @@ export async function runBillsForGroup(groupId: string, now = new Date(), opts: 
 
 // What a person sees on a month that may already have been added (an old claim with nothing to prove either way): "On hold · Fix it".
 // It is never "Add it": adding it by hand could charge the month twice.
-export const STUCK_HOLD = "it may already have been added";
+export { STUCK_HOLD };
 const KEY_KEEP_MS = 29 * 86_400_000; // a retry key is cleaned away after 30 days, so it proves nothing after that
 
 // The expense a bill's month became, found from its own history line (an automatic month is written as "paid <bill> (…) · repeat bill") and
-// its due day. null = none. A deleted one is still returned (the month then shows "Deleted · Add it again", never added again by itself).
-async function findBillExpense(bill: BillRow, groupId: string, period: string): Promise<{ id: string; deletedAt: Date | null } | null> {
+// its due day. Only when exactly one expense fits: one already linked from any month's run (another bill with the same name and day), or the
+// old expense this run was replacing, is not a candidate. null = none or not sure. A deleted one is still returned (the month then shows
+// "Deleted · Add it again", never added again by itself).
+async function findBillExpense(bill: BillRow, groupId: string, period: string, replacing: string): Promise<{ id: string; deletedAt: Date | null } | null> {
   const events = await db.groupEvent.findMany({
     where: { groupId, kind: "expense_added", expenseId: { not: null }, AND: [{ text: { startsWith: `paid ${bill.name} (` } }, { text: { contains: REPEAT_BILL_MARK } }] },
     select: { expenseId: true },
   });
-  const ids = events.map((e) => e.expenseId).filter((x): x is string => Boolean(x));
+  const ids = events.map((e) => e.expenseId).filter((x): x is string => Boolean(x) && x !== replacing);
   if (!ids.length) return null;
+  const taken = new Set((await db.billRun.findMany({ where: { expenseId: { in: ids } }, select: { expenseId: true } })).map((r) => r.expenseId));
   const day = bill.nature === "daily" ? dueKey(period, "last") : dueKey(period, bill.day >= 31 ? "last" : bill.day);
-  const hit = await db.expense.findFirst({ where: { id: { in: ids }, groupId, description: bill.name, spentAt: new Date(`${day}T12:00:00.000Z`) }, select: { id: true, deletedAt: true } });
-  return hit ?? null;
+  const hits = await db.expense.findMany({ where: { id: { in: ids.filter((id) => !taken.has(id)) }, groupId, description: bill.name, spentAt: new Date(`${day}T12:00:00.000Z`) }, select: { id: true, deletedAt: true } });
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // A month left "adding" by a run that crashed, in a period the daily run no longer looks at (older than last month), would never be
@@ -384,7 +389,7 @@ async function settleStuckRuns(bill: BillRow, group: { id: string; members: Memb
   for (const run of stuck) {
     const mine = { id: run.id, status: "adding", claimedAt: run.claimedAt };
     const proof = await previousResult(run.requestKey || `bill-${run.id}`);
-    const found = proof ? await db.expense.findUnique({ where: { id: proof }, select: { id: true, deletedAt: true } }) : await findBillExpense(bill, group.id, run.period);
+    const found = proof ? await db.expense.findUnique({ where: { id: proof }, select: { id: true, deletedAt: true } }) : await findBillExpense(bill, group.id, run.period, run.expenseId);
     const expenseId = proof ?? found?.id ?? "";
     if (proof || found) {
       if (found?.deletedAt) {
@@ -497,7 +502,8 @@ export async function addWaitingBill(
   const where = { billId: bill.id, period: String(billRun.period) };
   // A month that was deleted and is being added again: the expense it replaces (kept on the month row), written down below in the same step.
   const replaced = (await db.billRun.findFirst({ where: { ...where, status: "waiting", reason: "deleted" }, select: { expenseId: true } }))?.expenseId ?? "";
-  const claimed = await db.billRun.updateMany({ where: { ...where, status: "waiting" }, data: { status: "adding", claimedAt: new Date(), requestKey: requestKey ?? "" } });
+  // (A month held because it may already have been added is never claimed here: the way out is Skip.)
+  const claimed = await db.billRun.updateMany({ where: { ...where, status: "waiting", reason: { not: STUCK_HOLD } }, data: { status: "adding", claimedAt: new Date(), requestKey: requestKey ?? "" } });
   if (claimed.count !== 1) {
     const again = await previousResult(requestKey);
     if (again !== null) return { ok: true, id: again };

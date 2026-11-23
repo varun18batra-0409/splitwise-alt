@@ -322,12 +322,16 @@ export function ordinalDay(day: number): string {
 
 // ---------- The state chip on each bill in the Bills tab ----------
 
+// A month left "adding" by a crash, with nothing to prove whether its expense was saved: it is held for a person (never added by the bill paths).
+export const STUCK_HOLD = "it may already have been added";
+
 // Why a bill that is due is waiting (`reason` is worked out fresh by billStatuses, "" = nothing is wrong now):
 //   amount – a "varies" bill waits for its amount
 //   payer  – nobody can pay it (the payer left)
 //   fix    – something is wrong with it (a split that can't work, a closed group); fix it in the bill's settings
 //   add    – a fixed or daily bill with nothing wrong any more (fixed since, or an add that was interrupted): just add it
 export function billHold(b: { nature: string; reason: string; payerId: string | null }): "amount" | "payer" | "fix" | "add" {
+  if (b.reason === STUCK_HOLD) return "fix"; // checked first: a month that may already have been added is never "Add it", whoever pays
   if (b.reason === "payer left" || !b.payerId) return "payer";
   if (b.reason === "") return b.nature === "varies" ? "amount" : "add";
   return "fix";

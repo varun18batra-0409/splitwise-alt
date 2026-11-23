@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { billCommand } from "@/lib/home/bill-setup";
-import { STUCK_HOLD, billStatuses, runBillsForGroup } from "@/lib/home/bills-db";
+import { STUCK_HOLD, addWaitingBill, billExpenseInput, billStatuses, holdReasonNow, runBillsForGroup } from "@/lib/home/bills-db";
 import { billHold } from "@/lib/home/bills";
 import { setExpenseDeleted } from "@/lib/save-expense";
 import { monthInsights } from "@/lib/home/insights-db";
@@ -121,13 +121,20 @@ describe("G40 and L09: Skip names its month and skips only that month", () => {
     expect((await runOf(bill.id, "2026-11"))?.status).toBe("waiting");
   });
 
-  it("a month the job skipped itself (paused) is not a person's skip: Skip goes on as before (ok, one line)", async () => {
+  it("N4: a month the job skipped itself (paused) becomes a person's skip when they skip it (one line); a second tap is quiet", async () => {
     const f = await flat();
     const bill = await mk(f);
     await run(bill.id, "2026-12", "skipped", { reason: "paused" });
     expect((await billCommand(f.id, f.ravi, bill.id, "skip", at("2026-11-20"), { period: "2026-12" })).ok).toBe(true);
     expect(await skippedLines(f.id)).toBe(1);
-    expect((await runOf(bill.id, "2026-12"))?.reason).toBe("paused");
+    expect((await runOf(bill.id, "2026-12"))?.reason).toBe("skipped");
+    expect((await billCommand(f.id, f.ravi, bill.id, "skip", at("2026-11-20"), { period: "2026-12" })).ok).toBe(true);
+    expect(await skippedLines(f.id)).toBe(1);
+  });
+
+  it("N4: the Activity line is written with the skip, and a refused skip writes none (source check: it is inside the transaction)", () => {
+    const src = readFileSync("src/lib/home/bill-setup.ts", "utf8");
+    expect(src).toContain('await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `skipped ${bill.name} this time` });');
   });
 
   it("without a month (older callers) it still skips the oldest waiting month", async () => {
@@ -392,6 +399,109 @@ describe("L08 and G13: stuck or older months become visible", () => {
     await run(bill.id, "2026-09", "adding", { claimedAt: new Date(now.getTime() - 2 * 60_000) });
     await runBillsForGroup(f.id, now);
     expect((await runOf(bill.id, "2026-09"))?.status).toBe("adding");
+  });
+});
+
+describe("N1: a month held because it may already have been added can never be added by hand", () => {
+  const rate = async () => ({ ok: true as const, rate: "1", date: "2026-11-20" });
+
+  it("the hold wins over 'payer left' in the words and in the state (so never 'Add it')", () => {
+    expect(holdReasonNow({ split: JSON.stringify({ mode: "equal", ids: [] }), nature: "fixed", amount: 1000000 }, [], false, null, STUCK_HOLD)).toBe(STUCK_HOLD);
+    expect(billHold({ nature: "fixed", reason: STUCK_HOLD, payerId: null })).toBe("fix");
+    expect(billHold({ nature: "fixed", reason: STUCK_HOLD, payerId: "someone" })).toBe("fix");
+    expect(billHold({ nature: "varies", reason: STUCK_HOLD, payerId: "someone" })).toBe("fix");
+  });
+
+  it("addWaitingBill refuses it on the server: nothing is added, the month stays held", async () => {
+    const f = await flat();
+    const bill = await mk(f, { startMonth: "2026-09" });
+    await run(bill.id, "2026-09", "waiting", { reason: STUCK_HOLD });
+    const members = await db.member.findMany({ where: { groupId: f.id }, orderBy: { createdAt: "asc" } });
+    const input = billExpenseInput(bill, f.id, "INR", "2026-09", 1000000, f.asha, members);
+    const r = await addWaitingBill(input, f.asha, rate, { billId: bill.id, period: "2026-09" }, `b6-n1-${stamp}`);
+    expect(r).toEqual({ ok: false, error: "Rent for this month has already been added. You’ll find it in Activity." });
+    expect(await expensesOf(f.id, "Rent")).toHaveLength(0);
+    const sep = await runOf(bill.id, "2026-09");
+    expect([sep?.status, sep?.reason]).toEqual(["waiting", STUCK_HOLD]);
+    // An ordinary waiting month still adds: 1,000,000 = 500,000 + 500,000.
+    await run(bill.id, "2026-10", "waiting", { reason: "" });
+    const ok = await addWaitingBill(billExpenseInput(bill, f.id, "INR", "2026-10", 1000000, f.asha, members), f.asha, rate, { billId: bill.id, period: "2026-10" }, `b6-n1b-${stamp}`);
+    expect(ok.ok).toBe(true);
+    expect((await expensesOf(f.id, "Rent"))[0].shares.map((x) => x.amount)).toEqual([500000, 500000]);
+  });
+
+  it("the This-month link and the add page leave a held month out (source checks)", () => {
+    expect(readFileSync("src/app/groups/[id]/page.tsx", "utf8")).toContain("b.status === \"waiting\" && b.reason !== STUCK_HOLD");
+    expect(readFileSync("src/app/groups/[id]/add/page.tsx", "utf8")).toContain("reason: { not: STUCK_HOLD }");
+  });
+});
+
+describe("N2 and N3: the expense finder only takes an expense that is surely the month's", () => {
+  const withExpense = async (f: Flat, name: string, amount: number, day: string, extra: { deleted?: boolean } = {}) => {
+    const e = await db.expense.create({
+      data: { groupId: f.id, description: name, amount, splitType: "equal", paidById: f.asha, createdById: f.asha, deletedAt: extra.deleted ? new Date() : null, spentAt: new Date(`${day}T12:00:00.000Z`), shares: { create: [{ memberId: f.asha, amount: amount / 2 }, { memberId: f.ravi, amount: amount / 2 }] } },
+    });
+    await db.groupEvent.create({ data: { groupId: f.id, actorId: f.asha, kind: "expense_added", text: `paid ${name} (₹${amount / 100}) · repeat bill`, expenseId: e.id } });
+    return e;
+  };
+
+  it("N2: two 'Rent' bills due on the 1st (800,000 and 600,000): the second's stuck September is held, not given the first's expense", async () => {
+    const f = await flat();
+    const first = await mk(f, { amount: 800000, startMonth: "2026-09" });
+    const second = await mk(f, { amount: 600000, startMonth: "2026-09" });
+    const e1 = await withExpense(f, "Rent", 800000, "2026-09-01");
+    await run(first.id, "2026-09", "added", { expenseId: e1.id });
+    const now = at("2026-11-20");
+    await run(second.id, "2026-09", "adding", { claimedAt: new Date(now.getTime() - 40 * 86_400_000) });
+    await runBillsForGroup(f.id, now);
+    const sep = await runOf(second.id, "2026-09");
+    expect([sep?.status, sep?.reason, sep?.expenseId]).toEqual(["waiting", STUCK_HOLD, ""]);
+    expect((await runOf(first.id, "2026-09"))?.expenseId).toBe(e1.id);
+  });
+
+  it("N2: two candidates and neither linked: not sure, so held", async () => {
+    const f = await flat();
+    const bill = await mk(f, { startMonth: "2026-09" });
+    await withExpense(f, "Rent", 1000000, "2026-09-01");
+    await withExpense(f, "Rent", 1000000, "2026-09-01");
+    const now = at("2026-11-20");
+    await run(bill.id, "2026-09", "adding", { claimedAt: new Date(now.getTime() - 40 * 86_400_000) });
+    await runBillsForGroup(f.id, now);
+    expect((await runOf(bill.id, "2026-09"))?.reason).toBe(STUCK_HOLD);
+  });
+
+  it("N3: the only expense found is the old deleted one this run was replacing: no proof, held (and the old expense stays on the run)", async () => {
+    const f = await flat();
+    const bill = await mk(f, { startMonth: "2026-09" });
+    const old = await withExpense(f, "Rent", 1000000, "2026-09-01", { deleted: true });
+    const now = at("2026-11-20");
+    await run(bill.id, "2026-09", "adding", { claimedAt: new Date(now.getTime() - 40 * 86_400_000), expenseId: old.id });
+    await runBillsForGroup(f.id, now);
+    const sep = await runOf(bill.id, "2026-09");
+    expect([sep?.status, sep?.reason, sep?.expenseId]).toEqual(["waiting", STUCK_HOLD, old.id]);
+  });
+});
+
+describe("N5: a day ticked for another month does not refuse this month's run", () => {
+  const milk = (f: Flat) => mk(f, { name: "Milk", nature: "daily", amount: 6000, day: 31 });
+
+  it("Milk 6,000 a day for November (30 days = 180,000 = 90,000 + 90,000); 1 Dec is ticked in the gap: November still posts", async () => {
+    const f = await flat();
+    const bill = await milk(f);
+    await runBillsForGroup(f.id, at("2026-12-01"), { afterRead: async () => void (await db.bill.update({ where: { id: bill.id }, data: { missed: JSON.stringify({ "2026-12": [1] }) } })) });
+    const rows = await expensesOf(f.id, "Milk");
+    expect(rows.map((e) => [e.amount, e.shares.map((x) => x.amount)])).toEqual([[180000, [90000, 90000]]]);
+    expect((await runOf(bill.id, "2026-11"))?.status).toBe("added");
+    expect(await checkBooks(f.id)).toEqual({ [f.asha]: 90000, [f.ravi]: -90000 });
+  });
+
+  it("a November day ticked in the gap still refuses it (the month's total changed); November is kept as a waiting month", async () => {
+    const f = await flat();
+    const bill = await milk(f);
+    await runBillsForGroup(f.id, at("2026-12-01"), { afterRead: async () => void (await db.bill.update({ where: { id: bill.id }, data: { missed: JSON.stringify({ "2026-11": [4] }) } })) });
+    expect(await expensesOf(f.id, "Milk")).toHaveLength(0);
+    const nov = await runOf(bill.id, "2026-11");
+    expect([nov?.status, nov?.reason]).toEqual(["waiting", ""]);
   });
 });
 
