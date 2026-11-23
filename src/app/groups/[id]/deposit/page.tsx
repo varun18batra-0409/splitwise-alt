@@ -60,7 +60,7 @@ export default async function DepositPage({
       </section>
 
       <form
-        key={depositFormKey(group.deposit?.heldBy ?? "Landlord", group.members.filter((m) => !m.leftAt).map((m) => depositVersion(held.find((x) => x.memberId === m.id))))}
+        key={`${group.currency}|${depositFormKey(group.deposit?.heldBy ?? "Landlord", group.members.filter((m) => !m.leftAt).map((m) => depositVersion(held.find((x) => x.memberId === m.id))))}`}
         action={saveDeposit}
         className="space-y-5"
       >

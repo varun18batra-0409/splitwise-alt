@@ -98,7 +98,7 @@ export default function Privacy() {
           names, the amount owed and how the person owed asked to be paid (their UPI ID or pay link, with a QR code), and can tap “I’ve paid”. It works for that one debt only, and stops after 30 days, once it’s settled, or if the group is closed. Send it only to the person who owes.
         </li>
         <li>
-          <strong>Collect links:</strong> a collection’s link opens without signing in. Whoever has it sees the title, the organiser’s name, the amount, how to pay the organiser, and the list of names with who says they’ve paid, how much each person says they paid, and who’s been checked. Phone numbers stay with the organiser. Anyone with the link can tick a name, so send it only to the people paying.
+          <strong>Collect links:</strong> a collection’s link opens without signing in. Whoever has it sees the title, the organiser’s name and note, the amount, the due date, the totals so far, whether it’s closed, how to pay the organiser, and the list of names with who says they’ve paid, how much each person says they paid, who paid in cash and who’s been checked. Phone numbers stay with the organiser. Anyone with the link can tick a name or add their own, so send it only to the people paying. Ticking a name saves a small random code on that phone (no sign-in), so only that phone can undo the tick.
         </li>
         <li>
           <strong>If you leave a group:</strong> you still see it as it was up to the day you left, and your share can’t change after that. Older expenses

@@ -25,7 +25,9 @@ export default async function NewBillPage({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHeader title="Add a regular bill" back={`/groups/${group.id}?tab=bills`} />
+      {/* A change of the group's currency redraws the form, so an amount typed in the old currency is never sent under the new one. */}
       <BillForm
+        key={group.currency}
         groupId={group.id}
         members={group.members.map(({ id, name }) => ({ id, name }))}
         myId={myId}

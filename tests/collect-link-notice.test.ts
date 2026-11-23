@@ -52,7 +52,10 @@ describe("the privacy page", () => {
     expect(page).toContain("Collect links: a collection’s link opens without signing in.");
     expect(page).toContain("how much each person says they paid");
     expect(page).toContain("Phone numbers stay with the organiser.");
-    expect(page).toContain("Anyone with the link can tick a name, so send it only to the people paying.");
+    expect(page).toContain("Anyone with the link can tick a name or add their own, so send it only to the people paying.");
+    expect(page).toContain("the organiser’s name and note, the amount, the due date, the totals so far, whether it’s closed");
+    expect(page).toContain("who paid in cash");
+    expect(page).toContain("so only that phone can undo the tick.");
     expect(page.indexOf("Collect links:")).toBeGreaterThan(page.indexOf("Who can see what"));
     expect(page.indexOf("Collect links:")).toBeLessThan(page.indexOf("If you leave a group:"));
   });

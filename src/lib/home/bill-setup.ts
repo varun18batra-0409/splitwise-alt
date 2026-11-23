@@ -41,7 +41,8 @@ export function billVersion(b: { nature: string; amount: number; day: number; ev
 function billMovedText(name: string, was: string, cur: string, currency: string): string {
   const [w, c] = [was.split("|"), cur.split("|")];
   const onlyAmount = w.length === 6 && c.length === 6 && w.every((x, i) => i === 1 || x === c[i]);
-  const what = onlyAmount && /^\d{1,12}$/.test(c[1]) ? ` to ${formatMoney(Number(c[1]), currency)}` : "";
+  // A cleared usual amount (0) is not "changed to ₹0": just "changed".
+  const what = onlyAmount && /^\d{1,12}$/.test(c[1]) && Number(c[1]) > 0 ? ` to ${formatMoney(Number(c[1]), currency)}` : "";
   return `${name} changed${what} since you opened this page, so nothing was saved. Look again and save once more.`;
 }
 
@@ -140,7 +141,8 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
         // The bill is still exactly as the form showed it (someone else may have changed the amount, day, payer or split since).
         if (input.was !== undefined) {
           // Already exactly as this form asks (a resend of a save that went through): nothing to write, not a conflict.
-          if (billVersion(cur) === billVersion(data) && cur.name === data.name && cur.icon === data.icon) return;
+          // Every stored field must match: a plain re-save also refreshes "Take turns" with people who joined since, and that must still be written.
+          if (billVersion(cur) === billVersion(data) && cur.name === data.name && cur.icon === data.icon && cur.category === data.category && cur.rotation === data.rotation) return;
           if (billVersion(cur) !== input.was) throw new BillLocked(billMovedText(cur.name, input.was, billVersion(cur), group.currency));
         }
         // A paused daily bill keeps its days from the pause worked out from the pause day: turning it into another kind would lose them.

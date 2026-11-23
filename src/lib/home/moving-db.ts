@@ -732,7 +732,7 @@ export async function saveDepositFor(
         actorId,
         kind: "bill_changed",
         text: `updated the deposit with ${holder} (${formatMoney(stillHeld, flat.currency)})`,
-        details: boxes.filter((r) => r.amount > 0).map((r) => `${r.name}: ${formatMoney(r.amount, flat.currency)}`),
+        details: written, // only the shares this save actually wrote
       });
     });
   } catch (err) {

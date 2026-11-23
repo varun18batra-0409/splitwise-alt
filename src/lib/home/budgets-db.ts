@@ -55,6 +55,7 @@ export async function saveBudgetsFor(
       // First: the group is still in the currency the page showed (and this person still in it).
       await guardGroup(tx, groupId, { currency: opts.currency ?? group.currency, actorId, allowClosed: true });
       let wrote = 0;
+      const details: string[] = []; // only the boxes this save actually wrote (another person's identical change is theirs, not this person's)
       for (const c of [...clear.map((x) => ({ ...x, amount: null as number | null })), ...set]) {
         const now = await tx.budget.findUnique({ where: { groupId_category: { groupId, category: c.category } } });
         // Already as this form asks (a resend of a save that went through): nothing to write, and not a conflict.
@@ -69,6 +70,7 @@ export async function saveBudgetsFor(
           if (done.count !== 1) throw new BudgetMoved(c.category, now.amount);
         }
         wrote++;
+        if (c.amount !== null) details.push(`${getCategory(c.category).label}: ${formatMoney(c.amount, group.currency)}`);
       }
       if (opts.was && !wrote) return; // every box was already as asked: no second line in Activity
       await logEvent(tx, {
@@ -76,7 +78,7 @@ export async function saveBudgetsFor(
         actorId,
         kind: "bill_changed",
         text: "updated the monthly budgets",
-        details: set.map((b) => `${getCategory(b.category).label}: ${formatMoney(b.amount, group.currency)}`),
+        details,
       });
     });
   } catch (err) {

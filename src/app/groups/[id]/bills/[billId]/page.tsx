@@ -173,7 +173,7 @@ export default async function BillPage({
         <>
           <h2 id="change" className="mb-4 scroll-mt-4 font-display text-xl font-semibold">Change it</h2>
           <BillForm
-            key={billVersion(bill)}
+            key={`${group.currency}|${billVersion(bill)}`}
             groupId={group.id}
             members={active.map(({ id: mid, name: n }) => ({ id: mid, name: n }))}
             myId={myId}
