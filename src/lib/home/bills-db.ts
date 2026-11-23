@@ -4,7 +4,7 @@ import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense
 import { sendPushTo } from "../push";
 import { askBill } from "./bill-asks";
 import { toInputAmount, formatMoney } from "../money";
-import { dailyTotal, dayRangeLabel, missedDays, monthSoFar, monthsBetween, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
+import { dailyTotal, dayRangeLabel, monthSoFar, monthsBetween, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
 import { allocateByWeights } from "../split";
 import { addMonths, daysInMonth, dueKey } from "./month";
 import { noteReplaced } from "./bill-run-link";
@@ -73,7 +73,7 @@ export function holdReasonNow(bill: { split: string; nature: string; amount: num
 // some, by percentage or by fixed amounts.
 // `range`: only the days from..to of the month are being added (a part charge, or the days after one); someone who moved in
 // part-way is weighted by the exact days they were there, as amounts (shares allow at most 20, a month has up to 31 days).
-export type DayRange = { from: number; to: number; amount: number; skip?: number[] }; // skip: days the bill didn't come
+export type DayRange = { from: number; to: number; amount: number };
 export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR", range?: DayRange): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> & Partial<Pick<SaveExpenseInput, "percent" | "exact">> {
   const active = members.filter((m) => !m.leftAt);
   const split = parseSplit(splitJson);
@@ -88,7 +88,7 @@ export function splitFields(splitJson: string, members: Member[], period?: strin
   const some = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)).map((m) => m.id) : [];
   if (range && period && split.mode !== "some") {
     const base = (m: Member) => (split.mode === "group" ? m.splitWeight : 100);
-    const w = joinWeights(active.map((m) => ({ id: m.id, splitWeight: base(m), joinedFrom: m.joinedFrom ?? null })), period, { from: range.from, to: range.to, skip: range.skip ?? [] });
+    const w = joinWeights(active.map((m) => ({ id: m.id, splitWeight: base(m), joinedFrom: m.joinedFrom ?? null })), period, range);
     // Always the days of the range (never the whole month's weights): someone who moved in on the 15th and a range of 20-30 Nov is weighted for 11 days, as the others are.
     const parts = allocateByWeights(range.amount, active.map((m) => ({ memberId: m.id, weight: w[m.id] })));
     if (parts.length) {
@@ -157,7 +157,9 @@ export async function prepaidFor(bill: { prepaid: string }, period: string): Pro
 // The month-end daily bill is paid by that month's payer, so the move-out charge (which only the leaver shares)
 // is credited to that same person: the payer ends up credited for the whole month. Shares don't change.
 // A short line goes in the history for each charge that changes payer ("Asha now paid Milk · 1–14 Nov"), so nothing moves silently.
-export async function syncChargePayer(tx: Prisma.TransactionClient, groupId: string, entries: Prepaid[], payer: string): Promise<void> {
+export async function syncChargePayer(tx: Prisma.TransactionClient, groupId: string, allEntries: Prepaid[], payer: string): Promise<void> {
+  // A pause or stop charge is locked: it stays paid by whoever paid it. Only move-out charges follow the month's payer.
+  const entries = allEntries.filter((x) => x.k !== "part");
   if (!payer || !entries.length) return;
   // A charge whose current payer has left stays theirs: moving the credit would move a balance that has to stay exactly 0 (the move-out
   // hands such a charge on while the person is still here; this is the backstop for anything older).
@@ -260,12 +262,14 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
     }
     note = `${d.days} days × ${formatMoney(bill.amount, group.currency)}`;
     // After a part charge (a pause or stop earlier this month) only the days after it are being added: weight people by those days.
-    // After a part charge (a pause or stop earlier this month) only the days after it are being added: weight people by those days.
     const covered = lastPartDay(pre.entries);
-    if (covered > 0) range = { from: covered + 1, to: daysInMonth(period), amount, skip: missedDays(bill.missed, period) };
+    if (covered > 0) range = { from: covered + 1, to: daysInMonth(period), amount };
+    let partEnd = 0;
     for (const x of pre.entries) {
       if (x.k === "part") {
-        note += `, less ${formatMoney(x.a, group.currency)} already added for ${dayRangeLabel(period, 1, Number((x.d ?? "").slice(8, 10)) || 1)}`;
+        const end = Number((x.d ?? "").slice(8, 10)) || 1;
+        note += `, less ${formatMoney(x.a, group.currency)} already added for ${dayRangeLabel(period, partEnd + 1, end)}`; // from the day after the part charge before it
+        partEnd = end;
         continue;
       }
       note += `, less ${formatMoney(x.a, group.currency)} ${group.members.find((m) => m.id === x.m)?.name ?? "someone"}’s share${x.d ? ` (moved out ${niceDate(x.d)})` : ""}`;
@@ -511,7 +515,7 @@ export async function addMonthSoFar(
   const problem = splitProblem(bill.split, active);
   if (problem) return { ok: false, error: `${bill.name}’s split needs fixing (${problem}) before it can be ${o.verb}, so ${label} can be added. Fix it below.` };
 
-  const input = billExpenseInput(bill, group.id, group.currency, o.period, m.amount, payer, group.members, { from: m.fromDay, to: m.toDay, amount: m.amount, skip: missedDays(bill.missed, o.period) });
+  const input = billExpenseInput(bill, group.id, group.currency, o.period, m.amount, payer, group.members, { from: lastPartDay(pre.entries) + 1, to: m.toDay, amount: m.amount } /* the same person-days rule as the month-end bill (joinWeights) */);
   input.name = `${bill.name} · ${label}`;
   input.date = `${o.period}-${String(m.toDay).padStart(2, "0")}`;
   let note = `${m.days} days × ${money(bill.amount, group.currency)}`;

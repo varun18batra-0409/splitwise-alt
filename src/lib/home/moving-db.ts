@@ -78,6 +78,20 @@ async function billExpensesFor(flat: Flat, leaverId: string, fromMonth: string) 
 }
 type BillExpense = Awaited<ReturnType<typeof billExpensesFor>>[number];
 
+// A move-out can't be dated before a day a pause or stop charge already covers in that month: the leaver would be charged for those days again.
+async function partDayRefusal(flat: Flat, lastDay: string): Promise<string | null> {
+  const period = lastDay.slice(0, 7);
+  const bills = await db.bill.findMany({ where: { groupId: flat.id, nature: "daily", deletedAt: null } });
+  for (const bill of bills) {
+    const covered = lastPartDay((await prepaidFor(bill, period)).entries);
+    if (covered > Number(lastDay.slice(8, 10))) {
+      const day = `${covered} ${MONTH_NAMES[Number(period.slice(5, 7)) - 1].slice(0, 3)}`;
+      return `${bill.name} was already added up to ${day} when it was paused, so the last day can’t be before that. Pick ${day} or later, or add a money-back expense.`;
+    }
+  }
+  return null;
+}
+
 // Daily bills (milk, water cans) whose month hasn't been added yet: the leaver's share of the
 // days they were there, which would otherwise never reach them (only people still here share the month-end bill).
 type DailyOffer = { bill: Awaited<ReturnType<typeof db.bill.findMany>>[number]; period: string; d: DailyPrecharge };
@@ -130,6 +144,7 @@ async function pendingHandovers(flat: Flat, leaverId: string, othersIds: string[
       if (run?.status === "adding" && list.some((x) => flat.expenses.some((y) => y.id === x.e && y.paidById === leaverId && !y.payers))) out.adding ??= `${bill.name} for ${monthName(period)} is being added right now. Try again in a minute.`;
       if (run && run.status !== "waiting") continue;
       for (const x of list) {
+        if (x.k === "part") continue; // a pause or stop charge keeps its payer (the leaver's square-up settles the money)
         const e = flat.expenses.find((y) => y.id === x.e);
         // (A charge with several payers written on it is left as it is: handing it on would move the other payers' credit too.)
         if (!e || e.paidById !== leaverId || e.payers) continue;
@@ -221,7 +236,7 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT } as Fail;
   if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
-  const bad = checkDay(lastDay, now, tz);
+  const bad = checkDay(lastDay, now, tz) ?? (await partDayRefusal(flat, lastDay));
   if (bad) return { ok: false, error: bad } as Fail;
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
@@ -284,7 +299,7 @@ export async function moveOut(
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const leaver = flat.members.find((m) => m.id === input.leaverId && !m.leftAt);
   if (!leaver) return { ok: false, error: "That person isn’t in the flat." };
-  const bad = checkDay(input.lastDay, now, opts.tz);
+  const bad = checkDay(input.lastDay, now, opts.tz) ?? (await partDayRefusal(flat, input.lastDay));
   if (bad) return { ok: false, error: bad };
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaver.id);
   if (!others.length) return { ok: false, error: "Someone has to stay in the flat." };
@@ -767,8 +782,14 @@ async function checkMoveOut(client: Client, groupId: string, memberId: string, i
   const fixable = (what: string) => stop(`${what} was changed after the move-out, so this can’t be undone. Ask someone in the flat to undo that change first.`);
   for (const x of info.prepaid ?? []) {
     const e = await client.expense.findUnique({ where: { id: x.expenseId }, select: { groupId: true, description: true, amount: true, deletedAt: true, paidById: true, shares: { select: { memberId: true, amount: true } } } });
-    const bill = await client.bill.findUnique({ where: { id: x.billId }, select: { prepaid: true } });
-    const entry = bill ? (parsePrepaid(bill.prepaid)[x.period] ?? []).find((y) => y.e === x.expenseId) : undefined;
+    const bill = await client.bill.findUnique({ where: { id: x.billId }, select: { prepaid: true, name: true } });
+    const month = bill ? parsePrepaid(bill.prepaid)[x.period] ?? [] : [];
+    const entry = month.find((y) => y.e === x.expenseId);
+    // A pause or stop charge written after this one already took it off its total (and covers its days): taking it back would lose it.
+    const dayOf = (y?: { d?: string }) => Number((y?.d ?? "").slice(8, 10)) || 0;
+    if (entry && month.slice(month.indexOf(entry) + 1).some((y) => y.k === "part" && dayOf(y) >= dayOf(entry))) {
+      return stop(`${bill?.name ?? "The bill"} for this month was already added when it was paused or stopped, so this move-out can’t be undone. Add a money-back expense if needed.`, MOVE_OUT_GONE_FOR_GOOD);
+    }
     if (!e || e.groupId !== groupId || e.deletedAt) return fixable(e?.description ?? "The daily charge");
     const a = entry?.a ?? e.amount;
     if (e.amount !== a || e.shares.length !== 1 || e.shares[0].memberId !== memberId || e.shares[0].amount !== a) return fixable(e.description);

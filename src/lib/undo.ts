@@ -905,4 +905,3 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
   });
   return { ok: true, eventId };
 }
-export { apply as applyUndoPayload }; // the single place every undo goes through (tests call it directly)

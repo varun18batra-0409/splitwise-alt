@@ -403,7 +403,7 @@ describe("pausing, starting again and stopping: the days add up, once", () => {
     const net = await checkBooks(f.groupId);
     expect([net[f.a], net[f.b], net[f.c], net[f.d]]).toEqual([119564, -48435, -48435, -22694]);
   });
-  it("a joiner who arrives later: D moves in 24 Nov; pause 20 Nov (114,000 = 38,000 each for A, B, C); 22–23 not come; month end 54,000 shared 9 : 9 : 9 : 7 (the days each was there that came)", async () => {
+  it("a joiner who arrives later: D moves in 24 Nov; pause 20 Nov (114,000 = 38,000 each for A, B, C); 22–23 not come; month end 54,000 shared by person-days over 20–30 Nov (11 : 11 : 11 : 7), the same rule the part charge uses", async () => {
     const f = await flat("c3b", { extra: true });
     await db.member.update({ where: { id: f.d }, data: { joinedFrom: new Date("2026-11-24T12:00:00Z") } });
     await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"));
@@ -411,13 +411,13 @@ describe("pausing, starting again and stopping: the days add up, once", () => {
     for (const d of [22, 23]) await toggleMissedDayFor(f.groupId, f.a, f.billId, "2026-11", d);
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const end = (await live(f.groupId)).find((e) => e.description === "Milk")!;
-    // Days that came 20, 21, 24–30 = 9 days = 54,000. Weights: A, B, C = 9 each, D = 7 (24–30). Total 34: floor(54,000 × 9 ÷ 34) = 14,294 (rem 14), D floor(54,000 × 7 ÷ 34) = 11,117 (rem 22);
-    // 54,000 − (3 × 14,294 + 11,117) = 1 left, goes to the largest remainder: D's (22/34) → D 11,118.
-    expect(shareMap(end)).toEqual({ [f.a]: 14294, [f.b]: 14294, [f.c]: 14294, [f.d]: 11118 });
+    // Days that came 20, 21, 24–30 = 9 days = 54,000. Presence over 20–30 Nov: A, B, C 11 days each, D 7 (24–30): total 40.
+    // 54,000 × 11 ÷ 40 = 14,850 each for A, B, C; 54,000 × 7 ÷ 40 = 9,450 for D; 3 × 14,850 + 9,450 = 54,000 exactly.
+    expect(shareMap(end)).toEqual({ [f.a]: 14850, [f.b]: 14850, [f.c]: 14850, [f.d]: 9450 });
     expect(sum(end.shares.map((x) => x.amount))).toBe(54000);
-    // Whole month 168,000: A, B, C 38,000 + 14,294 = 52,294 each; D 11,118. A paid it all.
+    // Whole month 168,000, A paid it all: A, B, C owe 38,000 + 14,850 = 52,850 each; D owes 9,450. A: 168,000 − 52,850 = 115,150.
     const net = await checkBooks(f.groupId);
-    expect([net[f.a], net[f.b], net[f.c], net[f.d]]).toEqual([115706, -52294, -52294, -11118]);
+    expect([net[f.a], net[f.b], net[f.c], net[f.d]]).toEqual([115150, -52850, -52850, -9450]);
   });
   it("a leaver after a pause is not charged for days the pause charge covered: pause 10 Nov, start again 12 Nov, C moves out 15 Nov", async () => {
     const f = await flat("leaver");

@@ -28,20 +28,13 @@ export function proRataShares(shares: Share[], leaverId: string, daysStayed: num
 // Weights for a month's bills when someone moved in part-way: each person's
 // weight × the days they're there (people there all month count every day).
 // `range` (days of the month, both included): only those days count (a part charge, or the days after one).
-// `range.skip`: days in it that don't count (the days the bill didn't come), so each person is weighted by the real days they were there.
-export function joinWeights(members: { id: string; splitWeight: number; joinedFrom: Date | null }[], period: string, range?: { from: number; to: number; skip?: number[] }): Record<string, number> {
+export function joinWeights(members: { id: string; splitWeight: number; joinedFrom: Date | null }[], period: string, range?: { from: number; to: number }): Record<string, number> {
   const days = daysInMonth(period);
   const first = range?.from ?? 1;
   const last = range?.to ?? days;
   return Object.fromEntries(
     members.map((m) => {
       const from = m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : "";
-      const joinDay = from.slice(0, 7) === period ? Number(from.slice(8, 10)) : from.slice(0, 7) > period ? 99 : 0;
-      if (range?.skip?.length) {
-        let n = 0;
-        for (let d = first; d <= last; d++) if (d >= joinDay && !range.skip.includes(d)) n++;
-        return [m.id, m.splitWeight * n];
-      }
       const present = from.slice(0, 7) === period ? Math.max(0, last - Math.max(first, Number(from.slice(8, 10))) + 1) : from.slice(0, 7) > period ? 0 : Math.max(0, last - first + 1);
       return [m.id, m.splitWeight * present];
     }),

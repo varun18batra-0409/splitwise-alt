@@ -15,6 +15,8 @@ import { initialFromExpense } from "@/lib/expense-initial";
 import { todayKey } from "@/lib/dates";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { billExpenseInput, prepaidFor } from "@/lib/home/bills-db";
+import { lastPartDay, type Prepaid } from "@/lib/home/moving";
+import { daysInMonth } from "@/lib/home/month";
 import { dailyTotal, payerFor } from "@/lib/home/bills";
 import type { ExpenseInitial } from "@/lib/expense-initial";
 import { OfflineFix } from "@/components/offline/OfflineFix";
@@ -89,7 +91,7 @@ export default async function AddExpensePage({
     sp.bill && sp.period && /^\d{4}-\d{2}$/.test(sp.period)
       ? await db.billRun.findFirst({ where: { billId: sp.bill, period: sp.period, status: "waiting", bill: { groupId: group.id, deletedAt: null } }, include: { bill: true } })
       : null;
-  const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId, (await prepaidFor(waitingRun.bill, sp.period!)).total) : undefined;
+  const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId, await prepaidFor(waitingRun.bill, sp.period!)) : undefined;
   const initial = source
     ? initialFromExpense(source, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz, today: todayKey(new Date(), tz) }, sp.again ? "again" : "repeat")
     : billInitial;
@@ -153,13 +155,15 @@ function billToInitial(
   group: { id: string; currency: string; members: { id: string; name: string; leftAt: Date | null; splitWeight: number }[] },
   period: string,
   myId: string,
-  prepaid = 0,
+  prepaid: { total: number; entries: Prepaid[] } = { total: 0, entries: [] },
 ): ExpenseInitial {
   const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active) ?? myId;
-  const x = billExpenseInput(bill, group.id, group.currency, period, 0, payer, group.members);
   // A fixed bill waiting only because its payer left: fill in the usual amount (daily: the month's total).
-  const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? Math.max(0, dailyTotal(bill, period).amount - prepaid) : 0; // daily: the month's total, less what someone who moved out already paid
+  const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? Math.max(0, dailyTotal(bill, period).amount - prepaid.total) : 0; // daily: the month's total, less what a pause, a stop or a move-out already charged
+  // After a pause or stop charge only the days after it are being added: split them exactly as the daily job does (bills-db runOne).
+  const covered = bill.nature === "daily" ? lastPartDay(prepaid.entries) : 0;
+  const x = billExpenseInput(bill, group.id, group.currency, period, 0, payer, group.members, covered > 0 && known > 0 ? { from: covered + 1, to: daysInMonth(period), amount: known } : undefined);
   return {
     name: x.name,
     amount: known > 0 ? toInputAmount(known, group.currency) : "",
