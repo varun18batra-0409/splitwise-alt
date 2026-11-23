@@ -9,6 +9,7 @@ import { getAccount, getMemberships, guestGroupsOnPhone } from "@/lib/identity";
 import { GoogleSignInLink } from "@/components/GuestMoveSheet";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
 import { Avatar, ErrorNote, inputClass, primaryButtonClass } from "@/components/ui";
+import { FreshKeyInput } from "@/components/FreshKeyInput";
 import { GoogleG } from "@/components/GoogleG";
 import { googleConfigured } from "@/lib/google";
 import { publicName } from "@/lib/names";
@@ -142,6 +143,7 @@ export default async function JoinPage({
       {error === "left" && <ErrorNote>That name has left this group, so it can’t be taken over. Join as yourself instead.</ErrorNote>}
       {error === "removed" && !account && <ErrorNote>You were taken out of this group, so this link can’t bring you back. Ask the person who looks after it.</ErrorNote>}
       {error === "full" && <ErrorNote>This group has no room for more people joining this way. Ask the person who looks after it.</ErrorNote>}
+      {error === "phone" && <ErrorNote>This phone is holding a lot of groups without a sign-in. Sign in to join more. Your groups stay safe in your account.</ErrorNote>}
       {error === "claimed" && <ErrorNote>That name is already taken by someone else. Join as yourself instead.</ErrorNote>}
 
       {!account ? (
@@ -178,6 +180,7 @@ export default async function JoinPage({
                     <li key={m.id}>
                       <form action={joinAsExisting}>
                         <input type="hidden" name="code" value={code} />
+<FreshKeyInput name="rid" />
                         <input type="hidden" name="memberId" value={m.id} />
                         <button type="submit" className="flex w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left active:bg-mist">
                           <Avatar name={m.name} />
@@ -191,6 +194,7 @@ export default async function JoinPage({
             )}
             <form action={joinAsNew} className={`space-y-4 ${claimable.length > 0 ? "mt-8" : "mt-5"}`}>
               <input type="hidden" name="code" value={code} />
+<FreshKeyInput name="rid" />
               {claimable.length > 0 && <h2 className="font-display text-[22px] font-semibold leading-tight tracking-tight">Not on the list?</h2>}
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-gray-600">Your name in this group</span>
@@ -226,6 +230,7 @@ export default async function JoinPage({
           {asMember && (
             <form action={joinAsExisting} className="mb-8 space-y-3">
               <input type="hidden" name="code" value={code} />
+<FreshKeyInput name="rid" />
               <input type="hidden" name="memberId" value={asMember.id} />
               <p className="text-gray-600">
                 You were added as <strong className="text-fg">{asMember.name}</strong>. Continue as {asMember.name} to keep their expenses and balance.
@@ -238,6 +243,7 @@ export default async function JoinPage({
           )}
           <form action={joinAsNew} className="space-y-4">
             <input type="hidden" name="code" value={code} />
+<FreshKeyInput name="rid" />
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-600">Your name in this group</span>
               <input name="name" required defaultValue={account.name} placeholder="Your name" autoComplete="given-name" maxLength={40} className={inputClass} />
@@ -258,6 +264,7 @@ export default async function JoinPage({
                   <li key={m.id}>
                     <form action={joinAsExisting}>
                       <input type="hidden" name="code" value={code} />
+<FreshKeyInput name="rid" />
                       <input type="hidden" name="memberId" value={m.id} />
                       <button type="submit" className="flex w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left active:bg-mist">
                         <Avatar name={m.name} />

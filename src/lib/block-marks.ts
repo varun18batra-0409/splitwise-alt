@@ -11,13 +11,14 @@ const PREFIX = "blockfp:";
 const fp = (email: string) => emailFingerprint("block", email);
 const keyOf = (email: string, blockerId: string) => `${PREFIX}${fp(email)}:${blockerId}`;
 
-export async function markBlock(blockerId: string, blockedEmail: string): Promise<void> {
+// `tx`: inside the transaction that makes (or ends) the block, so the block and its note are written together or not at all.
+export async function markBlock(blockerId: string, blockedEmail: string, tx: Db = db): Promise<void> {
   const key = keyOf(blockedEmail, blockerId);
-  await db.appSetting.upsert({ where: { key }, create: { key, value: new Date().toISOString() }, update: {} });
+  await tx.appSetting.upsert({ where: { key }, create: { key, value: new Date().toISOString() }, update: {} });
 }
 
-export async function unmarkBlock(blockerId: string, blockedEmail: string): Promise<void> {
-  await db.appSetting.deleteMany({ where: { key: keyOf(blockedEmail, blockerId) } });
+export async function unmarkBlock(blockerId: string, blockedEmail: string, tx: Db = db): Promise<void> {
+  await tx.appSetting.deleteMany({ where: { key: keyOf(blockedEmail, blockerId) } });
 }
 
 // Inside deleteAccount, before the blocks against this account are deleted: every blocker keeps a fingerprint of this email

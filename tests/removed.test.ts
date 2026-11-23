@@ -91,7 +91,7 @@ describe("removed by the admin", () => {
     const row = await db.member.findUniqueOrThrow({ where: { id: f.sam } });
     expect(row.leftAt).not.toBeNull();
     expect(row.removedAt).toBeNull();
-    expect(await joinNew(f.code, f.accounts.sam, "Sam")).toEqual({ ok: true, memberId: f.sam });
+    expect(await joinNew(f.code, f.accounts.sam, "Sam")).toMatchObject({ ok: true, memberId: f.sam });
     expect((await db.member.findUniqueOrThrow({ where: { id: f.sam } })).leftAt).toBeNull();
     // ...or from People
     await setMemberLeft(f.groupId, f.sam, f.sam, true);
@@ -129,7 +129,7 @@ describe("removed by the admin", () => {
     const row = await db.member.findUniqueOrThrow({ where: { id: f.ravi } });
     expect(row).toMatchObject({ leftAt: null, removedAt: null, removedById: "" });
     // and the link works for him again (he's already in)
-    expect(await joinNew((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode, f.accounts.ravi, "Ravi")).toEqual({ ok: true, memberId: f.ravi });
+    expect(await joinNew((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode, f.accounts.ravi, "Ravi")).toMatchObject({ ok: true, memberId: f.ravi });
   });
 
   it("someone who still owes money isn't removed (settle up first), same as leaving", async () => {

@@ -382,7 +382,7 @@ describe("L9: a freed name does not hand the earlier holder's moments to whoever
     expect((await join.releaseGuestName(g.id, V, ben.memberId)).ok).toBe(true);
     await pause();
     // Cat takes the freed name through "That's me".
-    expect(await join.joinExistingAsGuest(g.inviteCode, ben.memberId)).toEqual({ ok: true, memberId: ben.memberId });
+    expect(await join.joinExistingAsGuest(g.inviteCode, ben.memberId)).toMatchObject({ ok: true, memberId: ben.memberId });
     await pause();
     expect(canDeleteMoment(await loadMomentViewer(g.id, ben.memberId), factsOf(old))).toBe(false); // the earlier holder's moment is not hers
     expect((await saveMoment(photo(g.id, ben.memberId))).ok).toBe(true);

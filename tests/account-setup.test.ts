@@ -76,8 +76,9 @@ describe("two sign-ups for the same email at the same moment", () => {
 });
 
 describe("the fingerprint key is the session's secret, so it never needs AUTH_SECRET", () => {
-  it("with only the database token (no AUTH_SECRET) it works, and differs from a different token", () => {
-    process.env.VERCEL_ENV = "production";
+  it("with only the database token (no AUTH_SECRET) it works away from the live app (preview), and differs from a different token", () => {
+    // Batch 8 G16: the live app no longer falls back to the database token (it throws, see session-secret.test.ts), so this runs as preview.
+    process.env.VERCEL_ENV = "preview";
     delete process.env.AUTH_SECRET;
     process.env.TURSO_AUTH_TOKEN = "token-one";
     const one = emailFingerprint("block", "a@b.co");

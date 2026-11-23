@@ -81,7 +81,7 @@ describe("audit 2: an invited name belongs to the invitation", () => {
     expect((await db.member.findUniqueOrThrow({ where: { id: row.memberId } })).accountId).toBeNull();
 
     const ok = await joinExisting(t.g.inviteCode, uma, row.memberId);
-    expect(ok).toEqual({ ok: true, memberId: row.memberId });
+    expect(ok).toMatchObject({ ok: true, memberId: row.memberId });
     expect((await db.member.findUniqueOrThrow({ where: { id: row.memberId } })).accountId).toBe(uma.id);
 
     // A name added by hand (no invitation) is still there for "That's me".
@@ -203,7 +203,7 @@ describe("audit 13: older people added straight in", () => {
     const t = await trip("i13");
     const pat = await account("Pat13");
     const row = await db.member.create({ data: { groupId: t.g.id, name: "Pat", accountId: pat.id, claimedAt: new Date(), addedBy: t.ashaId } });
-    expect(await joinNew(t.g.inviteCode, pat, "Pat")).toEqual({ ok: true, memberId: row.id });
+    expect(await joinNew(t.g.inviteCode, pat, "Pat")).toMatchObject({ ok: true, memberId: row.id });
     expect((await db.member.findUniqueOrThrow({ where: { id: row.id } })).seenAt).not.toBeNull();
 
     const lou = await account("Lou13");

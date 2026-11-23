@@ -96,7 +96,7 @@ describe("joining as someone new, with no account", () => {
     const f = await party();
     const first = (await join.joinNewAsGuest(f.code, "Ben")) as { memberId: string };
     const again = await join.joinNewAsGuest(f.code, "Ben", first.memberId);
-    expect(again).toEqual({ ok: true, memberId: first.memberId });
+    expect(again).toMatchObject({ ok: true, memberId: first.memberId });
     expect(await db.member.count({ where: { groupId: f.g.id, name: { startsWith: "Ben" } } })).toBe(1);
   });
   it("the group can take 60 people joining this way and then says it is full (a guest join counts the people still in)", async () => {

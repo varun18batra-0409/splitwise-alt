@@ -135,6 +135,72 @@ export async function getMyMemberId(groupId: string): Promise<string | undefined
 
 export const getAccount = readAccount;
 
+// The guest cookie is one small signed value, and a browser silently drops a cookie that is too big (the phone would then forget
+// every group it holds). So it never grows past this many bytes (the browser's own limit is about 4,096 for the whole cookie).
+export const GUEST_COOKIE_CAP = 3800;
+
+// Would the cookie that holds these guest names (plus the rest of the session) still fit? Encoded and signed exactly as it will be written.
+export async function guestCookieFits(m: Record<string, string>, rest: { a?: string; v?: number } = {}): Promise<boolean> {
+  return (await encodeSession({ ...rest, m, t: today() })).length <= GUEST_COOKIE_CAP;
+}
+
+// How many of these names fit in one cookie (the first ones, in order): what "this phone can keep N groups" says.
+export async function guestCookieRoom(m: Record<string, string>, rest: { a?: string; v?: number } = {}): Promise<number> {
+  const entries = Object.entries(m);
+  let lo = 0;
+  let hi = entries.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (await guestCookieFits(Object.fromEntries(entries.slice(0, mid)), rest)) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+// A name's id is about 25 characters; this stands in for "one more name" with room to spare (30 characters, a 2-digit epoch).
+const WORST_GRANT = () => grantValue("m".repeat(30), 99);
+
+// Before a guest join: would one more group still fit in this phone's cookie? (A group this phone already holds only changes its entry.)
+export async function guestCookieHasRoomFor(groupId: string): Promise<boolean> {
+  const s = await readSession();
+  return guestCookieFits({ ...s.m, [groupId]: WORST_GRANT() }, { a: s.a, v: s.v });
+}
+
+// Before deleting an account: the cookie that would result is every group this phone could see, as guest names (each at its epoch + 1,
+// because deleting the account raises it). `room` is how many of those groups a cookie can hold, `total` how many there are.
+export async function guestCookieAfterDelete(groups: Record<string, string>): Promise<{ fits: boolean; room: number; total: number }> {
+  const ids = Object.values(groups);
+  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids } }, select: { id: true, grantEpoch: true } }) : [];
+  const epoch = new Map(rows.map((r) => [r.id, r.grantEpoch]));
+  const m: Record<string, string> = {};
+  for (const [groupId, id] of Object.entries(groups)) if (epoch.has(id)) m[groupId] = grantValue(id, (epoch.get(id) ?? 0) + 1);
+  const total = Object.keys(m).length;
+  const room = await guestCookieRoom(m);
+  return { fits: room >= total, room, total };
+}
+
+// Thrown instead of writing a cookie that would not fit (nothing is written).
+export class GuestCookieFull extends Error {
+  constructor() {
+    super("This phone is holding too many groups without a sign-in.");
+  }
+}
+
+// Two names for one account in one group: thrown inside the transaction that linked the second one, so that write is undone.
+class TwoNames extends Error {}
+
+// Links one guest name to an account inside a transaction (write first, then count): if the account would then hold two names in
+// that group (two phones linking at the same moment), this throws TwoNames and the whole write is undone. Returns rows linked (0 or 1).
+async function linkOne(accountId: string, where: Prisma.MemberWhereInput): Promise<number> {
+  return db.$transaction(async (tx) => {
+    const target = await tx.member.findFirst({ where, select: { id: true, groupId: true } });
+    if (!target) return 0;
+    const w = await tx.member.updateMany({ where: { ...where, id: target.id }, data: { accountId, grantEpoch: { increment: 1 } } });
+    if (w.count === 1 && (await tx.member.count({ where: { groupId: target.groupId, accountId } })) > 1) throw new TwoNames();
+    return w.count;
+  });
+}
+
 // Only works inside a server action (form submit) or route handler.
 export async function setMyMemberId(groupId: string, memberId: string, opts: { keepEndpoint?: string } = {}) {
   const s = await readSession();
@@ -144,7 +210,12 @@ export async function setMyMemberId(groupId: string, memberId: string, opts: { k
     // Linking ends every older guest copy of this name (their epoch no longer matches).
     // Only a name that really changes hands raises the epoch and drops notifications. A name already linked to this very
     // account (for example just joined from an invitation, which copied this account's phones onto it) is left exactly as it is.
-    const linked = await db.member.updateMany({ where: { id: memberId, accountId: null }, data: { accountId: acc.id, grantEpoch: { increment: 1 } } });
+    // A second name for this account in the same group is refused (it stays a guest name on this phone).
+    const linkedCount = await linkOne(acc.id, { id: memberId, accountId: null }).catch((err) => {
+      if (err instanceof TwoNames) return 0;
+      throw err;
+    });
+    const linked = { count: linkedCount };
     if (linked.count === 1) await dropPush([memberId], opts.keepEndpoint);
     if (linked.count === 1 || (await db.member.count({ where: { id: memberId, accountId: acc.id } })) === 1) {
       const m = { ...s.m };
@@ -154,7 +225,9 @@ export async function setMyMemberId(groupId: string, memberId: string, opts: { k
     }
   }
   const row = await db.member.findUnique({ where: { id: memberId }, select: { grantEpoch: true } });
-  await writeSession({ ...s, m: { ...s.m, [groupId]: grantValue(memberId, row?.grantEpoch ?? 0) } });
+  const next = { ...s.m, [groupId]: grantValue(memberId, row?.grantEpoch ?? 0) };
+  if (!(await guestCookieFits(next, { a: s.a, v: s.v }))) throw new GuestCookieFull();
+  await writeSession({ ...s, m: next });
 }
 
 // The guest groups this phone holds right now (names not linked to any account, still valid on this phone): what
@@ -255,7 +328,7 @@ export async function moveFromAttempt(state: string, token: string | undefined, 
 
 // Links the confirmed guest names this phone really holds to the account (a name still unlinked and at the epoch this phone's
 // cookie carries). Linking raises the epoch, so any other phone still holding the guest name loses it. Returns the ids linked.
-async function linkConfirmed(accountId: string, entries: { id: string; epoch: number }[], agreed: ConfirmedIds, skipped?: string[]): Promise<string[]> {
+async function linkConfirmed(accountId: string, entries: { id: string; epoch: number }[], agreed: ConfirmedIds, skipped?: string[], afterRead?: () => Promise<void>): Promise<string[]> {
   const ok = new Set(agreed);
   const nowLinked: string[] = [];
   const acc = await db.account.findUnique({ where: { id: accountId }, select: { email: true } });
@@ -276,7 +349,18 @@ async function linkConfirmed(accountId: string, entries: { id: string; epoch: nu
         continue;
       }
     }
-    const r = await db.member.updateMany({ where: { id: e.id, accountId: null, grantEpoch: e.epoch }, data: { accountId, grantEpoch: { increment: 1 } } });
+    await afterRead?.(); // tests only: runs between the checks above and the write
+    // Written first, then counted in the same transaction: two phones linking two names of one group to this account at the same
+    // moment can't both stay linked. The one that would be second is undone, reported as skipped, and stays a guest name.
+    let count: number;
+    try {
+      count = await linkOne(accountId, { id: e.id, accountId: null, grantEpoch: e.epoch });
+    } catch (err) {
+      if (!(err instanceof TwoNames)) throw err;
+      skipped?.push(e.id);
+      continue;
+    }
+    const r = { count };
     if (r.count === 1) {
       nowLinked.push(e.id);
       // Moments added as a guest carry no account yet: they become the account's, so "delete my own" and postcards keep working.
@@ -296,11 +380,11 @@ async function cookieWithoutLinked(accountId: string, m: Record<string, string>)
 
 // Already signed in, and this phone still holds guest groups (the check was skipped, or they came after): the same linking, for
 // exactly the groups the person confirmed on the "only on this phone" notice. Returns how many moved.
-export async function moveGuestsToAccount(agreed: ConfirmedIds, opts: { keepEndpoint?: string; skipped?: string[] } = {}): Promise<number> {
+export async function moveGuestsToAccount(agreed: ConfirmedIds, opts: { keepEndpoint?: string; skipped?: string[]; afterRead?: () => Promise<void> } = {}): Promise<number> {
   const acc = await readAccount();
   if (!acc) return 0;
   const s = await readSession();
-  const nowLinked = await linkConfirmed(acc.id, Object.values(s.m).map(parseGrant), agreed, opts.skipped);
+  const nowLinked = await linkConfirmed(acc.id, Object.values(s.m).map(parseGrant), agreed, opts.skipped, opts.afterRead);
   if (nowLinked.length) await dropPush(nowLinked, opts.keepEndpoint);
   await writeSession({ ...s, m: await cookieWithoutLinked(acc.id, s.m) });
   return nowLinked.length;

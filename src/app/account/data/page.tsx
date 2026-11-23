@@ -1,4 +1,5 @@
-import { PageHeader, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, secondaryButtonClass } from "@/components/ui";
+import { readNotes } from "@/lib/flash";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PushEndpointField } from "@/components/PushEndpointField";
 import { deleteMyAccount } from "@/app/actions";
@@ -8,12 +9,14 @@ import { countMyGroups } from "@/lib/group-data";
 export const metadata = { title: "Your data", robots: { index: false } };
 
 // You, Export your data: one spreadsheet of everything, and (signed in) deleting your sign-in.
-export default async function YourDataPage() {
+export default async function YourDataPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const notes = await readNotes(await searchParams, "/account/data");
   const account = await getAccount();
   const groupCount = await countMyGroups(await getMemberships(), { includeDirect: true });
   return (
     <>
       <PageHeader title="Your data" back="/account" />
+      {notes.error && <ErrorNote>{notes.error}</ErrorNote>}
       <section className="scroll-mt-4" id="data">
         <p className="mb-4 text-sm text-gray-500">
           One spreadsheet with every expense and payment in all your groups, your share of each, your account details, your postcards, passport,

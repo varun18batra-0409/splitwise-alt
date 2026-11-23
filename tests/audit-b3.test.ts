@@ -106,7 +106,7 @@ describe("N1: a name invited by mistake is not locked forever", () => {
     expect(await acceptInvitation(typo, inv.token)).toEqual({ ok: false, error: "This invitation is no longer open." });
     expect(await db.member.count({ where: { groupId: t.g.id, accountId: typo.id } })).toBe(0);
 
-    expect(await joinExisting(t.g.inviteCode, real, rowId)).toEqual({ ok: true, memberId: rowId });
+    expect(await joinExisting(t.g.inviteCode, real, rowId)).toMatchObject({ ok: true, memberId: rowId });
     const e = await db.expense.findFirstOrThrow({ where: { groupId: t.g.id, description: "Dinner n1a" }, include: { shares: true } });
     expect(e.shares.map((s) => s.amount).sort()).toEqual([1000, 1000, 1000]);
     expect(e.shares.some((s) => s.memberId === rowId)).toBe(true);
@@ -148,7 +148,7 @@ describe("N1: a name invited by mistake is not locked forever", () => {
     expect(await acceptInvitation(typo, typoInv.token)).toEqual({ ok: false, error: "This invitation is no longer open." });
     expect((await joinExisting(t.g.inviteCode, typo, rowId)).ok).toBe(false);
     expect((await joinExisting(t.g.inviteCode, stranger, rowId)).ok).toBe(false);
-    expect(await joinExisting(t.g.inviteCode, right, rowId)).toEqual({ ok: true, memberId: rowId });
+    expect(await joinExisting(t.g.inviteCode, right, rowId)).toMatchObject({ ok: true, memberId: rowId });
     expect((await db.member.findUniqueOrThrow({ where: { id: rowId } })).accountId).toBe(right.id);
   });
 

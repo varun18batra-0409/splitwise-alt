@@ -3,7 +3,7 @@ import { decodeSession, encodeSession } from "@/lib/session";
 import { hashLoginCode } from "@/lib/auth";
 
 // On the live app a missing AUTH_SECRET must stop sign-in with a clear error,
-// never fall back to the string written in the code. The TURSO-derived key stays.
+// never fall back to the string written in the code. The database-token key is only for preview and development.
 
 const KEYS = ["VERCEL_ENV", "AUTH_SECRET", "TURSO_AUTH_TOKEN"] as const;
 const saved: Record<string, string | undefined> = {};
@@ -27,8 +27,34 @@ describe("session key on the live app", () => {
     expect(() => hashLoginCode("a@b.co", "123456")).toThrow(/AUTH_SECRET is missing/);
   });
 
-  it("production with only the Turso token keeps the old derived key, so live sessions stay valid", async () => {
+  it("production with only the Turso token now throws (the database token is never used to sign sessions on the live app)", async () => {
+    // G16: this used to assert the Turso-derived key kept working in production; that fallback is what was closed.
     process.env.VERCEL_ENV = "production";
+    delete process.env.AUTH_SECRET;
+    process.env.TURSO_AUTH_TOKEN = "test-token-not-real";
+    await expect(encodeSession({ m: { g: "m" } })).rejects.toThrow(/AUTH_SECRET is missing/);
+    expect(() => hashLoginCode("a@b.co", "123456")).toThrow(/AUTH_SECRET is missing/);
+  });
+
+  it("production with an empty AUTH_SECRET counts as missing", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.AUTH_SECRET = "";
+    process.env.TURSO_AUTH_TOKEN = "test-token-not-real";
+    await expect(encodeSession({ m: {} })).rejects.toThrow(/AUTH_SECRET is missing/);
+  });
+
+  it("production with AUTH_SECRET signs with it", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.AUTH_SECRET = "fake-auth-secret-for-tests";
+    process.env.TURSO_AUTH_TOKEN = "test-token-not-real";
+    const raw = await encodeSession({ m: { g: "m" } });
+    expect(await decodeSession(raw)).toEqual({ m: { g: "m" } });
+    process.env.AUTH_SECRET = "another-fake-secret";
+    expect(await decodeSession(raw)).toBeNull(); // really signed with the AUTH_SECRET, not something else
+  });
+
+  it("preview and development still fall back to the Turso-derived key", async () => {
+    process.env.VERCEL_ENV = "preview";
     delete process.env.AUTH_SECRET;
     process.env.TURSO_AUTH_TOKEN = "test-token-not-real";
     const raw = await encodeSession({ m: { g: "m" } });

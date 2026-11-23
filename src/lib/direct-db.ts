@@ -393,6 +393,8 @@ export async function claimDirectInvite(
         data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } },
       });
       if (linked.count !== 1) throw new Closed();
+      // Written first, then counted: one account never holds two names in one group (the whole join is undone if it would).
+      if ((await tx.member.count({ where: { groupId: group.id, accountId: account.id } })) > 1) throw new Closed();
       // An account pair already holds this key: one with no rows at all (deleted ones included) is retired (key cleared, marked
       // deleted: nothing is lost), one with any rows refuses the whole join. Read inside the transaction, so a pair that gains a row meanwhile still counts.
       const held = await tx.group.findUnique({ where: { pairKey: newKey }, select: { id: true, type: true, deletedAt: true, _count: ANY_COUNT } });

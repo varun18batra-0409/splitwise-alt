@@ -41,18 +41,24 @@ export async function blockAccount(blockerId: string, blockedId: string): Promis
   if (!blockerId || !blockedId || blockerId === blockedId) return false;
   const target = await db.account.findUnique({ where: { id: blockedId }, select: { email: true } });
   if (!target) return false;
-  await db.block.upsert({ where: { blockerId_blockedId: { blockerId, blockedId } }, create: { blockerId, blockedId }, update: {} });
-  // The block survives them deleting their account and signing up again with this email: only a scrambled fingerprint of the email is kept.
-  await markBlock(blockerId, target.email);
-  // "Want to go" shares between the two end, both ways. Unblocking does not bring them back: share again if you want to.
-  await db.wishShare.deleteMany({ where: { OR: [{ ownerId: blockerId, friendId: blockedId }, { ownerId: blockedId, friendId: blockerId }] } });
+  // One transaction: the block, the note that lets it survive a re-signup, and the end of "Want to go" sharing go together or not at all.
+  await db.$transaction(async (tx) => {
+    await tx.block.upsert({ where: { blockerId_blockedId: { blockerId, blockedId } }, create: { blockerId, blockedId }, update: {} });
+    // The block survives them deleting their account and signing up again with this email: only a scrambled fingerprint of the email is kept.
+    await markBlock(blockerId, target.email, tx);
+    // "Want to go" shares between the two end, both ways. Unblocking does not bring them back: share again if you want to.
+    await tx.wishShare.deleteMany({ where: { OR: [{ ownerId: blockerId, friendId: blockedId }, { ownerId: blockedId, friendId: blockerId }] } });
+  });
   return true;
 }
 
 export async function unblockAccount(blockerId: string, blockedId: string): Promise<void> {
-  await db.block.deleteMany({ where: { blockerId, blockedId } });
   const target = await db.account.findUnique({ where: { id: blockedId }, select: { email: true } });
-  if (target) await unmarkBlock(blockerId, target.email);
+  // One transaction: the block and its note end together.
+  await db.$transaction(async (tx) => {
+    await tx.block.deleteMany({ where: { blockerId, blockedId } });
+    if (target) await unmarkBlock(blockerId, target.email, tx);
+  });
 }
 
 // Have these two people been in a group together? (Used so a report or block can only point at someone you actually know.)

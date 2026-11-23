@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { setPushResyncCookie } from "./identity";
 import { logEvent } from "./events";
@@ -8,6 +9,7 @@ import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { ownMoveOut, undoViewerFor } from "./undo";
 import { removedByEmail } from "./removal-marks";
 import { allow } from "./rate-limit";
+import { claimKey, fingerprintOf } from "./once";
 import { GUEST_REFUSAL } from "./guest-rules";
 
 // Joining a group from its invite link, and making a new link. Pure database
@@ -22,7 +24,8 @@ import { GUEST_REFUSAL } from "./guest-rules";
 // "moved_out": they moved out with Loopin and can still undo it, so the link doesn't quietly put them back (groupId and memberId say where to send them).
 export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name" | "moved_out" | "left" | "full";  adminName?: string; groupId?: string; memberId?: string };
 export const NAME_NEEDED = "Add your name so the group knows who you are.";
-export type JoinOk = { ok: true; memberId: string };
+// `groupId` is the group the person really joined (the caller finishes with it, so a link that changed meanwhile can't send them elsewhere).
+export type JoinOk = { ok: true; memberId: string; groupId: string };
 export type JoinAccount = { id: string; name: string; email: string };
 
 // A pair of two people (type "direct") has no join link: its code is never shown, and nothing finds it unless `allowDirect` (never set by a page).
@@ -74,6 +77,34 @@ export async function reservedForGuest(groupId: string, memberId: string): Promi
   return (await db.invite.count({ where: { groupId, acceptedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }] } })) > 0;
 }
 
+// ---------- Joining safely: one write that checks the link, a key for retries, one name per account ----------
+
+// Thrown inside the member write when the group's link changed or the group went (a removal or a new link landed in the gap).
+class LinkGone extends Error {}
+// Thrown inside the member write when the account would then hold two names in one group (two phones at once): the write is undone.
+class TwoNames extends Error {}
+
+// FIRST statement of every member write below: only goes on if the group is still there under this very link. It is a write, so the
+// transaction holds the database's write lock from here on: a new link made a moment ago is seen, not missed.
+async function linkStillGood(tx: Prisma.TransactionClient, groupId: string, code: string): Promise<boolean> {
+  return (await tx.group.updateMany({ where: { id: groupId, inviteCode: code, deletedAt: null }, data: { inviteCode: code } })).count === 1;
+}
+
+// What a join form was for (the key's fingerprint): the link, the name (typed, or the name row picked) and who (the account, or a guest).
+const joinPrint = (code: string, name: string, who: string) => fingerprintOf("join", code, name, who);
+
+// The form's one-time key ("rid"). The same key used again for the same join (a lost reply, a second tap) gets the same person back,
+// even if the link was changed since. A key used for something else, or no key at all (an older page), simply isn't used: joining
+// always keeps working, there is just no retry protection.
+async function keyFor(rid: string | undefined, fp: string): Promise<{ rid: string | undefined; replay: JoinOk | null }> {
+  if (!rid) return { rid: undefined, replay: null };
+  const row = await db.requestKey.findUnique({ where: { key: rid } });
+  if (!row) return { rid, replay: null };
+  if (row.fingerprint !== fp) return { rid: undefined, replay: null };
+  const m = await db.member.findFirst({ where: { id: row.result, removedAt: null, group: { deletedAt: null } }, select: { id: true, groupId: true } });
+  return m ? { rid, replay: { ok: true, memberId: m.id, groupId: m.groupId } } : { rid: undefined, replay: null };
+}
+
 // Joining counts as having opened the group: an older pending row (added straight in) stops being pending.
 async function markSeen(memberId: string) {
   await db.member.updateMany({ where: { id: memberId, seenAt: null }, data: { seenAt: new Date() } });
@@ -81,7 +112,10 @@ async function markSeen(memberId: string) {
 
 // "That's me": take over a name someone added before invitations existed.
 // `skipRemovalMark`: only for an invitation the admin sent after the removal (invitations.ts), which clears the note itself.
-export async function joinExisting(code: string, account: JoinAccount, memberId: string, opts: { allowDirect?: boolean; skipRemovalMark?: boolean } = {}): Promise<JoinOk | JoinFail> {
+export async function joinExisting(code: string, account: JoinAccount, memberId: string, opts: { allowDirect?: boolean; skipRemovalMark?: boolean; rid?: string; afterRead?: () => Promise<void> } = {}): Promise<JoinOk | JoinFail> {
+  const fp = joinPrint(code, `that:${memberId}`, account.id);
+  const k = await keyFor(opts.rid, fp);
+  if (k.replay) return k.replay;
   const group = await loadByCode(code, opts);
   if (!group) return { ok: false, reason: "gone" };
   const gone = removedRow(group, account.id);
@@ -93,7 +127,7 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
     await markSeen(mine.id);
-    return { ok: true, memberId: mine.id };
+    return { ok: true, memberId: mine.id, groupId: group.id };
   }
   const member = group.members.find((m) => m.id === memberId);
   // Only names nobody has claimed yet (and nobody removed), and only one person can win the claim.
@@ -105,17 +139,32 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   if (open.length && !open.includes(account.email.toLowerCase())) return { ok: false, reason: "claimed" };
   // The name changes owner: in the same write its epoch goes up (an old guest copy of it on another phone stops working) and
   // its notification rows go (that phone stops hearing about it). The callers copy the joiner's own phones onto it afterwards.
-  const won = await db.$transaction(async (tx) => {
-    const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null, leftAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
-    const dropped = w.count === 1 ? (await tx.pushSubscription.deleteMany({ where: { memberId: member.id } })).count : 0;
-    return { count: w.count, dropped };
-  });
+  await opts.afterRead?.(); // tests only: between the reads and the write
+  let won: { count: number; dropped: number; gone: boolean };
+  try {
+    won = await db.$transaction(async (tx) => {
+      if (!(await linkStillGood(tx, group.id, code))) return { count: 0, dropped: 0, gone: true };
+      const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null, leftAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
+      if (w.count !== 1) return { count: 0, dropped: 0, gone: false };
+      await claimKey(tx, k.rid, member.id, fp);
+      // Written first, then counted: one account never holds two names in one group (two phones at once undo the second).
+      if ((await tx.member.count({ where: { groupId: group.id, accountId: account.id } })) > 1) throw new TwoNames();
+      const dropped = (await tx.pushSubscription.deleteMany({ where: { memberId: member.id } })).count;
+      return { count: 1, dropped, gone: false };
+    });
+  } catch (err) {
+    const again = (await keyFor(k.rid, fp)).replay; // the same key won a moment ago (two taps at once): that is the answer
+    if (again) return again;
+    if (err instanceof TwoNames) return { ok: false, reason: "retry" };
+    throw err;
+  }
+  if (won.gone) return { ok: false, reason: "gone" };
   if (won.count !== 1) return { ok: false, reason: "claimed" };
   // Only when this name's notification rows actually went (the joiner's phones then re-register at once).
   if (won.dropped > 0) await setPushResyncCookie();
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: member.name } });
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
-  return { ok: true, memberId: member.id };
+  return { ok: true, memberId: member.id, groupId: group.id };
 }
 
 // Someone who already has a row in this group and comes back through the link (an account, or a guest name this phone holds).
@@ -149,7 +198,10 @@ async function rejoinHeld(group: Loaded, mine: Loaded["members"][number], afterR
 // Join as yourself (your verified account), or come back after leaving on your own.
 // (`opts.afterRead` is for tests only, like the other money and membership writes: it runs between the read and the write. No caller
 // passes it from a request.)
-export async function joinNew(code: string, account: JoinAccount, typedName: string, opts: { skipRemovalMark?: boolean; afterRead?: () => Promise<void> } = {}): Promise<JoinOk | JoinFail> {
+export async function joinNew(code: string, account: JoinAccount, typedName: string, opts: { skipRemovalMark?: boolean; afterRead?: () => Promise<void>; rid?: string } = {}): Promise<JoinOk | JoinFail> {
+  const fp = joinPrint(code, typedName, account.id);
+  const k = await keyFor(opts.rid, fp);
+  if (k.replay) return k.replay;
   const group = await loadByCode(code);
   if (!group) return { ok: false, reason: "gone" };
   const gone = removedRow(group, account.id);
@@ -163,17 +215,28 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
     const back = await rejoinHeld(group, mine, opts.afterRead);
     if (back) return back;
     await markSeen(mine.id);
-    return { ok: true, memberId: mine.id };
+    return { ok: true, memberId: mine.id, groupId: group.id };
   }
   // A name is never made up from the email address: if nobody gave one, ask for it.
   const typed = cleanNames([typedName])[0] ?? account.name;
   if (!typed) return { ok: false, reason: "name" };
   const name = freeName(group.members.map((m) => m.name), typed);
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: typed } });
+  await opts.afterRead?.(); // tests only: between the reads and the write
   let member;
   try {
-    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), seenAt: new Date(), accountId: account.id, splitWeight: group.joinWeight } });
-  } catch {
+    member = await db.$transaction(async (tx) => {
+      if (!(await linkStillGood(tx, group.id, code))) throw new LinkGone();
+      const created = await tx.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), seenAt: new Date(), accountId: account.id, splitWeight: group.joinWeight } });
+      await claimKey(tx, k.rid, created.id, fp);
+      // Written first, then counted: one account never holds two names in one group (two phones at once undo the second).
+      if ((await tx.member.count({ where: { groupId: group.id, accountId: account.id } })) > 1) throw new TwoNames();
+      return created;
+    });
+  } catch (err) {
+    if (err instanceof LinkGone) return { ok: false, reason: "gone" };
+    const again = (await keyFor(k.rid, fp)).replay; // the same key won a moment ago (a lost reply, a second tap): hand back that person
+    if (again) return again;
     // Pressed twice, or someone took the same name at the same moment: try again.
     return { ok: false, reason: "retry" };
   }
@@ -184,7 +247,7 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
     text: "joined the group",
     undo: { type: "members_remove", memberIds: [member.id] },
   });
-  return { ok: true, memberId: member.id };
+  return { ok: true, memberId: member.id, groupId: group.id };
 }
 
 
@@ -229,7 +292,10 @@ function heldRow(group: Loaded, heldMemberId?: string) {
 
 // "That's me" with no account: take over a name nobody has joined as. Reserved (an open email invitation), left, removed or already
 // taken names are refused. One conditional write decides between two phones; the winner's epoch goes up, so any old copy is refused.
-export async function joinExistingAsGuest(code: string, memberId: string, heldMemberId?: string): Promise<JoinOk | JoinFail> {
+export async function joinExistingAsGuest(code: string, memberId: string, heldMemberId?: string, opts: { rid?: string; afterRead?: () => Promise<void> } = {}): Promise<JoinOk | JoinFail> {
+  const fp = joinPrint(code, `that:${memberId}`, "guest");
+  const k = await keyFor(opts.rid, fp);
+  if (k.replay) return k.replay;
   const group = await loadByCode(code);
   if (!group) return { ok: false, reason: "gone" };
   const held = heldRow(group, heldMemberId);
@@ -237,25 +303,40 @@ export async function joinExistingAsGuest(code: string, memberId: string, heldMe
   // This phone already holds a name here: that is who they are (no second name).
   if (held && !held.leftAt) {
     await markSeen(held.id);
-    return { ok: true, memberId: held.id };
+    return { ok: true, memberId: held.id, groupId: group.id };
   }
   const member = group.members.find((m) => m.id === memberId);
   if (!member || member.accountId || member.claimedAt || member.removedAt) return { ok: false, reason: "claimed" };
   if (member.leftAt) return { ok: false, reason: "left" };
   // A guest has no email to match, so ANY invitation on the name that was never accepted (open or closed) means it is reserved.
   if (await reservedForGuest(group.id, member.id)) return { ok: false, reason: "claimed" };
-  const won = await db.$transaction(async (tx) => {
-    const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null, leftAt: null }, data: { claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
-    if (w.count === 1) await tx.pushSubscription.deleteMany({ where: { memberId: member.id } });
-    return w.count;
-  });
-  if (won !== 1) return { ok: false, reason: "claimed" };
+  await opts.afterRead?.(); // tests only: between the reads and the write
+  let won: "won" | "gone" | "claimed";
+  try {
+    won = await db.$transaction(async (tx) => {
+      if (!(await linkStillGood(tx, group.id, code))) return "gone" as const;
+      const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null, leftAt: null }, data: { claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
+      if (w.count !== 1) return "claimed" as const;
+      await claimKey(tx, k.rid, member.id, fp);
+      await tx.pushSubscription.deleteMany({ where: { memberId: member.id } });
+      return "won" as const;
+    });
+  } catch (err) {
+    const again = (await keyFor(k.rid, fp)).replay;
+    if (again) return again;
+    throw err;
+  }
+  if (won === "gone") return { ok: false, reason: "gone" };
+  if (won !== "won") return { ok: false, reason: "claimed" };
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
-  return { ok: true, memberId: member.id };
+  return { ok: true, memberId: member.id, groupId: group.id };
 }
 
 // Join as someone new with no account (or come back, on the phone that holds the name, after leaving on your own).
-export async function joinNewAsGuest(code: string, typedName: string, heldMemberId?: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<JoinOk | JoinFail> {
+export async function joinNewAsGuest(code: string, typedName: string, heldMemberId?: string, opts: { afterRead?: () => Promise<void>; rid?: string } = {}): Promise<JoinOk | JoinFail> {
+  const fp = joinPrint(code, typedName, "guest");
+  const k = await keyFor(opts.rid, fp);
+  if (k.replay) return k.replay;
   const group = await loadByCode(code);
   if (!group) return { ok: false, reason: "gone" };
   const held = heldRow(group, heldMemberId);
@@ -264,21 +345,30 @@ export async function joinNewAsGuest(code: string, typedName: string, heldMember
     const back = await rejoinHeld(group, held, opts.afterRead);
     if (back) return back;
     await markSeen(held.id);
-    return { ok: true, memberId: held.id };
+    return { ok: true, memberId: held.id, groupId: group.id };
   }
   const typed = cleanNames([typedName])[0];
   if (!typed) return { ok: false, reason: "name" };
   if (group.members.filter((m) => !m.leftAt).length >= GUEST_GROUP_CAP) return { ok: false, reason: "full" };
   const name = freeName(group.members.map((m) => m.name), typed);
+  await opts.afterRead?.(); // tests only: between the reads and the write
   let member;
   try {
-    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), seenAt: new Date(), accountId: null, splitWeight: group.joinWeight } });
-  } catch {
+    member = await db.$transaction(async (tx) => {
+      if (!(await linkStillGood(tx, group.id, code))) throw new LinkGone();
+      const created = await tx.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), seenAt: new Date(), accountId: null, splitWeight: group.joinWeight } });
+      await claimKey(tx, k.rid, created.id, fp);
+      return created;
+    });
+  } catch (err) {
+    if (err instanceof LinkGone) return { ok: false, reason: "gone" };
+    const again = (await keyFor(k.rid, fp)).replay;
+    if (again) return again;
     return { ok: false, reason: "retry" };
   }
   // No Undo on a guest's own "joined the group" line: undoing it would mark them removed by themselves and lock them out.
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
-  return { ok: true, memberId: member.id };
+  return { ok: true, memberId: member.id, groupId: group.id };
 }
 
 // "Free this name": a name held with no account (the wrong person took it, or the phone was lost) goes back to "Which one is you?".
