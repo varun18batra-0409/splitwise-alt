@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
+import { safeErrorNote } from "@/lib/scrub";
 import { cronRefusedWithoutSecret } from "@/lib/cron-auth";
 import { eraseExpiredGroups } from "@/lib/purge";
 import { pruneUnknownPlaces } from "@/lib/unknown-places";
@@ -35,7 +36,7 @@ function makePart(failed: string[], deferred: string[], stop: () => boolean) {
     try {
       return await fn();
     } catch (err) {
-      console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
+      console.error(`daily job: ${name} failed`, safeErrorNote(err));
       failed.push(name);
       return { error: "failed" };
     }

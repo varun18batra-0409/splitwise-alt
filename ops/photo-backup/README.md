@@ -18,7 +18,8 @@ It never changes the live photo store or the live database. It never deletes any
 removed in the app stays in the copy until you clear the second store yourself.
 
 It does nothing, and says so in the run's log, until all four secrets below exist. Until then the weekly run is green and
-harmless.
+harmless. A file the listing shows at 0 bytes is copied again, and the log counts files that were already there separately
+from files copied now.
 
 ## What you need to do (once)
 
@@ -27,18 +28,20 @@ harmless.
    Vercel offers the choice.
 2. Open that new store, go to its settings and copy its read-write token. (Paste it straight into GitHub in the next
    step; never into a chat.)
-3. In GitHub, open the repository's Settings > Secrets and variables > Actions and add these secrets:
+3. **Use the PRIVATE ops repo, never the public one.** The live photo store's token (`LIVE_BLOB_READ_WRITE_TOKEN`) can
+   also change and delete files (Vercel has no read-only Blob token). It must go ONLY in the private ops repo's secrets
+   (see `ops/private-repo/README.md`), never in the public repository. For that reason the workflow is a template in this
+   folder (`photo-backup.yml`), not an active workflow in `.github/workflows` of the public repo: there it would do
+   nothing, and a token that is not there cannot leak.
+4. In the private ops repo, copy `ops/photo-backup/photo-backup.yml` to `.github/workflows/photo-backup.yml`, replace
+   `REPLACE_WITH_40_CHARACTER_COMMIT_ID` with the public repo's trusted commit id (as for the other ops jobs), and add these
+   secrets (Settings > Secrets and variables > Actions):
    - `BACKUP_BLOB_READ_WRITE_TOKEN` - the token from step 2 (the second store, written to).
-   - `LIVE_BLOB_READ_WRITE_TOKEN` - the token of the LIVE photo store (Vercel > the live Blob store > settings).
-     The job only reads from it. Vercel does not offer a read-only Blob token, so this one could also change files; that
-     is why it is given only to the one step that copies, and why you may prefer step 5 below.
-   - `TURSO_DATABASE_URL` and `TURSO_READONLY_TOKEN` - the live database address and its read-only key. If the nightly
-     backup and Schema plan already work, these exist already and you do nothing.
-4. Run it once by hand: Actions > Photo backup > Run workflow. Watch it go green. The log says how many files are
-   referenced and how many were copied, and how many of the sample opened. File names are shortened in the log.
-5. Optional, safer: if you move the other ops jobs to a private repository (see `ops/private-repo/README.md`), copy
-   `.github/workflows/photo-backup.yml` there too and add the same four secrets there, so the live photo token never sits in
-   the public repository. The job's `scripts/photo-backup.mjs` is the same file.
+   - `LIVE_BLOB_READ_WRITE_TOKEN` - the token of the LIVE photo store (Vercel > the live Blob store > settings). Read from only.
+   - `LIVE_DB_URL` and `LIVE_DB_READONLY_TOKEN` - the live database address and its read-only key. Already there if the
+     private nightly backup is set up.
+5. Run it once by hand: Actions > Photo backup > Run workflow. Watch it go green. The log says how many files are
+   referenced, how many were copied, and how many of the sample opened. File names are shortened in the log.
 
 ## If it turns red
 

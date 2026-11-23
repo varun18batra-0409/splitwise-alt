@@ -2,7 +2,7 @@
 # stored, because this repository is public. Kept for 14 days.
 # INTERIM: this moves to a private repo (see ops/private-repo/README.md) and is then deleted.
 # Needs three repository secrets: TURSO_DATABASE_URL, TURSO_READONLY_TOKEN (a READ-ONLY key: this job only reads, so the
-# full key is never given to it) and BACKUP_PASSPHRASE. Without them it skips quietly.
+# full key is never given to it) and BACKUP_PASSPHRASE. 
 #
 # Every run also does a restore drill: the backup is rebuilt into a scratch
 # database, every table is checked, and so is the data (references, shares,
@@ -21,6 +21,9 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-24.04
+    # The READ-ONLY database key (TURSO_READONLY_TOKEN) and the address (TURSO_DATABASE_URL) live in this environment, not in the
+    # repository secrets. Jobs in an environment still read the repository secrets too (BACKUP_PASSPHRASE).
+    environment: live-read
     # The secrets are given only to the two steps that use them (not to the whole job).
     steps:
       - name: Check the secrets are set
@@ -30,10 +33,15 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
-          if [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ] && [ -n "$BACKUP_PASSPHRASE" ]; then
+          # A missing database key is a real failure (a night without a backup must be red, not a quiet skip).
+          if [ -z "$TURSO_DATABASE_URL" ] || [ -z "$TURSO_AUTH_TOKEN" ]; then
+            echo "::error title=Backup FAILED::TURSO_DATABASE_URL or TURSO_READONLY_TOKEN is missing from the live-read environment (Settings > Environments > live-read)."
+            exit 1
+          fi
+          if [ -n "$BACKUP_PASSPHRASE" ]; then
             echo "ok=1" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning title=Backup skipped::Add TURSO_DATABASE_URL, TURSO_READONLY_TOKEN and BACKUP_PASSPHRASE in Settings → Secrets → Actions."
+            echo "::warning title=Backup skipped::Add BACKUP_PASSPHRASE in Settings → Secrets → Actions."
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.ready.outputs.ok == '1'

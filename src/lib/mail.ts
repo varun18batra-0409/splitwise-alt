@@ -32,6 +32,14 @@ export function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   });
   return Promise.race([work, late]).finally(() => clearTimeout(timer));
 }
+/** True when a failed send ran out of time: our own 10 seconds, nodemailer's own timeouts (ETIMEDOUT), or a failure after the server was already taking the message (a second try could send it twice). */
+export function isOutOfTime(err: unknown, elapsedMs: number, limitMs: number = MAIL_SEND_LIMIT_MS): boolean {
+  const e = err as { code?: string; message?: string; command?: string } | null;
+  if (elapsedMs >= limitMs || e?.message === "timeout" || e?.code === "ETIMEDOUT") return true;
+  return e?.command === "DATA" || e?.command === "DATA END";
+}
+// Tests only may shorten the limit (MAIL_SEND_LIMIT_MS); on the live app it is always 10 seconds.
+const sendLimit = () => (process.env.VITEST ? Number(process.env.MAIL_SEND_LIMIT_MS) || MAIL_SEND_LIMIT_MS : MAIL_SEND_LIMIT_MS);
 let pooled: Transporter | null = null;
 function transport() {
   if (!pooled) {
@@ -153,13 +161,16 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   const startedAt = Date.now();
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await withDeadline(transport().sendMail(message), MAIL_SEND_LIMIT_MS - (Date.now() - startedAt));
+      await withDeadline(transport().sendMail(message), sendLimit() - (Date.now() - startedAt));
       return true;
     } catch (err) {
-      // A kept connection the mail server dropped while idle: start a fresh one once.
-      pooled?.close();
-      pooled = null;
-      const overTime = Date.now() - startedAt >= MAIL_SEND_LIMIT_MS || (err as Error)?.message === "timeout";
+      const overTime = isOutOfTime(err, Date.now() - startedAt, sendLimit());
+      // Only a kept connection the server dropped while idle needs a fresh one, and only for the next try. After a timeout the shared
+      // connection is left alone (closing it would cut other emails that are being sent on it right now).
+      if (!overTime) {
+        pooled?.close();
+        pooled = null;
+      }
       if (attempt === 1 || overTime) console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
       if (overTime) break; // out of time: no second try inside the same request
     }

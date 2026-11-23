@@ -8,6 +8,7 @@
 //
 // Needs (the workflow passes them only to this step), and does nothing, clearly, until all five exist:
 //   TURSO_DATABASE_URL, TURSO_AUTH_TOKEN      the live database and a READ-ONLY key for it (only reads)
+// (Run it from the PRIVATE ops repo only: the live store's token also allows changes. See ops/photo-backup/README.md.)
 //   LIVE_BLOB_READ_WRITE_TOKEN                the live photo store (only read from: files are fetched, never changed)
 //   BACKUP_BLOB_READ_WRITE_TOKEN              the second, separate photo store (written to)
 // Files are named by a random id and never change once saved, so a file already in the copy is skipped. Nothing is ever deleted
@@ -48,15 +49,17 @@ export const shortName = (k) => {
  *  referencedKeys() -> string[]            every file name the database points to
  *  listCopy() -> Map<name, size>           what the second store already holds
  *  readLive(name) -> { bytes, type }|null  the file from the live store (null = it is not there)
- *  writeCopy(name, bytes, type)            save it in the second store
+ *  writeCopy(name, bytes, type, {overwrite}) save it in the second store; answers "exists" if it was already there and was left alone
  *  readCopy(name) -> { size }|null         open it from the second store (null = it does not open)
  */
 export async function runPhotoBackup(deps, opts = {}) {
   const log = opts.log ?? (() => undefined);
   const referenced = uniqueKeys([await deps.referencedKeys()]);
   const inCopy = await deps.listCopy();
-  const todo = toCopy(referenced, new Set(inCopy.keys()));
-  const result = { referenced: referenced.length, alreadyThere: referenced.length - todo.length, copied: 0, missingInLive: [], failed: [], sampleChecked: 0, sampleFailed: [] };
+  // A listing that shows a file at 0 bytes is a broken copy: it is copied again (over the empty one).
+  const todo = toCopy(referenced, new Set([...inCopy].filter(([, size]) => size > 0).map(([name]) => name)));
+  const empties = new Set([...inCopy].filter(([, size]) => !(size > 0)).map(([name]) => name));
+  const result = { referenced: referenced.length, alreadyThere: referenced.length - todo.length, copied: 0, alreadyExisted: 0, recopiedEmpty: 0, missingInLive: [], failed: [], sampleChecked: 0, sampleFailed: [] };
   const gone = new Set();
   const queue = [...todo];
   const worker = async () => {
@@ -68,15 +71,19 @@ export async function runPhotoBackup(deps, opts = {}) {
           gone.add(k);
           continue;
         }
-        await deps.writeCopy(k, file.bytes, file.type);
-        result.copied++;
+        const how = await deps.writeCopy(k, file.bytes, file.type, { overwrite: empties.has(k) });
+        if (how === "exists") result.alreadyExisted++; // someone else put it there first: counted apart, not as copied now
+        else {
+          result.copied++;
+          if (empties.has(k)) result.recopiedEmpty++;
+        }
       } catch {
         result.failed.push(k);
       }
     }
   };
   await Promise.all(Array.from({ length: opts.concurrency ?? 4 }, worker));
-  log(`${result.referenced} files are referenced; ${result.alreadyThere} were already copied, ${result.copied} copied now.`);
+  log(`${result.referenced} files are referenced; ${result.alreadyThere} were already copied, ${result.copied} copied now (${result.recopiedEmpty} of them were empty copies), ${result.alreadyExisted} turned out to exist already.`);
 
   // The photo restore drill: open a sample of the copies (not the ones the live store never had) and check each is a real, non-empty file.
   const sample = pickSample(referenced.filter((k) => !gone.has(k) && !result.failed.includes(k)), opts.sampleSize ?? SAMPLE_SIZE, opts.rand ?? Math.random);
@@ -130,11 +137,13 @@ async function realDeps(env) {
       const bytes = Buffer.from(await new Response(r.stream).arrayBuffer());
       return { bytes, type: r.blob?.contentType ?? r.headers?.get?.("content-type") ?? "application/octet-stream" };
     },
-    async writeCopy(name, bytes, type) {
+    async writeCopy(name, bytes, type, o = {}) {
       try {
-        await blob.put(name, bytes, { access: "private", contentType: type, addRandomSuffix: false, ...copy });
+        await blob.put(name, bytes, { access: "private", contentType: type, addRandomSuffix: false, ...(o.overwrite ? { allowOverwrite: true } : {}), ...copy });
+        return "copied";
       } catch (e) {
-        if (!/already exists/i.test(String(e))) throw e; // a file that is already there is fine
+        if (!/already exists/i.test(String(e))) throw e;
+        return "exists"; // a file that is already there is fine
       }
     },
     async readCopy(name) {

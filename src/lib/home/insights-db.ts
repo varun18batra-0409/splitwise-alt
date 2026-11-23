@@ -158,6 +158,8 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
       for (const m of around.filter((x) => mine.has(x.id))) {
         const t = text(m.id, last);
         if (!t) break;
+        // A claim taken over after a crash (or on the 2nd) must not send again to someone the first run already reached.
+        if (await coveredByOldRecord(key, now, m.id)) continue;
         sent += await sendPushTo([m.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${last}` }, "summaries.monthly");
         await markSentByOldPath(key, [m.id], now);
       }

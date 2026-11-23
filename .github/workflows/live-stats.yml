@@ -11,6 +11,7 @@ on:
 jobs:
   stats:
     runs-on: ubuntu-24.04
+    environment: live-read # holds the read-only database key and the address
     # The database key is given only to the step that reads, and it is the READ-ONLY one (this job never writes).
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { REQUIRED, missingSettings, pickSample, runPhotoBackup, shortName, toCopy, uniqueKeys } from "../scripts/photo-backup.mjs";
 
 // R3: the weekly copy of the photo store, and its drill. Run here with a pretend store (no network, no keys).
 type Deps = Parameters<typeof runPhotoBackup>[0];
 
-function pretend(opts: { live: Record<string, number>; copy?: Record<string, number>; referenced: string[]; breakCopy?: string[]; failWrite?: string[] }) {
+function pretend(opts: { live: Record<string, number>; copy?: Record<string, number>; referenced: string[]; breakCopy?: string[]; failWrite?: string[]; existsOnWrite?: string[] }) {
   const copy = new Map(Object.entries(opts.copy ?? {}));
   const writes: string[] = [];
   const deps: Deps = {
@@ -15,6 +15,7 @@ function pretend(opts: { live: Record<string, number>; copy?: Record<string, num
     readLive: async (k: string) => (k in opts.live ? { bytes: Buffer.alloc(opts.live[k], 1), type: "image/webp" } : null),
     writeCopy: async (k: string, bytes: Buffer) => {
       if (opts.failWrite?.includes(k)) throw new Error("store busy");
+      if (opts.existsOnWrite?.includes(k)) return "exists";
       writes.push(k);
       copy.set(k, bytes.length);
     },
@@ -56,6 +57,15 @@ describe("photo backup: the copy", () => {
     expect(s.writes).toHaveLength(3);
   });
 
+  it("a copy listed at 0 bytes is copied again, and 'already exists' is counted apart from 'copied'", async () => {
+    const s = pretend({ live: { "group/a": 9, "group/b": 8, "group/c": 7 }, copy: { "group/a": 0, "group/b": 8 }, referenced: ["group/a", "group/b", "group/c"], existsOnWrite: ["group/c"] });
+    const r = await runPhotoBackup(s.deps);
+    // Hand count: b is whole (skipped); a is empty (recopied: 1 copied, 1 empty recopied); c finds a file already there (not copied).
+    expect([r.alreadyThere, r.copied, r.recopiedEmpty, r.alreadyExisted]).toEqual([1, 1, 1, 1]);
+    expect(s.writes).toEqual(["group/a"]);
+    expect(s.copy.get("group/a")).toBe(9);
+  });
+
   it("a photo the database names but the live store lacks turns the run red, and is not sampled", async () => {
     const s = pretend({ live: { "group/g1": 5 }, referenced: ["group/g1", "receipt/lost"] });
     const r = await runPhotoBackup(s.deps);
@@ -95,33 +105,40 @@ describe("photo backup: the copy", () => {
   });
 });
 
-describe("the photo backup workflow and the other changed workflows (R13)", () => {
+describe("the photo backup workflow template and the other changed workflows (R13, RL2, RL7)", () => {
   const read = (f: string) => readFileSync(`.github/workflows/${f}`, "utf8");
-  it("weekly, inert without secrets, secrets only on steps, nothing printed", () => {
-    const t = read("photo-backup.yml");
+  it("the live photo token is not in the public repo's workflows at all; the private template carries it", () => {
+    expect(existsSync(".github/workflows/photo-backup.yml")).toBe(false);
+    for (const f of readdirSync(".github/workflows")) expect(read(f), f).not.toContain("LIVE_BLOB_READ_WRITE_TOKEN");
+    const t = readFileSync("ops/photo-backup/photo-backup.yml", "utf8");
     expect(t).toMatch(/cron: "37 21 \* \* 0"/);
     expect(t).toContain("steps.ready.outputs.ok == '1'");
     expect(t).toContain("::warning title=Photo backup not set up");
-    for (const s of ["TURSO_DATABASE_URL", "TURSO_READONLY_TOKEN", "LIVE_BLOB_READ_WRITE_TOKEN", "BACKUP_BLOB_READ_WRITE_TOKEN"]) expect(t).toContain(`secrets.${s}`);
-    expect(t).not.toMatch(/secrets\.TURSO_AUTH_TOKEN/);
-    expect(t).not.toMatch(/^ {4}env:/m); // no job-level env
-    expect(t).not.toMatch(/BACKUP_PASSPHRASE|TURSO_PLATFORM_TOKEN/);
-    expect(t).toMatch(/^permissions:\n {2}contents: read$/m);
-    expect(t).not.toMatch(/echo .*\$\{?(LIVE|BACKUP)_BLOB/);
+    for (const k of ["LIVE_DB_URL", "LIVE_DB_READONLY_TOKEN", "LIVE_BLOB_READ_WRITE_TOKEN", "BACKUP_BLOB_READ_WRITE_TOKEN"]) expect(t).toContain(`secrets.${k}`);
+    expect(t).not.toMatch(/^ {4}env:/m);
+    expect(t).toContain("persist-credentials: false");
   });
-  it("the public backup and live-stats use the READ-ONLY database key and cache the packages", () => {
+  it("the public backup and live-stats run in the live-read environment with the READ-ONLY key", () => {
     for (const f of ["backup.yml", "live-stats.yml"]) {
       const t = read(f);
+      expect(t, f).toMatch(/^ {4}environment: live-read/m);
       expect(t, f).toContain("secrets.TURSO_READONLY_TOKEN");
       expect(t, f).not.toMatch(/secrets\.TURSO_AUTH_TOKEN/);
       expect(t, f).toContain("cache: npm");
       expect(t, f).toContain("@libsql/client@0.15.0");
     }
-    expect(read("live-stats.yml")).not.toMatch(/^ {4}env:/m); // the key is on the one step that reads
+    expect(read("live-stats.yml")).not.toMatch(/^ {4}env:/m);
+    expect(read("backup.yml")).toContain("secrets.BACKUP_PASSPHRASE"); // a repository secret, still read from inside the environment
   });
-  it("the founder's setup steps exist", () => {
-    expect(existsSync("ops/photo-backup/README.md")).toBe(true);
+  it("a missing database key fails the backup (red), only a missing passphrase skips", () => {
+    const t = read("backup.yml");
+    const check = t.slice(t.indexOf("- name: Check the secrets are set"), t.indexOf("- uses: actions/checkout"));
+    expect(check).toMatch(/-z "\$TURSO_DATABASE_URL" \] \|\| \[ -z "\$TURSO_AUTH_TOKEN" \][\s\S]*?exit 1/);
+    expect(check).toContain("::error title=Backup FAILED");
+    expect(check.indexOf("exit 1")).toBeLessThan(check.indexOf("Backup skipped"));
+  });
+  it("the founder's setup steps exist and say the live token goes only in the private repo", () => {
     const t = readFileSync("ops/photo-backup/README.md", "utf8");
-    for (const s of ["BACKUP_BLOB_READ_WRITE_TOKEN", "LIVE_BLOB_READ_WRITE_TOKEN", "TURSO_READONLY_TOKEN", "restore drill"]) expect(t).toContain(s);
+    for (const s of ["BACKUP_BLOB_READ_WRITE_TOKEN", "LIVE_BLOB_READ_WRITE_TOKEN", "restore drill", "ONLY in the private ops repo"]) expect(t).toContain(s);
   });
 });

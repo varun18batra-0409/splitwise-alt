@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,14 +8,21 @@ import { db } from "@/lib/db";
 import { memorySuffixes, isMemoryDay } from "@/lib/countdown";
 import { sendMemoryLane } from "@/lib/countdown-db";
 import { cronRefusedWithoutSecret } from "@/lib/cron-auth";
-import { MAIL_SEND_LIMIT_MS, MAIL_TIMEOUTS, withDeadline } from "@/lib/mail";
+import { MAIL_SEND_LIMIT_MS, MAIL_TIMEOUTS, isOutOfTime, withDeadline } from "@/lib/mail";
 import { PUSH_TIMEOUT_MS } from "@/lib/push";
 import { cleanOldNotifyLog, NOTIFY_LOG_CLEANABLE_PREFIXES } from "@/lib/notify-cleanup";
 import { logJobFailure } from "@/lib/daily-job";
 import { sendMonthlySummaries } from "@/lib/home/insights-db";
 import { quickFromCounts, quickReactions } from "@/lib/reactions";
-import { candidateIdsQuery, canPrefilter, categoryKeysMatching, membersMatching, searchWords } from "@/lib/search-prefilter";
-import { buildActivity, filterActivity } from "@/lib/activity";
+import { markSentByOldPath } from "@/lib/nudge-zones";
+import { loadMyGroups, loadMyGroupsSearch } from "@/lib/group-data";
+import { recap, recapRows } from "@/lib/search";
+import { candidateIdsQuery, canPrefilter, categoryKeysMatching, membersMatching, prefilterWords, searchWords } from "@/lib/search-prefilter";
+import { ACTIVITY_PAGE, buildActivity, filterActivity, shownExpenseIds } from "@/lib/activity";
+
+// Phone sends are counted, not made (everything else in the push module is real).
+const mocks = vi.hoisted(() => ({ sendPushTo: vi.fn(async (_ids: string[], _p: unknown, _item?: string) => 1) }));
+vi.mock("@/lib/push", async (orig) => ({ ...(await orig<typeof import("@/lib/push")>()), sendPushTo: mocks.sendPushTo }));
 
 // Review of 23 Nov 2026, the reliability batch (R4-R16, S4). Each block says which finding it covers.
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -105,10 +112,13 @@ describe("R6: a slow mail server cannot hold a request for minutes", () => {
     await expect(withDeadline(new Promise<number>(() => undefined), 30)).rejects.toThrow("timeout");
     await expect(withDeadline(Promise.reject(new Error("refused")), 1000)).rejects.toThrow("refused"); // a real error is not hidden
   });
-  it("the send goes through the deadline, and a timeout is not retried", () => {
-    const src = readFileSync("src/lib/mail.ts", "utf8");
-    expect(src).toContain("withDeadline(transport().sendMail(message), MAIL_SEND_LIMIT_MS - (Date.now() - startedAt))");
-    expect(src).toContain("if (overTime) break;");
+  it("nodemailer's own timeout, and a failure once the message was being sent, count as out of time; an idle-drop does not", () => {
+    expect(isOutOfTime({ code: "ETIMEDOUT" }, 100)).toBe(true);
+    expect(isOutOfTime({ code: "ESOCKET", command: "DATA" }, 100)).toBe(true);
+    expect(isOutOfTime(new Error("timeout"), 100)).toBe(true);
+    expect(isOutOfTime({ code: "ECONNRESET" }, 100)).toBe(false);
+    expect(isOutOfTime({ code: "ECONNRESET" }, 10_000)).toBe(true); // ten seconds used up, whatever the error
+    expect(isOutOfTime({ code: "ECONNRESET" }, 9_999)).toBe(false);
   });
 });
 
@@ -128,6 +138,11 @@ describe("R11: evening failures are written to the error log", () => {
     expect([row.path, row.message]).toEqual(["cron/evening", `evening catch-up failed: bills ${stamp}`]);
     expect(await logJobFailure("x", "y".repeat(500))).toBe(true); // long text is cut to 200
     await db.errorLog.deleteMany({ where: { message: { startsWith: "yyyy" } } });
+  });
+  it("what is stored passes the scrubber: no email address, phone number or long id (RL4)", async () => {
+    await logJobFailure("cron/evening", `evening job failed: send to ana@example.com 98765 43210 token ${"a".repeat(30)} ${stamp}`);
+    const row = await db.errorLog.findFirstOrThrow({ where: { message: { contains: stamp } }, orderBy: { createdAt: "desc" } });
+    expect(row.message).toBe(`evening job failed: send to [email] [number] token [id] ${stamp}`);
   });
   it("the evening route logs a failed catch-up, failed parts and a crash", () => {
     const src = readFileSync("src/app/api/cron/evening/route.ts", "utf8");
@@ -166,12 +181,15 @@ describe("R12: old 'already sent' notes are cleaned, one-time markers stay", () 
   });
 });
 
-describe("R10: the monthly summary gets a second chance on the 2nd", () => {
+describe("R10 / RL1: the monthly summary gets a second chance on the 2nd, and never sends twice to the same person", () => {
   async function flat(tag: string) {
-    const g = await db.group.create({ data: { name: `Sum ${tag} ${stamp}`, type: "home", currency: "INR", inviteCode: `sum-${tag}-${stamp}`, members: { create: [{ name: "X" }, { name: "Y" }] } } });
+    const g = await db.group.create({ data: { name: `Sum ${tag} ${stamp}`, type: "home", currency: "INR", inviteCode: `sum-${tag}-${stamp}`, members: { create: [{ name: "X" }, { name: "Y" }] } }, include: { members: true } });
     groupIds.push(g.id);
+    // February 2027 has spending, so there is a summary to send: Rent 1,000.00 split between X and Y.
+    await db.expense.create({ data: { groupId: g.id, description: "Rent", amount: 100000, splitType: "equal", paidById: g.members[0].id, spentAt: new Date("2027-02-10T06:00:00Z"), shares: { create: g.members.map((m) => ({ memberId: m.id, amount: 50000 })) } } });
     return g;
   }
+  const sentTo = () => mocks.sendPushTo.mock.calls.map((c) => c[0]);
   it("a group the 1st never reached is claimed on the 2nd (10:00 India), but not on the 3rd", async () => {
     const g = await flat("a");
     await sendMonthlySummaries(new Date("2027-03-03T04:30:00Z")); // the 3rd: nothing
@@ -182,9 +200,32 @@ describe("R10: the monthly summary gets a second chance on the 2nd", () => {
   it("a group already done on the 1st is not claimed again on the 2nd", async () => {
     const g = await flat("b");
     await db.notifyLog.create({ data: { key: `summary:${g.id}:2027-02`, state: "done", createdAt: new Date("2027-03-01T04:30:00Z") } });
+    mocks.sendPushTo.mockClear();
     await sendMonthlySummaries(new Date("2027-03-02T04:30:00Z"));
     const row = await db.notifyLog.findUniqueOrThrow({ where: { key: `summary:${g.id}:2027-02` } });
     expect([row.state, row.createdAt.toISOString()]).toEqual(["done", "2027-03-01T04:30:00.000Z"]);
+    expect(sentTo().filter((ids) => g.members.some((m) => ids.includes(m.id)))).toEqual([]);
+  });
+  it("a stale claim is taken over on the 2nd, and X (already marked as sent on the 1st) gets nothing again; Y gets it once", async () => {
+    const g = await flat("c");
+    const [x, y] = g.members;
+    const key = `summary:${g.id}:2027-02`;
+    await db.notifyLog.create({ data: { key, state: "claimed", createdAt: new Date("2027-03-01T04:30:00Z") } }); // crashed after X
+    await markSentByOldPath(key, [x.id], new Date("2027-03-01T04:30:05Z"));
+    mocks.sendPushTo.mockClear();
+    await sendMonthlySummaries(new Date("2027-03-02T04:30:00Z"));
+    const mine = sentTo().filter((ids) => ids.some((id) => id === x.id || id === y.id));
+    expect(mine).toEqual([[y.id]]);
+    expect((await db.notifyLog.findUniqueOrThrow({ where: { key } })).state).toBe("done");
+  });
+  it("control: the same stale claim with nobody marked sends to both", async () => {
+    const g = await flat("d");
+    const key = `summary:${g.id}:2027-02`;
+    await db.notifyLog.create({ data: { key, state: "claimed", createdAt: new Date("2027-03-01T04:30:00Z") } });
+    mocks.sendPushTo.mockClear();
+    await sendMonthlySummaries(new Date("2027-03-02T04:30:00Z"));
+    const ours = new Set(g.members.map((m) => m.id));
+    expect(sentTo().filter((ids) => ids.some((id) => ours.has(id))).map((ids) => ids[0]).sort()).toEqual(g.members.map((m) => m.id).sort());
   });
 });
 
@@ -198,12 +239,35 @@ describe("R9: the Activity tab reads reactions for the rows on the page only", (
     expect(quickFromCounts(new Map([["🔥", 2], ["😂", 2]])).slice(0, 2)).toEqual(["😂", "🔥"]);
     expect(quickFromCounts(new Map())).toEqual(["😂", "🔥", "😭", "🙄", "😍", "👏"]);
   });
-  it("the page asks for rows on the shown page, a tally over the group, and keeps the leaver's old read", () => {
-    const page = readFileSync("src/app/groups/[id]/page.tsx", "utf8");
-    expect(page).toContain("shownExpenseIds(fv, activityFilter");
-    expect(page).toContain('db.reaction.groupBy({ by: ["emoji"], where: { expense: { groupId: group.id } }');
-    expect(page).toContain("createdAt: { lte: leaver.leftAt }");
-    expect(readFileSync("src/app/groups/[id]/_components/ActivityTab.tsx", "utf8")).toContain("reactionTally ? quickFromCounts(reactionTally)");
+  it("the page of 60 newest rows is the only one whose reactions are read; the tally over the group gives the same quick row", async () => {
+    const g = await db.group.create({ data: { name: `React ${stamp}`, type: "home", currency: "INR", inviteCode: `re-${stamp}`, members: { create: [{ name: "A" }, { name: "B" }] } }, include: { members: true } });
+    groupIds.push(g.id);
+    const [a, b] = g.members;
+    // 130 expenses, oldest first, one minute apart: "E1" is the oldest, "E130" the newest.
+    for (let i = 1; i <= 130; i++) {
+      await db.expense.create({ data: { groupId: g.id, description: `E${i}`, amount: 100, splitType: "equal", paidById: a.id, createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)), shares: { create: [{ memberId: a.id, amount: 100 }] } } });
+    }
+    const all = await db.expense.findMany({ where: { groupId: g.id }, include: { shares: true }, orderBy: { createdAt: "desc" } });
+    const view = { group: { members: g.members, expenses: all, payments: [], events: [] }, myId: a.id, moveOutIds: new Set<string>() };
+    const ids = shownExpenseIds(view, {});
+    expect(ACTIVITY_PAGE).toBe(60);
+    expect(ids).toHaveLength(60);
+    expect(ids).toEqual(all.slice(0, 60).map((e) => e.id)); // E130 down to E71
+    expect(shownExpenseIds(view, {}, 100)).toHaveLength(100); // "Show more"
+    expect(shownExpenseIds(view, { q: "e12" })).toHaveLength(11); // E12, E120-E129 (hand count: 1 + 10); E12x all fit on the page
+    // Reactions: one on the newest, one on the oldest; only the newest is read for the page; the tally counts both.
+    const [newest, oldest] = [all[0], all[129]];
+    await db.reaction.create({ data: { expenseId: newest.id, memberId: b.id, emoji: "🔥" } });
+    await db.reaction.create({ data: { expenseId: oldest.id, memberId: b.id, emoji: "🔥" } });
+    await db.reaction.create({ data: { expenseId: oldest.id, memberId: a.id, emoji: "🎉" } });
+    const rows = await db.reaction.findMany({ where: { expenseId: { in: ids } }, select: { expenseId: true, memberId: true, emoji: true } });
+    expect(rows.map((r) => r.expenseId)).toEqual([newest.id]);
+    const tally = await db.reaction.groupBy({ by: ["emoji"], where: { expense: { groupId: g.id } }, _count: { _all: true } });
+    const everyRow = await db.reaction.findMany({ where: { expense: { groupId: g.id } }, select: { emoji: true } });
+    // Hand-worked: 🔥 x2, 🎉 x1 -> 🔥, 🎉, then the usual six: 😂 😭 🙄 😍.
+    const fromTally = quickFromCounts(new Map(tally.map((t) => [t.emoji, t._count._all])));
+    expect(fromTally).toEqual(["🔥", "🎉", "😂", "😭", "🙄", "😍"]);
+    expect(fromTally).toEqual(quickReactions(everyRow));
   });
 });
 
@@ -214,6 +278,11 @@ describe("R8: search reads only the expenses that could match, and finds the sam
     expect(canPrefilter(["café"])).toBe(false);
     expect(canPrefilter([])).toBe(false);
     expect(canPrefilter(["50%_off"])).toBe(true);
+    // The same word twice is one word; nine different words is too many for the database to be asked.
+    expect(prefilterWords(["a", "b", "a"])).toEqual(["a", "b"]);
+    expect(canPrefilter(["a", "a", "a", "a", "a", "a", "a", "a", "a", "a"])).toBe(true);
+    expect(canPrefilter(["a", "b", "c", "d", "e", "f", "g", "h"])).toBe(true);
+    expect(canPrefilter(["a", "b", "c", "d", "e", "f", "g", "h", "i"])).toBe(false);
   });
   it("categories and people a word can mean", () => {
     // Food is "Bites & Sips" with the plain words "food drinks"; the old name 'drinks' maps to it.
@@ -266,6 +335,32 @@ describe("R8: search reads only the expenses that could match, and finds the sam
       const cand = await candidates(q);
       for (const id of found) expect(cand.has(id), `"${q}" finds ${id}`).toBe(true);
     }
+    // The Search screen's own numbers (rows found, count, spent, my share) are the same from the pre-filtered loader and the full one.
+    const memberships = { [g.id]: asha.id };
+    const figures = async (load: (q: string) => Promise<Awaited<ReturnType<typeof loadMyGroups>>>, q: string) => {
+      const groups = await load(q);
+      const rows = groups.flatMap((x) => {
+        const sn = (id: string) => (id === x.myId ? `${x.group.members.find((m) => m.id === id)?.name ?? ""} you` : (x.group.members.find((m) => m.id === id)?.name ?? "Someone"));
+        return filterActivity(buildActivity(x.expenses, x.payments, x.myId, [], new Set()), { q }, sn).map((item) => ({ item, g: x }));
+      });
+      const shown = rows.sort((m, n) => n.item.date.getTime() - m.item.date.getTime() || (m.item.id < n.item.id ? -1 : 1));
+      return { ids: shown.map((r) => r.item.id), sum: recap(recapRows(shown, ({ item, g: gg }) => gg.expenses.find((e) => e.id === item.id)?.shares.find((sh) => sh.memberId === gg.myId)?.amount ?? 0)) };
+    };
+    const nine = "a b c d e f g h i";
+    for (const q of ["pizza", "ravi", "sips", "PIZZA pizza", "taxi taxi asha", "café", nine, "pizza airport", "nothingmatches", "you"]) {
+      const full = await figures((qq) => loadMyGroups(memberships), q);
+      const pre = await figures((qq) => loadMyGroupsSearch(memberships, qq), q);
+      expect(pre, q).toEqual(full);
+    }
+    // Hand count for "pizza": the full ledger holds 6 live expenses, the pre-filtered read only the 4 that could match, and both find 1 (pizza), 10000 spent, my share 5000.
+    expect((await loadMyGroups(memberships))[0].expenses).toHaveLength(6);
+    expect((await loadMyGroupsSearch(memberships, "pizza"))[0].expenses).toHaveLength(4);
+    const one = await figures((qq) => loadMyGroupsSearch(memberships, qq), "pizza");
+    expect(one.ids).toEqual([e.pizza.id]);
+    expect(one.sum.count).toBe(1);
+    // Nine different words, a word with an accent, or none: the full read (same 6 expenses).
+    expect((await loadMyGroupsSearch(memberships, nine))[0].expenses).toHaveLength(6);
+    expect((await loadMyGroupsSearch(memberships, "café"))[0].expenses).toHaveLength(6);
     // And it really is smaller than everything: a word that fits nothing leaves only the always-kept ones.
     expect((await candidates("nothingmatches")).size).toBe(3);
   });
@@ -313,6 +408,21 @@ describe("R4 / R5: the backup leaves out the database's own tables and is writte
     // and the whole file restores
     const log = execFileSync("node", ["scripts/restore.mjs", r.file, `file:${join(r.dir, "out.db")}`]).toString();
     expect(log).toContain("Big: 1203 rows");
+  });
+
+  it("an empty target is judged by the backup's own skip list: leftover _prisma and libsql_ tables do not block a restore (RL5)", async () => {
+    const r = await run(async (c) => {
+      await c.execute('CREATE TABLE "Group" ("id" TEXT PRIMARY KEY)');
+      await c.execute({ sql: 'INSERT INTO "Group" VALUES (?)', args: ["g1"] });
+    });
+    const target = join(r.dir, "target.db");
+    const t = createClient({ url: `file:${target}` });
+    await t.execute('CREATE TABLE "_prisma_migrations" ("id" TEXT PRIMARY KEY)');
+    await t.execute('CREATE TABLE "libsql_wasm_func_table" ("name" TEXT)');
+    t.close();
+    const log = execFileSync("node", ["scripts/restore.mjs", r.file, `file:${target}`]).toString();
+    expect(log).toContain("Restore complete and verified");
+    expect(readFileSync("scripts/restore.mjs", "utf8")).toContain("SKIP_TABLES_SQL");
   });
 
   it("the file is written as it goes (no whole-database string)", () => {

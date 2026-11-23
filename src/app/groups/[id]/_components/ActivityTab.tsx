@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { activityMoreHref, filterChips, buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
+import { ACTIVITY_PAGE, activityMoreHref, filterChips, buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { originalShares } from "@/lib/currency-ledgers";
 import { fxLine, rateSourceLine } from "@/lib/conversion";
@@ -38,18 +38,7 @@ const whenIn = (tz: string) => {
 // Every expense, payment and group change, by day — tap one for its details,
 // its history, and Edit / Delete / Restore / Undo.
 // Busy groups show the latest PAGE items first, with "Show more".
-const PAGE = 60;
-
-// The expenses on the page that is shown for these filters (the same list ActivityTab draws), so the screen reads reactions for those rows only.
-export function shownExpenseIds(v: Pick<GroupView, "group" | "myId" | "moveOutIds">, filter: ActivityFilter, shown = PAGE): string[] {
-  const { group, myId } = v;
-  const searchName = (id: string) => {
-    const name = group.members.find((m) => m.id === id)?.name ?? "";
-    return id === myId ? `${name} you` : name;
-  };
-  const items = filterActivity(buildActivity(group.expenses, group.payments, myId, group.events, v.moveOutIds), filter, searchName);
-  return items.slice(0, Math.max(PAGE, Math.min(5000, shown))).filter((i) => i.kind === "expense").map((i) => i.id);
-}
+const PAGE = ACTIVITY_PAGE;
 
 export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], reactionTally, receipts = [], gameResultIds = [], signin }: { signin?: SignInContext; v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; reactionTally?: Map<string, number>; receipts?: { id: string; expenseId: string }[]; gameResultIds?: string[] }) {
   const receiptOf = new Map(receipts.map((r) => [r.expenseId, r.id]));

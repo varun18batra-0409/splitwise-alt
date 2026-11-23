@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { cronRefusedWithoutSecret } from "@/lib/cron-auth";
 import { sendDayPulse } from "@/lib/countdown-db";
+import { safeErrorNote } from "@/lib/scrub";
 import { logJobFailure, makeStop, runDeferredParts } from "@/lib/daily-job";
 
 // The evening job (Vercel Cron, 21:30 India time): the day-end pulse for trips
@@ -48,8 +49,8 @@ export async function GET(req: Request) {
     if (failed.length) await logJobFailure("cron/evening", `evening catch-up failed: ${failed.join(", ")}`);
     return Response.json({ ok: true, pulse, moments, catchUp: catchUp.results, deferred: catchUp.deferred, failed });
   } catch (err) {
-    console.error("evening job failed", String(err).slice(0, 300));
-    await logJobFailure("cron/evening", `evening job failed: ${String(err)}`);
+    console.error("evening job failed", safeErrorNote(err));
+    await logJobFailure("cron/evening", `evening job failed: ${safeErrorNote(err)}`);
     return Response.json({ ok: false }, { status: 500 });
   }
 }
