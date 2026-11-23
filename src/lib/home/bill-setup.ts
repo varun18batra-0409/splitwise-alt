@@ -23,6 +23,30 @@ const STOPPED_RESUME = (bill: string) => `${bill} has been stopped, so it can’
 const PAUSED_TYPE = (bill: string) => `${bill} is paused, so its type can’t change. Start it again first.`;
 const CHANGED_NOW = (bill: string) => `${bill} changed just now. Check it and try again.`;
 const dayLabel = (day: string) => `${Number(day.slice(8, 10))} ${SHORT_MONTHS[Number(day.slice(5, 7)) - 1] ?? ""}`;
+// A Date that falls on this day in the bill's time zone (the start of a cut that has to begin on a given day).
+function dateOnDay(day: string, tz: string, fallback: Date): Date {
+  for (const h of [12, 0, 23, 6, 18]) {
+    const d = new Date(`${day}T${String(h).padStart(2, "0")}:00:00Z`);
+    if (dayKey(d, tz) === day) return d;
+  }
+  return fallback;
+}
+
+// When a pause or stop of a running daily bill starts to cut days: today, unless someone's last day (a move-out charge for "add it now")
+// is today or later in this month: that day was charged to them, so the cut starts the day after it and the month end still counts it.
+async function cutAt(bill: { nature: string; tz: string; prepaid: string }, now: Date): Promise<Date> {
+  if (bill.nature !== "daily") return now;
+  const tz = bill.tz || DEFAULT_TIME_ZONE;
+  const today = dayKey(now, tz);
+  const list = parsePrepaid(bill.prepaid)[today.slice(0, 7)] ?? [];
+  if (!list.length) return now;
+  const alive = new Set((await db.expense.findMany({ where: { id: { in: list.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
+  const last = list.filter((x) => alive.has(x.e) && x.d).map((x) => x.d as string).sort().pop();
+  if (!last || last < today) return now;
+  const next = new Date(new Date(`${last}T12:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10);
+  return dateOnDay(next, tz, now);
+}
+
 class BillLocked extends Error {}
 // The split as people, not as text: the same people and amounts compare equal whatever order or spacing the JSON has.
 const splitKey = (json: string) => {
@@ -175,6 +199,9 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
     } else if (isStopped(bill)) {
       // A stopped bill only has a waiting month left to skip: its last month must not be skipped away.
       return { ok: false, error: "There’s no coming month to skip." };
+    } else if (bill.paused && bill.nature === "daily") {
+      // A paused daily bill still has the month it was paused in to add: skipping it would lose the days used before the pause.
+      return { ok: false, error: "There’s no coming month to skip." };
     } else {
       // The first month from this one that the bill comes round in and isn't added yet
       // (a bill every 2 months skips its next real month).
@@ -196,7 +223,8 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
   } else if (command === "pause") {
     // Nothing is charged now: the days so far are added with the monthly bill on the 1st (see periodsDue).
     if (!bill.paused) {
-      const done = await db.bill.updateMany({ where: { id: billId, deletedAt: null, paused: false }, data: { paused: true, pausedAt: now } });
+      const from = await cutAt(bill, now);
+      const done = await db.bill.updateMany({ where: { id: billId, deletedAt: null, paused: false, prepaid: bill.prepaid }, data: { paused: true, pausedAt: from } });
       if (done.count !== 1) return { ok: false, error: CHANGED_NOW(bill.name) };
       const words = bill.nature === "daily" ? await stopWordsFor(billId, now) : null;
       await logEvent(db, { groupId, actorId, kind: "bill_changed", text: `paused ${bill.name}`, ...(words ? { details: [words.words.pausedNote] } : {}) });
@@ -233,9 +261,16 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
   } else if (command === "stop") {
     // A stop is a pause with an end month: nothing is charged now, and the bill goes once nothing is left to add (finishStoppedBill).
     if (!isStopped(bill)) {
-      const at = bill.pausedAt ?? now;
+      // A paused daily bill with no pause day: there are no days to add, so it is closed with nothing added (writing "now" would make the paused days chargeable).
+      if (bill.paused && !bill.pausedAt && bill.nature === "daily") {
+        const closed = await db.bill.updateMany({ where: { id: billId, deletedAt: null, paused: true, pausedAt: null, endMonth: "" }, data: { endMonth: dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7), deletedAt: now } });
+        if (closed.count !== 1) return { ok: false, error: CHANGED_NOW(bill.name) };
+        await logEvent(db, { groupId, actorId, kind: "bill_changed", text: `stopped ${bill.name}` });
+        return { ok: true, id: billId };
+      }
+      const at = bill.pausedAt ?? (await cutAt(bill, now));
       const done = await db.bill.updateMany({
-        where: { id: billId, deletedAt: null, paused: bill.paused, pausedAt: bill.pausedAt, endMonth: "" },
+        where: { id: billId, deletedAt: null, paused: bill.paused, pausedAt: bill.pausedAt, endMonth: "", prepaid: bill.prepaid },
         data: { paused: true, pausedAt: at, endMonth: dayKey(at, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7) },
       });
       if (done.count !== 1) return { ok: false, error: CHANGED_NOW(bill.name) };
