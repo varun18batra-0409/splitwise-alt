@@ -263,7 +263,7 @@ export function WrappedDeck({
               </Link>
             </div>
           ) : (
-            <p className="mt-6 text-center text-xs text-[#f7f4ec]/55">Tap or click for more</p>
+            <p className="mt-6 text-center text-xs text-[#f7f4ec]/55">Tap for more</p>
           )}
         </div>
       ) : (
@@ -278,7 +278,7 @@ export function WrappedDeck({
             {s.data?.kind === "splurge" && <Splurge d={s.data} />}
             {s.data?.kind === "awards" && <Awards d={s.data} />}
           </div>
-          <p className="text-center text-xs text-[#f7f4ec]/45">Tap or click for more</p>
+          <p className="text-center text-xs text-[#f7f4ec]/45">Tap for more</p>
         </div>
       )}
     </section>

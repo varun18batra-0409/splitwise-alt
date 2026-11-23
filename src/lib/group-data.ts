@@ -466,7 +466,7 @@ export async function loadNotifications(memberships: Record<string, string>, lim
     return {
       event: e,
       actorName: actors.find((a) => a.id === e.actorId)?.name ?? "Someone",
-      groupName: isDirect(me.group) ? "Direct" : me.group.name,
+      groupName: isDirect(me.group) ? "With a person" : me.group.name,
       myName: me.name,
       groupCover: coverFor(isDirect(me.group) ? { ...me.group, cover: "plain", coverAt: null } : me.group, false, cut?.leftAt),
       direct: isDirect(me.group),

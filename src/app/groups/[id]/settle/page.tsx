@@ -298,7 +298,7 @@ export default async function GroupSettle({
           <p className="mt-1 text-sm text-fg/60">{words.line}</p>
           {expenseCount > 0 && (
             <Link href={`/groups/${group.id}/square`} className={`${OUTLINE_PILL} mx-auto mt-4 inline-flex`}>
-              Share the moment
+              Share it
             </Link>
           )}
         </div>

@@ -1414,7 +1414,7 @@ async function main() {
     await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on ONE slim Net card (about 80px: “Net · you’re owed/you owe” and the net amount once, “Group” and “Non-group” lines only when both exist, or “All square” + “You’re all square”), the whole card is one link to Settle up with no buttons inside, no photo or tint; nothing under it (what needs you is in Updates behind the bell)", async () => {
+  await step(V, "Home", "Home opens on ONE slim Net card (about 80px: “Net · you’re owed/you owe” and the net amount once, “Group” and “With a person” lines only when both exist, or “All square” + “You’re all square”), the whole card is one link to Settle up with no buttons inside, no photo or tint; nothing under it (what needs you is in Updates behind the bell)", async () => {
     await go(V, "/");
     const money = V.locator("[data-balance-card]").first();
     await money.waitFor();
@@ -2276,9 +2276,9 @@ async function main() {
   // ===== 9. Home & Couple: bills, list, budgets, reminders, moving out, goals =====
   let gh = "";
   const homeId = () => gh.split("/").pop()!;
-  await step(V, "Flat", "Create a Home group: it opens on Overview, with Expenses · People tabs and Bills · Shopping tiles", async () => {
+  await step(V, "Flat", "Create a Flat or family group: it opens on Overview, with Expenses · People tabs and Bills · Shopping tiles", async () => {
     await go(V, "/groups/new");
-    await V.getByRole("button", { name: /^Home/ }).click();
+    await V.getByRole("button", { name: /^Flat or family/ }).click();
     await V.locator('input[name="groupName"]').fill("UAT Flat 402");
     await V.locator('select[name="currency"]').selectOption("INR");
     await V.getByRole("button", { name: /Create group/ }).click();

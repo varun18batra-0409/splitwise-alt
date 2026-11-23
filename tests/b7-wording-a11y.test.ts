@@ -69,6 +69,10 @@ describe("banned phrases (old wording that must not come back)", () => {
     expect(m).not.toBeNull();
     expect(m![1].startsWith("Yes")).toBe(false);
     expect(m![1]).toContain("no sign-up is needed");
+    // 23 Nov: friends join with just a name; signing in is optional (it keeps groups across devices; postcards and the passport need it).
+    expect(m![1].startsWith("No.")).toBe(true);
+    expect(m![1]).toContain("with just a name");
+    expect(m![1]).toContain("postcards and the passport");
   });
   it("no amount is written with a space after ₹, and no 'Anything Goes' in capitals", () => {
     // (comment lines may quote "₹ 99" as an example of what people type; only real text counts)

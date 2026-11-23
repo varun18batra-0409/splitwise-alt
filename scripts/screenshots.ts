@@ -340,7 +340,7 @@ if (!hosted) {
   await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acct.id, v: 0 }), url: base }]);
 } else await signBackIn();
 await shot("39-new-group-types", "/groups/new", async (p) => {
-  await p.getByRole("button", { name: /^Home/ }).click();
+  await p.getByRole("button", { name: /^Flat or family/ }).click();
 }, false);
 await shot("40-couple-split", "/groups/new", async (p) => {
   await p.getByRole("button", { name: /^Couple/ }).click();

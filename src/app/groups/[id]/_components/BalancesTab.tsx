@@ -43,7 +43,7 @@ export function BalancesTab({ v, data, paid, why }: { v: LiteView; data: Balance
           <p className="mt-1 text-sm text-gray-500">{leaver ? words.line : "Nobody owes anybody in this group."}</p>
           {data.count > 0 && (
             <Link href={`/groups/${group.id}/square`} className="mt-4 inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg">
-              Share the moment
+              Share it
             </Link>
           )}
         </div>

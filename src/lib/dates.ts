@@ -75,3 +75,11 @@ export function parseDay(input: string, now = new Date()): Date | null {
 export function expenseDate(e: { spentAt?: Date | null; createdAt: Date }): Date {
   return e.spentAt ?? e.createdAt;
 }
+
+// The same day number some months or years on, but never spilling into the next month: 31 Jan + 1 month is 28 (or 29) Feb, not 3 Mar,
+// and 29 Feb + 1 year is 28 Feb.
+export function sameDayLater(from: Date, addMonths: number): Date {
+  const first = new Date(from.getFullYear(), from.getMonth() + addMonths, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(from.getDate(), last));
+}

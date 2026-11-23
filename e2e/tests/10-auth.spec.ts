@@ -92,7 +92,7 @@ test("fingerprint / face: turn it on, sign out, sign back in with one touch, rem
 
   await page.goto("/account/sign-in");
   await settled(page);
-  await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
+  await page.getByRole("button", { name: /Turn on fingerprint or face sign-in/ }).click();
   // The phone appears in the list (named from the browser: a Pixel → "Android phone").
   // (It saves, then the page reloads; on the hosted copy that can take a while.)
   const added = page.getByText(test.info().project.name === "desktop" ? /^(This device|Windows computer|Mac)$/ : "Android phone").first();

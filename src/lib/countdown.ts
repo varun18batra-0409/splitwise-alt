@@ -210,8 +210,16 @@ function pick(seed: string, n: number) {
   return h % n;
 }
 
-export function afterTripNudge(g: { id: string; name: string }): string {
-  return AFTER[pick(`${g.id}:after`, AFTER.length)](placeOf(g.name), tripEmoji(g.name));
+// The same day when nobody owes anybody: no "settle up" (there's nothing to settle), just the memories.
+const AFTER_SQUARE: Line[] = [
+  (p, e) => `Back from ${p}? ${e} Everyone’s square, nothing to settle. Nice one.`,
+  (p, e) => `${p}: done ✓ Memories saved, and nobody owes anybody.`,
+  (p, e) => `Post-${p} blues? ${e} At least the money is all square. Start planning the next one.`,
+];
+
+export function afterTripNudge(g: { id: string; name: string }, square = false): string {
+  const list = square ? AFTER_SQUARE : AFTER;
+  return list[pick(`${g.id}:after`, list.length)](placeOf(g.name), tripEmoji(g.name));
 }
 
 export function countdownNudge(g: { id: string; name: string }, daysLeft: number): string | null {

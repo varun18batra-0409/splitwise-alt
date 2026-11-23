@@ -18,7 +18,7 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => ctx?.close());
 
 test("a Home group opens on Overview, with Expenses · People and the Bills · Shopping tiles", async () => {
-  const g = await createGroup(page, groupName("Flat"), "Home");
+  const g = await createGroup(page, groupName("Flat"), "Flat or family");
   await page.goto(g.path);
   await settled(page);
   await expect(page.locator('a[aria-current="page"]')).toHaveText("Overview");

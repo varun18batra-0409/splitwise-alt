@@ -58,8 +58,8 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     const names = nameIds.length ? await db.member.findMany({ where: { id: { in: nameIds } }, select: { id: true, name: true } }) : [];
     const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
 
-    // A pair is "Direct", and its screen is the person's page (the group's own pages send it there anyway).
-    const whereOf = (g: { id: string; name: string; type: string }) => (g.type === "direct" ? "Direct" : g.name);
+    // A pair is "With a person", and its screen is the person's page (the group's own pages send it there anyway).
+    const whereOf = (g: { id: string; name: string; type: string }) => (g.type === "direct" ? "With a person" : g.name);
     const hrefOf = (g: { id: string; type: string }) => (g.type === "direct" ? `/people/${g.id}` : `/groups/${g.id}/settle`);
     for (const p of payments) {
       const g = groupOf.get(p.toId);

@@ -3,7 +3,7 @@ import { getAccount } from "@/lib/identity";
 import { registrationOptions } from "@/lib/passkeys";
 import { ownOrigin } from "@/lib/same-origin";
 
-// Step 1 of turning on fingerprint / face sign-in (signed in only).
+// Step 1 of turning on fingerprint or face sign-in (signed in only).
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {

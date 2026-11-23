@@ -110,7 +110,14 @@ export function QuickLine({
         void fill(said);
       }
     };
-    r.onerror = (e) => setNote(e.error === "not-allowed" ? "Allow the microphone for Loopin to say it." : "Didn’t catch that. Try again, or type it.");
+    r.onerror = (e) =>
+      setNote(
+        e.error === "not-allowed"
+          ? "Allow the microphone for Loopin to say it."
+          : e.error === "service-not-allowed" || e.error === "language-not-supported" || e.error === "audio-capture"
+            ? "Voice isn’t available on this phone right now. Type it instead."
+            : "Didn’t catch that. Try again, or type it.",
+      );
     r.onend = () => setListening(false);
     rec.current = r;
     setNote("");

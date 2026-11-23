@@ -116,9 +116,15 @@ describe("s4: stamps and seals", () => {
     expect(RARE.diwali.to).toBe("11-12");
     expect(windowLabel("03-10", "03-25")).toBe("10 to 25 March");
     expect(windowLabel("10-25", "11-12")).toBe("25 Oct to 12 Nov");
-    expect(rareWhen("r:holi")).toBe("10 to 25 March");
-    expect(rareWhen("r:diwali")).toBe("25 Oct to 12 Nov");
-    expect(rareWhen("r:holi@US")).toBe("10 to 25 March"); // a stamp that carries a sender's country
+    // Holi and Diwali move: the album says this year's dates (the usual window above is only for a year not listed).
+    // Holi 11 Mar 2028: 12 days before = 28 Feb, 3 after = 14 Mar. Diwali 17 Oct 2028: 14 before = 3 Oct, 3 after = 20 Oct.
+    // Diwali 8 Nov 2026: 25 Oct to 11 Nov.
+    const y2028 = new Date("2028-01-15T06:00:00Z");
+    expect(rareWhen("r:holi", y2028)).toBe("28 Feb to 14 Mar");
+    expect(rareWhen("r:diwali", y2028)).toBe("3 to 20 October");
+    expect(rareWhen("r:diwali", new Date("2026-06-01T06:00:00Z"))).toBe("25 Oct to 11 Nov");
+    expect(rareWhen("r:holi@US", y2028)).toBe("28 Feb to 14 Mar"); // a stamp that carries a sender's country
+    expect(rareWhen("r:holi", new Date("2040-01-15T06:00:00Z"))).toBe("10 to 25 March"); // no date listed for that year: the usual window
     expect(rareWhen("r:kites")).toBe("mid January"); // descriptions that say something are kept
     expect(rareWhen("r:nonsense")).toBe("");
   });

@@ -203,7 +203,7 @@ export function GroupHeader({ v, switchTo }: { v: LiteView; switchTo: SwitchItem
           {!v.leaver && (
             <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-fg/25 px-4 text-[15px] font-semibold text-fg active:bg-fg/10" data-invite-pill>
               <InviteIcon size={18} />
-              Invite
+              Add people
             </Link>
           )}
         </div>

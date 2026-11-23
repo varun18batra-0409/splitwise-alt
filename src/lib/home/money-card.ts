@@ -67,7 +67,7 @@ export function pairPeopleGroup(e: { groupId: string; currency: string; myId: st
   return {
     direct: true,
     groupId: e.groupId,
-    groupName: "Direct",
+    groupName: "With a person",
     currency: e.currency,
     myId: e.myId,
     members: [
@@ -585,8 +585,8 @@ export function sinceLastPayment(
 }
 
 // ---- Home's slim "Net" card ----
-// ONE slim card (founder, 16 Nov): the NET of everything you're owed minus everything you owe, groups and non-group (direct pairs) together,
-// with at most two small lines under it ("Group +₹22,916", "Non-group −₹600"). This combining happens only on Home: Settle up and every other
+// ONE slim card (founder, 16 Nov): the NET of everything you're owed minus everything you owe, groups and with-a-person (direct pairs) together,
+// with at most two small lines under it ("Group +₹22,916", "With a person −₹600"). This combining happens only on Home: Settle up and every other
 // screen keep groups and pairs apart. Each item is one group's balance for you (what Home's total already counts) or one pair's balance,
 // in its own currency; positive = you're owed. Conversion uses the same saved rates as Home's total (toCommon); a currency with no saved rate
 // is never added into another: the card then shows each currency on its own, exactly as the old card's total did, and no split lines.
@@ -644,7 +644,7 @@ export function homeNetCard(x: { items: NetItem[]; common: string; toCommon: (am
   const line = (kind: "group" | "direct"): NetCardLine => {
     const v = sum[kind];
     const sign = v > 0 ? "+" : "−";
-    return { kind, sign, amount: v, text: `${kind === "group" ? "Group" : "Non-group"} ${approxKind[kind] ? "≈ " : ""}${sign}${formatMoney(Math.abs(v), x.common)}` };
+    return { kind, sign, amount: v, text: `${kind === "group" ? "Group" : "With a person"} ${approxKind[kind] ? "≈ " : ""}${sign}${formatMoney(Math.abs(v), x.common)}` };
   };
   // Both kinds must have something (a line that nets to 0 is hidden); with only one left it would just repeat the net, so none show.
   const lines = sum.group !== 0 && sum.direct !== 0 ? [line("group"), line("direct")] : [];

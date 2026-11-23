@@ -191,7 +191,7 @@ export default async function GroupPage({
         b.status === "waiting" || b.bill.nature === "varies"
           ? `${b.due < today ? "Was due" : "Due"} ${niceDate(b.due)}`
           : b.bill.nature === "daily"
-            ? `Totalled ${niceDate(b.due)}`
+            ? `${b.due < today ? "Totalled" : "Totals on"} ${niceDate(b.due)}`
             : `Repeats · next ${niceDate(b.due)}`,
       who: b.payerId ? (b.payerId === myId ? "you pay" : `${v.nameOf(b.payerId)} pays`) : "taking turns",
       amount: b.bill.nature === "varies" ? (b.usual ? `~${v.money(b.usual)}` : "") : b.bill.nature === "daily" ? `${v.money(b.bill.amount)} a day` : v.money(b.bill.amount),

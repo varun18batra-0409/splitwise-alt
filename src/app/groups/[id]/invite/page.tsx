@@ -187,7 +187,7 @@ export default async function AddPeoplePage({
                     aria-label={`QR code to join ${group.name}`}
                     dangerouslySetInnerHTML={{ __html: qr }}
                   />
-                  <p className="mt-2 text-balance text-center text-xs text-gray-400">Anyone with the link or code can ask to join after signing up</p>
+                  <p className="mt-2 text-balance text-center text-xs text-gray-400">Anyone with the link or code can join with just a name</p>
                 </>,
               )}
               {way("search", ico("M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20.5 20.5 16 16"), "Search by name or email", "People already on Loopin", <PeopleSearch groupId={group.id} />)}
@@ -271,7 +271,7 @@ export default async function AddPeoplePage({
         })}
       </ul>
       {group.members.some((m) => !m.accountId && !m.leftAt && m.id !== myId) && (
-        <p className="mt-3 text-xs text-gray-400">“Not on Loopin yet”: added by name. They can take over their name from the group link after signing up.</p>
+        <p className="mt-3 text-xs text-gray-400">“Not on Loopin yet”: added by name. They can take over their name from the group link, with or without signing in.</p>
       )}
 
       {justDid && canUndo(justDid, group.events, new Date(), { id: myId, isAdmin: await isGroupAdmin(group.id, myId), closed: group.closed, members: group.members }).ok && (

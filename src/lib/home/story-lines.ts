@@ -2,6 +2,8 @@
 // crew, so the stories write themselves. Lines never describe what's in a photo (the photo changes,
 // the words wouldn't), only the place, the trip and the people. Pure, so it can be tested.
 
+import { climateFor } from "../climate";
+
 export type Line = [kicker: string, line: string];
 
 // For places Loopin has photos of (the slot names in places.ts, without "place-").
@@ -173,18 +175,22 @@ const FLAVOUR: Record<string, { hi: string; money: string; thing?: string }> = {
 };
 
 // Lines for any country (and its city, when Loopin knows it), built from its name, flag and flavour.
-function worldLines(country?: string | null, city?: string | null, countryName?: string | null, flag?: string | null): Line[] {
+// `home` is the viewer's own country: "a new stamp", "learn the word" and "carry local money" are for trips abroad only, so they are left
+// out at home, and when the viewer's home isn't known (nothing is guessed, and never India).
+function worldLines(country?: string | null, city?: string | null, countryName?: string | null, flag?: string | null, home?: string | null): Line[] {
   const out: Line[] = [];
-  const f = country ? FLAVOUR[country.toUpperCase()] : undefined;
+  const cc = (country ?? "").toUpperCase();
+  const f = cc ? FLAVOUR[cc] : undefined;
   const name = countryName ?? "";
+  const abroad = Boolean(home) && Boolean(cc) && cc !== home!.toUpperCase();
   if (city) out.push(["City mode", `${city} by day, ${city} by night`], ["Explore", `Get a little lost in ${city}. On purpose.`]);
-  if (name && country?.toUpperCase() !== "IN") out.push(["New stamp", `${name} ${flag ?? ""}: one more for the passport`.trim()]);
+  if (name && abroad) out.push(["New stamp", `${name} ${flag ?? ""}: one more for the passport`.trim()]);
   if (f) {
-    out.push(["Say it", `Learn one word: “${f.hi}”`]);
-    if (country?.toUpperCase() !== "IN") out.push(["Local tip", `Carry a little ${f.money} for the small stuff`]);
+    if (abroad) out.push(["Say it", `Learn one word: “${f.hi}”`], ["Local tip", `Carry a little ${f.money} for the small stuff`]);
     if (f.thing) out.push(["Food check", f.thing]);
   } else if (name) {
-    out.push(["Food check", `Eat where the locals eat in ${name}`], ["Local tip", "Carry a little local cash for the small stuff"]);
+    out.push(["Food check", `Eat where the locals eat in ${name}`]);
+    if (abroad) out.push(["Local tip", "Carry a little local cash for the small stuff"]);
   }
   return out;
 }
@@ -202,15 +208,27 @@ const MOOD: Record<"beach" | "hills" | "city" | "any", Line[]> = {
   any: [["Forecast", "Good times, with a chance of receipts 🧾"], ["Packing list", "Charger, ID, snacks. In that order."], ["Spotted", "The group chat, already planning outfits"], ["Plot twist", "Loopin keeps the maths. You keep the memories"]],
 };
 
-// About the time of year: monsoon where there's a monsoon, and winter or summer by hemisphere.
+// About the time of year: monsoon where there's a monsoon, and winter or summer by hemisphere. Nothing is said when the place is
+// unknown (never India by default), for tropical places and beach trips (they have no "layers" winter), and not the rain line for the
+// high, dry mountains (Ladakh, Spiti) or in the wrong months (Chennai's rain is October to December).
 const MONSOON = new Set(["IN", "LK", "BD", "NP", "TH", "VN", "KH", "LA", "MM", "PH"]);
 const SOUTH = new Set(["AU", "NZ", "ZA", "AR", "BR", "CL", "UY", "PY", "FJ", "MU", "SC", "MG", "NA", "BW", "PE", "BO"]);
-function seasonLines(month?: number | null, country?: string | null): Line[] {
-  if (month == null || month < 0) return [];
-  const cc = (country ?? "IN").toUpperCase();
-  const south = SOUTH.has(cc);
-  const m = south ? (month + 6) % 12 : month; // flip the seasons south of the equator
-  if (MONSOON.has(cc) && month >= 5 && month <= 8) return [["Monsoon mode", "Pack a raincoat. And a backup raincoat."], ["Rain check", "Everything's greener in the rain"]];
+const TROPICAL = new Set(["TH", "ID", "SG", "MV", "MY", "LK", "PH", "KH", "LA", "VN", "SC", "MU", "FJ", "JM", "DO", "CU", "CR", "PA", "PF", "BD", "BN", "CK", "EC", "CO", "BS", "BB", "KY"]);
+const DRY_HIGH = /\b(ladakh|leh|zanskar|nubra|pangong|spiti|kargil)\b/i;
+const OCT_DEC_RAIN = /\b(chennai|madras|pondicherry|puducherry|pondy|mahabalipuram|rameswaram|tamil nadu)\b/i;
+function seasonLines(month?: number | null, country?: string | null, o: { city?: string | null; text?: string | null; mood?: string | null } = {}): Line[] {
+  const cc = (country ?? "").toUpperCase();
+  if (month == null || month < 0 || month > 11 || !cc) return [];
+  const where = `${o.city ?? ""} ${o.text ?? ""}`;
+  if (MONSOON.has(cc) && !DRY_HIGH.test(where)) {
+    const [from, to] = OCT_DEC_RAIN.test(where) ? [9, 11] : [5, 8];
+    if (month >= from && month <= to) return [["Monsoon mode", "Pack a raincoat. And a backup raincoat."], ["Rain check", "Everything's greener in the rain"]];
+  }
+  // Warm all year (a hot day and a warm night): "winter" and "autumn" lines would be wrong.
+  const w = climateFor(o.city ?? "", cc, month);
+  const warm = Boolean(w && w.hi >= 26 && w.lo >= 15);
+  if (o.mood === "beach" || TROPICAL.has(cc) || warm) return [];
+  const m = SOUTH.has(cc) ? (month + 6) % 12 : month; // flip the seasons south of the equator
   if (m === 11 || m <= 1) return [["Winter trip", "Layers, layers, layers"], ["Cosy season", "Hot drinks, warm jackets, early nights (not)"]];
   if (m >= 2 && m <= 4) return [["Spring trip", "Perfect weather, no excuses"], ["Fresh season", "Long days, light bags"]];
   if (m >= 5 && m <= 7) return [["Summer trip", "Sunscreen is a personality now"], ["Long days", "The sun sets late. So do you."]];
@@ -218,9 +236,10 @@ function seasonLines(month?: number | null, country?: string | null): Line[] {
 }
 
 // About the people: just you, two of you, a few, or a whole squad.
-function crewLines(people: number): Line[] {
+// The two-person lines are for a couple's group only; two colleagues or two friends get words that fit anyone.
+function crewLines(people: number, couple = false): Line[] {
   if (people <= 1) return [["Solo mode", "Your pace, your plan, your playlist"], ["Table for one", "Eat where you like, for as long as you like"]];
-  if (people <= 2) return [["Just you two", "Table for two, every night 💛"], ["Couple goals", "One splits the bill, one picks the place"]];
+  if (people <= 2) return couple ? [["Just you two", "Table for two, every night 💛"], ["Couple goals", "One splits the bill, one picks the place"]] : [["Just you two", "Easy to plan, easy to split"], ["Two of you", "One picks the place, one picks the playlist"]];
   if (people <= 4) return [["Small crew", `${people} of you. Perfect car size.`], ["Group decision", "It takes 20 minutes to pick a restaurant"]];
   if (people <= 8) return [["The squad", `${people} of you. Somebody's always late.`], ["Group chat", `${people} opinions on where to eat`]];
   return [["Full house", `${people} of you. That's a lot of receipts.`], ["Headcount", "Count everyone before you leave. Twice."]];
@@ -263,13 +282,43 @@ export function rotate(list: Line[], seed: string, day: number, k: number, skip:
 // Every list of lines, for the tests (no line may be in two lists, so two trips never share words).
 export const STORY_POOLS = { PLACE, MOOD, FLAVOUR, seasonLines, crewLines, worldLines };
 
+// Which hand-written place lines fit a trip: only when the trip names that exact place (or, for a country's own lines, a place in that
+// country). A neighbour (Shimla for Manali, Jodhpur for Jaipur) gets the generic city and country lines instead.
+const EXACT_NAMES: Record<string, RegExp> = {
+  goa: /\b(goa|baga|calangute|anjuna|palolem)\b/i, thailand: /\b(thailand|thai)\b/i, bali: /\b(bali|ubud|seminyak|nusa)\b/i, dubai: /\bdubai\b/i,
+  manali: /\bmanali\b/i, ladakh: /\b(ladakh|leh|zanskar|pangong|nubra)\b/i,
+  kerala: /\b(kerala|alleppey|alappuzha|munnar|kochi|cochin|varkala|wayanad|kumarakom|thiruvananthapuram|trivandrum|kovalam|kozhikode|calicut|thrissur)\b/i,
+  singapore: /\bsingapore\b/i, maldives: /\bmaldives\b/i, vietnam: /\b(vietnam|hanoi|ha ?long|da ?nang|saigon|ho chi minh|hoi ?an)\b/i, srilanka: /\b(sri ?lanka|colombo|kandy|galle|ceylon)\b/i,
+  japan: /\b(japan|tokyo|kyoto|osaka|hokkaido)\b/i, london: /\blondon\b/i, jaipur: /\bjaipur\b/i, nepal: /\b(nepal|kathmandu|pokhara)\b/i,
+  andaman: /\b(andaman|havelock|port ?blair|neil island)\b/i, rishikesh: /\brishikesh\b/i, newyork: /\b(new ?york|nyc|manhattan|brooklyn)\b/i, santorini: /\bsantorini\b/i,
+  bhutan: /\b(bhutan|thimphu|paro|punakha)\b/i, meghalaya: /\b(meghalaya|shillong|cherrapunji|dawki)\b/i, switzerland: /\b(switzerland|swiss|zurich|interlaken|zermatt|lucerne)\b/i,
+  ahmedabad: /\bahmedabad\b/i, alibaug: /\b(alibaug|alibag)\b/i, amritsar: /\b(amritsar|golden temple)\b/i, chikmagalur: /\b(chikmagalur|chikkamagaluru)\b/i,
+  coorg: /\b(coorg|kodagu|madikeri)\b/i, corbett: /\b(corbett|jim corbett)\b/i, darjeeling: /\bdarjeeling\b/i, delhi: /\b(delhi|new delhi)\b/i, gokarna: /\b(gokarna|gokarn)\b/i,
+  hampi: /\bhampi\b/i, hyderabad: /\b(hyderabad|secunderabad)\b/i, jaisalmer: /\bjaisalmer\b/i, kashmir: /\b(kashmir|srinagar|gulmarg|pahalgam|sonmarg)\b/i,
+  kodaikanal: /\b(kodaikanal|kodai)\b/i, kolkata: /\b(kolkata|calcutta)\b/i, kutch: /\b(kutch|kachchh|rann)\b/i, lonavala: /\b(lonavala|lonavla|khandala)\b/i,
+  mahabaleshwar: /\bmahabaleshwar\b/i, matheran: /\bmatheran\b/i, mumbai: /\b(mumbai|bombay)\b/i, mussoorie: /\b(mussoorie|landour)\b/i, mysore: /\b(mysore|mysuru)\b/i,
+  nainital: /\b(nainital|bhimtal)\b/i, ooty: /\b(ooty|udhagamandalam|coonoor|nilgiris?)\b/i, pondicherry: /\b(pondicherry|puducherry|pondy|auroville)\b/i, pune: /\b(pune|poona)\b/i,
+  sikkim: /\b(sikkim|gangtok)\b/i, udaipur: /\budaipur\b/i, varanasi: /\b(varanasi|banaras|benares|kashi)\b/i,
+};
+// A key that is a whole country's lines also fits any place the trip has in that country.
+const EXACT_COUNTRY: Record<string, string> = { thailand: "TH", singapore: "SG", maldives: "MV", vietnam: "VN", srilanka: "LK", japan: "JP", nepal: "NP", bhutan: "BT", switzerland: "CH" };
+export function namesThePlace(key: string, text: string, country?: string | null): boolean {
+  const re = EXACT_NAMES[key] ?? new RegExp(`\\b${key}\\b`, "i");
+  if (re.test(text)) return true;
+  const cc = EXACT_COUNTRY[key];
+  return Boolean(cc && country && country.toUpperCase() === cc);
+}
+
 // The lines for one trip story: the place's own first, then the kind of trip, then the crew.
 // `seed` is the trip, `day` moves the lines on each day by `step` (how many a day's story shows), and `avoid` holds lines already used
 // by other stories on the same Home.
-export function storyLines(o: { month?: number | null; place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; day?: number; step?: number; avoid?: Set<string>; n?: number }): Line[] {
-  // The place's own hand-written lines, else lines for its city and country (any country in the world).
-  const handWritten = (o.place && PLACE[o.place.replace(/^place-/, "").replace(/^kyoto$/, "japan")]) || [];
-  const own = handWritten.length ? handWritten : worldLines(o.country, o.city, o.countryName, o.flag);
+export function storyLines(o: { month?: number | null; place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; day?: number; step?: number; avoid?: Set<string>; n?: number; home?: string | null; couple?: boolean; placeText?: string | null }): Line[] {
+  // The place's own hand-written lines (only when the trip names that exact place: `placeText` is its name and "Where to?"), else lines
+  // for its city and country (any country in the world). `home` is the viewer's country, `couple` is true for a couple's group.
+  const key = o.place ? o.place.replace(/^place-/, "").replace(/^kyoto$/, "japan") : "";
+  const exact = o.placeText == null || namesThePlace(key, o.placeText, o.country);
+  const handWritten = (key && exact && PLACE[key]) || [];
+  const own = handWritten.length ? handWritten : worldLines(o.country, o.city, o.countryName, o.flag, o.home);
   const mood = MOOD[o.mood ?? "any"];
   const n = o.n ?? 4;
   const day = o.day ?? 0;
@@ -280,8 +329,8 @@ export function storyLines(o: { month?: number | null; place?: string | null; co
     return got;
   };
   // Up to 3 about the place, then the trip's kind, then one about the crew.
-  const crew = take(crewLines(o.people), "c", 1);
-  const season = take(seasonLines(o.month, o.country), "s", 1);
+  const crew = take(crewLines(o.people, o.couple), "c", 1);
+  const season = take(seasonLines(o.month, o.country, { city: o.city, text: o.placeText, mood: o.mood }), "s", 1);
   const room = Math.max(1, n - crew.length - season.length);
   const placeLines = take(own, "", Math.min(room, own.length));
   const rest = take(mood, "m", Math.max(0, room - placeLines.length));

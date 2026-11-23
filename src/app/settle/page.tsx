@@ -97,7 +97,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         <PayView
           name={payPair.other.name}
           amount={money}
-          groupName="Direct"
+          groupName="With a person"
           ways={a ? { upiId: a.upiId, payLink: a.payLink } : null}
           payApp={buttons.length ? <PayAppButtons buttons={buttons} /> : undefined}
           tellButton={
@@ -287,7 +287,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const first = firstName(e.other.name);
     const iOwe = e.net < 0;
     const amount = formatMoney(Math.abs(e.net), e.currency);
-    const line = e.shared ? "Direct" : "Direct · only you see this";
+    const line = e.shared ? "With a person" : "With a person · only you can see this";
     const from = iOwe ? e.myId : e.other.id;
     const to = iOwe ? e.other.id : e.myId;
     const part = { groupId: e.groupId, fromId: from, toId: to, amount: Math.abs(e.net) };
@@ -335,7 +335,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                 from: "You",
                 to: e.other.name,
                 other: e.other.name,
-                groupLine: "Direct",
+                groupLine: "With a person",
                 amount,
                 tone: "owe",
                 partHref,
@@ -343,7 +343,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                 confirmLabel: "Confirm payment recorded",
                 note: SHEET_NOTE,
               }
-            : { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: e.other.name, to: "You", other: e.other.name, groupLine: "Direct", amount, tone: "owed", partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
+            : { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: e.other.name, to: "You", other: e.other.name, groupLine: "With a person", amount, tone: "owed", partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
         }
         action={settleAcrossGroups}
         fields={
@@ -362,7 +362,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
           <Initial name={e.other.name} />
           <div className="min-w-[9em] flex-1 basis-[9em] pt-0.5">
             <p className="break-words font-display text-[20px] font-semibold leading-tight tracking-[-0.01em] hyphens-auto">{e.other.name}</p>
-            <p className="mt-0.5 break-words text-[14px] text-fg/60">{e.shared ? "Direct" : "Direct · only you see this"}</p>
+            <p className="mt-0.5 break-words text-[14px] text-fg/60">{e.shared ? "With a person" : "With a person · only you can see this"}</p>
           </div>
         </Link>
         <p className="mt-3 font-display text-[24px] font-semibold leading-none tracking-[-0.02em] text-fg" data-settle-amount>
@@ -465,8 +465,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       )}
 
       {direct.length > 0 && (
-        <section id="direct" className="scroll-mt-6" aria-label="With people directly" data-direct-section>
-          <h2 className="mb-2.5 mt-7 px-1 text-[13px] font-semibold tracking-[0.14em] text-fg/75">WITH PEOPLE DIRECTLY</h2>
+        <section id="direct" className="scroll-mt-6" aria-label="With a person" data-direct-section>
+          <h2 className="mb-2.5 mt-7 px-1 text-[13px] font-semibold tracking-[0.14em] text-fg/75">WITH A PERSON</h2>
           <nav aria-label="Show" className="mb-3 flex gap-1 rounded-full border border-line p-1">
             {filterLink("open", "Open")}
             {filterLink("all", "All")}
@@ -479,7 +479,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
               Search
             </button>
           </form>
-          {directShown.length === 0 && <p className="px-1 py-3 text-[15px] text-fg/65" data-direct-none>{q ? "Nobody by that name here." : show === "settled" ? "Nobody is settled yet." : "Nothing to settle with anyone directly."}</p>}
+          {directShown.length === 0 && <p className="px-1 py-3 text-[15px] text-fg/65" data-direct-none>{q ? "Nobody by that name here." : show === "settled" ? "Nobody is settled yet." : "Nothing to settle with a person."}</p>}
           {dOwe.length > 0 && (
             <>
               {sectionHead("YOU OWE", dOwe.length)}

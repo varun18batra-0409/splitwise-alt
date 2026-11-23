@@ -6,7 +6,7 @@ export type GroupType = "trip" | "home" | "couple" | "pot" | "other";
 
 export const GROUP_TYPES: { id: GroupType; label: string; hint: string; namePlaceholder: string }[] = [
   { id: "trip", label: "Trip", hint: "Travel together, any currency", namePlaceholder: "Goa trip" },
-  { id: "home", label: "Home", hint: "Flatmates or family. Rent, bills, groceries", namePlaceholder: "Flat 402" },
+  { id: "home", label: "Flat or family", hint: "Flatmates or family. Rent, bills, groceries", namePlaceholder: "Flat 402" },
   { id: "couple", label: "Couple", hint: "The two of you, your own split", namePlaceholder: "Us" },
   { id: "pot", label: GAME_NIGHT, hint: "Cards or board games: the score, who pays", namePlaceholder: "Friday game night" },
   { id: "other", label: "Anything goes", hint: "Dinners, gifts, a party", namePlaceholder: "Friday dinners" },

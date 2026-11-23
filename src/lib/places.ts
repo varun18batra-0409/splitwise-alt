@@ -23,7 +23,7 @@ const PLACES: [RegExp, string][] = [
   [/\b(kyoto)\b/i, "place-kyoto"],
   [/\b(japan|tokyo|osaka|hokkaido)\b/i, "place-japan"],
   [/\b(edinburgh)\b/i, "place-edinburgh"],
-  [/\b(london|england|uk|scotland|edinburgh)\b/i, "place-london"],
+  [/\b(london|england|united kingdom|scotland|edinburgh)\b/i, "place-london"],
   [/\b(jaipur|rajasthan|jodhpur|pushkar)\b/i, "place-jaipur"],
   [/\b(nepal|kathmandu|pokhara|everest|annapurna)\b/i, "place-nepal"],
   [/\b(andaman|havelock|port ?blair|neil island)\b/i, "place-andaman"],
@@ -139,7 +139,7 @@ const PLACES: [RegExp, string][] = [
   [/\b(rio de janeiro|rio)\b/i, "place-rio"],
   [/\b(machu picchu|cusco|cuzco|inca trail)\b/i, "place-machu-picchu"],
   [/\b(paris|france)\b/i, "cover-paris"],
-  [/\b(agra|taj)\b/i, "cover-taj"],
+  [/\b(agra|taj mahal)\b/i, "cover-taj"],
 ];
 
 // By the trip's emoji (its mood), when the place isn't one we know.

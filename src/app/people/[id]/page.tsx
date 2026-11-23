@@ -172,7 +172,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           <SettleCard
             id={`person-${group.id}`}
             name={name}
-            groupLine="Direct"
+            groupLine="With a person"
             amount={amount}
             tone={owed ? "owed" : "owe"}
             lead={{
@@ -206,8 +206,8 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             }
             sheet={
               owed
-                ? { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: name, to: "You", other: name, groupLine: "Direct", amount, tone: "owed", partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
-                : { title: "Record payment", subtitle: `Confirm only after you’ve paid ${first}.`, from: "You", to: name, other: name, groupLine: "Direct", amount, tone: "owe", partHref, confirmLabel: "Confirm payment recorded", note: SHEET_NOTE }
+                ? { title: "Mark received", subtitle: `Confirm only after ${first} has paid you.`, from: name, to: "You", other: name, groupLine: "With a person", amount, tone: "owed", partHref, confirmLabel: "Confirm payment received", note: SHEET_NOTE }
+                : { title: "Record payment", subtitle: `Confirm only after you’ve paid ${first}.`, from: "You", to: name, other: name, groupLine: "With a person", amount, tone: "owe", partHref, confirmLabel: "Confirm payment recorded", note: SHEET_NOTE }
             }
             action={settleAcrossGroups}
             fields={
@@ -269,9 +269,12 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
         )}
       </section>
 
-      <p className="mt-6 px-1 text-[13.5px] leading-snug text-fg/60" data-settle-footnote>
-        {PAYMENT_LINE}
-      </p>
+      {/* The payment note belongs next to a payment: with nothing owed there is no form for it to explain. */}
+      {net !== 0 && (
+        <p className="mt-6 px-1 text-[13.5px] leading-snug text-fg/60" data-settle-footnote>
+          {PAYMENT_LINE}
+        </p>
+      )}
 
       {showUndo && justDid && (
         <UndoBar

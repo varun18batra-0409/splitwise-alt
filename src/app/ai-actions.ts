@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getAccount, getMyMemberId } from "@/lib/identity";
-import { aiAllowed, readLine } from "@/lib/ai";
+import { AI_DOWN, AI_DOWN_LINE, aiAllowed, readLine } from "@/lib/ai";
 import { aiConsentFor, consentAccountId, consentRefusal, recordAiConsent, type AiConsent } from "@/lib/ai-consent";
 
 // "Dinner twenty-four hundred, Ravi paid, everyone except Dev": when the
@@ -20,10 +20,11 @@ export async function readLineAction(
   const consent = await aiConsentFor(await consentAccountId(me.accountId));
   const refusal = consentRefusal(consent);
   if (refusal) return { ok: false, error: refusal.error, needsConsent: refusal.needsConsent, consent };
-  const blocked = await aiAllowed(me.accountId ?? me.id);
+  const blocked = await aiAllowed(me.accountId ?? me.id, "line");
   if (blocked) return { ok: false, error: blocked };
   const people = await db.member.findMany({ where: { groupId, leftAt: null }, select: { id: true, name: true }, take: 60 });
   const r = await readLine(text.slice(0, 300), people.map((p) => ({ id: p.id, name: p.name.split(" ")[0] })), me.id, me.group.currency);
+  if (r === AI_DOWN) return { ok: false, error: AI_DOWN_LINE };
   if (!r || (!r.amount && !r.paidBy && !r.forIds)) return { ok: false, error: "Couldn’t pick out an amount or names. Try: “Cab 600, Ravi paid, everyone”." };
   return { ok: true, name: r.name, amount: r.amount ? String(r.amount) : "", currency: r.currency, paidById: r.paidBy, forIds: r.forIds };
 }

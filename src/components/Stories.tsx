@@ -199,6 +199,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   const [at, setAt] = useState({ s: start, f: 0 });
   const [paused, setPaused] = useState(false);
   const [userPaused, setUserPaused] = useState(false); // the Pause / Play button
+  const [mouse, setMouse] = useState(false); // a mouse or trackpad: the hint says click and Esc, not swipe
   const [tabHidden, setTabHidden] = useState(false); // another tab or app is on top: don't run the clock
   const [still, setStill] = useState(false); // the phone asks for less motion: no auto-advance
   // Gestures: hold to pause, drag down to close, swipe sideways for the next or previous story,
@@ -267,6 +268,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
 
   useEffect(() => {
     setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    setMouse(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
     history.pushState({ ...(history.state ?? {}), lpStory: 1 }, "");
     const pop = () => onClose();
     const key = (e: KeyboardEvent) => {
@@ -397,7 +399,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
             {story.cta}
           </Link>
           <p className="text-[10px] leading-tight" style={{ color: `${ink}99` }}>
-            Hold to pause. Swipe up to open, down to close.
+            {mouse ? "Hold to pause. Use the button to open, Esc to close." : "Hold to pause. Swipe up to open, down to close."}
           </p>
         </div>
       </div>

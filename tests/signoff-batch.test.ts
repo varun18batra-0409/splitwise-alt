@@ -105,7 +105,7 @@ describe("AS-3 review fixes", () => {
     expect(sheet).toContain("only on this device. Move");
     const out = src("src/app/account/sign-in/page.tsx");
     for (const t of ["These groups are only on this device and will be lost from it", "Move them first", "Sign out anyway"]) expect(out).toContain(t);
-    expect(out).toContain("They stay safe in your email"); // still said when nothing is only on this device
+    expect(out).toContain("They stay safe in your account"); // still said when nothing is only on this device
   });
   it("the email link asks two plain questions when guest groups exist, and one when they don't", () => {
     const v = src("src/app/signin/verify/page.tsx");

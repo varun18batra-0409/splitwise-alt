@@ -17,9 +17,9 @@ describe("the slim Net card", () => {
     expect(c.amount).toBe("₹22,316");
     expect(c.lines.map((l) => [l.kind, l.sign, l.amount, l.text])).toEqual([
       ["group", "+", 2291600, "Group +₹22,916"],
-      ["direct", "−", -60000, "Non-group −₹600"],
+      ["direct", "−", -60000, "With a person −₹600"],
     ]);
-    expect(c.aria).toBe("Net, you’re owed ₹22,316. Group +₹22,916, Non-group −₹600. Open Settle up");
+    expect(c.aria).toBe("Net, you’re owed ₹22,316. Group +₹22,916, With a person −₹600. Open Settle up");
   });
   it("(2) you owe 50000 (₹500) in groups, you're owed 20000 (₹200) directly: net 20000 - 50000 = -30000, you owe ₹300; lines −₹500 and +₹200", () => {
     const c = card([inr(-50000, false), inr(20000, true)]);
@@ -30,7 +30,7 @@ describe("the slim Net card", () => {
     expect(c.amount).toBe("₹300");
     expect(c.lines.map((l) => [l.kind, l.sign, l.text])).toEqual([
       ["group", "−", "Group −₹500"],
-      ["direct", "+", "Non-group +₹200"],
+      ["direct", "+", "With a person +₹200"],
     ]);
   });
   it("(3) only groups, owed 2291600: net 2291600 and no lines (a single line would only repeat the net)", () => {
@@ -74,7 +74,7 @@ describe("the slim Net card", () => {
     expect(c.value).toBe(100000);
     expect(c.approx).toBe(true);
     expect(c.amount).toBe("≈ ₹1,000");
-    expect(c.lines.map((l) => l.text)).toEqual(["Group +₹100", "Non-group ≈ +₹900"]);
+    expect(c.lines.map((l) => l.text)).toEqual(["Group +₹100", "With a person ≈ +₹900"]);
   });
   it("a currency with no saved rate is not added into another: each currency on its own, no lines, never All square", () => {
     // ₹500 owed and €20 owed, no rate: "₹500 · EUR 20", you're owed

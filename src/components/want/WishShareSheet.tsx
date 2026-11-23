@@ -128,7 +128,7 @@ export function WishShareSheet({
                     ))}
                   </ul>
                 )}
-                {anyLocked && <p className="mt-3 text-sm text-fg/65">A locked tick means this friend was given your whole list, so {one?.name ?? "this place"} can’t be hidden from them here. To change that, pick “Whole list” above.</p>}
+                {anyLocked && <p className="mt-3 text-sm text-fg/65">A locked tick means that friend sees your whole list. To stop that, pick “Whole list” above and untick them.</p>}
               </div>
               <div className="border-t border-line px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-3">
                 <SaveButton none={friends.length === 0} />
