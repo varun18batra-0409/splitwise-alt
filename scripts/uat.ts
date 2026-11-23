@@ -2204,7 +2204,7 @@ async function main() {
     assert(!/splitwise/i.test(all), "a slide names another app");
     // The group kinds use the app's own names (as New group), and the last slide has no "Get the Loopin app" card pushing the sign-up line off.
     for (const t of ["Trip", "Flat or family", "Couple", "Game night"]) assert(all.includes(t), `the tour's group kinds miss “${t}”`);
-    assert(!/Flat\b|Card night|The Pot/.test(all.replace(/Flat expenses/g, "")), "the tour still says Flat / Card night / The Pot");
+    assert(!/Flat\b|Card night|The Pot/.test(all.replace(/Flat expenses|Flat or family/g, "")), "the tour still says Flat / Card night / The Pot");
     assert(!/Get the Loopin app/.test(all), "the tour has a “Get the Loopin app” card");
     assert((await page.locator("[data-story-lines] li").allTextContents()).length === 3, "the story poster doesn't show its three Wrapped lines");
     // We are on the last step now: "Create your first group" is the main button and "See it again" is small; "Next" is gone.
