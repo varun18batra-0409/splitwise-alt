@@ -4,7 +4,7 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, wit
 import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
 import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
 import { typedZero } from "../zero-amount";
-import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, isStopped, monthsBetween, ordinalDay, pausedDays, periodsDue, toggleMissed } from "./bills";
+import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, isStopped, monthsBetween, ordinalDay, pausedDays, periodsDue, skipTarget, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
@@ -25,6 +25,7 @@ const PAUSED_TYPE = (bill: string) => `${bill} is paused, so its type can’t ch
 const CHANGED_NOW = (bill: string) => `${bill} changed just now. Check it and try again.`;
 const dayLabel = (day: string) => `${Number(day.slice(8, 10))} ${SHORT_MONTHS[Number(day.slice(5, 7)) - 1] ?? ""}`;
 class BillLocked extends Error {}
+class SkipRefused extends Error {}
 // The split as people, not as text: the same people and amounts compare equal whatever order or spacing the JSON has.
 const splitKey = (json: string) => {
   const v = parseSplit(json);
@@ -196,52 +197,63 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
 }
 
 // Skip this month, pause, resume or stop a bill.
-export async function billCommand(groupId: string, actorId: string, billId: string, command: string, now = new Date(), opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
+export async function billCommand(groupId: string, actorId: string, billId: string, command: string, now = new Date(), opts: { afterRead?: () => Promise<void>; period?: string } = {}): Promise<Result> {
   const bill = await db.bill.findFirst({ where: { id: billId, groupId, deletedAt: null }, include: { group: { include: { members: true } } } });
   if (!bill) return { ok: false, error: "That bill no longer exists." };
   if (!bill.group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change bills." };
   if (command === "skip") {
-    // Skip the month that's waiting, or else this month (if not added yet), or next month.
-    const waiting = await db.billRun.findFirst({ where: { billId, status: "waiting", reason: { not: "deleted" } }, orderBy: { period: "asc" } }); // (a month waiting because its expense was deleted is not skipped here)
+    // Skip exactly the month the form named (the oldest waiting month, else the next coming one, as the page showed). Called without a
+    // month (older callers), it works out the same month itself.
+    const target = opts.period !== undefined ? opts.period : skipTarget(bill, await db.billRun.findMany({ where: { billId }, select: { period: true, status: true, reason: true } }), now);
+    if (!target || !/^\d{4}-(0[1-9]|1[0-2])$/.test(target)) return { ok: false, error: "There’s no coming month to skip." };
+    const period: string = target;
     // A daily bill's month that already has a move-out share charged can't be skipped (the share would be left with no month-end bill).
     // Read again inside the write (a move-out can commit a charge in the gap), never from the first look.
-    const charged = async (tx: Prisma.TransactionClient, period: string) => {
+    const charged = async (tx: Prisma.TransactionClient) => {
       const now2 = await tx.bill.findUnique({ where: { id: billId }, select: { nature: true, prepaid: true } });
       return Boolean(now2 && now2.nature === "daily" && (parsePrepaid(now2.prepaid)[period] ?? []).length > 0);
     };
+    // The first month from this one that the bill comes round in (a bill every 2 months comes in its own months).
+    const comesIn = (p: string) => p >= bill.startMonth && monthsBetween(bill.startMonth, p) % Math.max(1, bill.every) === 0 && (!bill.endMonth || p <= bill.endMonth);
     await opts.afterRead?.();
-    if (waiting) {
-      // Only while it is still waiting: if it was added in the gap, nothing is skipped.
-      const done = await db.$transaction(async (tx) => {
-        if (await charged(tx, waiting.period)) return "charged" as const;
-        const c = await tx.billRun.updateMany({ where: { id: waiting.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
-        return c.count === 1 ? ("ok" as const) : ("added" as const);
+    // Only that month, and only if it is still as it was: waiting becomes skipped; a month with no row gets a skipped row; anything else
+    // (added, being added, already skipped, taken by the daily job in the gap) is refused and nothing is logged.
+    let done: "ok" | "quiet" | "charged" | "added" | "none";
+    try {
+      done = await db.$transaction(async (tx) => {
+        if (await charged(tx)) return "charged" as const;
+        const row = await tx.billRun.findUnique({ where: { billId_period: { billId, period } } });
+        if (row) {
+          if (row.status === "waiting" && row.reason === "deleted") return "none" as const; // waiting because its expense was deleted: not skipped here
+          if (row.status === "skipped") return "quiet" as const; // a double tap or a resend: already skipped, nothing more to write or tell
+          if (row.status !== "waiting") return "added" as const;
+          const c = await tx.billRun.updateMany({ where: { id: row.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
+          if (c.count !== 1) return "added" as const;
+        } else {
+          // A stopped bill only has a waiting month left to skip: its last month must not be skipped away. A paused daily bill still has the
+          // month it was paused in to add: skipping it would lose the days used before the pause.
+          if (isStopped(bill) || (bill.paused && bill.nature === "daily")) return "none" as const;
+          if (!comesIn(period) || period < dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7)) return "none" as const;
+          try {
+            await tx.billRun.create({ data: { billId, period, status: "skipped", reason: "skipped" } });
+          } catch (err) {
+            if (isDuplicateKey(err)) throw new SkipRefused(); // the daily job took this month in the gap
+            throw err;
+          }
+        }
+        // Read it back: only a month that now says "skipped" counts (nothing is rolled forward on a guess).
+        const back = await tx.billRun.findUnique({ where: { billId_period: { billId, period } }, select: { status: true } });
+        if (back?.status !== "skipped") throw new SkipRefused();
+        return "ok" as const;
       });
-      if (done === "charged") return { ok: false, error: SKIP_LOCKED(bill.name) };
-      if (done === "added") return { ok: false, error: `${bill.name} was just added, so it wasn’t skipped. You’ll find it in Activity.` };
-    } else if (isStopped(bill)) {
-      // A stopped bill only has a waiting month left to skip: its last month must not be skipped away.
-      return { ok: false, error: "There’s no coming month to skip." };
-    } else if (bill.paused && bill.nature === "daily") {
-      // A paused daily bill still has the month it was paused in to add: skipping it would lose the days used before the pause.
-      return { ok: false, error: "There’s no coming month to skip." };
-    } else {
-      // The first month from this one that the bill comes round in and isn't added yet
-      // (a bill every 2 months skips its next real month).
-      const comesIn = (p: string) => p >= bill.startMonth && monthsBetween(bill.startMonth, p) % Math.max(1, bill.every) === 0 && (!bill.endMonth || p <= bill.endMonth);
-      let next: string | null = null;
-      for (let i = 0, p = dayKey(now, bill.tz).slice(0, 7); i < 36 && !next; i++, p = addMonths(p, 1)) {
-        if (comesIn(p) && !(await db.billRun.findUnique({ where: { billId_period: { billId, period: p } } }))) next = p;
-      }
-      if (!next) return { ok: false, error: "There’s no coming month to skip." };
-      const period = next;
-      const locked = await db.$transaction(async (tx) => {
-        if (await charged(tx, period)) return true;
-        await tx.billRun.upsert({ where: { billId_period: { billId, period } }, create: { billId, period, status: "skipped", reason: "skipped" }, update: {} });
-        return false;
-      });
-      if (locked) return { ok: false, error: SKIP_LOCKED(bill.name) };
+    } catch (err) {
+      if (!(err instanceof SkipRefused)) throw err;
+      done = "added";
     }
+    if (done === "charged") return { ok: false, error: SKIP_LOCKED(bill.name) };
+    if (done === "quiet") return { ok: true, id: billId };
+    if (done === "none") return { ok: false, error: "There’s no coming month to skip." };
+    if (done === "added") return { ok: false, error: `${bill.name} was just added, so it wasn’t skipped. You’ll find it in Activity.` };
     await finishStoppedBill(billId, now).catch(() => false); // skipping the last waiting month of a stopped bill finishes it
   } else if (command === "pause") {
     // Nothing is charged now: the days so far are added with the monthly bill on the 1st (see periodsDue).

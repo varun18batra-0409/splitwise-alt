@@ -86,7 +86,12 @@ export async function saveBill(formData: FormData) {
 export async function changeBill(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const billId = String(formData.get("billId") ?? "");
-  const r = await billCommand(groupId, await me(groupId), billId, String(formData.get("command") ?? ""));
+  const command = String(formData.get("command") ?? "");
+  const actor = await me(groupId);
+  // Skip names the month it was shown for. A form from before this (no month) is not guessed at: look again.
+  const period = formData.get("period");
+  if (command === "skip" && period === null) redirect(await flashTo(["groups", groupId, "bills", billId], { error: FORM_OUT_OF_DATE }));
+  const r = await billCommand(groupId, actor, billId, command, new Date(), command === "skip" ? { period: String(period) } : {});
   if (!r.ok) redirect(await flashTo(["groups", groupId, "bills", billId], { error: r.error }));
   redirect(formData.get("command") === "stop" ? `/groups/${groupId}?tab=bills` : `/groups/${groupId}/bills/${billId}?saved=1`);
 }

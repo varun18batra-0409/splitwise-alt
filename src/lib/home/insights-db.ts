@@ -12,6 +12,7 @@ import { monthSummary } from "./summary";
 import { buildExpense } from "../expense";
 import { allocateByWeights } from "../split";
 import { billExpenseInput, splitProblem } from "./bills-db";
+import { monthsBetween } from "./bills";
 import { categoryJumps, forecast, monthlySummaryText, sameDayDuplicates, utilityJumps } from "./insights";
 
 type Expenses = (Parameters<typeof monthSummary>[0][number] & { id: string; description: string })[];
@@ -64,8 +65,13 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
     // is left out of the total as well as out of "your share".
     const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
     const active = members.filter((m) => !m.leftAt);
-    const usable = bills.filter((b) => !splitProblem(b.split, active.map((m) => m.id)));
-    const perBillFixed = usable.filter((b) => b.nature === "fixed").map((b) => ({ b, amount: Math.round(b.amount / Math.max(1, b.every)) }));
+    // Only a bill that really comes next month: next month is inside its start and end, falls on its own cycle (every 2 months
+    // = every other month), and isn't already skipped. A bill that comes then counts in full.
+    const skippedNext = new Set((await db.billRun.findMany({ where: { period: next, status: "skipped", bill: { groupId } }, select: { billId: true } })).map((r) => r.billId));
+    const dueNext = (b: (typeof bills)[number]) =>
+      next >= b.startMonth && (!b.endMonth || next <= b.endMonth) && monthsBetween(b.startMonth, next) % Math.max(1, b.every) === 0 && !skippedNext.has(b.id);
+    const usable = bills.filter((b) => dueNext(b) && !splitProblem(b.split, active.map((m) => m.id)));
+    const perBillFixed = usable.filter((b) => b.nature === "fixed").map((b) => ({ b, amount: b.amount }));
     const perBillVaries = usable.filter((b) => b.nature === "varies").map((b) => {
       const past = history.filter((h) => h.name === b.name).slice(0, 3).map((h) => h.amount);
       return { b, past: past.length ? past : b.amount ? [b.amount] : [] };

@@ -9,7 +9,7 @@ import { billVersion } from "@/lib/home/bill-setup";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { changeBill, toggleMissedDay } from "@/app/bill-actions";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
-import { billHold, countedMissed, dailyTotal, isStopped, missedDays, payerFor } from "@/lib/home/bills";
+import { billHold, countedMissed, dailyTotal, isStopped, missedDays, payerFor, skipTarget } from "@/lib/home/bills";
 import { holdReasonNow, parseSplit, stopWordsFor } from "@/lib/home/bills-db";
 import { daysInMonth } from "@/lib/home/month";
 import { dayKey } from "@/lib/dates";
@@ -40,8 +40,11 @@ export default async function BillPage({
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
   if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
-  const bill = await db.bill.findFirst({ where: { id: billId, groupId: group.id, deletedAt: null }, include: { runs: { orderBy: { period: "desc" }, take: 6 } } });
-  if (!bill) notFound();
+  const found = await db.bill.findFirst({ where: { id: billId, groupId: group.id, deletedAt: null }, include: { runs: { orderBy: { period: "desc" }, take: 6 } } });
+  if (!found) notFound();
+  // The latest months, plus every month still waiting however old (an old waiting month must not hide behind newer added ones).
+  const waitingOlder = await db.billRun.findMany({ where: { billId: found.id, status: "waiting", id: { notIn: found.runs.map((r) => r.id) } } });
+  const bill = { ...found, runs: [...found.runs, ...waitingOlder].sort((x, y) => y.period.localeCompare(x.period)) };
 
   const tz = await getTimeZone();
   const today = dayKey(new Date(), tz);
@@ -66,6 +69,8 @@ export default async function BillPage({
   const note = stopped
     ? bill.nature === "daily" ? words?.stoppedNote : `Stopped. It stays here until its waiting month is dealt with, then ${bill.name} ends.`
     : bill.paused ? (bill.nature === "daily" ? words?.pausedNote : "Paused. It won’t be added until you start it again.") : null;
+  // The month Skip will skip: the oldest waiting month, else the next coming one (the same as the Bills tab and "Enter amount").
+  const skipPeriod = skipTarget(bill, bill.runs, new Date()) ?? "";
   const runLabel: Record<string, string> = { added: "Added", waiting: "Waiting for the amount", skipped: "Skipped", adding: "Adding…" };
 
   return (
@@ -146,6 +151,9 @@ export default async function BillPage({
             <input type="hidden" name="groupId" value={group.id} />
             <input type="hidden" name="billId" value={bill.id} />
             <input type="hidden" name="command" value="skip" />
+            <input type="hidden" name="period" value={skipPeriod} />
+            {/* The page names the month it means (hidden), so an old page can only skip that month. A confirm naming the month waits for the
+                founder's look-change decision: today's button has no question, so adding one is a visible change. */}
             <button type="submit" className={secondaryButtonClass}>
               Skip this time
             </button>

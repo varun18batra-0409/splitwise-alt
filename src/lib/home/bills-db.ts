@@ -6,7 +6,7 @@ import { sendPushTo } from "../push";
 import { askBill } from "./bill-asks";
 import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, isStopped, payerFor, periodsDue, nextDueDay, nextDueAfter, ordinalDay, stopDone, stopLines, type StopWords } from "./bills";
-import { addMonths, daysInMonth, dueKey } from "./month";
+import { daysInMonth, dueKey } from "./month";
 import { noteReplaced } from "./bill-run-link";
 import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
@@ -308,8 +308,9 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
     return wait(r.error.slice(0, 120));
   }
   // Added (a repeat of an answer already given comes back here too): the month is marked and the move-out charge credited, once.
+  const addedId = r.id;
   await db.$transaction(async (tx) => {
-    await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id, reason: "" } });
+    await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: addedId, reason: "" } });
     await syncChargePayer(tx, group.id, charges, payer);
   });
   return "added";

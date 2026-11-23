@@ -149,7 +149,13 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
     return daytime ? r : { ...r, deferred: true };
   };
 
-  await part("bills", () => runAllBills(now, stop));
+  // A bill that could not be added this time (a dropped connection, a group or bill that changed in the middle) is reported as a failure
+  // AND left for the evening run, which tries it again (each bill month is added at most once, so trying again is safe).
+  await part("bills", async () => {
+    const r = await runAllBills(now, stop);
+    if (r.failed > 0) throw Object.assign(new Error(`bills: ${r.failed} month(s) failed`), { deferred: true });
+    return r;
+  });
   await part("bill-asks", () => nudge((legacy) => sendBillAsks(now, stop, { legacy })));
   await part("reminders", () => nudge((legacy) => sendReminders(now, stop, { legacy })));
   await part("countdowns", () => nudge((legacy) => sendTripCountdowns(now, stop, { legacy })));
