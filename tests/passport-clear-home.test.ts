@@ -38,6 +38,7 @@ describe("clearing the home country", () => {
     await submit("");
     const cleared = await db.account.findUniqueOrThrow({ where: { id: a.id } });
     expect(cleared.homeCountry).toBe("");
+    expect(await db.requestKey.count({ where: { key: `home-cleared:${a.id}` } })).toBe(1); // the note was written together with the blanking
     expect((await ensureHomeCountry(cleared)).homeCountry).toBe("");
     expect((await db.account.findUniqueOrThrow({ where: { id: a.id } })).homeCountry).toBe("");
     await submit("TH");

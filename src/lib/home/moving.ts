@@ -126,9 +126,8 @@ const gcd = (a: bigint, b: bigint): bigint => (b === 0n ? a : gcd(b, a % b));
 // Weights: the flat's own split for "group", 100 each for "equal", the listed people
 // for "some". "percent": their percentage × days × rate. Rounded down once at the end,
 // so a few paise stay with the month-end bill, never with the leaver.
-// `fromDay`: the first day that can still be charged (the day after the last part charge; 1 when there is none), so a leaver is
-// never charged for days a part charge already covered.
-export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: string, members: DailyMember[], leaverId: string, fromDay = 1): DailyPrecharge {
+// `fromDay`: the first day to look at (1 normally); `skip`: days a live part charge already covered, so a leaver is never charged for them again.
+export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: string, members: DailyMember[], leaverId: string, fromDay = 1, skip: ReadonlySet<number> = new Set()): DailyPrecharge {
   const split = parseSplitRule(bill.split);
   if (split.mode === "amounts") return { days: 0, missed: [], amount: 0, unsupported: true };
   const leaver = members.find((m) => m.id === leaverId);
@@ -148,7 +147,7 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
   const stayed: number[] = [];
   const stayedMissed: number[] = [];
   for (let d = Math.max(1, fromDay); d <= last; d++) {
-    if (!present(leaver, d)) continue;
+    if (skip.has(d) || !present(leaver, d)) continue; // (a day a live part charge covers is not charged again)
     (missed.includes(d) ? stayedMissed : stayed).push(d);
     if (!missed.includes(d)) days++;
   }
@@ -178,7 +177,7 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
 // What a daily bill has already had charged for a month at move-out: {"2026-11":[{m,a,e,d}]}
 // (m = who, a = their share, e = the expense that charged it, d = their last day).
 // k = "part": the month so far, charged to everyone when the bill was paused or stopped (m is empty, d is the last day it covers).
-export type Prepaid = { m: string; a: number; e: string; d?: string; k?: "part" };
+export type Prepaid = { m: string; a: number; e: string; d?: string; k?: "part"; f?: number }; // f: a part charge's first day
 
 // The last day of the month that live part charges cover (0 = none).
 export function lastPartDay(list: Prepaid[]): number {

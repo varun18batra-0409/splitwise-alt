@@ -1,6 +1,5 @@
 import type { Prisma } from "@prisma/client";
 import { parsePrepaid } from "./moving";
-import { dayRangeLabel } from "./bills";
 
 // An automatic bill's expense and its month are tied together by the bill's month row (BillRun.expenseId).
 // Deleting that expense puts the month back to "waiting" (reason "deleted", the expense id is kept) so the month can be added
@@ -38,22 +37,11 @@ export async function monthIsAddedAgain(tx: Prisma.TransactionClient, expenseId:
   await tx.billRun.updateMany({ where: { expenseId, status: "waiting", reason: "deleted" }, data: { status: "added", reason: "" } });
 }
 
-// A deleted pause or stop charge ("part" charge) can't come back when another live part charge for the same bill and month already
-// covers those days (they would be charged twice). Returns the words to refuse with, or null. (A closed month is refused by chargeLock first.)
+// A pause or stop charge ("part" charge) can be deleted (its days are simply not charged any more, and are charged again exactly once at the
+// next pause, stop or month end) but never brought back: bringing it back after those days were charged again would count them twice.
+export const PART_CANT_COME_BACK = "This charge can't come back. Those days will be added again at the next pause, stop or month end.";
 export async function partRestoreRefusal(tx: Prisma.TransactionClient, e: { id: string; groupId: string }): Promise<string | null> {
-  const bills = await tx.bill.findMany({ where: { groupId: e.groupId, prepaid: { contains: e.id } }, select: { name: true, prepaid: true } });
-  for (const b of bills) {
-    for (const [period, list] of Object.entries(parsePrepaid(b.prepaid))) {
-      const mine = list.find((x) => x.e === e.id && x.k === "part");
-      if (!mine) continue;
-      const others = list.filter((x) => x.k === "part" && x.e !== e.id);
-      if (!others.length) continue;
-      const live = await tx.expense.count({ where: { id: { in: others.map((x) => x.e) }, deletedAt: null } });
-      if (live > 0) {
-        const to = Number((mine.d ?? "").slice(8, 10)) || 1;
-        return `${b.name} for ${dayRangeLabel(period, 1, to)} is already covered by a later charge, so this one can’t come back.`;
-      }
-    }
-  }
+  const bills = await tx.bill.findMany({ where: { groupId: e.groupId, prepaid: { contains: e.id } }, select: { prepaid: true } });
+  for (const b of bills) for (const list of Object.values(parsePrepaid(b.prepaid))) if (list.some((x) => x.e === e.id && x.k === "part")) return PART_CANT_COME_BACK;
   return null;
 }

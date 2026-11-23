@@ -497,6 +497,11 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     await guardGroup(tx, expense.groupId, { currency: expense.group.currency, actorId: actingMemberId });
     await markUndone(tx, opts.mark); // when this is an undo: marked in this very transaction
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
+    // A pause or stop charge can be deleted but never brought back (its days are charged again at the next pause, stop or month end). Restore and Undo alike.
+    if (!deleted) {
+      const part = await partRestoreRefusal(tx, expense);
+      if (part) throw new PartCovered(part);
+    }
     const locked = await chargeLock(tx, expense.groupId, expense.id);
     if (locked) throw deleted ? new ChargeLocked(locked.bill, locked.status) : new MonthAdded(locked.bill, locked.status);
     if (deleted) {
@@ -518,9 +523,6 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
       // An automatic bill's month that was added again since can't have this one back as well (it would be counted twice).
       const again = await billAddedAgain(tx, expense);
       if (again) throw new BillAddedAgain(again);
-      // A pause or stop charge whose days a later one already covers can't come back too (the days would be charged twice).
-      const covered = await partRestoreRefusal(tx, expense);
-      if (covered) throw new PartCovered(covered);
     }
     // Only if it's still in the state we saw (two taps at once change it once).
     const changed = await tx.expense.updateMany({

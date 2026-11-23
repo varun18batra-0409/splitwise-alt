@@ -92,28 +92,38 @@ describe("a money form drawn in another currency, or with none, saves nothing", 
     expect((await db.goalEntry.findMany({ where: { goalId: goal.id } })).map((e) => e.amount)).toEqual([1800]);
   });
 
-  it("bill: a USD page or no currency creates no bill", async () => {
+  it("bill: a USD page or no currency creates no bill; the same form in INR creates it", async () => {
     const w = await world();
-    const base = { groupId: w.gid, template: "other", name: "Wifi", nature: "fixed", amount: "1000", day: "1" };
+    const base = { groupId: w.gid, template: "other", name: "Wifi", nature: "fixed", amount: "1000", day: "1", payer: w.asha, split: "group" };
     await redirectOf(() => B.saveBill(form({ ...base, currency: "USD" })));
     await redirectOf(() => B.saveBill(form(base)));
     expect(await db.bill.count({ where: { groupId: w.gid } })).toBe(0);
+    await redirectOf(() => B.saveBill(form({ ...base, currency: "INR" })));
+    expect((await db.bill.findMany({ where: { groupId: w.gid } })).map((b) => [b.name, b.amount])).toEqual([["Wifi", 100000]]); // ₹1,000 = 100,000 paise
   });
 
-  it("deposit: a USD page saves no deposit and returning one from a USD page does nothing", async () => {
+  it("deposit: a USD page saves no deposit and returns none; the same form in INR saves ₹5,000 (500,000 paise) each", async () => {
     const w = await world();
-    await redirectOf(() => B.saveDeposit(form({ groupId: w.gid, heldBy: w.asha, [`d_${w.asha}`]: "5000", [`d_${w.ravi}`]: "5000", currency: "USD" })));
+    const post = (currency: string) => B.saveDeposit(form({ groupId: w.gid, heldBy: "Landlord", [`d_${w.asha}`]: "5000", [`d_${w.ravi}`]: "5000", currency }));
+    await redirectOf(() => post("USD"));
     expect(await db.deposit.count({ where: { groupId: w.gid } })).toBe(0);
     await redirectOf(() => B.returnDeposit(form({ groupId: w.gid, deductions: "100", currency: "USD" })));
     expect(await db.deposit.count({ where: { groupId: w.gid } })).toBe(0);
+    await redirectOf(() => post("INR"));
+    const shares = await db.depositShare.findMany({ where: { deposit: { groupId: w.gid } } });
+    expect(shares.map((x) => x.amount)).toEqual([500000, 500000]);
   });
 
-  it("shopping 'bought': a USD page records no expense, and the books stay at 0", async () => {
+  it("shopping 'bought': a USD page records no expense; the same form in INR records ₹250 (25,000 paise) shared 12,500 each", async () => {
     const w = await world();
-    await db.listItem.create({ data: { groupId: w.gid, text: "Milk", addedById: w.asha } });
+    await db.listItem.create({ data: { groupId: w.gid, text: "Milk", addedById: w.asha, boughtById: w.asha, boughtAt: new Date() } });
     await redirectOf(() => B.listBuy(form({ groupId: w.gid, amount: "250", currency: "USD", rid: `fc-buy-${stamp}-aaaaaa` })));
     expect(await db.expense.count({ where: { groupId: w.gid } })).toBe(0);
+    await redirectOf(() => B.listBuy(form({ groupId: w.gid, amount: "250", currency: "INR", rid: `fc-buy-${stamp}-bbbbbb` })));
+    const list = await db.expense.findMany({ where: { groupId: w.gid }, include: { shares: true } });
+    expect(list.map((e) => e.amount)).toEqual([25000]);
+    expect(list[0].shares.map((x) => x.amount).sort()).toEqual([12500, 12500]);
     const net = await checkBooks(w.gid);
-    expect(Object.values(net).every((v) => v === 0)).toBe(true);
+    expect([net[w.asha], net[w.ravi]]).toEqual([12500, -12500]);
   });
 });

@@ -84,6 +84,9 @@ export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Pr
       await tx.moment.deleteMany({ where: inG() });
       // The group is gone for good, so there is nothing left to look at: close the open reports about its moments.
       await tx.report.updateMany({ where: { kind: "moment", targetId: { in: moments.map((m) => m.id) }, status: "open" }, data: { status: "resolved", resolvedAt: new Date() } });
+      // The notes "this expense was replaced by a month added again" (a one-time key per expense, bill-run-link.ts) go with the expenses.
+      const expenseIds = (await tx.expense.findMany({ where: inG(), select: { id: true } })).map((e) => e.id);
+      for (let i = 0; i < expenseIds.length; i += 500) await tx.requestKey.deleteMany({ where: { key: { in: expenseIds.slice(i, i + 500).map((id) => `bill-replaced:${id}`) } } });
       await tx.expenseShare.deleteMany({ where: { expense: inG() } });
       await tx.expenseItem.deleteMany({ where: { expense: inG() } });
       await tx.expense.deleteMany({ where: inG() });

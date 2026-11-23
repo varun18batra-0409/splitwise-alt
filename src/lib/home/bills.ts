@@ -125,21 +125,40 @@ export function dailyTotal(b: { amount: number; missed: string }, period: string
 //   amount – gross − less, never below 0
 // `entries` are the month's live charges in the order they were written ("part" = an earlier part charge).
 // Hand-worked: ₹60 a day (6,000), 1–19 Nov, nothing missed, nothing charged: 19 × 6,000 = 114,000.
-export type MonthSoFar = { fromDay: number; toDay: number; days: number; gross: number; less: number; amount: number };
-export function monthSoFar(b: { amount: number; missed: string }, period: string, until: string, entries: { a: number; k?: string; d?: string }[]): MonthSoFar {
+export type MonthSoFar = { fromDay: number; toDay: number; lastDay: number; days: number; gross: number; less: number; amount: number };
+
+// The days of a month that live part charges cover. A part charge covers from its own first day (`f`) to its last day (`d`); an older
+// one without `f` starts the day after the part charge before it. Only live charges are passed in (a deleted one covers nothing: its days
+// are charged again at the next pause, stop or month end, exactly once).
+export function coveredDays(entries: { k?: string; d?: string; f?: number }[]): Set<number> {
+  const out = new Set<number>();
+  let prevEnd = 0;
+  for (const x of entries) {
+    if (x.k !== "part") continue;
+    const end = Number((x.d ?? "").slice(8, 10)) || 0;
+    const start = x.f && x.f > 0 ? x.f : prevEnd + 1;
+    for (let d = start; d <= end; d++) out.add(d);
+    prevEnd = end;
+  }
+  return out;
+}
+
+//   fromDay..lastDay – the first and last day still to be charged (the days it came that no live part charge covers); toDay – yesterday
+export function monthSoFar(b: { amount: number; missed: string }, period: string, until: string, entries: { a: number; k?: string; d?: string; f?: number }[]): MonthSoFar {
   const toDay = until.slice(0, 7) === period ? Number(until.slice(8, 10)) - 1 : until.slice(0, 7) > period ? daysInMonth(period) : 0;
   let lastPartAt = -1;
   entries.forEach((x, i) => {
     if (x.k === "part") lastPartAt = i;
   });
   const lastPart = lastPartAt >= 0 ? Number((entries[lastPartAt].d ?? "").slice(8, 10)) || 0 : 0;
-  const fromDay = lastPart + 1;
   const missed = missedDays(b.missed, period);
-  let days = 0;
-  for (let d = fromDay; d <= toDay; d++) if (!missed.includes(d)) days++;
+  const covered = coveredDays(entries);
+  const open: number[] = [];
+  for (let d = 1; d <= toDay; d++) if (!missed.includes(d) && !covered.has(d)) open.push(d);
+  const days = open.length;
   const gross = days * b.amount;
   const less = entries.slice(lastPartAt + 1).filter((x) => x.k !== "part").reduce((n, x) => n + x.a, 0);
-  return { fromDay, toDay, days, gross, less, amount: Math.max(0, gross - less) };
+  return { fromDay: open[0] ?? lastPart + 1, toDay, lastDay: open[open.length - 1] ?? toDay, days, gross, less, amount: Math.max(0, gross - less) };
 }
 
 const SHORT_MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

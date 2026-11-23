@@ -168,6 +168,7 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       // Each name gets a new grant epoch, so old copies of this phone-only access elsewhere stop working (SEC-01).
       await tx.member.updateMany({ where: { accountId }, data: { accountId: null, grantEpoch: { increment: 1 } } });
       await tx.loginCode.deleteMany({ where: { email: acc.email } });
+      await tx.requestKey.deleteMany({ where: { key: `home-cleared:${accountId}` } }); // the "Not set" choice goes with the account
       await tx.postcard.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } });
       await tx.postcardPhoto.deleteMany({ where: { id: { in: goneIds } } });
       // Moments they added go too, photos and all (reactions on them with them). Reactions they made elsewhere stay, like

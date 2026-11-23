@@ -39,8 +39,11 @@ export async function setHomeCountryAction(f: FormData) {
   if (countryOf(c)) await db.account.update({ where: { id: a.id }, data: { homeCountry: c } });
   else if (c === "") {
     // "Not set" is a choice: it is written down (a one-time key, no schema change) so the one-time default (ensureHomeCountry) never fills it again.
-    await db.account.update({ where: { id: a.id }, data: { homeCountry: "" } });
-    await db.requestKey.upsert({ where: { key: `home-cleared:${a.id}` }, create: { key: `home-cleared:${a.id}`, result: "1" }, update: {} });
+    // One step, the note first: if anything stops half-way, the country is never blank without the note.
+    await db.$transaction([
+      db.requestKey.upsert({ where: { key: `home-cleared:${a.id}` }, create: { key: `home-cleared:${a.id}`, result: "1" }, update: {} }),
+      db.account.update({ where: { id: a.id }, data: { homeCountry: "" } }),
+    ]);
   }
   redirect("/passport");
 }
