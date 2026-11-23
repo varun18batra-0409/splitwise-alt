@@ -67,6 +67,7 @@ export default async function BillPage({
       {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       {sp.saved && <p className="mb-4 text-sm text-owed">Saved.</p>}
       {bill.paused && <p className="mb-5 rounded-xl bg-mist px-4 py-3 text-sm">Paused. It won’t be added until you start it again.</p>}
+      {lines?.refused && <p className="mb-5 rounded-xl bg-mist px-4 py-3 text-sm">{lines.refused}</p>}
 
       {bill.nature === "daily" && (
         <section id="calendar" className="mb-8 scroll-mt-4 rounded-2xl border border-line bg-white px-4 py-4">

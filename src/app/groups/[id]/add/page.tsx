@@ -33,7 +33,7 @@ export default async function AddExpensePage({
   const sp = await searchParams;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, removedAt: true, splitWeight: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, removedAt: true, splitWeight: true, joinedFrom: true } } },
   });
   if (!group || group.deletedAt) notFound();
 
@@ -152,7 +152,7 @@ export default async function AddExpensePage({
 // A waiting bill as a ready-made Add expense form (blank amount).
 function billToInitial(
   bill: Parameters<typeof billExpenseInput>[0],
-  group: { id: string; currency: string; members: { id: string; name: string; leftAt: Date | null; splitWeight: number }[] },
+  group: { id: string; currency: string; members: { id: string; name: string; leftAt: Date | null; splitWeight: number; joinedFrom: Date | null }[] },
   period: string,
   myId: string,
   prepaid: { total: number; entries: Prepaid[] } = { total: 0, entries: [] },

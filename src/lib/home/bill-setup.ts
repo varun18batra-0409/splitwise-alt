@@ -7,7 +7,7 @@ import { BILL_TEMPLATES, addMissed, dayRangeLabel, daysBefore, daysInRange, firs
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
-import { addMonthSoFar, catchUpLastMonth, legacyPauseMonth, monthLongName, parseSplit } from "./bills-db";
+import { addMonthSoFar, catchUpLastMonth, legacyPauseMonth, monthLongName, movedOutIn, MOVED_OUT_THIS_MONTH, parseSplit } from "./bills-db";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 
 // Setting bills up and changing them (database side, checked here).
@@ -168,6 +168,9 @@ async function finishStop(tx: Prisma.TransactionClient, billId: string, now: Dat
 async function changeDaily(bill: DailyBill, command: "pause" | "stop", actorId: string, now: Date, expect: number | null): Promise<Result> {
   const verb = command === "pause" ? "paused" : "stopped";
   const group = { id: bill.group.id, currency: bill.group.currency, closed: bill.group.closed, members: bill.group.members };
+  // Someone moved out this month: a running bill is not paused or stopped now (a pause or stop charge and a move-out charge never share a month).
+  const thisMonth = dayKey(now, bill.tz).slice(0, 7);
+  if (!bill.paused && (await movedOutIn(db, bill.group.id, thisMonth))) return { ok: false, error: MOVED_OUT_THIS_MONTH(bill.name) };
   if (!bill.paused) {
     const bad = await catchUpLastMonth(bill, group, now, verb);
     if (bad) return { ok: false, error: bad };
@@ -188,7 +191,7 @@ async function changeDaily(bill: DailyBill, command: "pause" | "stop", actorId: 
   }
   const finish = (tx: Prisma.TransactionClient) =>
     command === "pause" ? tx.bill.updateMany({ where: { id: bill.id, paused: false, deletedAt: null }, data: { paused: true, pausedAt: now } }).then(() => undefined) : finishStop(tx, bill.id, now);
-  const r = await addMonthSoFar(fresh, group, { period: today.slice(0, 7), until, verb, actorId, now, expect, finish });
+  const r = await addMonthSoFar(fresh, group, { period: today.slice(0, 7), until, verb, actorId, now, expect, finish, refuse: fresh.paused ? undefined : async (tx) => ((await movedOutIn(tx, group.id, thisMonth)) ? MOVED_OUT_THIS_MONTH(bill.name) : null) });
   return r.ok ? { ok: true, id: bill.id } : r;
 }
 

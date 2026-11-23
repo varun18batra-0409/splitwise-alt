@@ -41,6 +41,8 @@ describe("the month so far (pure, hand-worked)", () => {
   it("1–19 Nov at 6,000 a day: 19 × 6,000 = 114,000; two missed days: 17 × 6,000 = 102,000", () => {
     expect(monthSoFar({ amount: 6000, missed: "{}" }, "2026-11", "2026-11-20", [])).toEqual({ fromDay: 1, toDay: 19, lastDay: 19, days: 19, gross: 114000, less: 0, amount: 114000 });
     expect(monthSoFar({ amount: 6000, missed: JSON.stringify({ "2026-11": [5, 6] }) }, "2026-11", "2026-11-20", [])).toMatchObject({ days: 17, gross: 102000, amount: 102000 });
+    // The label covers the days up to yesterday even when the first or last day didn't come (one label for the name, the confirm and the note).
+    expect(monthSoFar({ amount: 6000, missed: JSON.stringify({ "2026-11": [1, 19] }) }, "2026-11", "2026-11-20", [])).toMatchObject({ fromDay: 1, lastDay: 19, days: 17, amount: 102000 });
   });
   it("a move-out charge of 16,000 comes off: 102,000 − 16,000 = 86,000", () => {
     expect(monthSoFar({ amount: 6000, missed: JSON.stringify({ "2026-11": [5, 6] }) }, "2026-11", "2026-11-20", [{ a: 16000, d: "2026-11-10" }])).toMatchObject({ gross: 102000, less: 16000, amount: 86000 });
@@ -107,20 +109,18 @@ describe("stopping a daily bill", () => {
     expect((await setExpenseDeleted(list[0].id, f.a, true)).ok).toBe(false);
   });
 
-  it("2. days 5 and 6 missed, C moved out 10 Nov (8 × 2,000 = 16,000), stop 20 Nov: 17 × 6,000 − 16,000 = 86,000 (43,000 each for A and B); month total 102,000", async () => {
+  it("2. days 5 and 6 missed, C moved out 10 Nov (8 × 2,000 = 16,000): stopping the bill 20 Nov is refused (a move-out charge and a stop charge never share a month); nothing changes and the books are at 0", async () => {
     const f = await flat("two", { missed: JSON.stringify({ "2026-11": [5, 6] }) });
     const out = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-two-${Date.now()}-abcdefgh` }, at("2026-11-10"));
     expect(out).toMatchObject({ ok: true });
-    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"))).ok).toBe(true);
+    const before = await checkBooks(f.groupId);
+    expect(await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"))).toEqual({ ok: false, error: "Someone moved out this month, so Milk can’t be paused or stopped until next month. Mark the days it didn’t come instead." });
     const list = await expensesOf(f.groupId);
-    const charge = list.find((e) => e.description.includes("share"))!;
-    const part = list.find((e) => e.description === "Milk · 1–19 Nov")!;
-    expect(charge.amount).toBe(16000);
-    expect(part.amount).toBe(86000);
-    expect(shareMap(part)).toEqual({ [f.a]: 43000, [f.b]: 43000 });
-    expect(charge.amount + part.amount).toBe(17 * 6000);
+    expect(list.map((e) => e.amount)).toEqual([16000]); // days 1–10 less 5 and 6 = 8 days × 6,000 ÷ 3
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).deletedAt).toBeNull();
     const net = await checkBooks(f.groupId);
-    expect([net[f.a], net[f.b], net[f.c]]).toEqual([43000, -43000, 0]);
+    expect(net).toEqual(before);
+    expect([net[f.a], net[f.b], net[f.c]]).toEqual([0, 0, 0]); // C's 16,000 was squared up at move-out
   });
 
   it("3. stop on 1 Dec at 07:00 (before the daily job): November is added as normal, 30 × 6,000 = 180,000 (60,000 each); nothing for December; no duplicate later", async () => {
@@ -218,24 +218,29 @@ describe("pausing and starting again", () => {
     await checkBooks(f.groupId);
   });
 
-  it("10. pause 10 Nov (9 × 6,000 = 54,000, 18,000 each), start again 12 Nov, C moves out 15 Nov (days 12–15 = 4 × 2,000 = 8,000); month end 168,000 − 54,000 − 8,000 = 106,000 (53,000 each)", async () => {
+  it("10. pause 10 Nov (9 × 6,000 = 54,000, 18,000 each), start again 12 Nov: C can't move out 15 Nov (refused, nothing changes); month end 28 × 6,000 − 54,000 = 114,000 (38,000 each)", async () => {
     const f = await flat("ten");
     await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-10"));
     await billCommand(f.groupId, f.a, f.billId, "resume", at("2026-11-12"));
+    const before = await checkBooks(f.groupId);
     const out = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-15", addDaily: true, requestKey: `bps-ten-${Date.now()}-abcdefgh` }, at("2026-11-15"));
-    expect(out).toMatchObject({ ok: true });
+    expect(out).toEqual({ ok: false, error: "Milk was already added up to 9 Nov when it was paused or stopped, so a move-out can’t be recorded for this month. Add a money-back expense if needed." });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt).toBeNull();
+    expect(await checkBooks(f.groupId)).toEqual(before);
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const list = await expensesOf(f.groupId);
-    const byName = (n: string) => list.find((e) => e.description.startsWith(n) && !e.description.includes("·"))!;
     expect(list.find((e) => e.description === "Milk · 1–9 Nov")!.amount).toBe(54000);
-    expect(list.find((e) => e.description.includes("share"))!.amount).toBe(8000);
-    const end = byName("Milk");
-    expect(end.amount).toBe(106000);
-    expect(shareMap(end)).toEqual({ [f.a]: 53000, [f.b]: 53000 });
-    expect(54000 + 8000 + 106000).toBe(28 * 6000 + 0);
+    const end = list.find((e) => e.description === "Milk")!;
+    expect(end.amount).toBe(114000); // days 10 and 11 were marked as not come when it started again: 19 × 6,000
+    expect(shareMap(end)).toEqual({ [f.a]: 38000, [f.b]: 38000, [f.c]: 38000 });
+    expect(54000 + 114000).toBe(28 * 6000);
     const net = await checkBooks(f.groupId);
-    // A's own total is 18,000 + 53,000 = 71,000; C's 26,000 (13 days × 2,000) was paid in the move-out.
-    expect([net[f.a], net[f.b], net[f.c]]).toEqual([71000, -71000, 0]);
+    // A paid 168,000 and owes 56,000 (18,000 + 38,000): +112,000; B and C −56,000 each. Then each pays A and everyone is at 0.
+    expect([net[f.a], net[f.b], net[f.c]]).toEqual([112000, -56000, -56000]);
+    await pay(f.groupId, f.b, f.a, 56000);
+    await pay(f.groupId, f.c, f.a, 56000);
+    const done = await checkBooks(f.groupId);
+    expect([done[f.a], done[f.b], done[f.c]]).toEqual([0, 0, 0]);
   });
 
   it("11. D moved in 15 Nov, pause 20 Nov: 114,000 shared 19 : 19 : 19 : 5 = A 34,936, B 34,935, C 34,935, D 9,194", async () => {
@@ -418,16 +423,6 @@ describe("pausing, starting again and stopping: the days add up, once", () => {
     // Whole month 168,000, A paid it all: A, B, C owe 38,000 + 14,850 = 52,850 each; D owes 9,450. A: 168,000 − 52,850 = 115,150.
     const net = await checkBooks(f.groupId);
     expect([net[f.a], net[f.b], net[f.c], net[f.d]]).toEqual([115150, -52850, -52850, -9450]);
-  });
-  it("a leaver after a pause is not charged for days the pause charge covered: pause 10 Nov, start again 12 Nov, C moves out 15 Nov", async () => {
-    const f = await flat("leaver");
-    await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-10"));
-    await billCommand(f.groupId, f.a, f.billId, "resume", at("2026-11-12"));
-    const out = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-15", addDaily: true, requestKey: `bps-lv-${Date.now()}-abcdefgh` }, at("2026-11-15"));
-    expect(out).toMatchObject({ ok: true });
-    const charge = (await live(f.groupId)).find((e) => e.description.includes("share"))!;
-    expect(charge.amount).toBe(8000); // days 12–15 = 4 × 6,000 ÷ 3
-    await checkBooks(f.groupId);
   });
 });
 

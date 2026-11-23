@@ -439,6 +439,16 @@ export async function addWaitingBill(
 
 type GroupForBill = { id: string; currency: string; closed: boolean; members: Member[] };
 class PartChanged extends Error {}
+class PartRefused extends Error {}
+
+// A pause or stop charge and a move-out charge never share a month: while anyone's move-out (their last day) falls in this month,
+// a daily bill can't be paused or stopped (the days it didn't come are marked instead). Moving out is refused the other way round.
+export const MOVED_OUT_THIS_MONTH = (bill: string) => `Someone moved out this month, so ${bill} can’t be paused or stopped until next month. Mark the days it didn’t come instead.`;
+export async function movedOutIn(client: Pick<Prisma.TransactionClient, "member">, groupId: string, period: string): Promise<boolean> {
+  const from = new Date(`${period}-01T00:00:00Z`);
+  const to = new Date(`${addMonths(period, 1)}-01T00:00:00Z`);
+  return (await client.member.count({ where: { groupId, leftAt: { gte: from, lt: to } } })) > 0;
+}
 
 export const monthLongName = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" });
 const money = (n: number, currency: string) => formatMoney(n, currency);
@@ -493,7 +503,7 @@ type PartResult = { ok: true; amount: number; added: boolean } | { ok: false; er
 export async function addMonthSoFar(
   bill: BillRow,
   group: GroupForBill,
-  o: { period: string; until: string; verb: string; actorId: string; now: Date; expect?: number | null; finish: (tx: Prisma.TransactionClient) => Promise<void> },
+  o: { period: string; until: string; verb: string; actorId: string; now: Date; expect?: number | null; finish: (tx: Prisma.TransactionClient) => Promise<void>; refuse?: (tx: Prisma.TransactionClient) => Promise<string | null> },
 ): Promise<PartResult> {
   // This month was skipped or already added: nothing is added for it, the bill is only paused or stopped.
   if (await monthSettled(db, bill.id, o.period)) {
@@ -533,6 +543,8 @@ export async function addMonthSoFar(
       eventText: `paid ${bill.name} for ${label} (${money(m.amount, group.currency)}) ${REPEAT_BILL_MARK}`,
       alsoInTx: async (tx, expenseId) => {
         // Read again here, in the write: if the days that didn't come, the charges, the price, the split or the pause changed, nothing is added.
+        const why = await o.refuse?.(tx); // (someone moved out in the gap)
+        if (why) throw new PartRefused(why);
         const cur = await tx.bill.findUnique({ where: { id: bill.id } });
         if (await monthSettled(tx as unknown as typeof db, bill.id, o.period)) throw new PartChanged(); // skipped or added in the gap
         if (!cur || cur.deletedAt || cur.missed !== bill.missed || cur.prepaid !== bill.prepaid || cur.amount !== bill.amount || cur.split !== bill.split || cur.paused !== bill.paused) throw new PartChanged();
@@ -542,6 +554,7 @@ export async function addMonthSoFar(
       },
     });
   } catch (err) {
+    if (err instanceof PartRefused) return { ok: false, error: err.message };
     if (err instanceof PartChanged) return { ok: false, error: `${bill.name} changed since you opened this. Check and try again.` };
     throw err;
   }
@@ -554,7 +567,7 @@ export async function addMonthSoFar(
 // The one line the confirm shows before a pause, stop or start-again of a daily bill ("This adds Milk for 1–19 Nov, ₹1,140."),
 // and the amount the server must still work out the same (`expect`). null = nothing would be added.
 export type AddsLine = { amount: number; line: string };
-export async function billChangeLines(billId: string, now = new Date()): Promise<{ stop: AddsLine | null; resume: AddsLine | null } | null> {
+export async function billChangeLines(billId: string, now = new Date()): Promise<{ stop: AddsLine | null; resume: AddsLine | null; refused: string | null } | null> {
   const bill = await db.bill.findFirst({ where: { id: billId, deletedAt: null }, include: { group: { include: { members: true } } } });
   if (!bill || bill.nature !== "daily") return null;
   const tz = bill.tz || DEFAULT_TIME_ZONE;
@@ -609,7 +622,10 @@ export async function billChangeLines(billId: string, now = new Date()): Promise
       if (r.m.amount > 0) resume = { amount: r.m.amount, line: `Starting again adds ${item(old.period, r.m, r.pre.entries)} (from before it was paused).` };
     }
   }
-  return { stop, resume };
+  // Someone moved out this month: a running bill can't be paused or stopped now (the confirm and the page say so, the server refuses).
+  const refused = !bill.paused && (await movedOutIn(db, bill.groupId, period)) ? MOVED_OUT_THIS_MONTH(bill.name) : null;
+  if (refused) stop = { amount: 0, line: refused };
+  return { stop, resume, refused };
 }
 
 export { ordinalDay };

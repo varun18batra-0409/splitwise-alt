@@ -29,8 +29,9 @@ const { encodeSession, today } = await import("@/lib/session");
 const A = await import("@/app/actions");
 const { billCommand } = await import("@/lib/home/bill-setup");
 const { undoEvent } = await import("@/lib/undo");
-const { moveOut } = await import("@/lib/home/moving-db");
-const { runBillsForGroup } = await import("@/lib/home/bills-db");
+const { moveOut, moveOutPreview } = await import("@/lib/home/moving-db");
+const { runBillsForGroup, billChangeLines } = await import("@/lib/home/bills-db");
+const { dayKey } = await import("@/lib/dates");
 const { chargeLockedText } = await import("@/lib/home/charge-lock");
 const { checkBooks } = await import("./helpers/money-invariants");
 
@@ -160,23 +161,117 @@ async function flat3() {
 const day = (d: string) => new Date(`${d}T06:00:00Z`);
 const live = (gid: string) => db.expense.findMany({ where: { groupId: gid, deletedAt: null }, include: { shares: true }, orderBy: { createdAt: "asc" } });
 
-describe("D1: a move-out can't be undone after a pause charge subtracted its charge", () => {
-  it("C moves out 10 Nov (10 × 6,000 ÷ 3 = 20,000); pause 20 Nov adds 114,000 − 20,000 = 94,000 (47,000 each for A and B); undoing the move-out is refused, so the 20,000 isn't lost; books A +47,000, B −47,000, C 0", async () => {
+const MOVED = "Someone moved out this month, so Milk can’t be paused or stopped until next month. Mark the days it didn’t come instead.";
+const noMoveOut = (up: string, mon = "Nov") => `Milk was already added up to ${up} ${mon} when it was paused or stopped, so a move-out can’t be recorded for this month. Add a money-back expense if needed.`;
+const noUndo = "Milk for this month was already added when it was paused or stopped, so this move-out can’t be undone. Add a money-back expense if needed.";
+const netOf = async (f: { gid: string; a: string; b: string; c: string }) => {
+  const n = await checkBooks(f.gid);
+  return [n[f.a], n[f.b], n[f.c]];
+};
+
+describe("Rule 1: a daily bill can't be paused or stopped in a month someone moved out (E1, E4)", () => {
+  it("C moves out 20 Nov with the daily charge (20 × 6,000 ÷ 3 = 40,000, squared up); pausing on 20 Nov is refused, then so is stopping; the charge stays with A; books A 0, B 0, C 0, unchanged", async () => {
     const f = await flat3();
-    const out = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `d1-${stamp}-abcdefgh` }, day("2026-11-10"));
+    const out = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-20", addDaily: true, requestKey: `r1a-${stamp}-abcdefgh` }, day("2026-11-20"));
     expect(out).toMatchObject({ ok: true });
-    expect((await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"))).ok).toBe(true);
-    // The move-out charge is also called "Milk · …", so take the newest one: the pause charge.
-    const part = (await live(f.gid)).filter((e) => e.description.startsWith("Milk ·")).at(-1)!;
-    expect(part.amount).toBe(94000);
-    const eventId = (out as { eventId?: string }).eventId!;
-    const wanted = "Milk for this month was already added when it was paused or stopped, so this move-out can’t be undone. Add a money-back expense if needed.";
+    expect(await netOf(f)).toEqual([0, 0, 0]);
+    expect(await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"))).toEqual({ ok: false, error: MOVED });
+    expect(await billCommand(f.gid, f.a, f.billId, "stop", day("2026-11-20"))).toEqual({ ok: false, error: MOVED });
+    const bill = await db.bill.findUniqueOrThrow({ where: { id: f.billId } });
+    expect([bill.paused, bill.deletedAt]).toEqual([false, null]);
+    const list = await live(f.gid);
+    expect(list.map((e) => [e.amount, e.paidById])).toEqual([[40000, f.a]]);
+    expect(await netOf(f)).toEqual([0, 0, 0]);
+  });
+
+  it("a move-out with no charge at all (not asked for) blocks it too; the confirm shows the same words as the refusal; resuming is not affected by it", async () => {
+    const f = await flat3();
+    expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-10", requestKey: `r1b-${stamp}-abcdefgh` }, day("2026-11-10"))).toMatchObject({ ok: true });
+    const lines = await billChangeLines(f.billId, day("2026-11-20"));
+    expect(lines?.refused).toBe(MOVED);
+    expect(lines?.stop).toEqual({ amount: 0, line: MOVED });
+    expect(await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"))).toEqual({ ok: false, error: MOVED });
+    expect(await live(f.gid)).toHaveLength(0);
+    expect(await netOf(f)).toEqual([0, 0, 0]);
+  });
+
+  it("the real change-bill action refuses it too (a move-out dated today, the real clock): nothing is paused or added", async () => {
+    const f = await flat3();
+    const real = new Date();
+    const lastDay = dayKey(real, "Asia/Kolkata");
+    await db.bill.update({ where: { id: f.billId }, data: { startMonth: lastDay.slice(0, 7) } });
+    expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay, requestKey: `r1c-${stamp}-abcdefgh` }, real)).toMatchObject({ ok: true });
+    await redirected(() => A.changeBill(form({ groupId: f.gid, billId: f.billId, command: "pause" })));
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).paused).toBe(false);
+    expect(await live(f.gid)).toHaveLength(0);
+  });
+
+  it("pausing next month after a move-out works: C moves out 28 Nov (28 × 6,000 ÷ 3 = 56,000, squared up); pausing 5 Dec adds Nov's rest 180,000 − 56,000 = 124,000 (62,000 each for A and B) and Dec 1–4 = 24,000 (12,000 each); A +74,000, B −74,000, C 0, then B pays A through the real action", async () => {
+    const f = await flat3();
+    expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-28", addDaily: true, requestKey: `r1d-${stamp}-abcdefgh` }, day("2026-11-28"))).toMatchObject({ ok: true });
+    expect((await billCommand(f.gid, f.a, f.billId, "pause", day("2026-12-05"))).ok).toBe(true);
+    expect((await live(f.gid)).map((e) => e.amount).sort((x, y) => x - y)).toEqual([24000, 56000, 124000]);
+    expect(await netOf(f)).toEqual([74000, -74000, 0]);
+    await redirected(() => A.recordCustomPayment(form({ currency: "INR", groupId: f.gid, fromId: f.b, toId: f.a, amount: "740" })));
+    expect(await netOf(f)).toEqual([0, 0, 0]);
+  });
+});
+
+describe("Rule 2: a move-out is refused for a month with a pause or stop charge, or any later month (E2, E3, E5)", () => {
+  it("E5: paused 20 Nov (114,000, 38,000 each; A +76,000, B −38,000, C −38,000): C can't move out, with or without the daily charge, in the preview or for real; C stays, books unchanged", async () => {
+    const f = await flat3();
+    await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"));
+    for (const [k, lastDay, addDaily] of [["x1", "2026-11-19", false], ["x2", "2026-11-19", true], ["x3", "2026-11-15", true], ["x4", "2026-11-20", false]] as const) {
+      const r = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay, addDaily, requestKey: `r2a-${k}-${stamp}-abcdefgh` }, day("2026-11-21"));
+      expect(r).toEqual({ ok: false, error: noMoveOut("19") });
+    }
+    expect(await moveOutPreview(f.gid, f.c, "2026-11-15", day("2026-11-21"), f.a)).toEqual({ ok: false, error: noMoveOut("19") });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt).toBeNull();
+    expect(await netOf(f)).toEqual([76000, -38000, -38000]);
+  });
+
+  it("E2: the bill was stopped 20 Nov (it is gone, its charge stays): a move-out is still refused, naming the stopped bill; books A +76,000, B −38,000, C −38,000, then both pay A through the real action and all are 0", async () => {
+    const f = await flat3();
+    expect((await billCommand(f.gid, f.a, f.billId, "stop", day("2026-11-20"))).ok).toBe(true);
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).deletedAt).not.toBeNull();
+    const r = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-25", addDaily: true, requestKey: `r2b-${stamp}-abcdefgh` }, day("2026-11-26"));
+    expect(r).toEqual({ ok: false, error: noMoveOut("19") });
+    expect(await netOf(f)).toEqual([76000, -38000, -38000]);
+    await redirected(() => A.recordCustomPayment(form({ currency: "INR", groupId: f.gid, fromId: f.b, toId: f.a, amount: "380" })));
+    await redirected(() => A.recordCustomPayment(form({ currency: "INR", groupId: f.gid, fromId: f.c, toId: f.a, amount: "380" })));
+    expect(await netOf(f)).toEqual([0, 0, 0]);
+  });
+
+  it("E3: paused 5 Dec (Nov's 180,000 and Dec 1–4 = 24,000 added; A +136,000, B −68,000, C −68,000): a move-out with last day 28 Nov is refused, because December has a pause charge; books unchanged", async () => {
+    const f = await flat3();
+    expect((await billCommand(f.gid, f.a, f.billId, "pause", day("2026-12-05"))).ok).toBe(true);
+    const r = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-28", addDaily: true, requestKey: `r2c-${stamp}-abcdefgh` }, day("2026-12-05"));
+    expect(r).toEqual({ ok: false, error: noMoveOut("4", "Dec") });
+    expect(await moveOutPreview(f.gid, f.c, "2026-11-28", day("2026-12-05"), f.a)).toEqual({ ok: false, error: noMoveOut("4", "Dec") });
+    expect(await netOf(f)).toEqual([136000, -68000, -68000]);
+  });
+
+  it("a move-out in a month after the pause charge's month is fine: paused 20 Nov (A +76,000, B −38,000, C −38,000), C moves out 2 Dec: C pays 38,000 in the square-up and leaves at 0", async () => {
+    const f = await flat3();
+    await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"));
+    const r = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-12-02", requestKey: `r2d-${stamp}-abcdefgh` }, day("2026-12-02"));
+    expect(r).toMatchObject({ ok: true });
+    expect(await netOf(f)).toEqual([38000, -38000, 0]); // C paid A 38,000; B still owes A
+  });
+});
+
+describe("Rule 3: a move-out can't be undone once a pause or stop charge was written after it (E1)", () => {
+  it.each(["pause", "stop"])("C moves out 28 Nov (56,000), then the bill is %s on 5 Dec: undoing the move-out is refused in the real Undo action and undoEvent; C stays gone, the charge stays, books A +74,000, B −74,000, C 0", async (command) => {
+    const f = await flat3();
+    const out = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-28", addDaily: true, requestKey: `r3-${command}-${stamp}-abcdefgh` }, day("2026-11-28"));
+    expect(out).toMatchObject({ ok: true });
+    expect((await billCommand(f.gid, f.a, f.billId, command, day("2026-12-05"))).ok).toBe(true);
+    const eventId = (out as { eventId: string }).eventId;
     await redirected(() => A.undoChange(form({ groupId: f.gid, eventId, back: "group" })));
-    const r = await undoEvent(eventId, f.a);
-    expect(r).toEqual({ ok: false, error: wanted });
-    expect((await live(f.gid)).map((e) => e.amount).sort((x, y) => x - y)).toEqual([20000, 94000]);
-    const net = await checkBooks(f.gid);
-    expect([net[f.a], net[f.b], net[f.c]]).toEqual([47000, -47000, 0]);
+    expect(await undoEvent(eventId, f.a)).toEqual({ ok: false, error: noUndo });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt).not.toBeNull();
+    expect((await live(f.gid)).map((e) => e.amount).sort((x, y) => x - y)).toEqual([24000, 56000, 124000]);
+    expect(await netOf(f)).toEqual([74000, -74000, 0]);
   });
 });
 
@@ -202,33 +297,6 @@ describe("D2: a payer change before month end doesn't move a pause charge", () =
   });
 });
 
-describe("D3: a move-out doesn't hand a pause charge to another payer", () => {
-  it("A paid the pause charge (114,000); A moves out 22 Nov (B confirms): the charge is still paid by A, and the square-up pays A 38,000 from B and 38,000 from C", async () => {
-    const f = await flat3();
-    await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"));
-    const part = (await live(f.gid))[0];
-    const out = await moveOut(f.gid, f.b, { leaverId: f.a, lastDay: "2026-11-22", requestKey: `d3-${stamp}-abcdefgh` }, day("2026-11-22"));
-    expect(out).toMatchObject({ ok: true });
-    expect((await db.expense.findUniqueOrThrow({ where: { id: part.id } })).paidById).toBe(f.a);
-    expect((out as { payments: { from: string; to: string; amount: number }[] }).payments.map((t) => [t.from, t.to, t.amount]).sort()).toEqual([[f.b, f.a, 38000], [f.c, f.a, 38000]].sort());
-    const net = await checkBooks(f.gid);
-    expect([net[f.a], net[f.b], net[f.c]]).toEqual([0, 0, 0]);
-  });
-});
-
-describe("D4: a move-out can't be dated before days a pause charge already covers", () => {
-  it("paused 20 Nov (covers 1–19): a last day of 15 Nov is refused with the day to pick; 19 Nov works and C leaves at 0", async () => {
-    const f = await flat3();
-    await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"));
-    const early = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-15", addDaily: true, requestKey: `d4a-${stamp}-abcdefgh` }, day("2026-11-21"));
-    expect(early).toEqual({ ok: false, error: "Milk was already added up to 19 Nov when it was paused, so the last day can’t be before that. Pick 19 Nov or later, or add a money-back expense." });
-    const ok = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-19", addDaily: true, requestKey: `d4b-${stamp}-abcdefgh` }, day("2026-11-21"));
-    expect(ok).toMatchObject({ ok: true });
-    const net = await checkBooks(f.gid);
-    expect(net[f.c]).toBe(0);
-  });
-});
-
 describe("D6: the month-end note says which days each part charge covered", () => {
   it("pause 20 (1–19), start again 25, pause 28 (25–27 → from the day after the first: 20–27), start again 29; the month-end note lists ₹1,140 for 1–19 Nov and ₹180 for 20–27 Nov", async () => {
     const f = await flat3();
@@ -237,6 +305,8 @@ describe("D6: the month-end note says which days each part charge covered", () =
     const end = (await live(f.gid)).find((e) => e.description === "Milk")!;
     expect(end.notes).toContain("less ₹1,140 already added for 1–19 Nov");
     expect(end.notes).toContain("less ₹180 already added for 20–27 Nov");
+    // One label for each part charge, in its name and in the note.
+    expect((await live(f.gid)).map((e) => e.description).filter((n) => n.startsWith("Milk ·")).sort()).toEqual(["Milk · 1–19 Nov", "Milk · 20–27 Nov"]);
     await checkBooks(f.gid);
   });
 });

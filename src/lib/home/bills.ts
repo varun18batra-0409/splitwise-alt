@@ -130,7 +130,8 @@ export type MonthSoFar = { fromDay: number; toDay: number; lastDay: number; days
 // Part charges are permanent and each covers every day from the 1st (or the day after the part charge before it) to its own last day, whether
 // the bill came or not; the calendar locks those days. So what is still to charge is always one block after the last part charge, with
 // only "didn't come" days left out of it.
-//   fromDay..lastDay – the first and last day still to be charged; toDay – yesterday
+//   fromDay..lastDay – the days this charge covers: the day after the last part charge up to yesterday (a day it didn't come is inside it, at no cost).
+//   This is the one label (name, confirm and month-end note) for the charge.
 export function monthSoFar(b: { amount: number; missed: string }, period: string, until: string, entries: { a: number; k?: string; d?: string }[]): MonthSoFar {
   const toDay = until.slice(0, 7) === period ? Number(until.slice(8, 10)) - 1 : until.slice(0, 7) > period ? daysInMonth(period) : 0;
   let lastPartAt = -1;
@@ -144,8 +145,9 @@ export function monthSoFar(b: { amount: number; missed: string }, period: string
   for (let d = fromDay; d <= toDay; d++) if (!missed.includes(d)) open.push(d);
   const days = open.length;
   const gross = days * b.amount;
+  // (A move-out charge and a part charge no longer share a month; this only matters for a bill paused before that rule, in an older month.)
   const less = entries.slice(lastPartAt + 1).filter((x) => x.k !== "part").reduce((n, x) => n + x.a, 0);
-  return { fromDay: open[0] ?? fromDay, toDay, lastDay: open[open.length - 1] ?? toDay, days, gross, less, amount: Math.max(0, gross - less) };
+  return { fromDay, toDay, lastDay: toDay, days, gross, less, amount: Math.max(0, gross - less) };
 }
 
 const SHORT_MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

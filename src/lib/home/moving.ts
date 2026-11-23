@@ -126,9 +126,7 @@ const gcd = (a: bigint, b: bigint): bigint => (b === 0n ? a : gcd(b, a % b));
 // Weights: the flat's own split for "group", 100 each for "equal", the listed people
 // for "some". "percent": their percentage × days × rate. Rounded down once at the end,
 // so a few paise stay with the month-end bill, never with the leaver.
-// `fromDay`: the first day that can still be charged (the day after the last part charge; 1 when there is none), so a leaver is
-// never charged for days a part charge already covered.
-export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: string, members: DailyMember[], leaverId: string, fromDay = 1): DailyPrecharge {
+export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: string, members: DailyMember[], leaverId: string): DailyPrecharge {
   const split = parseSplitRule(bill.split);
   if (split.mode === "amounts") return { days: 0, missed: [], amount: 0, unsupported: true };
   const leaver = members.find((m) => m.id === leaverId);
@@ -147,7 +145,7 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
   let days = 0;
   const stayed: number[] = [];
   const stayedMissed: number[] = [];
-  for (let d = Math.max(1, fromDay); d <= last; d++) {
+  for (let d = 1; d <= last; d++) {
     if (!present(leaver, d)) continue;
     (missed.includes(d) ? stayedMissed : stayed).push(d);
     if (!missed.includes(d)) days++;
