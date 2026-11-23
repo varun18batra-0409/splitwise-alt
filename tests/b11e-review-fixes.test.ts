@@ -131,15 +131,24 @@ describe("s4: stamps and seals", () => {
   it("no album line repeats the stamp's name", () => {
     for (const id of Object.keys(RARE)) expect(rareWhen(`r:${id}`).toLowerCase(), id).not.toBe(RARE[id].name.toLowerCase());
   });
-  it("the label matches what is enforced (India time): Holi on 10 and 25 March, not 9 or 26", () => {
+  it("the label matches what is enforced (India time), using each year's festival date", () => {
     const at = (s: string) => new Date(`${s}T06:30:00Z`); // noon in India
-    expect(rareOpen("r:holi", at("2026-03-10"))).toBe(true);
-    expect(rareOpen("r:holi", at("2026-03-25"))).toBe(true);
-    expect(rareOpen("r:holi", at("2026-03-09"))).toBe(false);
-    expect(rareOpen("r:holi", at("2026-03-26"))).toBe(false);
+    // Holi 2026 is 4 March: open 12 days before (20 Feb) to 3 days after (7 Mar), worked out by hand.
+    expect(rareOpen("r:holi", at("2026-02-20"))).toBe(true);
+    expect(rareOpen("r:holi", at("2026-03-07"))).toBe(true);
+    expect(rareOpen("r:holi", at("2026-02-19"))).toBe(false);
+    expect(rareOpen("r:holi", at("2026-03-08"))).toBe(false);
+    expect(rareOpen("r:holi", at("2026-03-20"))).toBe(false); // the old fixed window no longer applies in a listed year
+    // Diwali 2026 is 8 November: 25 Oct to 11 Nov.
     expect(rareOpen("r:diwali", at("2026-10-25"))).toBe(true);
-    expect(rareOpen("r:diwali", at("2026-11-12"))).toBe(true);
-    expect(rareOpen("r:diwali", at("2026-11-13"))).toBe(false);
+    expect(rareOpen("r:diwali", at("2026-11-11"))).toBe(true);
+    expect(rareOpen("r:diwali", at("2026-10-24"))).toBe(false);
+    expect(rareOpen("r:diwali", at("2026-11-12"))).toBe(false);
+    // A year with no date listed falls back to the usual window: Holi 10 to 25 March.
+    expect(rareOpen("r:holi", at("2040-03-10"))).toBe(true);
+    expect(rareOpen("r:holi", at("2040-03-25"))).toBe(true);
+    expect(rareOpen("r:holi", at("2040-03-09"))).toBe(false);
+    expect(rareOpen("r:holi", at("2040-03-26"))).toBe(false);
   });
   it("album and shelf copy", () => {
     const a = src("src/app/postcards/stamps/page.tsx");
