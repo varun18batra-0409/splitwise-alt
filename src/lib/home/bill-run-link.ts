@@ -12,8 +12,9 @@ export async function monthWaitsAgain(tx: Prisma.TransactionClient, expenseId: s
 }
 
 // In the restore transaction, before anything is written: the name of the bill whose month was added again since, or null.
-export async function billAddedAgain(tx: Prisma.TransactionClient, e: { id: string; groupId: string; description: string; spentAt: Date }): Promise<string | null> {
+export async function billAddedAgain(tx: Prisma.TransactionClient, e: { id: string; groupId: string; description: string; spentAt: Date | null }): Promise<string | null> {
   if (await tx.billRun.findFirst({ where: { expenseId: e.id, status: "waiting", reason: "deleted" }, select: { id: true } })) return null;
+  if (!e.spentAt) return null; // an expense with no date of its own was not made by a bill
   const period = e.spentAt.toISOString().slice(0, 7);
   const run = await tx.billRun.findFirst({
     where: { period, status: "added", expenseId: { not: e.id }, bill: { groupId: e.groupId, name: e.description, deletedAt: null } },

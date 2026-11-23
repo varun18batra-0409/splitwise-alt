@@ -26,7 +26,8 @@ describe("M1: the report card's rows add up to the total shown", () => {
   it("the report page rounds the category rows and each person's part together", () => {
     const page = readFileSync("src/app/groups/[id]/report/page.tsx", "utf8");
     expect(page).toContain("roundPartsToTotal(r.categories.map");
-    expect(page).toContain("roundPartsToTotal(r.shares.map");
+    // Each person's part is rounded together with the others by shownParts (ties by member order), the same rule as the Who paid chart.
+    expect(page).toContain("shownParts(Object.fromEntries(r.shares.map");
   });
 });
 

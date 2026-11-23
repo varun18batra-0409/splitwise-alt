@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
@@ -63,7 +64,9 @@ async function redirectOf(fn: () => Promise<unknown>): Promise<string> {
   }
   throw new Error("expected a redirect");
 }
-const passRows = (t: string) => db.requestKey.count({ where: { key: `move:${t}` } });
+// The pass is stored under a fingerprint of the token (S6), never the token itself.
+const passKey = (t: string) => `move:${createHash("sha256").update(t).digest("hex")}`;
+const passRows = (t: string) => db.requestKey.count({ where: { key: passKey(t) } });
 
 describe("arriving from the old address", () => {
   it("opening the link (GET) sets no sign-in, does not use up the pass, and leads to the confirm page", async () => {
@@ -137,7 +140,7 @@ describe("arriving from the old address", () => {
   it("an expired pass is refused at the tap, and a made-up one too", async () => {
     jar.cookies.clear();
     const { t } = await pass();
-    await db.requestKey.updateMany({ where: { key: `move:${t}` }, data: { createdAt: new Date(Date.now() - 3 * 60_000) } });
+    await db.requestKey.updateMany({ where: { key: passKey(t) }, data: { createdAt: new Date(Date.now() - 3 * 60_000) } });
     expect(await peekMovePass(t)).toBeNull();
     expect(await redirectOf(() => confirmArrival(form({ t, to: "/" })))).toBe("/arrive?to=%2F&gone=1");
     expect(await redirectOf(() => confirmArrival(form({ t: "made-up", to: "/" })))).toBe("/arrive?to=%2F&gone=1");

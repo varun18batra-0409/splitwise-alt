@@ -177,9 +177,14 @@ describe("M3: removing a name a guest holds always leaves a mark (the real remov
     expect(after.removedById).toBe((await db.member.findFirstOrThrow({ where: { groupId: g.id, name: "Varun" } })).id);
 
     // The same phone: refused as a new name (no second Ben) and refused on "That's me" for the unclaimed name.
+    // (Removing him made a new invite link and the old one is dead: the removed-phone guard is tested with the new link, and the old one gets nobody in.)
     state.cookie = benPhone;
-    expect(await go(A.joinAsNew, { code: g.inviteCode, name: "Ben" })).toBe(`/join/${g.inviteCode}?error=removed&step=name`);
-    expect(await go(A.joinAsExisting, { code: g.inviteCode, memberId: ravi })).toBe(`/join/${g.inviteCode}?error=removed&step=name`);
+    const oldCode = g.inviteCode;
+    const newCode = (await db.group.findUniqueOrThrow({ where: { id: g.id } })).inviteCode;
+    expect(newCode).not.toBe(oldCode);
+    await go(A.joinAsNew, { code: oldCode, name: "Ben" });
+    expect(await go(A.joinAsNew, { code: newCode, name: "Ben" })).toBe(`/join/${newCode}?error=removed&step=name`);
+    expect(await go(A.joinAsExisting, { code: newCode, memberId: ravi })).toBe(`/join/${newCode}?error=removed&step=name`);
     expect(await db.member.count({ where: { groupId: g.id, name: { startsWith: "Ben" } } })).toBe(1);
     expect((await db.member.findUniqueOrThrow({ where: { id: ravi } })).claimedAt).toBeNull();
   });

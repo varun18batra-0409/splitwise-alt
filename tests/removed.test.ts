@@ -77,8 +77,9 @@ describe("removed by the admin", () => {
   it("the link doesn't bring him back: not as himself, and not by taking another unclaimed name", async () => {
     const f = await flat("c");
     await setMemberLeft(f.groupId, f.asha, f.ravi, true);
-    expect(await joinNew(f.code, f.accounts.ravi, "Ravi")).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
-    expect(await joinExisting(f.code, f.accounts.ravi, f.kiran)).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
+    // (Removal made a new invite link: the tests use the current one. The old one is dead; see "a new link" below.)
+    expect(await joinNew((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode, f.accounts.ravi, "Ravi")).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
+    expect(await joinExisting((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode, f.accounts.ravi, f.kiran)).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
     const kiran = await db.member.findUniqueOrThrow({ where: { id: f.kiran } });
     expect(kiran.accountId).toBeNull(); // the name wasn't taken
     expect(await db.member.count({ where: { groupId: f.groupId, accountId: f.accounts.ravi.id } })).toBe(1); // no second row either
@@ -128,7 +129,7 @@ describe("removed by the admin", () => {
     const row = await db.member.findUniqueOrThrow({ where: { id: f.ravi } });
     expect(row).toMatchObject({ leftAt: null, removedAt: null, removedById: "" });
     // and the link works for him again (he's already in)
-    expect(await joinNew(f.code, f.accounts.ravi, "Ravi")).toEqual({ ok: true, memberId: f.ravi });
+    expect(await joinNew((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode, f.accounts.ravi, "Ravi")).toEqual({ ok: true, memberId: f.ravi });
   });
 
   it("someone who still owes money isn't removed (settle up first), same as leaving", async () => {
@@ -163,7 +164,7 @@ describe("the admin can turn 'left' into 'removed'", () => {
     expect(ev.kind).toBe("member_left");
     // He can't rejoin himself, or with the link.
     expect(await setMemberLeft(f.groupId, f.sam, f.sam, false)).toEqual({ ok: false, error: "Asha removed you from this group. Ask them to invite you again." });
-    expect(await joinNew(f.code, f.accounts.sam, "Sam")).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
+    expect(await joinNew((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode, f.accounts.sam, "Sam")).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
   });
 
   it("only the admin can do it: Ravi can't take out Sam", async () => {

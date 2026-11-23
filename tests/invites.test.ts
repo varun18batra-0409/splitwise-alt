@@ -278,11 +278,9 @@ describe("a removed person can't be added back by anyone but the admin", () => {
     await db.account.deleteMany({ where: { id: { in: [aAcc, sAcc, rAcc] } } });
   });
 
-  it("search: Sam sees Ravi as Removed with no Add; Asha (who looks after the group) may bring him back", async () => {
-    const asSam = (await searchPeople({ [gid]: sam }, gid, "ravi"))[0];
-    expect(asSam).toMatchObject({ name: "Ravi", removed: true, mayAdd: false, inGroup: false });
-    const asAsha = (await searchPeople({ [gid]: asha }, gid, "ravi"))[0];
-    expect(asAsha).toMatchObject({ name: "Ravi", removed: true, mayAdd: true, inGroup: false });
+  it("search: a removed person is no longer found by anyone (S3); the admin brings him back from People, not from search", async () => {
+    expect(await searchPeople({ [gid]: sam }, gid, "ravi")).toEqual([]);
+    expect(await searchPeople({ [gid]: asha }, gid, "ravi")).toEqual([]);
   });
 
   it("Sam adding Ravi from the search result is refused, and nothing changes", async () => {
