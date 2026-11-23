@@ -181,9 +181,11 @@ describe("S3: someone removed from the only shared group is no longer found", ()
   it("someone who left on their own is not found either, and 'invite back' into the same group still works for the admin", async () => {
     const [adm, bo] = [await account("Adm"), await account("Bo")];
     const g = await group("G", [adm, bo]);
-    await db.member.update({ where: { id: g.member(bo.id) }, data: { removedAt: new Date() } });
+    await db.member.update({ where: { id: g.member(bo.id) }, data: { leftAt: new Date() } }); // left on their own: leftAt only, no removedAt
     expect(await sharesGroupWith(bo.id, adm.id)).toBe(false);
+    expect(await sharesGroupWith(adm.id, bo.id)).toBe(false);
     const r = await addRegistered(g.id, g.member(adm.id), bo.id, origin); // has a row in THIS group: the invite-back path
     expect(r.ok).toBe(true);
+    expect((await openInvites(g.id)).length).toBe(1);
   });
 });

@@ -11,7 +11,7 @@ import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { PAY_CHANGE_LIMIT_TEXT, isPaymentChangeEvent, payChangeOk } from "@/lib/pay-limit";
 import { headers } from "next/headers";
-import { visitorRegion } from "@/lib/region";
+import { ipCountry } from "@/lib/region";
 import { markLeft } from "@/lib/offline/left-cookie";
 import { cleanNames, sameName } from "@/lib/names";
 import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
@@ -835,7 +835,7 @@ export async function verifyCode(formData: FormData) {
   if (!testing && (!(await allow(`verify-ip:${ip}`, 30, 900)) || !(await allow(`verify-email:${email.trim().toLowerCase()}`, 10, 900)))) {
     redirect(await flashTo("/signin", { error: "Too many tries. Wait 15 minutes and ask for a new code." }, { e: email, back, sent: "1" }));
   }
-  const r = await verifyLoginCode(email, String(formData.get("code") ?? ""), new Date(), visitorRegion(await headers()).country ?? ""); // where they are now is saved once, on a new account only
+  const r = await verifyLoginCode(email, String(formData.get("code") ?? ""), new Date(), ipCountry(await headers()) ?? ""); // the country the network says (never the phone language); where they are now is saved once, on a new account only
   if (!r.ok) redirect(await flashTo("/signin", { error: r.error }, { e: email, back, sent: "1", n: String(formData.get("name") ?? "") }));
   const name = cleanNames([String(formData.get("name") ?? "")])[0];
   if (name) await db.account.updateMany({ where: { id: r.accountId, name: "" }, data: { name } });

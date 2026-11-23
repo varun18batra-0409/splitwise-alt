@@ -20,6 +20,13 @@ export function currencyForCountry(country: string | null | undefined): string |
   return code && isSupportedCurrency(code) ? code : null;
 }
 
+// The country the network says the visitor is in (Vercel's header) and nothing else: no guess from the phone's language. null when unknown.
+// Used once, to save the home country at sign-up.
+export function ipCountry(h: { get(name: string): string | null }): string | null {
+  const c = (h.get("x-vercel-ip-country") ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(c) && c !== "XX" ? c : null;
+}
+
 // The one country that uses this currency in the table above, or null when none or several do (EUR is many countries, so it is never guessed).
 export function countryForCurrency(currency: string | null | undefined): string | null {
   const cur = (currency ?? "").trim().toUpperCase();

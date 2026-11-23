@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { dayRangeLabel, monthSoFar, nextBillLabel } from "@/lib/home/bills";
-import { addWaitingBill, billChangeLines, runBillsForGroup } from "@/lib/home/bills-db";
+import { addWaitingBill, billChangeLines, billExpenseInput, billStatuses, runBillsForGroup } from "@/lib/home/bills-db";
 import { billCommand, saveBillFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { moveOut } from "@/lib/home/moving-db";
 import { joinWeights, lastPartDay, dailyPrecharge } from "@/lib/home/moving";
@@ -308,6 +308,159 @@ describe("a deleted automatic bill expense can be added again (M8)", () => {
     expect((await setExpenseDeleted(f.first.id, f.a, false)).ok).toBe(true);
     const run = await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } });
     expect([run.status, run.expenseId]).toEqual(["added", f.first.id]);
+    await checkBooks(f.groupId);
+  });
+});
+
+// ---------- Audit fixes ----------
+const rateOk = async () => ({ ok: true as const, rate: "1", date: "2026-11-02" });
+const live = (groupId: string) => db.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true }, orderBy: { createdAt: "asc" } });
+
+describe("A1: a month that was already skipped or added gets no 'month so far'", () => {
+  it("Nov skipped on 5 Nov, then paused on 20 Nov: nothing is added (not 114,000), the bill is paused, the confirm says nothing is added; books at 0", async () => {
+    const f = await flat("a1");
+    expect((await billCommand(f.groupId, f.a, f.billId, "skip", at("2026-11-05"))).ok).toBe(true);
+    const lines = await billChangeLines(f.billId, at("2026-11-20"));
+    expect(lines?.stop).toBeNull();
+    expect((await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"))).ok).toBe(true);
+    expect(await live(f.groupId)).toHaveLength(0);
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).paused).toBe(true);
+    const net = await checkBooks(f.groupId);
+    expect([net[f.a], net[f.b], net[f.c]]).toEqual([0, 0, 0]);
+  });
+  it("the same for Stop: the bill is stopped and nothing is charged", async () => {
+    const f = await flat("a1b");
+    await billCommand(f.groupId, f.a, f.billId, "skip", at("2026-11-05"));
+    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"))).ok).toBe(true);
+    expect(await live(f.groupId)).toHaveLength(0);
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).deletedAt).not.toBeNull();
+    await checkBooks(f.groupId);
+  });
+});
+
+describe("A2: the days after a pause are weighted by the days, even when nobody was missing", () => {
+  it("D moved in 15 Nov; pause and start again on 20 Nov; the month end adds 20–30 Nov = 11 × 6,000 = 66,000 = 16,500 each for A, B, C and D", async () => {
+    const f = await flat("a2", { extra: true });
+    expect((await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"))).ok).toBe(true);
+    expect((await billCommand(f.groupId, f.a, f.billId, "resume", at("2026-11-20"))).ok).toBe(true);
+    await runBillsForGroup(f.groupId, at("2026-12-01"));
+    const list = await live(f.groupId);
+    const end = list.find((e) => e.description === "Milk")!;
+    expect(end.amount).toBe(66000);
+    expect(shareMap(end)).toEqual({ [f.a]: 16500, [f.b]: 16500, [f.c]: 16500, [f.d]: 16500 });
+    // Whole month: 114,000 shared 34,936 / 34,935 / 34,935 / 9,194, plus 66,000 → A 51,436, B 51,435, C 51,435, D 25,694 (sum 180,000); A paid it all.
+    const net = await checkBooks(f.groupId);
+    expect([net[f.a], net[f.b], net[f.c], net[f.d]]).toEqual([128564, -51435, -51435, -25694]);
+  });
+});
+
+describe("A3: a deleted pause charge can't come back once a later one covers the same days", () => {
+  it("P1 (1–19 Nov, 114,000) deleted; paused again later gives P2 = 20 × 6,000 = 120,000; P1 can't be restored; balances are P2's alone", async () => {
+    const f = await flat("a3");
+    await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"));
+    const p1 = (await live(f.groupId))[0];
+    expect(p1.amount).toBe(114000);
+    expect((await setExpenseDeleted(p1.id, f.a, true)).ok).toBe(true);
+    // Start again 25 Nov (20–24 not come), pause again 26 Nov: days 1–25 minus 5 = 20 days.
+    expect((await billCommand(f.groupId, f.a, f.billId, "resume", at("2026-11-25"))).ok).toBe(true);
+    expect((await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-26"))).ok).toBe(true);
+    const p2 = (await live(f.groupId))[0];
+    expect(p2.amount).toBe(120000);
+    const back = await setExpenseDeleted(p1.id, f.a, false);
+    expect(back.ok).toBe(false);
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([120000]);
+    const net = await checkBooks(f.groupId);
+    expect([net[f.a], net[f.b], net[f.c]]).toEqual([80000, -40000, -40000]);
+  });
+  it("with no later charge it still comes back", async () => {
+    const f = await flat("a3b");
+    await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"));
+    const p1 = (await live(f.groupId))[0];
+    await setExpenseDeleted(p1.id, f.a, true);
+    expect((await setExpenseDeleted(p1.id, f.a, false)).ok).toBe(true);
+    await checkBooks(f.groupId);
+  });
+});
+
+describe("A4: a month added again can't have the old expense back, however it was renamed", () => {
+  it("Rent 1,800,000 deleted and re-added as 'Rent Nov': restoring the first is refused; B and C each owe 600,000, not 1,200,000", async () => {
+    const f = await flat("a4");
+    await db.bill.update({ where: { id: f.billId }, data: { name: "Rent", nature: "fixed", amount: 1800000, day: 1, startMonth: "2026-11" } });
+    await runBillsForGroup(f.groupId, at("2026-11-02"));
+    const first = (await live(f.groupId))[0];
+    await setExpenseDeleted(first.id, f.a, true);
+    const bill = await db.bill.findUniqueOrThrow({ where: { id: f.billId } });
+    const members = await db.member.findMany({ where: { groupId: f.groupId } });
+    const input: SaveExpenseInput = { ...billExpenseInput(bill, f.groupId, "INR", "2026-11", 1800000, f.a, members), name: "Rent Nov", date: "2026-11-09" };
+    expect((await addWaitingBill(input, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "a4-again-key-aaaa1")).ok).toBe(true);
+    expect(await db.requestKey.count({ where: { key: `bill-replaced:${first.id}` } })).toBe(1);
+    expect((await setExpenseDeleted(first.id, f.a, false)).ok).toBe(false);
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([1800000]);
+    const net = await checkBooks(f.groupId);
+    expect([net[f.a], net[f.b], net[f.c]]).toEqual([1200000, -600000, -600000]);
+  });
+  it("an unrelated expense with the same name and month no longer stops a restore (no guessing by name)", async () => {
+    const f = await flat("a4b");
+    await db.bill.update({ where: { id: f.billId }, data: { name: "Rent", nature: "fixed", amount: 1800000, day: 1, startMonth: "2026-11" } });
+    await runBillsForGroup(f.groupId, at("2026-11-02"));
+    const first = (await live(f.groupId))[0];
+    await setExpenseDeleted(first.id, f.a, true);
+    expect((await setExpenseDeleted(first.id, f.a, false)).ok).toBe(true);
+    await checkBooks(f.groupId);
+  });
+});
+
+describe("A5: pausing or stopping again the same day after deleting the charge adds it again", () => {
+  it("pause 20 Nov (114,000), delete it, stop 20 Nov: one live 114,000 expense and the bill is stopped", async () => {
+    const f = await flat("a5");
+    await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"));
+    const p1 = (await live(f.groupId))[0];
+    await setExpenseDeleted(p1.id, f.a, true);
+    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"))).ok).toBe(true);
+    const now = await live(f.groupId);
+    expect(now.map((e) => e.amount)).toEqual([114000]);
+    expect(now[0].id).not.toBe(p1.id);
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).deletedAt).not.toBeNull();
+    const net = await checkBooks(f.groupId);
+    expect([net[f.a], net[f.b], net[f.c]]).toEqual([76000, -38000, -38000]);
+  });
+});
+
+describe("A6: Stop adds a legacy pause's days, like Start again", () => {
+  it("paused 20 Oct before this release, stopped 25 Nov: 1–19 Oct, 114,000 (38,000 each), is added and the bill is stopped", async () => {
+    const f = await flat("a6", { startMonth: "2026-10" });
+    await db.bill.update({ where: { id: f.billId }, data: { paused: true, pausedAt: at("2026-10-20") } });
+    const lines = await billChangeLines(f.billId, at("2026-11-25"));
+    expect(lines?.stop?.amount).toBe(114000);
+    expect(lines?.stop?.line).toContain("Milk for 1–19 Oct");
+    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-25"), { expect: 114000 })).ok).toBe(true);
+    const list = await live(f.groupId);
+    expect(list.map((e) => [e.description, e.amount])).toEqual([["Milk · 1–19 Oct", 114000]]);
+    expect(shareMap(list[0])).toEqual({ [f.a]: 38000, [f.b]: 38000, [f.c]: 38000 });
+    expect((await db.bill.findUniqueOrThrow({ where: { id: f.billId } })).deletedAt).not.toBeNull();
+    await checkBooks(f.groupId);
+  });
+});
+
+describe("A7: only live charges lock days and skipping", () => {
+  it("after the pause charge is deleted, day 7 can change again", async () => {
+    const f = await flat("a7");
+    await billCommand(f.groupId, f.a, f.billId, "pause", at("2026-11-20"));
+    expect((await toggleMissedDayFor(f.groupId, f.a, f.billId, "2026-11", 7)).ok).toBe(false);
+    await setExpenseDeleted((await live(f.groupId))[0].id, f.a, true);
+    expect((await toggleMissedDayFor(f.groupId, f.a, f.billId, "2026-11", 7)).ok).toBe(true);
+    await checkBooks(f.groupId);
+  });
+});
+
+describe("A8: a month whose expense was deleted does not hold back Stop, and is not 'waiting' on Home", () => {
+  it("October waiting as 'deleted': the status is not waiting, and Stop works", async () => {
+    const f = await flat("a8", { startMonth: "2026-10" });
+    await db.billRun.create({ data: { billId: f.billId, period: "2026-10", status: "waiting", reason: "deleted", expenseId: "gone-expense" } });
+    const status = (await billStatuses(f.groupId, at("2026-11-20")))[0];
+    expect(status.status).not.toBe("waiting");
+    expect((await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"))).ok).toBe(true);
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([114000]);
     await checkBooks(f.groupId);
   });
 });

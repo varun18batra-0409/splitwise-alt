@@ -17,7 +17,7 @@ import { findLikelyDuplicate } from "./duplicates";
 import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText } from "./home/charge-lock";
-import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain } from "./home/bill-run-link";
+import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain, partRestoreRefusal } from "./home/bill-run-link";
 import { expenseEditRefusal } from "./guest-rules";
 import { CARD_FEE_CHANGED, CURRENCY_CHANGED, PEOPLE_JOINED, PEOPLE_LEFT } from "./offline/words";
 import type { Prisma } from "@prisma/client";
@@ -110,6 +110,7 @@ class MonthAdded extends Error {
   }
 }
 class BillAddedAgain extends Error {}
+class PartCovered extends Error {}
 class ChargeLocked extends Error {
   constructor(bill: string, public status?: "adding" | "added" | "covered") {
     super(bill);
@@ -517,6 +518,9 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
       // An automatic bill's month that was added again since can't have this one back as well (it would be counted twice).
       const again = await billAddedAgain(tx, expense);
       if (again) throw new BillAddedAgain(again);
+      // A pause or stop charge whose days a later one already covers can't come back too (the days would be charged twice).
+      const covered = await partRestoreRefusal(tx, expense);
+      if (covered) throw new PartCovered(covered);
     }
     // Only if it's still in the state we saw (two taps at once change it once).
     const changed = await tx.expense.updateMany({
@@ -539,6 +543,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
+    if (err instanceof PartCovered) return { ok: false, error: err.message };
     if (err instanceof BillAddedAgain) return { ok: false, error: `This month’s ${err.message} was already added, so this can’t come back.` };
     if (err instanceof MonthAdded) return { ok: false, error: err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };

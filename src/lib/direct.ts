@@ -11,6 +11,9 @@ import { moneyLines } from "./payers";
 export const DIRECT = "direct";
 export const isDirect = (g: { type: string } | null | undefined): boolean => g?.type === DIRECT;
 // A Prisma "where" piece: ordinary groups only.
+// Where a pair of two people (no group) is opened.
+export const pairPath = (groupId: string) => `/people/${groupId}`;
+
 export const NOT_DIRECT = { type: { not: DIRECT } } as const;
 
 // Entry points (the + choice, the picker, "Add expense with someone"). Only these are switchable; the exclusions are always on.

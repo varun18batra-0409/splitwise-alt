@@ -18,6 +18,8 @@ const COUNTS = { ...JOINED, removedAt: null };
 export const HOME_FROM_OWN_GROUPS = true;
 export async function ensureHomeCountry<T extends { id: string; homeCountry: string }>(account: T): Promise<T> {
   if (account.homeCountry || !HOME_FROM_OWN_GROUPS) return account;
+  // Someone who chose "Not set" stays that way: the choice is a one-time key (home-cleared:<id>), set by the settings action.
+  if (await db.requestKey.findUnique({ where: { key: `home-cleared:${account.id}` }, select: { key: true } })) return account;
   const rows = await db.member.findMany({
     where: { accountId: account.id, ...JOINED, leftAt: null, removedAt: null, group: { deletedAt: null, type: { notIn: ["trip", "direct"] } } },
     select: { group: { select: { currency: true } } },

@@ -7,7 +7,7 @@ import { BILL_TEMPLATES, addMissed, dayRangeLabel, daysBefore, daysInRange, firs
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
-import { addMonthSoFar, catchUpLastMonth, monthLongName, parseSplit } from "./bills-db";
+import { addMonthSoFar, catchUpLastMonth, legacyPauseMonth, monthLongName, parseSplit } from "./bills-db";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 
 // Setting bills up and changing them (database side, checked here).
@@ -142,6 +142,13 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
   return { ok: true, id: bill.id };
 }
 
+// The charges written on a bill month that still count: only those whose expense is not deleted (the same rule as prepaidFor).
+async function liveCharges(tx: Prisma.TransactionClient, list: ReturnType<typeof parsePrepaid>[string]) {
+  if (!list.length) return list;
+  const live = new Set((await tx.expense.findMany({ where: { id: { in: list.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
+  return list.filter((x) => live.has(x.e));
+}
+
 type DailyBill = NonNullable<Awaited<ReturnType<typeof loadDaily>>>;
 const loadDaily = (billId: string) => db.bill.findFirst({ where: { id: billId, deletedAt: null }, include: { group: { include: { members: true } } } });
 
@@ -170,6 +177,14 @@ async function changeDaily(bill: DailyBill, command: "pause" | "stop", actorId: 
   // A bill that is already paused counts nothing from the day it was paused.
   const pausedDay = fresh.paused && fresh.pausedAt ? dayKey(fresh.pausedAt, bill.tz) : "";
   const until = pausedDay && pausedDay < today ? pausedDay : today;
+  // A bill paused before this release, in an earlier month, whose days before the pause were never added: Stop adds them first, like Start again.
+  if (command === "stop" && fresh.paused) {
+    const legacy = await legacyPauseMonth(fresh, now, "this");
+    if (legacy) {
+      const r = await addMonthSoFar(fresh, group, { period: legacy.period, until: legacy.from, verb, actorId, now, expect, finish: (tx) => finishStop(tx, bill.id, now) });
+      return r.ok ? { ok: true, id: bill.id } : r;
+    }
+  }
   const finish = (tx: Prisma.TransactionClient) =>
     command === "pause" ? tx.bill.updateMany({ where: { id: bill.id, paused: false, deletedAt: null }, data: { paused: true, pausedAt: now } }).then(() => undefined) : finishStop(tx, bill.id, now);
   const r = await addMonthSoFar(fresh, group, { period: today.slice(0, 7), until, verb, actorId, now, expect, finish });
@@ -190,7 +205,7 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
     // "part" = only part charges (a pause or stop earlier this month); "move" = a move-out charge is in it.
     const charged = async (tx: Prisma.TransactionClient, period: string): Promise<"part" | "move" | null> => {
       const now2 = await tx.bill.findUnique({ where: { id: billId }, select: { nature: true, prepaid: true } });
-      const list = now2 && now2.nature === "daily" ? parsePrepaid(now2.prepaid)[period] ?? [] : [];
+      const list = now2 && now2.nature === "daily" ? await liveCharges(tx, parsePrepaid(now2.prepaid)[period] ?? []) : [];
       return list.length === 0 ? null : list.every((x) => x.k === "part") ? "part" : "move";
     };
     await opts.afterRead?.();
@@ -264,7 +279,7 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
     } else await db.$transaction(finish);
   } else if (command === "stop") {
     // Any month still waiting for its amount (or its payer) would be lost: it has to be dealt with first.
-    const open = await db.billRun.findFirst({ where: { billId, status: "waiting" }, orderBy: { period: "asc" } });
+    const open = await db.billRun.findFirst({ where: { billId, status: "waiting", reason: { not: "deleted" } }, orderBy: { period: "asc" } }); // (a month whose expense was deleted does not hold the stop back)
     if (open) return { ok: false, error: `${bill.name} for ${monthLongName(open.period)} is still waiting for its amount. Enter it or skip it first, then stop the bill.` };
     if (bill.nature === "daily") {
       const r = await changeDaily(bill, "stop", actorId, now, opts.expect ?? null);
@@ -293,11 +308,12 @@ export async function toggleMissedDayFor(groupId: string, actorId: string, billI
       // The days up to a leaver's last day were charged to them when they moved out: those days can't change (read again here, in the write).
       const now = await tx.bill.findFirst({ where: { id: billId, groupId, deletedAt: null, nature: "daily" }, select: { name: true, prepaid: true } });
       if (!now) return "moved" as const;
-      for (const x of parsePrepaid(now.prepaid)[period] ?? []) {
+      const charges = await liveCharges(tx, parsePrepaid(now.prepaid)[period] ?? []);
+      for (const x of charges) {
         if (x.d && day > Number(x.d.slice(8, 10))) continue;
         if (x.k === "part") {
           // (From the 1st, or the day after the part charge before this one.)
-          const before = (parsePrepaid(now.prepaid)[period] ?? []).filter((y) => y.k === "part" && y.d && x.d && y.d < x.d).reduce((n, y) => Math.max(n, Number((y.d ?? "").slice(8, 10))), 0);
+          const before = charges.filter((y) => y.k === "part" && y.d && x.d && y.d < x.d).reduce((n, y) => Math.max(n, Number((y.d ?? "").slice(8, 10))), 0);
           return { locked: `${now.name} for ${dayRangeLabel(period, before + 1, Number((x.d ?? "").slice(8, 10)))} was already added when it was paused, so those days can’t change.` };
         }
         const who = (await tx.member.findUnique({ where: { id: x.m }, select: { name: true } }))?.name ?? "Someone";

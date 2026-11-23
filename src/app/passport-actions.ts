@@ -36,8 +36,12 @@ export async function setHomeCountryAction(f: FormData) {
   const a = await getAccount();
   if (!a) redirect("/signin?back=/passport");
   const c = field(f, "country").toUpperCase();
-  // Only a real country is saved (there is no way back to "not set": the home country is chosen once and changed on purpose).
   if (countryOf(c)) await db.account.update({ where: { id: a.id }, data: { homeCountry: c } });
+  else if (c === "") {
+    // "Not set" is a choice: it is written down (a one-time key, no schema change) so the one-time default (ensureHomeCountry) never fills it again.
+    await db.account.update({ where: { id: a.id }, data: { homeCountry: "" } });
+    await db.requestKey.upsert({ where: { key: `home-cleared:${a.id}` }, create: { key: `home-cleared:${a.id}`, result: "1" }, update: {} });
+  }
   redirect("/passport");
 }
 

@@ -11,7 +11,10 @@ const { loadOverview } = await import("@/lib/overview");
 const { loadHomeRows } = await import("@/lib/home/home-data");
 const { ensureAccountPair } = await import("@/lib/direct-db");
 const { buildActivity } = await import("@/lib/activity");
-const { homeMoney } = await import("@/lib/home/display");
+const { pairPath } = await import("@/lib/direct");
+const React = await import("react");
+const { renderToStaticMarkup } = await import("react-dom/server");
+const { ActivityRow } = await import("@/components/ActivityRow");
 const { mkAccount, mkSharedGroup, addExpense, wipe } = await import("./helpers/direct-fixtures");
 const { checkBooks } = await import("./helpers/money-invariants");
 
@@ -31,6 +34,24 @@ afterAll(async () => {
   await wipe([A, R]);
 });
 
+describe("whole units on Home's Latest", () => {
+  it("a ₹48.50 row reads ₹49 on Home (whole) and ₹48.50 in a group; the exact amount stays in the row", async () => {
+    const e = await addExpense(pair.groupId, { paidBy: pair.aRow, amount: 4850, shares: { [pair.aRow]: 2425, [pair.rRow]: 2425 } });
+    await db.expense.update({ where: { id: e.id }, data: { description: "Coffee" } });
+    const full = await db.expense.findUniqueOrThrow({ where: { id: e.id }, include: { shares: true } });
+    const item = buildActivity([full], [], pair.aRow, [], new Set())[0];
+    const render = (whole: boolean) => renderToStaticMarkup(React.createElement(ActivityRow, { item, currency: "INR", nameOf: (id: string) => (id === pair.aRow ? "You" : "Rohan"), whole }));
+    const text = (html: string) => [...html.matchAll(/>([^<]+)</g)].map((m) => m[1]).join(" ");
+    expect(text(render(true))).toContain("₹49");
+    expect(text(render(true))).not.toContain("48.50");
+    expect(text(render(false))).toContain("₹48.50");
+    expect(render(true)).toContain("48.50"); // the exact amount is still there (tooltip)
+    const net = await checkBooks(pair.groupId); // Lunch 30,000 + Coffee 2,425: Rohan owes Asha 32,425
+    expect([net[pair.aRow], net[pair.rRow]]).toEqual([32425, -32425]);
+    await db.expense.delete({ where: { id: e.id } });
+  });
+});
+
 describe("Home's Latest with a person", () => {
   it("Lunch ₹600 with Rohan is in Latest, labelled Rohan, opening their page; the month card does not read pairs", async () => {
     const o = await loadOverview({ [pair.groupId]: pair.aRow });
@@ -45,8 +66,8 @@ describe("Home's Latest with a person", () => {
     expect(items.map((i) => i.title)).toEqual(["Lunch"]);
     const other = entry.group.members.find((m) => m.id !== entry.myId);
     expect(other?.name).toBe("Rohan");
-    expect(`/people/${entry.group.id}`).toBe(`/people/${pair.groupId}`);
-    expect(homeMoney(60000, "INR")).toBe("₹600");
+    // The row opens the person's page: the link is made by the same function Home uses, checked against a literal built from the id by hand.
+    expect(pairPath(entry.group.id)).toBe("/people/" + pair.groupId);
     // Without the pairs, Latest is exactly as before (nothing from the pair).
     const without = await loadHomeRows(o.all, { tz: "UTC", now, today });
     expect(without.recent.has(pair.groupId)).toBe(false);

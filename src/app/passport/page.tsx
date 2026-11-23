@@ -258,11 +258,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
                   <label className="block min-w-0 flex-1">
                     <span className="mb-2 block text-xs text-fg/65">Trips here get city stamps; trips abroad get a country stamp.</span>
                     <SelectField name="country" defaultValue={p.home} aria-label="Home country" className="min-w-0">
-                      {!home && (
-                        <option value="" disabled>
-                          Choose your country
-                        </option>
-                      )}
+                      <option value="">Not set</option>
                       {COUNTRIES.map((c) => (
                         <option key={c.code} value={c.code}>
                           {c.name}

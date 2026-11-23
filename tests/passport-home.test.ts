@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { accountForEmail } from "@/lib/auth";
 import { ensureHomeCountry, loadPassport } from "@/lib/passport-db";
 import { buildPassport } from "@/lib/passport";
-import { countryForCurrency } from "@/lib/region";
+import { countryForCurrency, ipCountry } from "@/lib/region";
+import { homeHighlights } from "@/lib/home/highlights";
+import { cleanOldKeys } from "@/lib/offline/key-cleanup";
 
 // The passport's home country is saved once (at sign-up), never guessed from where the phone is. One small default for older
 // accounts (ensureHomeCountry). Home unknown: nothing counts as abroad, but stamps still show. Throwaway database.
@@ -124,5 +126,38 @@ describe("home unknown: stamps show, nothing is abroad", () => {
     expect(f1.marks.some((m) => m.ladder === "abroad")).toBe(false);
     expect(f2.stats.abroad).toBe(1);
     expect(f2.marks.some((m) => m.ladder === "abroad")).toBe(true);
+  });
+});
+
+describe("A9/A10/A12: sign-up country, the passport card, and clearing the home country", () => {
+  it("the sign-up country is the network's country only: a phone language never counts, and 'XX' or junk is unknown", () => {
+    const h = (o: Record<string, string>) => ({ get: (k: string) => o[k] ?? null });
+    expect(ipCountry(h({ "x-vercel-ip-country": "in" }))).toBe("IN");
+    expect(ipCountry(h({ "accept-language": "en-GB,en;q=0.9" }))).toBeNull();
+    expect(ipCountry(h({ "x-vercel-ip-country": "XX" }))).toBeNull();
+    expect(ipCountry(h({ "x-vercel-ip-country": "India" }))).toBeNull();
+  });
+  it("home unknown: Home's passport card has no 'abroad, plus home' phrase; with a home it does", () => {
+    const base = { weather: null, hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 3 };
+    const text = (abroad: number | undefined) => JSON.stringify(homeHighlights({ ...base, passportAbroad: abroad } as never));
+    expect(text(undefined)).not.toMatch(/abroad, plus home/);
+    expect(text(2)).toMatch(/2 abroad, plus home/);
+  });
+  it("a person who chose 'Not set' is never filled in again by the one-time default", async () => {
+    const a = await account();
+    await groupFor(a.id, { currency: "INR" });
+    await db.requestKey.create({ data: { key: `home-cleared:${a.id}`, result: "1" } });
+    expect((await ensureHomeCountry(a)).homeCountry).toBe("");
+    expect((await db.account.findUniqueOrThrow({ where: { id: a.id } })).homeCountry).toBe("");
+    await db.requestKey.deleteMany({ where: { key: `home-cleared:${a.id}` } });
+  });
+  it("the daily clean-up keeps the two lasting keys but still removes an old retry key", async () => {
+    const old = new Date(Date.now() - 40 * 86_400_000);
+    const keys = [`home-cleared:${stamp}`, `bill-replaced:${stamp}`, `retry-${stamp}`];
+    for (const key of keys) await db.requestKey.create({ data: { key, createdAt: old } });
+    await cleanOldKeys();
+    const left = (await db.requestKey.findMany({ where: { key: { in: keys } } })).map((r) => r.key).sort();
+    expect(left).toEqual([keys[0], keys[1]].sort());
+    await db.requestKey.deleteMany({ where: { key: { in: keys } } });
   });
 });

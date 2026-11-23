@@ -7,6 +7,7 @@ import { JoinByLink } from "@/components/JoinByLink";
 import { StartHero } from "@/components/StartHero";
 import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
+import { pairPath } from "@/lib/direct";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships, guestGroupsOnPhone } from "@/lib/identity";
@@ -150,7 +151,7 @@ export default async function Home({
         groupId: g.group.id,
         currency: g.group.currency,
         groupName: other ? other.name : g.group.name,
-        href: pair ? `/people/${g.group.id}` : undefined,
+        href: pair ? pairPath(g.group.id) : undefined,
         nameOf: (id: string) => names.get(id) ?? "Someone",
       }));
     })
@@ -479,7 +480,7 @@ export default async function Home({
     }),
     passportCountries: passportSet.size,
     // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
-    passportAbroad: homeCountry ? [...passportSet].filter((c) => c !== homeCountry).length : 0,
+    passportAbroad: homeCountry ? [...passportSet].filter((c) => c !== homeCountry).length : undefined, // home unknown: no "abroad, plus home" phrase
     // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
     scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0], stamps: keepsakeStamps, postcardPhoto: photoSet("card-postcard-photo")[0] },
   });
