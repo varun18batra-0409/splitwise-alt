@@ -43,6 +43,17 @@ export function groupChangedText(e: GroupChanged): string {
   }
 }
 
+// Is this refusal text one of the GroupChanged answers above? (For callers that get the text back from a save, not the error.)
+export function isGroupChangedText(text: string): boolean {
+  return (
+    text === groupChangedText(new GroupChanged("closed")) ||
+    text === groupChangedText(new GroupChanged("gone")) ||
+    text === groupChangedText(new GroupChanged("actor_left")) ||
+    /^The group's currency changed to .+ while you were saving, so nothing was saved\./.test(text) ||
+    / just left the group\. Check who it's for and save again\.$/.test(text)
+  );
+}
+
 export type GuardOptions = {
   currency: string; // the currency the amounts were worked out in (the group's, as read)
   actorId?: string; // must still be in the group

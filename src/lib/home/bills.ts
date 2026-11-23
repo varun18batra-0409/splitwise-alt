@@ -72,6 +72,32 @@ export function nextDueDay(b: DueRule, now: Date): string | null {
   return null;
 }
 
+// The first due date strictly after a done month ("2026-11" → "2027-01" for a bill every 2 months from 2026-11), or null.
+// The start month stays the anchor of the cycle (never moved to "the month after"), so every-other-month bills keep their own months.
+export function nextDueAfter(b: DueRule, after: string): string | null {
+  const every = Math.max(1, b.every);
+  for (let i = 0, p = addMonths(after, 1); i < 36; i++, p = addMonths(p, 1)) {
+    if (p < b.startMonth) continue;
+    if (b.endMonth && p > b.endMonth) return null;
+    if (monthsBetween(b.startMonth, p) % every !== 0) continue;
+    return b.nature === "daily" ? dueKey(p, "last") : dueKey(p, b.day >= 31 ? "last" : b.day);
+  }
+  return null;
+}
+
+// The month "Enter amount" and Skip point at: the OLDEST month still waiting (not one waiting because it was deleted), otherwise the
+// next coming month that has no row yet. One rule everywhere, so the Bills tab, "Enter amount" and Skip can never name different months.
+export function skipTarget(b: DueRule, runs: { period: string; status: string; reason: string }[], now: Date): string | null {
+  const open = runs.filter((r) => r.status === "waiting" && r.reason !== "deleted").map((r) => r.period).sort()[0];
+  if (open) return open;
+  const every = Math.max(1, b.every);
+  for (let i = 0, p = dayKey(now, b.tz || DEFAULT_TIME_ZONE).slice(0, 7); i < 36; i++, p = addMonths(p, 1)) {
+    if (b.endMonth && p > b.endMonth) return null;
+    if (p >= b.startMonth && monthsBetween(b.startMonth, p) % every === 0 && !runs.some((r) => r.period === p)) return p;
+  }
+  return null;
+}
+
 // The period whose due date is exactly this calendar day ("2026-11" for day "2026-11-16"), or null. Worked out from
 // the bill's rules alone, so it does not matter whether the daily job has already added that period (for someone
 // behind India, "tomorrow" can already be India's today). Same rules as nextDueDay.

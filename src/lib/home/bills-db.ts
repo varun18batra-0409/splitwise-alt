@@ -1,10 +1,11 @@
 import { db } from "../db";
-import { getRate } from "../rate-cache";
+import type { RateAnswer } from "../rate-cache";
+import { GroupChanged, isGroupChangedText } from "../money-guard";
 import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense";
 import { sendPushTo } from "../push";
 import { askBill } from "./bill-asks";
 import { toInputAmount, formatMoney } from "../money";
-import { dailyTotal, isStopped, payerFor, periodsDue, nextDueDay, ordinalDay, stopDone, stopLines, type StopWords } from "./bills";
+import { dailyTotal, isStopped, payerFor, periodsDue, nextDueDay, nextDueAfter, ordinalDay, stopDone, stopLines, type StopWords } from "./bills";
 import { addMonths, daysInMonth, dueKey } from "./month";
 import { noteReplaced } from "./bill-run-link";
 import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
@@ -127,8 +128,18 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
   };
 }
 
-const sameCurrencyRate = async (from: string, to: string) =>
-  from === to ? { ok: true as const, rate: "1", date: new Date().toISOString().slice(0, 10) } : getRate(from, to);
+// A bill is always in the group's own currency, so its run never asks for a market rate: if the two currencies differ (the group's
+// currency was changed after the bill was worked out), the run is refused and tried again with fresh numbers.
+export const BILL_CURRENCY_CHANGED = "The group’s currency changed, so this bill wasn’t added yet. It will be tried again.";
+const sameCurrencyRate = async (from: string, to: string): Promise<RateAnswer> =>
+  from === to ? { ok: true, rate: "1", date: new Date().toISOString().slice(0, 10) } : { ok: false, reason: "unavailable", message: BILL_CURRENCY_CHANGED };
+
+// Thrown inside the expense's transaction when the bill is not as it was when the amount was worked out.
+class BillMoved extends Error {}
+
+// The fields an automatic month depends on, as one comparable text.
+const billMoney = (b: BillRow) =>
+  JSON.stringify([b.amount, b.nature, b.split, b.payer, b.rotation, b.paused, b.deletedAt?.getTime() ?? 0, b.missed, b.prepaid]);
 
 // What a leaver already paid for a daily bill's month at move-out (their share of the days they were
 // there). Each charge counts for what it is NOW (edited since: the new amount) and only while its expense
@@ -183,8 +194,11 @@ async function claimRun(billId: string, period: string, now: Date) {
   }
 }
 
+// `afterRead` is for tests only: it runs after the group has been read for the save and before the write begins.
+type RunHooks = { afterRead?: () => Promise<void> };
+
 // Turn one due (bill, month) into an expense, once.
-async function runOne(first: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date) {
+async function runOne(first: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date, opts: RunHooks = {}) {
   // Claim the month first. If someone else already did, there's nothing to do.
   const run = await claimRun(first.id, period, now);
   if (!run) return "already";
@@ -263,18 +277,46 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
 
   const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members);
   if (note) input.notes = note;
-  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) ${REPEAT_BILL_MARK}` });
-  if (!r.ok) return wait(r.error.slice(0, 120));
-  // Added, and in the same step the move-out charge is credited to this month's payer.
+  // The month is refused (and its claim removed, so the next run starts again from fresh numbers) when the group or the bill changed
+  // while this was being worked out. Removed only if the claim is still this run's own.
+  const retryLater = async () => {
+    await db.billRun.deleteMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt } });
+    return "failed" as const;
+  };
+  const worked = billMoney(bill);
+  let r: Awaited<ReturnType<typeof saveExpense>>;
+  try {
+    r = await saveExpense(input, payer, sameCurrencyRate, {
+      now,
+      requestKey: key,
+      eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) ${REPEAT_BILL_MARK}`,
+      afterRead: opts.afterRead,
+      // In the same step as the expense: the bill is still exactly as it was when the amount was worked out, and the month is marked added.
+      alsoInTx: async (tx, expenseId) => {
+        const now2 = await tx.bill.findUnique({ where: { id: bill.id } });
+        if (!now2 || billMoney(now2) !== worked) throw new BillMoved();
+        await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId, reason: "" } });
+        await syncChargePayer(tx, group.id, charges, payer);
+      },
+    });
+  } catch (err) {
+    if (err instanceof BillMoved || err instanceof GroupChanged) return retryLater();
+    throw err;
+  }
+  if (!r.ok) {
+    if (r.error === BILL_CURRENCY_CHANGED || isGroupChangedText(r.error)) return retryLater();
+    return wait(r.error.slice(0, 120));
+  }
+  // Added (a repeat of an answer already given comes back here too): the month is marked and the move-out charge credited, once.
   await db.$transaction(async (tx) => {
-    await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } });
+    await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id, reason: "" } });
     await syncChargePayer(tx, group.id, charges, payer);
   });
   return "added";
 }
 
 // Every bill of one group that's due now.
-export async function runBillsForGroup(groupId: string, now = new Date()) {
+export async function runBillsForGroup(groupId: string, now = new Date(), opts: RunHooks = {}) {
   const group = await db.group.findUnique({
     where: { id: groupId },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } } },
@@ -287,7 +329,7 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
     for (const period of periodsDue(bill, now)) {
       // One bill failing (a dropped connection) mustn't stop the others; its
       // claim goes stale and the next run finishes it.
-      const r = await runOne(bill, group, period, now).catch((err) => {
+      const r = await runOne(bill, group, period, now, opts).catch((err) => {
         console.error("bill run failed", bill.id, period, String(err).slice(0, 200));
         return "failed" as const;
       });
@@ -296,9 +338,28 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
       else if (r === "waiting") counts.waiting++;
       else if (r === "skipped") counts.skipped++;
     }
+    await settleStuckRuns(bill, periodsDue(bill, now), now).catch((err) => console.error("bill stuck check failed", bill.id, String(err).slice(0, 200)));
     await finishStoppedBill(bill.id, now).catch(() => false); // a stopped bill with nothing left to add is finished
   }
   return counts;
+}
+
+// A month left "adding" by a run that crashed, in a period the daily run no longer looks at (older than last month), would never be
+// finished or shown. After 10 minutes: if its expense was saved after all, it is marked added; otherwise it becomes a waiting month
+// a person can see and add. Never charged automatically (the amount may be out of date by now).
+async function settleStuckRuns(bill: BillRow, due: string[], now: Date): Promise<void> {
+  const stuck = await db.billRun.findMany({ where: { billId: bill.id, status: "adding", period: { notIn: due }, claimedAt: { lt: new Date(now.getTime() - STALE_MS) } } });
+  for (const run of stuck) {
+    const saved = await previousResult(run.requestKey || `bill-${run.id}`);
+    if (saved) {
+      await db.$transaction(async (tx) => {
+        const c = await tx.billRun.updateMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt }, data: { status: "added", expenseId: saved, reason: "" } });
+        if (c.count === 1) await noteReplaced(tx, run.expenseId, saved);
+      });
+    } else {
+      await db.billRun.updateMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt }, data: { status: "waiting", reason: "", requestKey: "" } });
+    }
+  }
 }
 
 // The daily job: every group that has bills.
@@ -335,6 +396,12 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
     db.member.findMany({ where: { groupId, leftAt: null }, select: { id: true } }),
     db.group.findUnique({ where: { id: groupId }, select: { closed: true } }),
   ]);
+  // Every month still waiting, however old (the latest few runs alone could hide an older waiting month behind newer added ones).
+  const waitingRuns = await db.billRun.findMany({ where: { billId: { in: bills.map((b) => b.id) }, status: "waiting" }, orderBy: { period: "asc" } });
+  for (const bill of bills) {
+    const mine = waitingRuns.filter((r) => r.billId === bill.id && !bill.runs.some((x) => x.id === r.id));
+    bill.runs = [...bill.runs, ...mine].sort((x, y) => y.period.localeCompare(x.period));
+  }
   const closed = Boolean(grp?.closed);
   const active = members.map((m) => m.id);
   const runExpenseIds = bills.flatMap((b) => b.runs.map((r) => r.expenseId)).filter(Boolean);
@@ -345,7 +412,8 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
     const { runs, ...b } = bill;
     const thisMonth = dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7);
     const recordedThisMonth = runs.some((r) => r.period === thisMonth && r.status === "added");
-    const waiting = runs.find((r) => r.status === "waiting" && r.reason !== "deleted"); // a deleted month shows only on the bill page ("Deleted · Add it again")
+    // The OLDEST month still waiting (the same one "Enter amount" and Skip point at). A deleted month shows only on the bill page ("Deleted · Add it again").
+    const waiting = [...runs].reverse().find((r) => r.status === "waiting" && r.reason !== "deleted");
     const past = runs.filter((r) => r.status === "added" && amounts.has(r.expenseId)).map((r) => amounts.get(r.expenseId)!);
     const usual = bill.nature === "varies" && past.length ? Math.round(past.slice(0, 3).reduce((s, a) => s + a, 0) / Math.min(3, past.length)) : null;
     if (waiting) {
@@ -360,7 +428,7 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
     const done = runs.find((r) => r.period === period && (r.status === "added" || r.status === "skipped"));
     // This month's already added → show the next one.
     if (done) {
-      const after = nextDueDay({ ...bill, startMonth: bill.startMonth > addMonths(period, 1) ? bill.startMonth : addMonths(period, 1) }, now);
+      const after = nextDueAfter(bill, period); // (the start month stays the anchor, so an every-other-month bill keeps its own months)
       if (after) return { bill: b as BillRow, status: "upcoming", period: after.slice(0, 7), due: after, usual, payerId: payerFor(bill, after.slice(0, 7), active), reason: "", recordedThisMonth };
     }
     return { bill: b as BillRow, status: "upcoming", period, due: next, usual, payerId: payerFor(bill, period, active), reason: "", recordedThisMonth };
