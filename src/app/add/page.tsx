@@ -54,7 +54,7 @@ export default async function PickGroupForExpense({ searchParams }: { searchPara
           <Link href="/add?in=group" className={row} data-choice="group">
             <span className="min-w-0 flex-1">
               <span className="block font-display text-[22px] font-semibold leading-tight tracking-[-0.01em]">In a group</span>
-              <span className="mt-0.5 block text-[14px] leading-snug text-fg/65">A trip, a home, or any group you are in.</span>
+              <span className="mt-0.5 block text-[14px] leading-snug text-fg/65">A trip, a flat, or any group you’re in.</span>
             </span>
             <span aria-hidden className="text-fg/60">›</span>
           </Link>
