@@ -166,7 +166,8 @@ describe("D1: a move-out can't be undone after a pause charge subtracted its cha
     const out = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `d1-${stamp}-abcdefgh` }, day("2026-11-10"));
     expect(out).toMatchObject({ ok: true });
     expect((await billCommand(f.gid, f.a, f.billId, "pause", day("2026-11-20"))).ok).toBe(true);
-    const part = (await live(f.gid)).find((e) => e.description.startsWith("Milk ·"))!;
+    // The move-out charge is also called "Milk · …", so take the newest one: the pause charge.
+    const part = (await live(f.gid)).filter((e) => e.description.startsWith("Milk ·")).at(-1)!;
     expect(part.amount).toBe(94000);
     const eventId = (out as { eventId?: string }).eventId!;
     const wanted = "Milk for this month was already added when it was paused or stopped, so this move-out can’t be undone. Add a money-back expense if needed.";
