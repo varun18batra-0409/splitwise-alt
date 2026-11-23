@@ -2203,7 +2203,7 @@ async function main() {
     assert(!/UPI|Teen Patti|Poker|Diwali/i.test(all), "a slide has India-only or card-room words");
     assert(!/splitwise/i.test(all), "a slide names another app");
     // The group kinds use the app's own names (as New group), and the last slide has no "Get the Loopin app" card pushing the sign-up line off.
-    for (const t of ["Trip", "Home", "Couple", "Game night"]) assert(all.includes(t), `the tour's group kinds miss “${t}”`);
+    for (const t of ["Trip", "Flat or family", "Couple", "Game night"]) assert(all.includes(t), `the tour's group kinds miss “${t}”`);
     assert(!/Flat\b|Card night|The Pot/.test(all.replace(/Flat expenses/g, "")), "the tour still says Flat / Card night / The Pot");
     assert(!/Get the Loopin app/.test(all), "the tour has a “Get the Loopin app” card");
     assert((await page.locator("[data-story-lines] li").allTextContents()).length === 3, "the story poster doesn't show its three Wrapped lines");
@@ -2244,7 +2244,7 @@ async function main() {
   });
   await step(V, "Help", "The guide has Home, Couples, the trip report, stories, Wrapped, the passport and moving over from another app, with real app screens that load", async () => {
     await go(V, "/how-it-works");
-    for (const h of ["Home: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Home, told as stories", "Trip over? Watch the Wrapped", "Your trip passport", "Postcards, sealed and stamped", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
+    for (const h of ["Flat or family: the home runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Home, told as stories", "Trip over? Watch the Wrapped", "Your trip passport", "Postcards, sealed and stamped", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
     assert(!(await V.getByText("Recurring bills are coming soon").count()), "still says recurring bills are coming soon");
     for (const id of ["trips", "home", "couples"]) {
       await V.locator(`#${id}`).scrollIntoViewIfNeeded();
@@ -2942,7 +2942,7 @@ async function main() {
     await go(page, "/account");
     await page.getByRole("link", { name: /Sign-in & devices/ }).click();
     await page.waitForURL(/\/account\/sign-in/);
-    await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
+    await page.getByRole("button", { name: /Turn on fingerprint or face sign-in/ }).click();
     const piaId = (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id;
     // Wait for the saved key itself: "This device" can already be on the page before the key is saved.
     await until("the passkey being saved", async () => (await db.passkey.count({ where: { accountId: piaId } })) > 0);
@@ -3328,9 +3328,9 @@ async function main() {
     await ctx.close();
   });
 
-  await step(V, "New group", "“What’s it for?” offers Trip, Home, Couple, Game night, Collect and Anything goes; Game night explains itself; Collect opens Collect", async () => {
+  await step(V, "New group", "“What’s it for?” offers Trip, Flat or family, Couple, Game night, Collect and Anything goes; Game night explains itself; Collect opens Collect", async () => {
     await go(V, "/groups/new");
-    for (const t of [/^Trip/, /^Home/, /^Couple/, /^Game night/, /^Anything goes/]) assert(await V.getByRole("button", { name: t }).count(), `no ${t} choice`);
+    for (const t of [/^Trip/, /^Flat or family/, /^Couple/, /^Game night/, /^Anything goes/]) assert(await V.getByRole("button", { name: t }).count(), `no ${t} choice`);
     await V.getByRole("button", { name: /^Game night/ }).click();
     await V.getByText(/Loopin works out who came out ahead, who came out behind and who pays whom/).waitFor();
     await V.getByText(/No betting happens in the app/).waitFor();
