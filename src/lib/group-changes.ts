@@ -6,7 +6,7 @@ import { logEvent, type Db, type OtherMoney } from "./events";
 import { allocateByWeights } from "./split";
 import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
-import { keepSquareAtZero, rebaseExpense, rebasePayment, type SquareExpense, type SquarePayment } from "./rebase";
+import { keepSquareAtZero, rebaseExpense, squareLimit, rebasePayment, type SquareExpense, type SquarePayment } from "./rebase";
 import { GroupChanged, ledgerInTx, moneySig } from "./money-guard";
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string; needsRate?: true };
@@ -15,15 +15,13 @@ type Result = { ok: true; eventId?: string } | { ok: false; error: string; needs
 export const CURRENCY_ROUNDING_TEXT = "At this rate, rounding would leave someone who’s settled up with a tiny balance, so the currency wasn’t changed. Try a slightly different rate.";
 export const CURRENCY_PAYMENT_TEXT = "That rate makes a payment too small or too large. Check it.";
 
-// The most a payment or a share may end away from its plain-converted amount to keep everyone settled: rounding, not a rewrite.
-// max(2 minor units, 1% of the plain amount rounded up). Whole numbers only: 1% of 9,920 is 99.2, so 100.
-export const squareLimit = (plain: number) => Math.max(2, Math.floor((Math.abs(plain) + 99) / 100));
+export { squareLimit };
 const MORE_THAN_ROUNDING = (cur: string) => `That’s more than rounding, usually because some expenses were entered in ${cur} at a different rate. Nothing was changed. Check the rate.`;
 export const paymentJumpText = (payer: string, payee: string, was: string, now: string, plain: string, cur: string) =>
   `At this rate, ${payer}’s ${was} payment to ${payee} would have to become ${now} (not ${plain}) to keep everyone settled. ${MORE_THAN_ROUNDING(cur)}`;
 export const shareJumpText = (person: string, expense: string, now: string, plain: string, cur: string) =>
   `At this rate, ${person}’s share of ${expense} would have to become ${now} (not ${plain}) to keep everyone settled. ${MORE_THAN_ROUNDING(cur)}`;
-export const paymentRoundedLine = (payer: string, payee: string, was: string, now: string) => `${payer} → ${payee}: ${was} is now ${now} (rounded to keep ${payer} settled).`;
+export const paymentRoundedLine = (payer: string, payee: string, was: string, now: string) => `${payer} → ${payee}: ${was} is now ${now} (rounded so balances stay settled).`;
 
 export const PAIR_NO_SETTINGS = "This is just between two people, so it has no settings to change.";
 
@@ -156,20 +154,24 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   let squared: ReturnType<typeof keepSquareAtZero> = null;
   let roundedLines: string[] = []; // Activity: payments that moved by 2 or more to keep someone settled (at most 5, then "and N more")
   if (liveExpenses.length || livePayments.length) {
-    squared = keepSquareAtZero({
+    const squareInput = {
       members: group.members.map((m) => ({ id: m.id, left: Boolean(m.leftAt) })),
       before: { expenses: squareRows(liveExpenses, false), payments: squarePayments(false) },
       after: { expenses: squareRows(liveExpenses, true), payments: squarePayments(true) },
-      convert: (a) => rebasePayment(a, oldCurrency, newCurrency, rate),
-    });
+      convert: (a: number) => rebasePayment(a, oldCurrency, newCurrency, rate),
+    };
+    // First spread the nudges so no row moves beyond rounding. If no row has room, look at the unlimited answer: the check below then
+    // says which payment or share would have had to move too far (and if there is no answer at all, it is the rounding refusal).
+    squared = keepSquareAtZero(squareInput, { rowLimit: true }) ?? keepSquareAtZero(squareInput);
     if (!squared) return { ok: false, error: CURRENCY_ROUNDING_TEXT };
     // Keeping people settled may nudge a few paise, never rewrite a past payment or share: a bigger move means the rate does not
     // fit the group's history (some expenses were entered at another rate). Refused before anything is written.
     const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
+    const order = (id: string) => group.members.findIndex((m) => m.id === id); // ties are named in member order, so the sentence is always the same
     const bigPay = livePayments
       .map(({ p, amount }) => ({ p, plain: amount!, final: squared!.payments[p.id], delta: squared!.moved.payments[p.id] ?? 0 }))
       .filter((x) => Math.abs(x.delta) > squareLimit(x.plain))
-      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.p.id.localeCompare(b.p.id))[0];
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || order(a.p.fromId) - order(b.p.fromId) || a.p.id.localeCompare(b.p.id))[0];
     if (bigPay) {
       return { ok: false, error: paymentJumpText(nameOf(bigPay.p.fromId), nameOf(bigPay.p.toId), formatMoney(bigPay.p.amount, oldCurrency), formatMoney(bigPay.final, newCurrency), formatMoney(bigPay.plain, newCurrency), newCurrency) };
     }
@@ -177,7 +179,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
       .flatMap(({ e, r }) => e.shares.map((s) => ({ e, s, plain: r!.shares.find((x) => x.id === s.id)!.amount })))
       .map((x) => ({ ...x, final: squared!.shares[x.s.id], delta: squared!.moved.shares[x.s.id] ?? 0 }))
       .filter((x) => Math.abs(x.delta) > squareLimit(x.plain))
-      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.s.id.localeCompare(b.s.id))[0];
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || order(a.s.memberId) - order(b.s.memberId) || a.s.id.localeCompare(b.s.id))[0];
     if (bigShare) {
       return { ok: false, error: shareJumpText(nameOf(bigShare.s.memberId), bigShare.e.description, formatMoney(bigShare.final, newCurrency), formatMoney(bigShare.plain, newCurrency), newCurrency) };
     }

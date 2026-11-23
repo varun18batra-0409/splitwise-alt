@@ -130,9 +130,16 @@ export type SquareResult = {
   moved: { shares: Record<string, number>; payments: Record<string, number> };
 };
 
+// The most a payment or a share may end away from its plain-converted amount to keep everyone settled: rounding, not a rewrite.
+// max(2 minor units, 1% of the plain amount rounded up). Whole numbers only: 1% of 9,920 is 99.2, so 100.
+export const squareLimit = (plain: number) => Math.max(2, Math.floor((Math.abs(plain) + 99) / 100));
+
 type Edge = { t: "e"; u: string; v: string } | { t: "r"; u: string; v: string } | { t: "p+"; p: string } | { t: "p-"; p: string };
 
-export function keepSquareAtZero(input: SquareInput): SquareResult | null {
+// rowLimit: no row may end further than squareLimit(its plain amount) from where plain converting put it, so a settled person's gap
+// is spread over every row that has room (shared expenses oldest first, then payments) instead of piled onto the first one.
+// It returns null when no row has room; the caller then looks at the unlimited answer to say how far a row would have had to move.
+export function keepSquareAtZero(input: SquareInput, opts: { rowLimit?: boolean } = {}): SquareResult | null {
   const ids = input.members.map((m) => m.id);
   const netBefore = netBalances(ids, input.before.expenses, input.before.payments);
   const shares: Record<string, number> = {};
@@ -191,11 +198,18 @@ export function keepSquareAtZero(input: SquareInput): SquareResult | null {
   addExpenses(live.filter((e) => e.itemSplit));
 
   // Is the move u -> v possible on this one row right now? (Returns a function that does it.)
+  const plainShare: Record<string, number> = {};
+  const plainPay: Record<string, number> = {};
+  for (const e of input.after.expenses) for (const s of e.shares) plainShare[s.id] = s.amount;
+  for (const p of input.after.payments) plainPay[p.id] = p.amount;
+  // Would this row still be within its limit after moving by `d`? (Always yes when no limit is asked for.)
+  const roomS = (id: string, d: number) => !opts.rowLimit || Math.abs(shares[id] + d - plainShare[id]) <= squareLimit(plainShare[id]);
+  const roomP = (id: string, d: number) => !opts.rowLimit || Math.abs(payments[id] + d - plainPay[id]) <= squareLimit(plainPay[id]);
   const usable = (e: Edge): (() => void) | null => {
-    if (e.t === "e") return shares[e.u] >= 2 ? () => { shares[e.u] -= 1; shares[e.v] += 1; } : null;
-    if (e.t === "r") return shares[e.v] >= 2 ? () => { shares[e.v] -= 1; shares[e.u] += 1; } : null;
-    if (e.t === "p+") return payments[e.p] < MAX_MINOR ? () => { payments[e.p] += 1; } : null;
-    return payments[e.p] >= 2 ? () => { payments[e.p] -= 1; } : null;
+    if (e.t === "e") return shares[e.u] >= 2 && roomS(e.u, -1) && roomS(e.v, 1) ? () => { shares[e.u] -= 1; shares[e.v] += 1; } : null;
+    if (e.t === "r") return shares[e.v] >= 2 && roomS(e.v, -1) && roomS(e.u, 1) ? () => { shares[e.v] -= 1; shares[e.u] += 1; } : null;
+    if (e.t === "p+") return payments[e.p] < MAX_MINOR && roomP(e.p, 1) ? () => { payments[e.p] += 1; } : null;
+    return payments[e.p] >= 2 && roomP(e.p, -1) ? () => { payments[e.p] -= 1; } : null;
   };
   const move = (u: string, v: string): (() => void) | null => {
     for (const e of edges.get(`${u}|${v}`) ?? []) {

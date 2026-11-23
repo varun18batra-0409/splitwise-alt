@@ -53,6 +53,17 @@ const MONEY_KINDS = new Set([
   "pot_finished", "pot_reopened", "pot_deleted", "bill_changed",
 ]);
 
+// An expense edit that changed only its words (name, notes, category, date): the saved lines are "Name: a → b", "Date: …", "Category: …",
+// "Notes: …" and nothing else (a money change always adds an Amount, share, payer or similar line; a person's share line reads "Asha’s share: …",
+// so a person called Date can't be mistaken for the Date line). Such an edit leaves every amount and share row alone (restoreCurrency still
+// checks the rows), so it doesn't stop a currency change being undone. No saved lines (or any other line) = unknown: it still blocks.
+const WORDS_ONLY = /^(Name|Date|Category|Notes): /;
+const wordsOnlyEdit = (x: EventLike) => {
+  if (x.kind !== "expense_edited" || !x.details) return false;
+  const lines = parseDetails(x.details);
+  return lines.length > 0 && lines.every((l) => WORDS_ONLY.test(l));
+};
+
 // Close and reopen are one setting; members added/removed are one list.
 const settingFamily = (kind: string) =>
   kind === "group_closed" || kind === "group_reopened" || kind === "group_settled_closed" ? "open-state" : kind === "members_added" || kind === "members_removed" ? "members" : kind;
@@ -228,7 +239,7 @@ export function historyCheck(ev: EventLike, all: EventLike[], nameOf?: (memberId
           (x) => !own.has(x.id) && x.kind !== "payment_confirmed" && Boolean((x.expenseId && resplitIds.has(x.expenseId)) || (x.paymentId && squareUpIds.has(x.paymentId))),
         )
       : null,
-    payload.type === "currency_restore" ? block("Expenses or payments changed after the currency change, so it can’t be undone safely.", (x) => MONEY_KINDS.has(x.kind)) : null,
+    payload.type === "currency_restore" ? block("Expenses or payments changed after the currency change, so it can’t be undone safely.", (x) => MONEY_KINDS.has(x.kind) && !wordsOnlyEdit(x)) : null,
   ];
   return checks.find((c) => c !== null) ?? { ok: true };
 }

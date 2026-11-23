@@ -309,7 +309,13 @@ async function saveExpenseOnce(
     const weights = Object.fromEntries(group.members.map((m) => [m.id, m.splitWeight]));
     const start = initialFromExpense(existing, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz: DEFAULT_TIME_ZONE, today: today() }, "edit");
     const asOpened = buildExpense(draftFromInitial(start), { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
-    return asOpened.ok && JSON.stringify(asOpened.expense) === JSON.stringify(e);
+    if (!asOpened.ok || JSON.stringify(asOpened.expense) !== JSON.stringify(e)) return false;
+    // The form as opened must also have meant the people that are stored: an "everyone" expense from before someone joined would open
+    // (and post) as one more person than it was saved with. Then the edit is worked out again, as it always was.
+    const people = (xs: { memberId: string; amount: number }[]) => [...new Set(xs.filter((x) => x.amount > 0).map((x) => x.memberId))].sort().join("|");
+    if (people(existing.shares) !== people(asOpened.expense.shares)) return false;
+    if (people(parsePayers(existing.payers)) !== people(asOpened.expense.payers)) return false;
+    return existing.paidById === asOpened.expense.paidById;
   })();
   if (attach?.lines && !(moneyKept && existing && !(await attachChanges(group.id, existing.id, attach)).lines)) {
     const off = itemsDisagree(attach.lines, e);
@@ -330,7 +336,7 @@ async function saveExpenseOnce(
   const category = isCategory(input.category) ? input.category : guessCategory(name, { india: group.currency === "INR" || input.currency === "INR" });
   const notes = input.notes === undefined ? (existing?.notes ?? "") : input.notes.trim().replace(/\r\n/g, "\n").slice(0, 500);
   // Every money field: as worked out now, or (an edit that changed no money) exactly as stored, card fee included.
-  const money = moneyKept && existing
+  const moneyFields = moneyKept && existing
     ? {
         amount: existing.amount, splitType: existing.splitType, forMode: existing.forMode, paidById: existing.paidById, payers: existing.payers, kind: existing.kind,
         originalAmount: existing.originalAmount, originalCurrency: existing.originalCurrency, baseCurrency: existing.baseCurrency, exchangeRate: existing.exchangeRate,
@@ -343,7 +349,7 @@ async function saveExpenseOnce(
         originalAmount: e.originalAmount, originalCurrency: e.originalCurrency, baseCurrency: e.baseCurrency, exchangeRate: e.exchangeRate,
         rateDate, rateSource, convertedAmount: e.convertedAmount, paymentMethod: e.paymentMethod, markupBp: e.markupBp, markupAmount: e.markupAmount,
       };
-  const fields = { description: name, notes, category, ...money, spentAt };
+  const fields = { description: name, notes, category, ...moneyFields, spentAt };
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = formatMoney(e.amount, group.currency);
 
