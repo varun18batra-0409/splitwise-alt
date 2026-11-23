@@ -6,7 +6,7 @@ import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney, roundPartsToTotal } from "@/lib/money-display";
+import { overviewMoney, roundPartsToTotal, shownParts } from "@/lib/money-display";
 import { Amt } from "@/components/Amt";
 import { dateRange, tripReport } from "@/lib/trip-report";
 import { PageHeader } from "@/components/ui";
@@ -33,7 +33,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   // The rows add up to the total shown: the category rows (and "Everything else") and each person's part are rounded together to the rounded
   // total, the largest leftover fractions going up (display only; the exact amount is in the tooltip).
   const catShown = roundPartsToTotal(r.categories.map((c) => c.amount), group.currency);
-  const shareShown = roundPartsToTotal(r.shares.map((s) => s.amount), group.currency);
+  // Everyone's part is rounded together; a tie for the extra unit goes by the group's own member order, never by the order on screen.
+  const shareBy = shownParts(Object.fromEntries(r.shares.map((s) => [s.id, s.amount])), group.members.map((x) => x.id), group.currency);
   const rm = (shown: number, exactMinor: number) => (
     <span title={formatMoney(exactMinor, group.currency)} data-exact={formatMoney(exactMinor, group.currency)}>
       {overviewMoney(shown, group.currency)}
@@ -107,7 +108,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               )}
               {r.topPayer && r.people > 1 && (
                 <p>
-                  Paid the most: {r.topPayer.id === myId ? "You" : r.topPayer.name} ({m(r.topPayer.amount)})
+                  Paid the most: {r.topPayer.id === myId ? "You" : r.topPayer.name} ({rm(r.topPayer.shown ?? r.topPayer.amount, r.topPayer.amount)})
                 </p>
               )}
             </div>
@@ -119,7 +120,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                   {r.shares.map((s, si) => (
                     <li key={s.id} className="flex justify-between">
                       <span>{s.id === myId ? "You" : s.name}</span>
-                      <span className="tabular-nums">{rm(shareShown[si], s.amount)}</span>
+                      <span className="tabular-nums">{rm(shareBy[s.id] ?? s.amount, s.amount)}</span>
                     </li>
                   ))}
                 </ul>

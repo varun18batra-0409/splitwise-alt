@@ -10,8 +10,9 @@ import { niceDate } from "../format";
 import { createPayment } from "../payments";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
-import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
+import { addPrepaid, dailyPrecharge, depositRefunds, lastPartDay, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
 import { monthsBetween, payerFor } from "./bills";
+import { prepaidFor } from "./bills-db";
 import type { Transfer } from "../settle";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, LeaverBreak, leaverBalanceBreaks, leaversOffZero } from "../money-guard";
 import { needsOkFor } from "../payment-ok";
@@ -92,7 +93,9 @@ async function dailyOffers(flat: Flat, leaverId: string, lastDay: string): Promi
     const run = runs.find((r) => r.billId === bill.id);
     if (run && run.status !== "waiting") continue;
     if ((parsePrepaid(bill.prepaid)[period] ?? []).some((x) => x.m === leaverId)) continue;
-    const d = dailyPrecharge(bill, period, lastDay, members, leaverId);
+    // Days a part charge (a pause or stop) already covered are not charged again; only live charges count (an undone one covers nothing).
+    const covered = lastPartDay((await prepaidFor(bill, period)).entries);
+    const d = dailyPrecharge(bill, period, lastDay, members, leaverId, covered + 1);
     if (d.unsupported || d.amount > 0) out.push({ bill, period, d });
   }
   return out;
@@ -379,7 +382,7 @@ export async function moveOut(
         if (run && run.status !== "waiting") throw new Error("BILLS_CHANGED");
         // The share was worked out from the bill's price, days it didn't come, kind and split as read: a change to any of them meanwhile refuses it.
         const fresh = await tx.bill.findUnique({ where: { id: c.bill.id }, select: { prepaid: true, missed: true, amount: true, split: true, nature: true, deletedAt: true } });
-        if (!fresh || fresh.deletedAt || fresh.missed !== c.bill.missed || fresh.amount !== c.bill.amount || fresh.split !== c.bill.split || fresh.nature !== c.bill.nature) throw new Error("BILLS_CHANGED");
+        if (!fresh || fresh.deletedAt || fresh.missed !== c.bill.missed || fresh.prepaid !== c.bill.prepaid || fresh.amount !== c.bill.amount || fresh.split !== c.bill.split || fresh.nature !== c.bill.nature) throw new Error("BILLS_CHANGED");
         const label = `${c.bill.name} · ${stayLabel(input.lastDay, leaver.joinedFrom)} (${leaver.name}’s share)`;
         const made = await tx.expense.create({
           data: {

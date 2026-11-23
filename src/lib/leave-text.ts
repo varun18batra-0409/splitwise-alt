@@ -49,3 +49,10 @@ export function deleteText(): StaysGoes {
 
 // Who can bring a deleted group back, as Home says it.
 export const RESTORE_WHO = "Whoever deleted a group, or looks after it, can bring it back for 30 days.";
+
+// The question before the person who looks after the group removes someone. A removal makes a new invite link (the old one stops
+// working) and closes the email invites that carry it; `waiting` = how many of those are not accepted yet.
+export function removeConfirm(name: string, group: string, waiting: number): string {
+  const more = waiting > 0 ? ` (and ${waiting} ${waiting === 1 ? "invite" : "invites"} not yet accepted)` : "";
+  return `Remove ${name} from ${group}? They won’t be able to rejoin on their own. This makes a new invite link, so the old one stops working${more}.`;
+}

@@ -184,16 +184,16 @@ describe("2. CB-1: 'Record anyway' only counts for the amount it was shown for",
     const w = await setup();
     const [N, As] = [w.id("Nupur"), w.id("Asha")];
     // The warning was shown for ₹50,000 (5000000 paise); the person then edited the amount to ₹5,00,000 (50000000) and tapped Record anyway.
-    const typo = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: N, toId: As, amount: "500000", over: "1", overFor: overKey(N, As, 5_000_000) })));
+    const typo = await redirectOf(() => A.recordCustomPayment(form({ currency: "INR", groupId: w.gid, fromId: N, toId: As, amount: "500000", over: "1", overFor: overKey(N, As, 5_000_000) })));
     expect(typo.pathname).toBe(`/groups/${w.gid}/pay`);
     expect(typo.searchParams.get("owes")).toBe("500000");
     expect(await db.payment.count({ where: { groupId: w.gid } })).toBe(0);
     // An old or hand-made "over=1" with no overFor is asked again too.
-    const bare = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: N, toId: As, amount: "500000", over: "1" })));
+    const bare = await redirectOf(() => A.recordCustomPayment(form({ currency: "INR", groupId: w.gid, fromId: N, toId: As, amount: "500000", over: "1" })));
     expect(bare.pathname).toBe(`/groups/${w.gid}/pay`);
     expect(await db.payment.count({ where: { groupId: w.gid } })).toBe(0);
     // The same amount the warning was shown for: recorded.
-    const ok = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: N, toId: As, amount: "500000", over: "1", overFor: overKey(N, As, 50_000_000) })));
+    const ok = await redirectOf(() => A.recordCustomPayment(form({ currency: "INR", groupId: w.gid, fromId: N, toId: As, amount: "500000", over: "1", overFor: overKey(N, As, 50_000_000) })));
     expect(ok.pathname).toBe(`/groups/${w.gid}`);
     const pays = await db.payment.findMany({ where: { groupId: w.gid } });
     expect(pays.map((p) => [p.fromId, p.toId, p.amount])).toEqual([[N, As, 50_000_000]]);
@@ -201,7 +201,7 @@ describe("2. CB-1: 'Record anyway' only counts for the amount it was shown for",
 
   it("an amount within what is owed still records straight away, with no key", async () => {
     const w = await setup();
-    const ok = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: w.id("Nupur"), toId: w.id("Asha"), amount: "5000" })));
+    const ok = await redirectOf(() => A.recordCustomPayment(form({ currency: "INR", groupId: w.gid, fromId: w.id("Nupur"), toId: w.id("Asha"), amount: "5000" })));
     expect(ok.pathname).toBe(`/groups/${w.gid}`);
     expect(await db.payment.count({ where: { groupId: w.gid } })).toBe(1);
   });

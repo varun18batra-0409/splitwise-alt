@@ -111,6 +111,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
           </p>
           <form action={listBuy} className="mt-3 flex gap-2">
             {hidden("groupId", group.id)}
+            {hidden("currency", group.currency)}
             <FreshKey name="rid" />
             <span className="flex flex-1 items-center gap-2 rounded-xl border border-line bg-mist px-3 focus-within:border-accent">
               <span className="nobreak shrink-0 text-sm text-gray-400">{group.currency}</span>

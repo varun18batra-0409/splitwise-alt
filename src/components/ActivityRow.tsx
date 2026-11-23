@@ -2,6 +2,7 @@ import { neutralGameText } from "@/lib/game-words";
 import { getCategory } from "@/lib/categories";
 import { ExpenseGlyph } from "./ExpenseGlyph";
 import { formatMoney } from "@/lib/money";
+import { homeMoney } from "@/lib/home/display";
 import { cardFeeLabel, type ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
 import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-words";
@@ -39,6 +40,7 @@ export function ActivityRow({
   dateLabel,
   motion,
   delay = 0,
+  whole = false,
 }: {
   item: ActivityItem;
   currency: string;
@@ -47,10 +49,12 @@ export function ActivityRow({
   dateLabel?: string; // "Today", "Yesterday": shown after the group name (Home)
   motion?: "loop" | "once"; // the icon moves: now and then (Home), or once when seen (a group's list)
   delay?: number; // seconds, so a list's icons take turns
+  whole?: boolean; // Home: whole rupees/dollars like the rest of Home ($48.50 reads $49 beside the month card); the exact amount stays in the tooltip
 }) {
   const money = (m: number) => formatMoney(m, currency);
-  // Rows show the exact amount, paise included (the same figure as the expense and Settle up); never rounded.
-  const short = money;
+  // Rows in a group show the exact amount, paise included (the same figure as the expense and Settle up); never rounded.
+  // On Home (`whole`) they show whole units like the month card beside them, with the exact amount in the tooltip / data-exact.
+  const short = whole ? (m: number) => homeMoney(m, currency) : money;
   // Third line: the group and the date. It may be cut; the names and amounts above never are.
   const where = [groupName, dateLabel].filter(Boolean).join(" · ");
   const whereLine = where ? (

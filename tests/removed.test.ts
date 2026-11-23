@@ -289,3 +289,51 @@ describe("passports: removed stops counting, left still counts", () => {
     expect((await canSeePassport(f.accounts.sam.id, f.accounts.ravi.id)).ok).toBe(true);
   });
 });
+
+// S2: removing someone makes a new invite link (the old one stops working) and closes the email invites that carry it.
+describe("removing someone makes a new invite link", () => {
+  it("Ravi is removed: the group has a new code; the old one is 'gone' for a new guest; open email invites are closed; undoing the removal does not bring the old code back", async () => {
+    const f = await flat("newlink");
+    const { joinNewAsGuest } = await import("@/lib/join");
+    // An email invite that is still waiting (it carries the old link).
+    await db.invite.create({ data: { groupId: f.groupId, email: `waiting-${stamp}@example.test`, invitedById: f.asha, token: `${f.kiran}.tok${stamp}`, memberId: f.kiran } });
+    expect(await waitingInvites(f.groupId)).toBe(1);
+    // Before: the old code lets a guest in.
+    const before = await joinNewAsGuest(f.code, "Visitor");
+    expect(before.ok).toBe(true);
+
+    const r = await setMemberLeft(f.groupId, f.asha, f.ravi, true);
+    expect(r.ok).toBe(true);
+    const g = await db.group.findUniqueOrThrow({ where: { id: f.groupId } });
+    expect(g.inviteCode).not.toBe(f.code);
+    expect(await joinNewAsGuest(f.code, "Another")).toEqual({ ok: false, reason: "gone" });
+    expect(await joinNewAsGuest(g.inviteCode, "Another")).toMatchObject({ ok: true });
+    expect(await waitingInvites(f.groupId)).toBe(0);
+
+    // Undo the removal: Ravi can be brought back, but the old link stays dead.
+    const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.groupId, kind: "member_left" }, orderBy: { createdAt: "desc" } });
+    const undone = await undoEvent(ev.id, f.asha);
+    expect(undone.ok).toBe(true);
+    const after = await db.group.findUniqueOrThrow({ where: { id: f.groupId } });
+    expect(after.inviteCode).not.toBe(f.code);
+  });
+
+  it("someone who only left on their own does not change the link; taking out someone who left on their own does", async () => {
+    const f = await flat("ownleft");
+    expect((await setMemberLeft(f.groupId, f.ravi, f.ravi, true)).ok).toBe(true);
+    expect((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode).toBe(f.code);
+    expect((await setMemberLeft(f.groupId, f.asha, f.ravi, true)).ok).toBe(true); // now removed by the admin
+    expect((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode).not.toBe(f.code);
+  });
+});
+
+describe("deleting a name nobody has used keeps the link", () => {
+  it("Kiran (added by name, never used, never joined) is deleted completely: the code stays", async () => {
+    const f = await flat("unused");
+    const { removeOrKeepPerson } = await import("@/lib/remove-person");
+    const r = await removeOrKeepPerson(f.groupId, f.asha, f.kiran);
+    expect(r.ok).toBe(true);
+    expect(await db.member.count({ where: { id: f.kiran } })).toBe(0);
+    expect((await db.group.findUniqueOrThrow({ where: { id: f.groupId } })).inviteCode).toBe(f.code);
+  });
+});

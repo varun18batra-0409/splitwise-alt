@@ -133,6 +133,7 @@ export default async function GroupSettle({
       plan.action === "record" ? (
         <form action={recordCustomPayment} className="flex">
           <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="currency" value={group.currency} />
           <input type="hidden" name="fromId" value={t.from} />
           <input type="hidden" name="toId" value={t.to} />
           <input type="hidden" name="amount" value={toInputAmount(t.amount, group.currency)} />

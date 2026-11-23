@@ -27,12 +27,15 @@ export function proRataShares(shares: Share[], leaverId: string, daysStayed: num
 
 // Weights for a month's bills when someone moved in part-way: each person's
 // weight × the days they're there (people there all month count every day).
-export function joinWeights(members: { id: string; splitWeight: number; joinedFrom: Date | null }[], period: string): Record<string, number> {
+// `range` (days of the month, both included): only those days count (a part charge, or the days after one).
+export function joinWeights(members: { id: string; splitWeight: number; joinedFrom: Date | null }[], period: string, range?: { from: number; to: number }): Record<string, number> {
   const days = daysInMonth(period);
+  const first = range?.from ?? 1;
+  const last = range?.to ?? days;
   return Object.fromEntries(
     members.map((m) => {
       const from = m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : "";
-      const present = from.slice(0, 7) === period ? days - Number(from.slice(8, 10)) + 1 : from.slice(0, 7) > period ? 0 : days;
+      const present = from.slice(0, 7) === period ? Math.max(0, last - Math.max(first, Number(from.slice(8, 10))) + 1) : from.slice(0, 7) > period ? 0 : Math.max(0, last - first + 1);
       return [m.id, m.splitWeight * present];
     }),
   );
@@ -123,7 +126,9 @@ const gcd = (a: bigint, b: bigint): bigint => (b === 0n ? a : gcd(b, a % b));
 // Weights: the flat's own split for "group", 100 each for "equal", the listed people
 // for "some". "percent": their percentage × days × rate. Rounded down once at the end,
 // so a few paise stay with the month-end bill, never with the leaver.
-export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: string, members: DailyMember[], leaverId: string): DailyPrecharge {
+// `fromDay`: the first day that can still be charged (the day after the last part charge; 1 when there is none), so a leaver is
+// never charged for days a part charge already covered.
+export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: string, members: DailyMember[], leaverId: string, fromDay = 1): DailyPrecharge {
   const split = parseSplitRule(bill.split);
   if (split.mode === "amounts") return { days: 0, missed: [], amount: 0, unsupported: true };
   const leaver = members.find((m) => m.id === leaverId);
@@ -142,7 +147,7 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
   let days = 0;
   const stayed: number[] = [];
   const stayedMissed: number[] = [];
-  for (let d = 1; d <= last; d++) {
+  for (let d = Math.max(1, fromDay); d <= last; d++) {
     if (!present(leaver, d)) continue;
     (missed.includes(d) ? stayedMissed : stayed).push(d);
     if (!missed.includes(d)) days++;
@@ -172,7 +177,13 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
 
 // What a daily bill has already had charged for a month at move-out: {"2026-11":[{m,a,e,d}]}
 // (m = who, a = their share, e = the expense that charged it, d = their last day).
-export type Prepaid = { m: string; a: number; e: string; d?: string };
+// k = "part": the month so far, charged to everyone when the bill was paused or stopped (m is empty, d is the last day it covers).
+export type Prepaid = { m: string; a: number; e: string; d?: string; k?: "part" };
+
+// The last day of the month that live part charges cover (0 = none).
+export function lastPartDay(list: Prepaid[]): number {
+  return list.filter((x) => x.k === "part").reduce((n, x) => Math.max(n, Number((x.d ?? "").slice(8, 10)) || 0), 0);
+}
 
 export function parsePrepaid(json: string): Record<string, Prepaid[]> {
   try {

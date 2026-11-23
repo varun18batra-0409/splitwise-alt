@@ -118,6 +118,44 @@ export function dailyTotal(b: { amount: number; missed: string }, period: string
   return { days, amount: days * b.amount };
 }
 
+// The month so far of a daily bill, for a pause or a stop (the days it came, up to the day before `until`):
+//   days   – days after the last part charge (or the 1st) up to yesterday, leaving out the days it didn't come
+//   gross  – days × the daily rate
+//   less   – move-out charges made since the last part charge (an earlier one was already taken off by that part charge)
+//   amount – gross − less, never below 0
+// `entries` are the month's live charges in the order they were written ("part" = an earlier part charge).
+// Hand-worked: ₹60 a day (6,000), 1–19 Nov, nothing missed, nothing charged: 19 × 6,000 = 114,000.
+export type MonthSoFar = { fromDay: number; toDay: number; days: number; gross: number; less: number; amount: number };
+export function monthSoFar(b: { amount: number; missed: string }, period: string, until: string, entries: { a: number; k?: string; d?: string }[]): MonthSoFar {
+  const toDay = until.slice(0, 7) === period ? Number(until.slice(8, 10)) - 1 : until.slice(0, 7) > period ? daysInMonth(period) : 0;
+  let lastPartAt = -1;
+  entries.forEach((x, i) => {
+    if (x.k === "part") lastPartAt = i;
+  });
+  const lastPart = lastPartAt >= 0 ? Number((entries[lastPartAt].d ?? "").slice(8, 10)) || 0 : 0;
+  const fromDay = lastPart + 1;
+  const missed = missedDays(b.missed, period);
+  let days = 0;
+  for (let d = fromDay; d <= toDay; d++) if (!missed.includes(d)) days++;
+  const gross = days * b.amount;
+  const less = entries.slice(lastPartAt + 1).filter((x) => x.k !== "part").reduce((n, x) => n + x.a, 0);
+  return { fromDay, toDay, days, gross, less, amount: Math.max(0, gross - less) };
+}
+
+const SHORT_MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "1–19 Nov" (or "19 Nov" for one day).
+export function dayRangeLabel(period: string, from: number, to: number): string {
+  const mon = SHORT_MONTH_NAMES[Number(period.slice(5, 7)) - 1] ?? "";
+  return from >= to ? `${to} ${mon}` : `${from}–${to} ${mon}`;
+}
+
+// The word on a bill coming up (Home's This month): "Next bill" only when it really is the next one coming.
+export function nextBillLabel(s: { status: string; nature: string; reason: string; payerId: string | null }): string {
+  if (s.status !== "waiting") return "Next bill";
+  const hold = billHold(s);
+  return hold === "payer" ? "Needs a payer" : hold === "amount" ? "Waiting for amount" : "Overdue";
+}
+
 // Tap a day on the calendar: missed ⇄ came.
 export function toggleMissed(missed: string, period: string, day: number): string {
   let v: Record<string, number[]> = {};

@@ -69,7 +69,7 @@ describe("Friends' passports in one batch equal one by one", () => {
     const batch = await passportsForFriends(accounts, TODAY);
     expect(batch).toHaveLength(3);
     for (let i = 0; i < accounts.length; i++) {
-      const one = await loadPassport(accounts[i], "", TODAY, { forFriend: true });
+      const one = await loadPassport(accounts[i], TODAY, { forFriend: true });
       expect(batch[i], accounts[i].name).toEqual(one);
     }
 
@@ -82,7 +82,7 @@ describe("Friends' passports in one batch equal one by one", () => {
     expect(batch[1].trips.find((t) => t.name.startsWith("Kerala"))!.start).toBe("2026-10-05");
     expect(batch[0].trips.find((t) => t.name.startsWith("Kerala"))!.start).toBe("2026-10-20");
     // The same person looking at their own passport does see the trips still on.
-    const own = await loadPassport(a, "", TODAY);
+    const own = await loadPassport(a, TODAY);
     expect(own.trips.map((t) => t.name.replace(` ${stamp}`, "")).sort()).toEqual(["Coorg", "Goa", "Hampi", "Kerala", "Munnar", "Spiti"]);
   });
 

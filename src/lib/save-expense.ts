@@ -17,6 +17,7 @@ import { findLikelyDuplicate } from "./duplicates";
 import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText } from "./home/charge-lock";
+import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain } from "./home/bill-run-link";
 import { expenseEditRefusal } from "./guest-rules";
 import { CARD_FEE_CHANGED, CURRENCY_CHANGED, PEOPLE_JOINED, PEOPLE_LEFT } from "./offline/words";
 import type { Prisma } from "@prisma/client";
@@ -108,6 +109,7 @@ class MonthAdded extends Error {
     super(bill);
   }
 }
+class BillAddedAgain extends Error {}
 class ChargeLocked extends Error {
   constructor(bill: string, public status?: "adding" | "added" | "covered") {
     super(bill);
@@ -512,6 +514,9 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
       // Someone who has left may only end with the balance they had, or 0.
       const gone = now ? await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: now.paidById, payers: parsePayers(now.payers), shares: now.shares }), (l) => ({ ...l, expenses: [...l.expenses, now] })) : [];
       if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
+      // An automatic bill's month that was added again since can't have this one back as well (it would be counted twice).
+      const again = await billAddedAgain(tx, expense);
+      if (again) throw new BillAddedAgain(again);
     }
     // Only if it's still in the state we saw (two taps at once change it once).
     const changed = await tx.expense.updateMany({
@@ -519,6 +524,9 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
       data: deleted ? { deletedAt: new Date(), deletedById: actingMemberId } : { deletedAt: null, deletedById: null },
     });
     if (changed.count !== 1) return "";
+    // An automatic bill's expense: its month waits to be added again (or is "added" again when this comes back first).
+    if (deleted) await monthWaitsAgain(tx, expense.id);
+    else await monthIsAddedAgain(tx, expense.id);
     return logEvent(tx, {
       groupId: expense.groupId,
       actorId: actingMemberId,
@@ -531,6 +539,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
+    if (err instanceof BillAddedAgain) return { ok: false, error: `This month’s ${err.message} was already added, so this can’t come back.` };
     if (err instanceof MonthAdded) return { ok: false, error: err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };
     throw err;

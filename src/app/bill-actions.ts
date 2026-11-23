@@ -21,6 +21,7 @@ import { after } from "next/server";
 import { flashTo } from "@/lib/flash";
 import { getTimeZone } from "@/lib/tz";
 import { gateGuest, refusalNotes } from "@/lib/guest-rules";
+import { formCurrencyRefusal } from "@/lib/form-currency";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
@@ -40,6 +41,12 @@ async function me(groupId: string) {
   return id;
 }
 
+// A form that posts amounts must carry the currency its page was drawn in (see form-currency.ts): null = fine.
+async function staleForm(groupId: string, formData: FormData): Promise<string | null> {
+  const g = await db.group.findUnique({ where: { id: groupId }, select: { currency: true } });
+  return g ? formCurrencyRefusal(formData.get("currency"), g.currency) : null;
+}
+
 // "p_<memberId>" → { memberId: value } for the percentage / amount boxes.
 function perPerson(formData: FormData, prefix: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -51,6 +58,8 @@ export async function saveBill(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const actor = await me(groupId);
   const billId = String(formData.get("billId") ?? "") || undefined;
+  const stale = await staleForm(groupId, formData);
+  if (stale) redirect(await flashTo(billId ? ["groups", groupId, "bills", billId] : ["groups", groupId, "bills", "new"], { error: stale }));
   const r = await saveBillFor(groupId, actor, {
     billId,
     template: String(formData.get("template") ?? "other"),
@@ -71,7 +80,10 @@ export async function saveBill(formData: FormData) {
 export async function changeBill(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const billId = String(formData.get("billId") ?? "");
-  const r = await billCommand(groupId, await me(groupId), billId, String(formData.get("command") ?? ""));
+  // The amount the confirm showed (the month so far that a pause, stop or start-again adds). Missing = nothing was shown.
+  const shown = String(formData.get("expect") ?? "");
+  const expect = /^\d{1,12}$/.test(shown) ? Number(shown) : null;
+  const r = await billCommand(groupId, await me(groupId), billId, String(formData.get("command") ?? ""), new Date(), { expect });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "bills", billId], { error: r.error }));
   redirect(formData.get("command") === "stop" ? `/groups/${groupId}?tab=bills` : `/groups/${groupId}/bills/${billId}?saved=1`);
 }
@@ -107,6 +119,8 @@ export async function listRemove(formData: FormData) {
 export async function listBuy(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const key = cleanKey(formData.get("rid")) ?? `buy-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const stale = await staleForm(groupId, formData);
+  if (stale) redirect(await flashTo(["groups", groupId], { error: stale }, { tab: "list" }));
   const r = await buyListItems(groupId, await meOpen(groupId), String(formData.get("amount") ?? ""), key);
   if (!r.ok) redirect(await flashTo(["groups", groupId], { error: r.error }, { tab: "list" }));
   redirect(`/groups/${groupId}?tab=list&bought=1`);
@@ -124,6 +138,8 @@ export async function saveBudgets(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const amounts: Record<string, string> = {};
   for (const [k, v] of formData.entries()) if (k.startsWith("b_")) amounts[k.slice(2)] = String(v);
+  const stale = await staleForm(groupId, formData);
+  if (stale) redirect(await flashTo(["groups", groupId, "budgets"], { error: stale }));
   const r = await saveBudgetsFor(groupId, await me(groupId), amounts);
   if (!r.ok) redirect(await flashTo(["groups", groupId, "budgets"], { error: r.error }));
   redirect(`/groups/${groupId}`);
@@ -177,6 +193,8 @@ export async function saveDeposit(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const amounts: Record<string, string> = {};
   for (const [k, v] of formData.entries()) if (k.startsWith("d_")) amounts[k.slice(2)] = String(v);
+  const stale = await staleForm(groupId, formData);
+  if (stale) redirect(await flashTo(["groups", groupId, "deposit"], { error: stale }));
   const r = await saveDepositFor(groupId, await me(groupId), { heldBy: String(formData.get("heldBy") ?? ""), amounts });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "deposit"], { error: r.error }));
   redirect(`/groups/${groupId}/deposit?saved=1`);
@@ -184,6 +202,8 @@ export async function saveDeposit(formData: FormData) {
 
 export async function returnDeposit(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
+  const stale = await staleForm(groupId, formData);
+  if (stale) redirect(await flashTo(["groups", groupId, "deposit"], { error: stale }));
   const r = await returnDepositFor(groupId, await me(groupId), String(formData.get("deductions") ?? ""));
   if (!r.ok) redirect(await flashTo(["groups", groupId, "deposit"], { error: r.error }));
   redirect(`/groups/${groupId}/deposit?returned=1`);
@@ -194,6 +214,8 @@ export async function returnDeposit(formData: FormData) {
 export async function saveGoal(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const goalId = String(formData.get("goalId") ?? "") || undefined;
+  const stale = await staleForm(groupId, formData);
+  if (stale) redirect(await flashTo(["groups", groupId, "goals", goalId ?? "new"], { error: stale }));
   const r = await saveGoalFor(groupId, await me(groupId), {
     goalId,
     name: String(formData.get("name") ?? ""),
@@ -207,6 +229,8 @@ export async function saveGoal(formData: FormData) {
 export async function addGoalEntry(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const goalId = String(formData.get("goalId") ?? "");
+  const stale = await staleForm(groupId, formData);
+  if (stale) redirect(await flashTo(["groups", groupId, "goals", goalId], { error: stale }));
   const r = await addGoalEntryFor(
     groupId,
     await me(groupId),

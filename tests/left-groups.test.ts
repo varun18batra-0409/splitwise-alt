@@ -72,3 +72,23 @@ describe("Record a payment in a group that can't take one", () => {
     expect(payBlocked({ name: "Koh Samui", closed: true, leaver: { removed: false } })!.kind).toBe("left");
   });
 });
+
+// VA3-6: what the card tells someone who left (the amounts are worked out by the page; here the words).
+describe("Record a payment, for someone who left: what to do next", () => {
+  it("square: nothing owed either way", () => {
+    expect(payBlocked({ name: "Koh Samui", closed: false, leaver: { removed: false }, mine: { square: true, owes: null } })!.text).toBe("You’re square in this group. Anyone still in it can record payments between others.");
+  });
+  it("owes one person (Asha ₹1,200): pay outside Loopin, ask someone still in to record the full ₹1,200; one who left on their own can also rejoin", () => {
+    const owes = { name: "Asha", amount: "₹1,200" };
+    expect(payBlocked({ name: "Koh Samui", closed: false, leaver: { removed: false }, mine: { square: false, owes } })!.text).toBe(
+      "Pay Asha ₹1,200 outside Loopin (Settle up has your payment apps), then ask someone still in the group to record the full ₹1,200, or rejoin to record it yourself.",
+    );
+    // Removed: no talk of rejoining.
+    const removed = payBlocked({ name: "Koh Samui", closed: false, leaver: { removed: true }, mine: { square: false, owes } })!.text;
+    expect(removed).toBe("Pay Asha ₹1,200 outside Loopin (Settle up has your payment apps), then ask someone still in the group to record the full ₹1,200.");
+    expect(removed).not.toMatch(/rejoin/i);
+  });
+  it("anything else (owed money, or owes several people) keeps the first words", () => {
+    expect(payBlocked({ name: "Koh Samui", closed: false, leaver: { removed: false }, mine: { square: false, owes: null } })!.text).toBe("Only people still in the group can record payments here.");
+  });
+});

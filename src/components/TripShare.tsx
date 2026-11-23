@@ -87,7 +87,7 @@ export function drawReport(canvas: HTMLCanvasElement, r: TripReport, fmt: (minor
     y += 56;
   }
   if (r.topPayer && r.people > 1) {
-    ctx.fillText(wrap(ctx, `Paid the most: ${r.topPayer.name} (${m(r.topPayer.amount)})`, right - x), x, y);
+    ctx.fillText(wrap(ctx, `Paid the most: ${r.topPayer.name} (${m(r.topPayer.shown ?? r.topPayer.amount)})`, right - x), x, y);
     y += 56;
   }
 

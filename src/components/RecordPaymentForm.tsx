@@ -109,6 +109,7 @@ export function RecordPaymentForm({
       }}
     >
       <input type="hidden" name="groupId" value={groupId} />
+      <input type="hidden" name="currency" value={currency} />
       {fromSettle && <input type="hidden" name="back" value="settle" />}
       {keyField}
 

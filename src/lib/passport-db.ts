@@ -2,6 +2,7 @@ import { db } from "./db";
 import { NOT_DIRECT } from "./direct"; // a pair of two people is not "sharing a group"
 import { JOINED, isPending } from "./membership";
 import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
+import { countryForCurrency } from "./region";
 import { buildPassport, parseHandPlaces, passportShared, passportZone, tripOver, undatedTripDay, wentOnTrip, type PassportTrip } from "./passport";
 import { leaverCut, leaverWhere, membershipSpan, overlapped, sharedGroupRow } from "./left-view";
 import { memberHistory } from "./left-view-db";
@@ -10,6 +11,28 @@ import type { TripExtras } from "./passport-cards";
 
 // Someone the admin removed stops counting for passport sharing (both ways); someone who left on their own still counts.
 const COUNTS = { ...JOINED, removedAt: null };
+
+// One-time default for accounts made before the home country was saved at sign-up: the currency of the person's own
+// non-trip groups (the most-used one) when it points to exactly one country (rupees: India; euros are many countries, so they stay unknown).
+// A tie or no such group leaves it unknown. Kept in this one place behind one switch so it is easy to find and to turn off.
+export const HOME_FROM_OWN_GROUPS = true;
+export async function ensureHomeCountry<T extends { id: string; homeCountry: string }>(account: T): Promise<T> {
+  if (account.homeCountry || !HOME_FROM_OWN_GROUPS) return account;
+  const rows = await db.member.findMany({
+    where: { accountId: account.id, ...JOINED, leftAt: null, removedAt: null, group: { deletedAt: null, type: { notIn: ["trip", "direct"] } } },
+    select: { group: { select: { currency: true } } },
+    take: 500,
+  });
+  const n = new Map<string, number>();
+  for (const r of rows) n.set(r.group.currency, (n.get(r.group.currency) ?? 0) + 1);
+  const ranked = [...n.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length || (ranked[1] && ranked[1][1] === ranked[0][1])) return account;
+  const country = countryForCurrency(ranked[0][0]);
+  if (!country) return account;
+  // Only fills an empty value, so a country chosen at the same moment is never overwritten.
+  await db.account.updateMany({ where: { id: account.id, homeCountry: "" }, data: { homeCountry: country } });
+  return { ...account, homeCountry: country };
+}
 
 // Record the owner's answer (the "Show" / "Not now" buttons, and the Who can see it switch).
 // Either way the answer is stamped, so the question is never asked again.
@@ -131,15 +154,15 @@ const PASSPORT_MAX = 300;
 // The passport as Our passports compares it: everyone, the viewer included, by the friend's rule (a trip still going on is not in it),
 // so the same trip counts the same way for every person in the list.
 export async function loadComparePassport(account: { id: string; homeCountry: string; places: string; timeZone: string }, today: string) {
-  return loadPassport(account, "", today, { forFriend: true });
+  return loadPassport(account, today, { forFriend: true });
 }
 
 // Your passport, from every trip group you're in (any phone you signed in on).
-export async function loadPassport(account: PassportAccount, fallbackHome: string, today: string, opts: { forFriend?: boolean; withMoments?: boolean } = {}) {
-  return passportFrom(account, fallbackHome, today, opts);
+export async function loadPassport(account: PassportAccount, today: string, opts: { forFriend?: boolean; withMoments?: boolean } = {}) {
+  return passportFrom(account, today, opts);
 }
 
-// The passports of several people at once, as seen by a friend (what loadPassport(a, "", today, { forFriend: true }) gives for each,
+// The passports of several people at once, as seen by a friend (what loadPassport(a, today, { forFriend: true }) gives for each,
 // in the same order). One read of all their trips and one batched read of the undated trips' spending, instead of that per person.
 // Everything after the reads is the same code as loadPassport, so the numbers and what is hidden (a leaver's own cut, trips
 // still going on) can't differ.
@@ -163,12 +186,11 @@ export async function passportsForFriends(accounts: PassportAccount[], today: st
   });
   const rowsPer = per.map((g) => undatedRowsOf(g, true));
   const raw = await undatedRaw(rowsPer.flat());
-  return Promise.all(accounts.map((a, i) => passportFrom(a, "", today, { forFriend: true }, { groups: per[i], facts: undatedFactsFrom(raw, rowsPer[i], passportZone(a)) })));
+  return Promise.all(accounts.map((a, i) => passportFrom(a, today, { forFriend: true }, { groups: per[i], facts: undatedFactsFrom(raw, rowsPer[i], passportZone(a)) })));
 }
 
 async function passportFrom(
   account: PassportAccount,
-  fallbackHome: string,
   today: string,
   opts: { forFriend?: boolean; withMoments?: boolean },
   pre?: { groups: PassportGroup[]; facts: Map<string, { count: number; day: string } | null> },
@@ -227,7 +249,8 @@ async function passportFrom(
     people: opts.forFriend ? g._count.members : (together.get(g.id)?.length ?? 0) + 1, // the others who overlapped, plus you
     undated: !g.tripStart,
   }));
-  const home = account.homeCountry || fallbackHome;
+  // Only the home country saved on the account: never guessed from where the phone is. Unknown ("") is handled in buildPassport.
+  const home = account.homeCountry;
   const passport = buildPassport(trips, parseHandPlaces(account.places), home, today);
   // Trips we couldn't place: a nudge to add "Where to?".
   const { tripStops } = await import("./geo");
@@ -372,13 +395,12 @@ export async function celebrateRecentTrips(today: string, yesterday: string) {
   });
   let sent = 0;
   for (const id of [...new Set(members.map((m) => m.accountId!))]) {
-    const a = await db.account.findUnique({ where: { id } });
-    if (!a) continue;
-    // With no home country saved, the daily job can't tell home from abroad (there's no visitor here to ask), so it
-    // celebrates only the milestones that don't depend on it. The passport page itself uses the visitor's region.
-    const p = await loadPassport(a, a.homeCountry || "IN", today);
-    const marks = a.homeCountry ? p.marks : p.marks.filter((m) => m.ladder !== "abroad");
-    if (await celebrateMarks(a, marks)) sent++;
+    const found = await db.account.findUnique({ where: { id } });
+    if (!found) continue;
+    const a = await ensureHomeCountry(found);
+    // With no home country saved, nothing is abroad (buildPassport's unknown-home rule), so there are no abroad milestones to celebrate.
+    const p = await loadPassport(a, today);
+    if (await celebrateMarks(a, p.marks)) sent++;
   }
   return sent;
 }

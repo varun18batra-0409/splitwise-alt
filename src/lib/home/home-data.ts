@@ -59,14 +59,17 @@ function readablePayments(groups: Entry[]): Prisma.PaymentWhereInput | null {
   return parts.length ? { OR: parts } : null;
 }
 
-export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; today: string }) {
+// `pairs`: money with one person (no group). Only Latest reads them (their newest expenses and payments); "Your month", the trips'
+// day and everything else is exactly as it was, so no number elsewhere changes.
+export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; today: string }, pairs: Entry[] = []) {
   const open = all.filter((g) => !g.group.closed);
   const { month } = viewMonth(opts.now, opts.tz);
   const monthWin = monthWindow(month);
   const dayWin = dayWindow(opts.today);
   const allExpenses = readableExpenses(all);
-  const openExpenses = readableExpenses(open);
-  const openPayments = readablePayments(open);
+  const latest = [...open, ...pairs.filter((p) => !p.group.closed)];
+  const openExpenses = readableExpenses(latest);
+  const openPayments = readablePayments(latest);
   const myIds = all.map((g) => g.myId);
   // Trips that are on or coming: today's spending is read for these only.
   const tripIds = open.filter((g) => !g.leaver && g.group.type === "trip" && g.group.tripStart).map((g) => g.group.id);

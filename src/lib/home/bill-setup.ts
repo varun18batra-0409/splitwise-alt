@@ -3,11 +3,11 @@ import { logEvent, type Db } from "../events";
 import { withRetry } from "../once";
 import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
 import { typedZero } from "../zero-amount";
-import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
+import { BILL_TEMPLATES, addMissed, dayRangeLabel, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
-import { parseSplit } from "./bills-db";
+import { addMonthSoFar, catchUpLastMonth, monthLongName, parseSplit } from "./bills-db";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 
 // Setting bills up and changing them (database side, checked here).
@@ -17,6 +17,7 @@ type Result = { ok: true; id: string } | { ok: false; error: string };
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // A move-out share of a daily bill's month was charged at the bill's price (and for the days it came): until that month is added, these can't change.
 const PRICE_LOCKED = (bill: string) => `A move-out share of this month’s ${bill} was charged at the current price, so the price, type and split can’t change until this month is added.`;
+const SKIP_PART_LOCKED = (bill: string) => `Part of this month’s ${bill} was already added, so this month can’t be skipped.`;
 const SKIP_LOCKED = (bill: string) => `A move-out share of this month’s ${bill} was already charged, so this month can’t be skipped.`;
 class BillLocked extends Error {}
 // The split as people, not as text: the same people and amounts compare equal whatever order or spacing the JSON has.
@@ -111,7 +112,9 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
         const cur = await tx.bill.findFirst({ where: { id: existing.id, groupId, deletedAt: null } });
         if (!cur) throw new BillLocked("That bill no longer exists.");
         if (cur.nature === "daily" && (data.amount !== cur.amount || data.nature !== cur.nature || splitKey(data.split) !== splitKey(cur.split))) {
-          const periods = Object.entries(parsePrepaid(cur.prepaid)).filter(([, list]) => list.length);
+          // (Months older than last month can never be added again, so what was charged in them locks nothing.)
+          const oldest = addMonths(dayKey(now, cur.tz || DEFAULT_TIME_ZONE).slice(0, 7), -1);
+          const periods = Object.entries(parsePrepaid(cur.prepaid)).filter(([period, list]) => list.length && period >= oldest);
           if (periods.length) {
             const runs = await tx.billRun.findMany({ where: { billId: cur.id }, select: { period: true, status: true } });
             if (periods.some(([period]) => { const run = runs.find((r) => r.period === period); return !run || run.status === "waiting"; })) throw new BillLocked(PRICE_LOCKED(cur.name));
@@ -139,8 +142,43 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
   return { ok: true, id: bill.id };
 }
 
+type DailyBill = NonNullable<Awaited<ReturnType<typeof loadDaily>>>;
+const loadDaily = (billId: string) => db.bill.findFirst({ where: { id: billId, deletedAt: null }, include: { group: { include: { members: true } } } });
+
+// Stopping a bill: every month with charges written on it and no bill is closed ("stopped"), so those charges lock; then the bill goes.
+async function finishStop(tx: Prisma.TransactionClient, billId: string, now: Date) {
+  const cur = await tx.bill.findUnique({ where: { id: billId }, select: { prepaid: true, deletedAt: true } });
+  if (!cur || cur.deletedAt) return;
+  for (const [period, list] of Object.entries(parsePrepaid(cur.prepaid))) {
+    if (!list.length) continue;
+    await tx.billRun.upsert({ where: { billId_period: { billId, period } }, create: { billId, period, status: "skipped", reason: "stopped" }, update: {} });
+  }
+  await tx.bill.update({ where: { id: billId }, data: { deletedAt: now } });
+}
+
+// Pause or stop a daily bill: last month first (if it is due), then the month so far, then the pause or stop, all or nothing.
+async function changeDaily(bill: DailyBill, command: "pause" | "stop", actorId: string, now: Date, expect: number | null): Promise<Result> {
+  const verb = command === "pause" ? "paused" : "stopped";
+  const group = { id: bill.group.id, currency: bill.group.currency, closed: bill.group.closed, members: bill.group.members };
+  if (!bill.paused) {
+    const bad = await catchUpLastMonth(bill, group, now, verb);
+    if (bad) return { ok: false, error: bad };
+  }
+  const fresh = await loadDaily(bill.id);
+  if (!fresh) return { ok: false, error: "That bill no longer exists." };
+  const today = dayKey(now, bill.tz);
+  // A bill that is already paused counts nothing from the day it was paused.
+  const pausedDay = fresh.paused && fresh.pausedAt ? dayKey(fresh.pausedAt, bill.tz) : "";
+  const until = pausedDay && pausedDay < today ? pausedDay : today;
+  const finish = (tx: Prisma.TransactionClient) =>
+    command === "pause" ? tx.bill.updateMany({ where: { id: bill.id, paused: false, deletedAt: null }, data: { paused: true, pausedAt: now } }).then(() => undefined) : finishStop(tx, bill.id, now);
+  const r = await addMonthSoFar(fresh, group, { period: today.slice(0, 7), until, verb, actorId, now, expect, finish });
+  return r.ok ? { ok: true, id: bill.id } : r;
+}
+
 // Skip this month, pause, resume or stop a bill.
-export async function billCommand(groupId: string, actorId: string, billId: string, command: string, now = new Date(), opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
+// `expect`: the amount the confirm showed (the month so far a pause, stop or start-again adds); if the server now works out another, nothing is done.
+export async function billCommand(groupId: string, actorId: string, billId: string, command: string, now = new Date(), opts: { afterRead?: () => Promise<void>; expect?: number | null } = {}): Promise<Result> {
   const bill = await db.bill.findFirst({ where: { id: billId, groupId, deletedAt: null }, include: { group: { include: { members: true } } } });
   if (!bill) return { ok: false, error: "That bill no longer exists." };
   if (!bill.group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change bills." };
@@ -149,19 +187,23 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
     const waiting = await db.billRun.findFirst({ where: { billId, status: "waiting" }, orderBy: { period: "asc" } });
     // A daily bill's month that already has a move-out share charged can't be skipped (the share would be left with no month-end bill).
     // Read again inside the write (a move-out can commit a charge in the gap), never from the first look.
-    const charged = async (tx: Prisma.TransactionClient, period: string) => {
+    // "part" = only part charges (a pause or stop earlier this month); "move" = a move-out charge is in it.
+    const charged = async (tx: Prisma.TransactionClient, period: string): Promise<"part" | "move" | null> => {
       const now2 = await tx.bill.findUnique({ where: { id: billId }, select: { nature: true, prepaid: true } });
-      return Boolean(now2 && now2.nature === "daily" && (parsePrepaid(now2.prepaid)[period] ?? []).length > 0);
+      const list = now2 && now2.nature === "daily" ? parsePrepaid(now2.prepaid)[period] ?? [] : [];
+      return list.length === 0 ? null : list.every((x) => x.k === "part") ? "part" : "move";
     };
     await opts.afterRead?.();
     if (waiting) {
       // Only while it is still waiting: if it was added in the gap, nothing is skipped.
       const done = await db.$transaction(async (tx) => {
-        if (await charged(tx, waiting.period)) return "charged" as const;
+        const kind = await charged(tx, waiting.period);
+        if (kind) return kind;
         const c = await tx.billRun.updateMany({ where: { id: waiting.id, status: "waiting" }, data: { status: "skipped", reason: "skipped" } });
         return c.count === 1 ? ("ok" as const) : ("added" as const);
       });
-      if (done === "charged") return { ok: false, error: SKIP_LOCKED(bill.name) };
+      if (done === "move") return { ok: false, error: SKIP_LOCKED(bill.name) };
+      if (done === "part") return { ok: false, error: SKIP_PART_LOCKED(bill.name) };
       if (done === "added") return { ok: false, error: `${bill.name} was just added, so it wasn’t skipped. You’ll find it in Activity.` };
     } else {
       // The first month from this one that the bill comes round in and isn't added yet
@@ -174,23 +216,38 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
       if (!next) return { ok: false, error: "There’s no coming month to skip." };
       const period = next;
       const locked = await db.$transaction(async (tx) => {
-        if (await charged(tx, period)) return true;
+        const kind = await charged(tx, period);
+        if (kind) return kind;
         await tx.billRun.upsert({ where: { billId_period: { billId, period } }, create: { billId, period, status: "skipped", reason: "skipped" }, update: {} });
-        return false;
+        return null;
       });
-      if (locked) return { ok: false, error: SKIP_LOCKED(bill.name) };
+      if (locked) return { ok: false, error: locked === "part" ? SKIP_PART_LOCKED(bill.name) : SKIP_LOCKED(bill.name) };
     }
   } else if (command === "pause") {
-    if (!bill.paused) await db.bill.update({ where: { id: billId }, data: { paused: true, pausedAt: now } });
+    if (!bill.paused) {
+      if (bill.nature === "daily") {
+        const r = await changeDaily(bill, "pause", actorId, now, opts.expect ?? null);
+        if (!r.ok) return r;
+      } else await db.bill.update({ where: { id: billId }, data: { paused: true, pausedAt: now } });
+    }
   } else if (command === "resume") {
     // What came round while it was paused isn't charged afterwards: a monthly
     // bill skips the months it fell due in; a daily one counts those days as not come.
     const today = dayKey(now, bill.tz);
     const from = bill.pausedAt ? dayKey(bill.pausedAt, bill.tz) : "";
-    await db.$transaction(async (tx) => {
-      let missed = bill.missed;
+    const thisMonth = today.slice(0, 7);
+    const lastMonth = addMonths(thisMonth, -1);
+    const pauseMonth = from.slice(0, 7);
+    const finish = async (tx: Prisma.TransactionClient) => {
+      let missed = (await tx.bill.findUnique({ where: { id: billId }, select: { missed: true } }))?.missed ?? bill.missed;
       if (bill.nature === "daily") {
-        if (from) for (const p of [addMonths(today.slice(0, 7), -1), today.slice(0, 7)]) missed = addMissed(missed, p, daysInRange(p, from, today));
+        if (from) for (const p of [lastMonth, thisMonth]) missed = addMissed(missed, p, daysInRange(p, from, today));
+        // The months from the pause month up to (not including) last month can never be added now: each is closed, so what was
+        // added when the bill was paused stands as that month's bill and the price lock lifts.
+        if (from) for (let p = pauseMonth, i = 0; p < lastMonth && i < 36; p = addMonths(p, 1), i++) {
+          if (p < bill.startMonth) continue;
+          await tx.billRun.upsert({ where: { billId_period: { billId, period: p } }, create: { billId, period: p, status: "skipped", reason: "paused" }, update: {} });
+        }
       } else {
         for (const period of periodsDue({ ...bill, paused: false }, now)) {
           if (from && dueKey(period, bill.day >= 31 ? "last" : bill.day) < from) continue;
@@ -198,9 +255,21 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
         }
       }
       await tx.bill.update({ where: { id: billId }, data: { paused: false, pausedAt: null, missed } });
-    });
+    };
+    // A daily bill paused before part charges existed: the days before the pause (in a month too old to be added now) are added first.
+    const legacy = bill.nature === "daily" && from !== "" && pauseMonth < lastMonth && pauseMonth >= bill.startMonth && !(await db.billRun.findUnique({ where: { billId_period: { billId, period: pauseMonth } } }));
+    if (legacy && !(parsePrepaid(bill.prepaid)[pauseMonth] ?? []).some((x) => x.k === "part")) {
+      const r = await addMonthSoFar(bill, { id: bill.group.id, currency: bill.group.currency, closed: bill.group.closed, members: bill.group.members }, { period: pauseMonth, until: from, verb: "started again", actorId, now, expect: opts.expect ?? null, finish });
+      if (!r.ok) return r;
+    } else await db.$transaction(finish);
   } else if (command === "stop") {
-    await db.bill.update({ where: { id: billId }, data: { deletedAt: new Date() } });
+    // Any month still waiting for its amount (or its payer) would be lost: it has to be dealt with first.
+    const open = await db.billRun.findFirst({ where: { billId, status: "waiting" }, orderBy: { period: "asc" } });
+    if (open) return { ok: false, error: `${bill.name} for ${monthLongName(open.period)} is still waiting for its amount. Enter it or skip it first, then stop the bill.` };
+    if (bill.nature === "daily") {
+      const r = await changeDaily(bill, "stop", actorId, now, opts.expect ?? null);
+      if (!r.ok) return r;
+    } else await db.bill.update({ where: { id: billId }, data: { deletedAt: new Date() } });
   } else return { ok: false, error: "Unknown action." };
   const text = { skip: `skipped ${bill.name} this time`, pause: `paused ${bill.name}`, resume: `started ${bill.name} again`, stop: `stopped ${bill.name}` }[command]!;
   await logEvent(db, { groupId, actorId, kind: "bill_changed", text });
@@ -226,6 +295,11 @@ export async function toggleMissedDayFor(groupId: string, actorId: string, billI
       if (!now) return "moved" as const;
       for (const x of parsePrepaid(now.prepaid)[period] ?? []) {
         if (x.d && day > Number(x.d.slice(8, 10))) continue;
+        if (x.k === "part") {
+          // (From the 1st, or the day after the part charge before this one.)
+          const before = (parsePrepaid(now.prepaid)[period] ?? []).filter((y) => y.k === "part" && y.d && x.d && y.d < x.d).reduce((n, y) => Math.max(n, Number((y.d ?? "").slice(8, 10))), 0);
+          return { locked: `${now.name} for ${dayRangeLabel(period, before + 1, Number((x.d ?? "").slice(8, 10)))} was already added when it was paused, so those days can’t change.` };
+        }
         const who = (await tx.member.findUnique({ where: { id: x.m }, select: { name: true } }))?.name ?? "Someone";
         return { locked: x.d ? `${who}’s share of ${now.name} up to ${Number(x.d.slice(8, 10))} ${SHORT_MONTHS[Number(x.d.slice(5, 7)) - 1] ?? ""} was charged when they moved out, so those days can’t change.` : `${who}’s share of ${now.name} was charged when they moved out, so those days can’t change.` };
       }

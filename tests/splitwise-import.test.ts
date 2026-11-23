@@ -197,3 +197,32 @@ describe("import preview", () => {
     expect(previewText(parsed).balances.map((b) => b.text)).toEqual(["gets back $15", "owes $15"]);
   });
 });
+
+// M2: a Splitwise row with a negative cost (money back) comes in as a refund, not as spending paid by the others.
+// Hand-worked: cost -300.00 (-30,000 paise), nets A -200.00, B +100.00, C +100.00 (as the file gives them, adding to 0).
+// The mirror image is planned (A paid 30,000, shared A, B, C 10,000 each) and marked money back: A -30,000 + 10,000 = -20,000, B +10,000, C +10,000.
+describe("money back in a Splitwise file", () => {
+  const refundCsv = ["Date,Description,Category,Cost,Currency,A,B,C", "2026-09-07,Hotel refund,Hotel,-300.00,INR,-200.00,100.00,100.00", ""].join("\r\n");
+  it("is a refund of 30,000 received by A and shared 10,000 each; balances -20,000, +10,000, +10,000 add to 0", () => {
+    const p = parseSplitwiseCsv(refundCsv);
+    if (!p.ok) throw new Error(p.error);
+    expect(p.rows).toHaveLength(1);
+    expect(p.rows[0]).toMatchObject({ cost: 30000, nets: [-20000, 10000, 10000], kind: "refund", payment: false });
+    const plan = planRow(p.rows[0]);
+    if (plan.type !== "expense") throw new Error("expected an expense");
+    expect(plan.kind).toBe("refund");
+    expect(plan.amount).toBe(30000);
+    expect(plan.payers).toEqual([{ i: 0, a: 30000 }]);
+    expect(plan.shares).toEqual([{ i: 0, a: 10000 }, { i: 1, a: 10000 }, { i: 2, a: 10000 }]);
+    expect(plan.shares.reduce((s, x) => s + x.a, 0)).toBe(plan.amount); // shares add up to the amount
+    const net = balancesOf([plan], 3);
+    expect(net).toEqual([-20000, 10000, 10000]);
+    expect(net.reduce((a, b) => a + b, 0)).toBe(0); // balances add up to zero
+  });
+  it("a payment row with a negative cost stays a payment", () => {
+    const p = parseSplitwiseCsv(["Date,Description,Category,Cost,Currency,A,B,C", "2026-09-07,B paid A,Payment,-100.00,INR,-100.00,100.00,0.00", ""].join("\r\n"));
+    if (!p.ok) throw new Error(p.error);
+    expect(p.rows[0].kind).toBeUndefined();
+    expect(planRow(p.rows[0]).type).toBe("payment");
+  });
+});

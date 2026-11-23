@@ -240,7 +240,7 @@ describe("expenses", () => {
 describe("payments", () => {
   it("record a payment", () => table("record-payment", JOINED_ACTIVE, async (_p, w) => {
     // (The older single-amount action had no caller left and was removed; this is the Record a payment form. "over" skips the "more than owed?" question.)
-    await attempt(() => A.recordCustomPayment(form({ groupId: w.id, fromId: w.rows.meera, toId: w.rows.asha, amount: "12.34", over: "1" })));
+    await attempt(() => A.recordCustomPayment(form({ currency: "INR", groupId: w.id, fromId: w.rows.meera, toId: w.rows.asha, amount: "12.34", over: "1" })));
     return (await db.payment.count({ where: { groupId: w.id, amount: 1234 } })) === 1;
   }));
 

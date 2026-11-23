@@ -14,7 +14,7 @@ import { BILL_EMOJI } from "@/lib/home/bills";
 // Extra parts of This month that come from bills, budgets, goals, the deposit
 // and insights (each section is hidden when it has nothing to show).
 export type MonthExtras = {
-  upcoming?: { id: string; name: string; icon: string; when: string; who: string; amount: string; status: "added" | "due" | "enter"; href?: string }[];
+  upcoming?: { id: string; name: string; icon: string; when: string; who: string; amount: string; status: "added" | "due" | "enter"; label?: string; href?: string }[];
   insights?: { id: string; text: string; tone: "warn" | "info"; href?: string }[];
   budgets?: { category: string; spent: number; amount: number; level: "ok" | "near" | "over" }[];
   forecast?: { total: number; mine: number } | null;
@@ -138,11 +138,11 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
       </nav>
 
       {next && (
-        <section aria-label="Next bill" data-next-bill className="rounded-[20px] border border-line bg-white p-4">
+        <section aria-label={next.label ?? "Next bill"} data-next-bill className="rounded-[20px] border border-line bg-white p-4">
           <div className="flex items-center gap-3.5">
             <ExpenseGlyph title={next.name} category="bills" emoji={BILL_EMOJI[next.icon]} size={44} />
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] text-fg/60">Next bill</p>
+              <p className="text-[13px] text-fg/60">{next.label ?? "Next bill"}</p>
               <p className="break-words font-display text-[18px] font-semibold leading-tight tracking-tight">
                 {next.name}
                 {next.amount ? <> · <span className="money tabular-nums">{next.amount}</span></> : null}

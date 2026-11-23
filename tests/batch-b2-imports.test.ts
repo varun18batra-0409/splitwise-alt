@@ -172,8 +172,9 @@ describe("LM-9: deleted lines carry no money in an export", () => {
     const rows = readCsv(csv.slice(1)).filter((r) => r.length > 1).slice(1);
     const col = (i: number) => rows.reduce((t, r) => t + Math.round(Number(r[i] || 0) * 100), 0);
     expect(col(6)).toBe(120000); // Amount
-    expect(col(13)).toBe(60000); // Varun's share
-    expect(col(14)).toBe(60000); // Asha's share
+    expect(col(13)).toBe(120000); // Counts as spending (the new column, after Status)
+    expect(col(14)).toBe(60000); // Varun's share
+    expect(col(15)).toBe(60000); // Asha's share
     const gone = rows.find((r) => r[2] === "Mistake")!;
     expect(gone[3]).toBe("Deleted (it was 500.00)");
     expect(gone[12]).toBe("Deleted");

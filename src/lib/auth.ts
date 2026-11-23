@@ -69,7 +69,7 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
 }
 
 // Returns the account id on success.
-export async function verifyLoginCode(rawEmail: string, rawCode: string, now = new Date()): Promise<{ ok: true; accountId: string } | { ok: false; error: string }> {
+export async function verifyLoginCode(rawEmail: string, rawCode: string, now = new Date(), homeCountry = ""): Promise<{ ok: true; accountId: string } | { ok: false; error: string }> {
   const email = cleanEmail(rawEmail);
   const code = rawCode.replace(/\D/g, "");
   if (!email || code.length !== 6) return { ok: false, error: "Enter the 6-digit code from the email." };
@@ -94,7 +94,7 @@ export async function verifyLoginCode(rawEmail: string, rawCode: string, now = n
   if (used.count !== 1) return { ok: false, error: "That code was already used. Ask for a new one." };
   let account;
   try {
-    account = await accountForEmail(email);
+    account = await accountForEmail(email, undefined, homeCountry);
   } catch (err) {
     if (err instanceof AccountSetupError) return { ok: false, error: ACCOUNT_SETUP_FAILED };
     throw err;
@@ -110,14 +110,17 @@ export class AccountSetupError extends Error {
     super(ACCOUNT_SETUP_FAILED);
   }
 }
-export async function accountForEmail(email: string, name?: string) {
+// `homeCountry` ("IN") is where the person is when they first sign up: saved once on the new account, never changed by this and never read
+// again from the phone's location. Anything that isn't a two-letter code is saved as "" (unknown).
+export async function accountForEmail(email: string, name?: string, homeCountry = "") {
+  const home = /^[A-Za-z]{2}$/.test(homeCountry.trim()) ? homeCountry.trim().toUpperCase() : "";
   const found = await db.account.findUnique({ where: { email } });
   if (found) return found;
   try {
     // The account and the blocks people had against this address are made in ONE step: if putting the blocks back fails, no account is
     // made (nothing to undo), never an account that quietly has none of them.
     return await db.$transaction(async (tx) => {
-      const made = await tx.account.create({ data: { email, ...(name ? { name } : {}) } });
+      const made = await tx.account.create({ data: { email, homeCountry: home, ...(name ? { name } : {}) } });
       await reapplyBlocks(tx, made.id, email);
       return made;
     }, { timeout: 30000 }); // the same allowance as deleting an account: someone blocked by many people still gets in

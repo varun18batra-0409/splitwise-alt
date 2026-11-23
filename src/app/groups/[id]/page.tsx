@@ -36,6 +36,7 @@ import { usualItems } from "@/lib/home/list";
 import { budgetsNow } from "@/lib/home/budgets-db";
 import { monthInsights } from "@/lib/home/insights-db";
 import { billStatuses } from "@/lib/home/bills-db";
+import { nextBillLabel } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
@@ -48,7 +49,7 @@ import { listMoments, momentStrip } from "@/lib/moments-db";
 import { loadGroupPostcards, tripStampCard } from "@/lib/group-memories";
 import { sinceLastPayment } from "@/lib/home/money-card";
 import { headers } from "next/headers";
-import { visitorRegion } from "@/lib/region";
+import { ensureHomeCountry } from "@/lib/passport-db";
 import { OfflineKeeper } from "@/components/offline/OfflineKeeper";
 import { buildSnapshot } from "@/lib/offline/snapshot";
 import { offlineOn } from "@/lib/offline/words";
@@ -196,6 +197,7 @@ export default async function GroupPage({
       who: b.payerId ? (b.payerId === myId ? "you pay" : `${v.nameOf(b.payerId)} pays`) : "taking turns",
       amount: b.bill.nature === "varies" ? (b.usual ? `~${v.money(b.usual)}` : "") : b.bill.nature === "daily" ? `${v.money(b.bill.amount)} a day` : v.money(b.bill.amount),
       status: (b.status === "waiting" ? "enter" : "due") as "enter" | "due",
+      label: nextBillLabel({ status: b.status, nature: b.bill.nature, reason: b.reason, payerId: b.payerId }),
       href: b.status === "waiting" ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined,
     }));
 
@@ -223,7 +225,7 @@ export default async function GroupPage({
   const memories =
     tab === "memories"
       ? await (async () => {
-          const homeCountry = (account?.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
+          const homeCountry = (account ? (await ensureHomeCountry(account)).homeCountry : "").toUpperCase(); // saved once; never guessed from where the phone is
           const [cards, postcards] = await Promise.all([momentViewer ? listMoments(momentViewer) : Promise.resolve([]), account ? loadGroupPostcards(account.id, group.id) : Promise.resolve([])]);
           const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: leaver ? peopleShown(group.members, myId, leaver.leftAt).length : group.members.length }, homeCountry, today, leaver?.leftAt ?? null, passportZone(account)) : null;
           return { cards, postcards, stamp };

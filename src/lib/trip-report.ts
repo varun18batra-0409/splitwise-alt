@@ -4,7 +4,7 @@ import { dayKey, expenseDate } from "./dates";
 import { niceDate } from "./format";
 import { decimalsOf, formatMoney } from "./money";
 import type { Transfer } from "./settle";
-import { percentsTo100 } from "./money-display";
+import { percentsTo100, shownParts } from "./money-display";
 
 // The trip report (and the short "insight" lines shown on a trip's Charts tab):
 // totals, days, per person, top categories, biggest expense, who paid most and
@@ -38,7 +38,7 @@ export type TripReport = {
   perPerson: number; // the average share
   categories: { id: string; label: string; emoji: string; amount: number; pct: number }[]; // biggest first
   biggest: { description: string; amount: number } | null;
-  topPayer: { id: string; name: string; amount: number } | null;
+  topPayer: { id: string; name: string; amount: number; shown?: number } | null; // `shown`: the amount rounded together with everyone else's (display only)
   busiestDay: { day: string; amount: number } | null;
   shares: { id: string; name: string; amount: number }[]; // what each person's part came to, biggest first
   settle: { from: string; to: string; fromId: string; toId: string; amount: number }[]; // names, and who they are
@@ -101,7 +101,8 @@ export function tripReport(input: { name: string; type?: string; currency: strin
     perPerson: whole(total / people),
     categories,
     biggest: big ? { description: big.description, amount: big.amount } : null,
-    topPayer: top ? { id: top[0], name: nameOf(top[0]), amount: top[1] } : null,
+    // Everyone's paid figure is rounded together (ties by the group's member order), so "Paid the most" matches the Who paid chart.
+    topPayer: top ? { id: top[0], name: nameOf(top[0]), amount: top[1], shown: shownParts(Object.fromEntries(paid), members.map((m) => m.id), input.currency)[top[0]] ?? top[1] } : null,
     busiestDay: busy && days > 1 ? { day: busy[0], amount: busy[1] } : null,
     shares: involved.map((m) => ({ id: m.id, name: m.name, amount: share.get(m.id) ?? 0 })).sort((a, b) => b.amount - a.amount),
     settle: input.transfers.map((t) => ({ from: nameOf(t.from), to: nameOf(t.to), fromId: t.from, toId: t.to, amount: t.amount })),
@@ -128,7 +129,7 @@ export function reportText(r: TripReport, fmt: (minor: number, currency: string)
   ];
   if (r.categories.length) lines.push(`Went on: ${r.categories.slice(0, 3).map((c) => `${c.emoji} ${c.label} ${c.pct}%`).join(" · ")}`);
   if (r.biggest) lines.push(`Biggest: ${r.biggest.description} (${m(r.biggest.amount)})`);
-  if (r.topPayer && r.people > 1) lines.push(`Paid the most: ${r.topPayer.name} (${m(r.topPayer.amount)})`);
+  if (r.topPayer && r.people > 1) lines.push(`Paid the most: ${r.topPayer.name} (${m(r.topPayer.shown ?? r.topPayer.amount)})`);
   lines.push("");
   if (r.settle.length) {
     lines.push("To settle up:");

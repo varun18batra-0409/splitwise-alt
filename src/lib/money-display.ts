@@ -59,6 +59,29 @@ export function roundPartsToTotal(parts: number[], currency = "INR"): number[] {
   return shareExtra(parts, floors, rems, extra).map((w) => w * unit);
 }
 
+// Display-only. The same, but the parts must land exactly on `targetMinor` (a whole-unit total shown beside them, which was rounded
+// with other people's figures). Each part is rounded down, then the biggest leftover fractions go up until they add up to the target.
+// If they cannot land on it (a target far from their sum), they are rounded on their own, as roundPartsToTotal does.
+export function roundPartsToTarget(parts: number[], targetMinor: number, currency = "INR"): number[] {
+  const d = decimalsOf(currency);
+  if (d === 0 || parts.some((p) => p < 0)) return [...parts];
+  const unit = 10 ** d;
+  const floors = parts.map((p) => Math.floor(p / unit));
+  const rems = parts.map((p) => p % unit);
+  const extra = Math.round(targetMinor / unit) - floors.reduce((s, f) => s + f, 0);
+  if (extra < 0 || extra > parts.length) return roundPartsToTotal(parts, currency);
+  return shareExtra(parts, floors, rems, extra).map((w) => w * unit);
+}
+
+// Display-only. One figure per person (their share, or what they paid), rounded together so the figures add up to the rounded total.
+// A tie for the extra unit goes to the bigger amount, then to the person who comes first in `order` (the group's own member order),
+// never to whoever happens to be listed first on a screen ("You" first on one, by amount on another): every screen shows the same figures.
+export function shownParts(parts: Record<string, number>, order: string[], currency = "INR"): Record<string, number> {
+  const ids = [...order.filter((id) => id in parts), ...Object.keys(parts).filter((id) => !order.includes(id)).sort()];
+  const shown = roundPartsToTotal(ids.map((id) => parts[id]), currency);
+  return Object.fromEntries(ids.map((id, i) => [id, shown[i]]));
+}
+
 // Display-only. Whole percentages that always add up to 100 (the same largest-remainder method).
 // A total of 0 or less gives all zeros; any negative amount falls back to rounding each one.
 export function percentsTo100(amounts: number[]): number[] {

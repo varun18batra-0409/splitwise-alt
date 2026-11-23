@@ -17,7 +17,8 @@ export async function chargeLock(client: PrismaClient | Prisma.TransactionClient
       if (run?.status === "added" || run?.status === "adding") return { bill: b.name, status: run.status };
       // A month the move-out charge covered completely was closed as "covered" (nothing left to add): the charge IS that
       // month's bill, so deleting or changing it would lose the month's money.
-      if (run?.status === "skipped" && run.reason === "covered") return { bill: b.name, status: "covered" };
+      // A month closed because the bill was stopped or paused (or it came back to nothing) keeps its part and move-out charges: they ARE that month's bill.
+      if (run?.status === "skipped" && (run.reason === "covered" || run.reason === "stopped" || run.reason === "paused")) return { bill: b.name, status: "covered" };
     }
   }
   return null;

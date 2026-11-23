@@ -5,9 +5,7 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
 import { tellParties } from "./payment-claims";
-import { netBalances } from "./balances";
-import { smartSettle } from "./settle";
-import { guardGroup } from "./money-guard";
+import { guardGroup, ledgerInTx } from "./money-guard";
 import type { Prisma } from "@prisma/client";
 
 // "I've paid" links. When Asha reminds Ravi from Settle up, the WhatsApp
@@ -90,13 +88,9 @@ export async function readPayLink(token: string, now = new Date()): Promise<PayL
 // What `from` owes `to` right now in the settle plan, read INSIDE the given transaction (so it is the same data the
 // write will see). Same working as loadGroup: every member, expenses and payments that aren't deleted.
 export async function owedInTx(tx: Prisma.TransactionClient, groupId: string, fromId: string, toId: string): Promise<number> {
-  const [members, expenses, payments] = await Promise.all([
-    tx.member.findMany({ where: { groupId }, select: { id: true } }),
-    tx.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true } }),
-    tx.payment.findMany({ where: { groupId, deletedAt: null } }),
-  ]);
-  const net = netBalances(members.map((m) => m.id), expenses, payments);
-  return smartSettle(net).find((t) => t.from === fromId && t.to === toId)?.amount ?? 0;
+  // The members are read in the group's own order (oldest first), exactly as the page does: the settle plan's exact-match pass depends on
+  // that order, so reading them in any other order could give a different plan and refuse a payment the page showed.
+  return (await ledgerInTx(tx, groupId)).transfers.find((t) => t.from === fromId && t.to === toId)?.amount ?? 0;
 }
 
 // "I've paid" from the link: recorded as a payment right away (it counts now), and the person paid is told. Only the debt shown (`amount`)

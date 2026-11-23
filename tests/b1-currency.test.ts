@@ -4,6 +4,8 @@ import { keepSquareAtZero, rebaseExpense, rebasePayment, type SquareExpense, typ
 import { convertAmount } from "@/lib/conversion";
 import { allocateByWeights } from "@/lib/split";
 import { payersJson } from "@/lib/payers";
+import { initialFromExpense } from "@/lib/expense-initial";
+import { parseAmount } from "@/lib/money";
 
 // Money batch B1, part 2: changing the group's currency must keep everyone who is settled up (or has left) at exactly 0.
 // Everything is in minor units. The pure tests come first (no database); the database tests are below the marker.
@@ -417,5 +419,38 @@ describe("6. MA-7 and MB-6 refusals write nothing", () => {
     const other = await changeGroupCurrency(w.gid, w.id("A"), "JPY", "30");
     expect(other.ok).toBe(true);
     await checkBooks(w.gid);
+  });
+});
+
+// M1: a card fee kept after the group's currency changed survives a later edit.
+// Hand-worked: $100 on a card (10,000 cents) at 83.5 with a 3% fee, group in rupees: 835,000 paise + 25,050 fee = 860,050, 430,025 each for A and B.
+// The group switches to dollars at 0.012: the dollar part stays 10,000 cents; the fee 25,050 x 0.012 = 300.6 -> 301 cents; the total is 10,301
+// (A 5,151, B 5,150: 5,150.5 each, the odd cent to the first). Opening the expense to edit only the name must start from 10,301, not 10,000.
+describe("M1: a kept card fee survives an edit", () => {
+  const rebased = rebaseExpense(
+    { originalAmount: 10000, originalCurrency: "USD", exchangeRate: "83.5", markupBp: 300, markupAmount: 25050, shares: [{ id: "s0", memberId: "A", amount: 430025 }, { id: "s1", memberId: "B", amount: 430025 }] },
+    "INR", "USD", "0.012",
+  )!;
+  it("the change keeps the fee: amount 10,301, shares add up to it", () => {
+    expect(rebased.convertedAmount).toBe(10000);
+    expect(rebased.markupAmount).toBe(301);
+    expect(rebased.amount).toBe(10301);
+    expect(rebased.shares.map((s) => s.amount).sort()).toEqual([5150, 5151]);
+    expect(rebased.shares.reduce((n, s) => n + s.amount, 0)).toBe(10301);
+  });
+  const saved = (over: object = {}) => ({
+    description: "Dinner", category: "food", notes: "", amount: rebased.amount, originalAmount: 10000, originalCurrency: "USD", baseCurrency: "USD", exchangeRate: "1", rateDate: "",
+    paymentMethod: "card", markupBp: 300, markupAmount: rebased.markupAmount, splitType: "equal", forMode: "everyone", paidById: "A", payers: "", kind: "expense", spentAt: new Date("2026-11-01T12:00:00Z"),
+    createdAt: new Date("2026-11-01T12:00:00Z"), editedAt: null, shares: [{ memberId: "A", amount: rebased.shares[0].amount }, { memberId: "B", amount: rebased.shares[1].amount }], ...over,
+  });
+  const ctx = { groupMarkupBp: 300, groupWeights: { A: 100, B: 100 }, tz: "Asia/Kolkata", today: "2026-11-23" };
+  it("the edit form starts from 10,301 (103.01), not 10,000, and the exact amounts still add up to it", () => {
+    const i = initialFromExpense(saved(), ctx, "edit");
+    expect(parseAmount(i.amount, "USD")).toBe(10301);
+    expect(Object.values(i.exact).map((v) => parseAmount(v, "USD")!).reduce((n, x) => n + x, 0)).toBe(10301);
+  });
+  it("an ordinary dollar expense with no kept fee still starts from what was typed", () => {
+    const i = initialFromExpense(saved({ amount: 10000, markupAmount: 0 }), ctx, "edit");
+    expect(parseAmount(i.amount, "USD")).toBe(10000);
   });
 });

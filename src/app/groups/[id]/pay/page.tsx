@@ -36,7 +36,17 @@ export default async function RecordPayment({
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   // A closed group, or someone who left: no form, one clear card instead (a Record tap would save nothing).
-  const blocked = payBlocked({ name: group.name, closed: group.closed, leaver: data.leaver });
+  // Someone who left: what they owe (to one person) or that they are square, so the card says what to do next.
+  const mine = data.leaver
+    ? {
+        square: !transfers.some((t) => t.from === myId || t.to === myId),
+        owes: (() => {
+          const out = transfers.filter((t) => t.from === myId);
+          return out.length === 1 && !transfers.some((t) => t.to === myId) ? { name: group.members.find((m) => m.id === out[0].to)?.name ?? "them", amount: formatMoney(out[0].amount, group.currency) } : null;
+        })(),
+      }
+    : undefined;
+  const blocked = payBlocked({ name: group.name, closed: group.closed, leaver: data.leaver, mine });
   if (blocked) {
     return (
       <>

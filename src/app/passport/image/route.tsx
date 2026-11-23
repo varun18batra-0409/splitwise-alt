@@ -1,11 +1,9 @@
 import { ImageResponse } from "next/og";
-import { headers } from "next/headers";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { visitorRegion } from "@/lib/region";
 import { countryOf } from "@/lib/geo";
-import { loadPassport } from "@/lib/passport-db";
+import { ensureHomeCountry, loadPassport } from "@/lib/passport-db";
 import { passportCounts, shareStamps } from "@/lib/passport";
 import { StampArt } from "@/components/stamps/StampArt";
 import { loadOgFonts, worldMapImage } from "@/lib/og-assets";
@@ -26,12 +24,11 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const print = "repeating-linear-gradient(115deg, rgba(38,35,29,0.035) 0px, rgba(38,35,29,0.035) 1px, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 8px)";
 
 export async function GET(req: Request) {
-  const account = await getAccount();
+  const account = await getAccount().then((a) => (a ? ensureHomeCountry(a) : a));
   if (!account) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const origin = new URL(req.url).origin;
-  const region = visitorRegion(await headers());
   const today = todayKey(new Date(), await getTimeZone());
-  const p = await loadPassport(account, region.country && countryOf(region.country) ? region.country : "", today);
+  const p = await loadPassport(account, today);
   const n = passportCounts(p, today); // the same numbers as the Been tab and the book
   const name = (account.name || "Traveller").trim().split(/\s+/)[0].slice(0, 18);
   const [fonts, mapSrc] = await Promise.all([loadOgFonts(origin), worldMapImage(origin, p.index.filter((r) => r.trips > 0).map((r) => r.code), p.index.filter((r) => r.trips === 0).map((r) => r.code))]);

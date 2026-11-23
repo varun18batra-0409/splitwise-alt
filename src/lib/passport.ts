@@ -167,7 +167,10 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
 
   const rows = [...index.values()].sort((a, b) => a.name.localeCompare(b.name, "en"));
   const year = today.slice(0, 4);
-  const abroad = rows.filter((r) => !r.home);
+  // Home unknown (never saved): nothing can be called abroad, so there is no "Been abroad", no "First trip abroad", no "N countries abroad"
+  // and no abroad badge. Stamps and the country count still show.
+  const homeKnown = Boolean(home);
+  const abroad = homeKnown ? rows.filter((r) => !r.home) : [];
   const stats = {
     cities: [...cityTrips.keys()].length,
     countries: rows.length,
@@ -176,7 +179,7 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
     thisYear: new Set(started.filter((t) => t.start.startsWith(year)).map((t) => t.groupId)).size,
     continents: new Set(rows.map((r) => continentOf(r.code)).filter(Boolean)).size,
   };
-  const marks = passportMarks(stats, abroad.some((r) => r.trips > 0 || r.byHand));
+  const marks = passportMarks(stats, homeKnown && abroad.some((r) => r.trips > 0 || r.byHand));
 
   // Milestones worth showing off.
   const milestones: string[] = [];
@@ -197,7 +200,7 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   // Badges: about where you go and how, never about money.
   const mood = (t: PassportTrip) => tripEmoji(`${t.name} ${t.place}`);
   const count = (f: (t: PassportTrip) => boolean) => started.filter(f).length;
-  const abroadTrips = started.filter((t) => {
+  const abroadTrips = !homeKnown ? 0 : started.filter((t) => {
     const stops = tripStops(t.name, t.place, t.country);
     return stops.some((x) => (x.country || home) && (x.country || home).toUpperCase() !== home);
   }).length;

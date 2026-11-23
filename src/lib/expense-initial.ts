@@ -44,6 +44,7 @@ type SavedExpense = {
   rateDate: string;
   paymentMethod: string;
   markupBp: number;
+  markupAmount?: number; // the card fee in the group's currency
   splitType: string;
   forMode: string;
   paidById: string;
@@ -63,10 +64,14 @@ export function initialFromExpense(
   ctx: { groupMarkupBp: number; groupWeights: Record<string, number>; tz: string; today: string },
   mode: "edit" | "again" | "repeat",
 ): ExpenseInitial {
+  // A card fee kept when the group's currency was changed to this expense's own currency (a $100 card dinner, the group now in dollars)
+  // is part of the total but not of the typed amount: the form starts from the TOTAL, so saving without a change keeps it.
+  const keptFee = e.originalCurrency === e.baseCurrency && (e.markupAmount ?? 0) > 0;
+  const typed = keptFee ? e.amount : e.originalAmount;
   // Rebuild what was typed, from what was saved.
   const shares = e.shares.filter((s) => s.amount > 0);
   const weights = shares.map((s) => ({ memberId: s.memberId, weight: s.amount }));
-  const exact = Object.fromEntries(allocateByWeights(e.originalAmount, weights).map((s) => [s.memberId, toInputAmount(s.amount, e.originalCurrency)]));
+  const exact = Object.fromEntries(allocateByWeights(typed, weights).map((s) => [s.memberId, toInputAmount(s.amount, e.originalCurrency)]));
   const percent = Object.fromEntries(allocateByWeights(10000, weights).map((s) => [s.memberId, String(s.amount / 100)]));
   const sharesText = e.splitType === "shares" ? sharesBack(e.amount, shares, ctx.groupWeights) : null;
   const savedPayers = parsePayers(e.payers);
@@ -81,7 +86,7 @@ export function initialFromExpense(
   const fresh = mode === "again";
   return {
     name: fresh ? "" : e.description,
-    amount: fresh ? "" : toInputAmount(e.originalAmount, e.originalCurrency),
+    amount: fresh ? "" : toInputAmount(typed, e.originalCurrency),
     currency: e.originalCurrency,
     category: fresh ? "" : e.category,
     paidById: e.paidById,
@@ -94,7 +99,7 @@ export function initialFromExpense(
     shares: sharesText ?? undefined,
     kind: e.kind === "refund" ? "refund" : "expense",
     multiPay: savedPayers.length > 1,
-    payers: fresh ? {} : Object.fromEntries(scalePayers(savedPayers, e.originalAmount).map((p) => [p.memberId, toInputAmount(p.amount, e.originalCurrency)])),
+    payers: fresh ? {} : Object.fromEntries(scalePayers(savedPayers, typed).map((p) => [p.memberId, toInputAmount(p.amount, e.originalCurrency)])),
     paymentMethod: known(e.paymentMethod, ["card", "cash", "bank"] as const, "card"),
     markupChoice: !foreignCard || e.markupBp === ctx.groupMarkupBp ? "group" : e.markupBp === 0 ? "none" : "custom",
     markupCustom: foreignCard && e.markupBp !== ctx.groupMarkupBp ? String(e.markupBp / 100) : "",

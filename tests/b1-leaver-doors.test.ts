@@ -348,7 +348,7 @@ describe("6. FB-8: a month with a move-out share charged can't be changed undern
     expect(await toggleMissedDayFor(w.gid, asha, bill.id, "2026-11", 20)).toEqual({ ok: true, id: bill.id });
     expect(JSON.parse((await db.bill.findUniqueOrThrow({ where: { id: bill.id } })).missed)).toEqual({ "2026-11": [20] });
 
-    const edit = (over: Record<string, string>) => saveBillFor(w.gid, asha, { billId: bill.id, template: "milk", name: "Milk", nature: "daily", amount: "48", day: "31", payer: asha, split: "equal", ids: [], ...over });
+    const edit = (over: Record<string, string>) => saveBillFor(w.gid, asha, { billId: bill.id, template: "milk", name: "Milk", nature: "daily", amount: "48", day: "31", payer: asha, split: "equal", ids: [], ...over }, new Date("2026-11-16T06:00:00Z"));
     expect(await edit({ amount: "50" })).toEqual({ ok: false, error: "A move-out share of this month’s Milk was charged at the current price, so the price, type and split can’t change until this month is added." });
     expect((await db.bill.findUniqueOrThrow({ where: { id: bill.id } })).amount).toBe(4800);
     expect(await edit({ split: "group" })).toMatchObject({ ok: false });

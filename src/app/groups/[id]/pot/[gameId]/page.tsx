@@ -120,6 +120,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                         // Paid? Mark it right here: you stay on the game.
                         <form action={recordCustomPayment} className={actionFormClass}>
                           <input type="hidden" name="groupId" value={group.id} />
+                          <input type="hidden" name="currency" value={group.currency} />
                           <input type="hidden" name="fromId" value={t.from} />
                           <input type="hidden" name="toId" value={t.to} />
                           <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { GOOGLE_COOKIE, checkGoogleClaims, exchangeGoogleCode, googleConfigured, unpackAttempt } from "@/lib/google";
+import { visitorRegion } from "@/lib/region";
 import { AccountSetupError, accountForEmail } from "@/lib/auth";
 import { moveFromAttempt, signInAs } from "@/lib/identity";
 import { safePath } from "@/lib/paths";
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   let account;
   try {
-    account = await accountForEmail(who.email, who.name);
+    account = await accountForEmail(who.email, who.name, visitorRegion(req.headers).country ?? "");
   } catch (err) {
     if (err instanceof AccountSetupError) return fail("Couldn’t finish setting up your account. Wait a minute and try again.");
     throw err;

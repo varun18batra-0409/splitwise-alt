@@ -165,6 +165,9 @@ export function parseSplitwiseCsv(text: string): SwParsed {
       cost: Math.abs(cost as number),
       nets: n,
       payment: category.toLowerCase() === "payment",
+      // A negative cost that isn't a payment is money back (a refund): it reduces spending, and is planned as the mirror image
+      // (see planRow), so its effect on everyone's balance is exactly the file's.
+      ...((cost as number) < 0 && category.toLowerCase() !== "payment" ? { kind: "refund" as const } : {}),
     });
   }
 

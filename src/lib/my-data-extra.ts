@@ -33,7 +33,7 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
   });
 
   // Passport: your places and countries (no money, groups or people).
-  const p = await loadPassport(account, "", dayKey(now, tz));
+  const p = await loadPassport(account, dayKey(now, tz));
   const passport = {
     home: p.home ? countryOf(p.home)?.name ?? p.home : "",
     sharing: passportShared(account) ? "People you share a group with" : "Only you",

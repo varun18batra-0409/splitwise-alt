@@ -46,7 +46,7 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
       </>
     );
   const today = todayKey(new Date(), await getTimeZone());
-  const p = await loadPassport(r.owner, "", today, { forFriend: true });
+  const p = await loadPassport(r.owner, today, { forFriend: true });
   const empty = p.stamps.length + p.been.length === 0;
   return (
     <>

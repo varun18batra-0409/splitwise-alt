@@ -20,7 +20,7 @@ import Link from "@/components/Link";
 import { InviteIcon, iconButtonClass } from "@/components/icons";
 import { UndoBar } from "@/components/UndoBar";
 import { StaysGoes } from "@/components/StaysGoes";
-import { leaveText, removeText } from "@/lib/leave-text";
+import { leaveText, removeConfirm, removeText } from "@/lib/leave-text";
 import { groupPeople } from "@/lib/people";
 import { membersAsOf } from "@/lib/left-view";
 import { niceDate } from "@/lib/format";
@@ -76,7 +76,9 @@ export default async function PeoplePage({
   // the Invite box on such a name is for the admin or the person who sent it, so nobody else can re-point it to their own address.
   const waiting = new Map<string, { note: string; mayCancel: boolean; mayInvite: boolean }>();
   const openFor = new Map<string, { email: string; invitedById: string; fromAccount: boolean }[]>();
+  let waitingCount = 0; // every invite not yet accepted: a removal makes a new link, which closes them all
   for (const i of await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null, declinedAt: null }, orderBy: { createdAt: "desc" } })) {
+    waitingCount++;
     const row = inviteMemberId(i);
     if (row) openFor.set(row, [...(openFor.get(row) ?? []), { email: i.email, invitedById: i.invitedById, fromAccount: i.fromAccount }]);
   }
@@ -320,7 +322,7 @@ export default async function PeoplePage({
                   <form action={removePerson} data-remove-left>
                     {hidden}
                     <StaysGoes text={removeText(m.name)} />
-                    <ConfirmButton message={`Remove ${m.name} from ${group.name}? They won’t be able to rejoin on their own.`} className={small}>
+                    <ConfirmButton message={removeConfirm(m.name, group.name, waitingCount)} className={small}>
                       Remove {m.name}
                     </ConfirmButton>
                   </form>
@@ -339,7 +341,8 @@ export default async function PeoplePage({
                     Remove {m.name}
                   </button>
                 ) : (
-                  <ConfirmButton message={`Remove ${m.name} from ${group.name}? They won’t be able to rejoin on their own.`} className={small}>
+                  // A name nobody has used (no expense, no account) is removed completely and keeps the link; anyone else makes a new one.
+                  <ConfirmButton message={used.has(m.id) || m.accountId || m.claimedAt ? removeConfirm(m.name, group.name, waitingCount) : `Remove ${m.name} from ${group.name}?`} className={small}>
                     Remove {m.name}
                   </ConfirmButton>
                 )}

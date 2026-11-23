@@ -20,6 +20,14 @@ export function currencyForCountry(country: string | null | undefined): string |
   return code && isSupportedCurrency(code) ? code : null;
 }
 
+// The one country that uses this currency in the table above, or null when none or several do (EUR is many countries, so it is never guessed).
+export function countryForCurrency(currency: string | null | undefined): string | null {
+  const cur = (currency ?? "").trim().toUpperCase();
+  const all = [...EURO, ...Object.keys(BY_COUNTRY)];
+  const hits = all.filter((c) => currencyForCountry(c) === cur);
+  return hits.length === 1 ? hits[0] : null;
+}
+
 // The currency for a trip planned together: the planner's own home country first, else where the phone seems to be, else rupees.
 export function planCurrency(homeCountry: string | null | undefined, h: { get(name: string): string | null }): string {
   return currencyForCountry(homeCountry) ?? defaultCurrency(h, "INR");

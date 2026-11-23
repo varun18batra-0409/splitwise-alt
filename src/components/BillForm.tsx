@@ -120,6 +120,7 @@ export function BillForm({
   return (
     <form action={saveBill} className="space-y-7">
       <input type="hidden" name="groupId" value={groupId} />
+      <input type="hidden" name="currency" value={currency} />
       {initial?.billId && <input type="hidden" name="billId" value={initial.billId} />}
       <input type="hidden" name="template" value={template} />
       <input type="hidden" name="nature" value={nature} />

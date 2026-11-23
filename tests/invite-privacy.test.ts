@@ -163,3 +163,27 @@ describe("AS-1: adding by account needs a shared group (or a row in this group)"
     expect(await sharesGroupWith("", a.id)).toBe(false);
   });
 });
+
+describe("S3: someone removed from the only shared group is no longer found", () => {
+  it("Vik shares G with Asha, then is removed from it: Asha can't be found from H, and sharesGroupWith is false", async () => {
+    const [vik, asha] = [await account("Vik"), await account("Asha")];
+    const g = await group("G", [vik, asha]);
+    const h = await group("H", [vik]);
+    expect(await sharesGroupWith(asha.id, vik.id)).toBe(true);
+    await db.member.update({ where: { id: g.member(vik.id) }, data: { removedAt: new Date() } });
+    expect(await sharesGroupWith(asha.id, vik.id)).toBe(false);
+    expect(await sharesGroupWith(vik.id, asha.id)).toBe(false);
+    // Inviting Asha by account from H is refused (nothing is written), as for any stranger.
+    const r = await addRegistered(h.id, h.member(vik.id), asha.id, origin);
+    expect(r.ok).toBe(false);
+    expect(await openInvites(h.id)).toHaveLength(0);
+  });
+  it("someone who left on their own is not found either, and 'invite back' into the same group still works for the admin", async () => {
+    const [adm, bo] = [await account("Adm"), await account("Bo")];
+    const g = await group("G", [adm, bo]);
+    await db.member.update({ where: { id: g.member(bo.id) }, data: { removedAt: new Date() } });
+    expect(await sharesGroupWith(bo.id, adm.id)).toBe(false);
+    const r = await addRegistered(g.id, g.member(adm.id), bo.id, origin); // has a row in THIS group: the invite-back path
+    expect(r.ok).toBe(true);
+  });
+});

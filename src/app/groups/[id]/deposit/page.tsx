@@ -60,6 +60,7 @@ export default async function DepositPage({
 
       <form action={saveDeposit} className="space-y-5">
         <input type="hidden" name="groupId" value={group.id} />
+        <input type="hidden" name="currency" value={group.currency} />
         <label className="block">
           <span className="mb-2 block text-base font-semibold">Who holds it</span>
           <input name="heldBy" defaultValue={group.deposit?.heldBy ?? "Landlord"} maxLength={40} className={inputClass} />
@@ -129,6 +130,7 @@ export default async function DepositPage({
       {held.length > 0 && (
         <form action={returnDeposit} className="mt-10 space-y-3 rounded-2xl border border-line px-4 py-4">
           <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="currency" value={group.currency} />
           <h2 className="font-semibold">Lease over?</h2>
           <p className="text-sm text-gray-500">Enter anything kept back (painting, repairs). It’s shared the group’s way, and everyone sees what they get back.</p>
           <label className="flex items-center gap-2 rounded-xl border border-line px-3 focus-within:border-accent">

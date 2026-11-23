@@ -29,7 +29,7 @@ import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { beforeYouGo, homeHighlights } from "@/lib/home/highlights";
 import { parseHandPlaces, passportZone, stampDay } from "@/lib/passport";
-import { undatedTripFacts } from "@/lib/passport-db";
+import { ensureHomeCountry, undatedTripFacts } from "@/lib/passport-db";
 import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
@@ -108,12 +108,12 @@ export default async function Home({
     // Signed in, but some groups are still only a guest name on this device (the sign-in check was skipped, or they came later).
     getAccount().then((a) => (a ? guestGroupsOnPhone() : [])),
   ]);
-  const { all, direct, open, closed, common, toCommon } = overview;
+  const { all, direct, open, closed, common, toCommon, pairRows } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
   const now = new Date();
   const today = todayKey(now, tz);
   const [rows, memories] = await Promise.all([
-    loadHomeRows(all, { tz, now, today }),
+    loadHomeRows(all, { tz, now, today }, pairRows),
     // The newest moments this person may see: the Memories polaroids under the story circles.
     loadHomeMemories(memberships),
   ]);
@@ -136,16 +136,21 @@ export default async function Home({
 
   // The latest changes across open groups. (Only a flat move-out's final payments can read "waiting"; every other payment counts at once.)
   const moveOut = await moveOutPaymentIds(db, open.map((g) => g.group.id));
-  const recent = open
+  // Money with one person (no group) shows here too, labelled with their name and opening their page.
+  const pairsOpen = pairRows.filter((p) => !p.group.closed);
+  const recent = [...open, ...pairsOpen]
     .flatMap((g) => {
       const mine = rows.recent.get(g.group.id);
       if (!mine) return [];
       const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
+      const pair = g.group.type === "direct";
+      const other = pair ? g.group.members.find((m) => m.id !== g.myId) : undefined;
       return buildActivity(mine.expenses, mine.payments, g.myId, [], moveOut).map((item) => ({
         item,
         groupId: g.group.id,
         currency: g.group.currency,
-        groupName: g.group.name,
+        groupName: other ? other.name : g.group.name,
+        href: pair ? `/people/${g.group.id}` : undefined,
         nameOf: (id: string) => names.get(id) ?? "Someone",
       }));
     })
@@ -407,7 +412,7 @@ export default async function Home({
   // A group they left shows no bills.
   const billRows = await homeBills(open.filter((g) => !g.leaver).map((g) => g.group.id));
   const fahrenheit = usesFahrenheit(region.country);
-  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
+  const homeCountry = (account ? (await ensureHomeCountry(account)).homeCountry : "").toUpperCase(); // saved once; never guessed from where the phone is
   const weatherCard = beforeYouGo(
     trips.map((t) => {
       const stops = stopsOf(t.g);
@@ -451,7 +456,7 @@ export default async function Home({
       .flatMap(({ g, when }) => stopsOf(g).filter((st) => st.country).map((st) => ({ code: st.country.toUpperCase(), when, byHand: false }))),
     ...(account ? parseHandPlaces(account.places).map((pl) => ({ code: pl.c.toUpperCase(), when: "", byHand: true })).reverse() : []),
   ]
-    .filter((st) => st.code !== homeCountry)
+    .filter((st) => Boolean(homeCountry) && st.code !== homeCountry) // home unknown: nothing counts as abroad
     .filter((st, i, list) => list.findIndex((o) => o.code === st.code) === i)
     .slice(0, 2)
     .flatMap((st) => {
@@ -474,7 +479,7 @@ export default async function Home({
     }),
     passportCountries: passportSet.size,
     // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
-    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
+    passportAbroad: homeCountry ? [...passportSet].filter((c) => c !== homeCountry).length : 0,
     // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
     scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0], stamps: keepsakeStamps, postcardPhoto: photoSet("card-postcard-photo")[0] },
   });
@@ -661,8 +666,8 @@ export default async function Home({
                 {recent.map((r, i) => (
                   <li key={r.item.id}>
                     {/* Tap: opens it in its group, already expanded (details, Edit, Delete). */}
-                    <Link href={itemHref(r.groupId, r.item)} className="block active:bg-mist">
-                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={r.groupName} dateLabel={dayLabel(r.item.date, new Date(), tz)} motion="loop" delay={0.6 + (i % 5)} />
+                    <Link href={r.href ?? itemHref(r.groupId, r.item)} className="block active:bg-mist">
+                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={r.groupName} dateLabel={dayLabel(r.item.date, new Date(), tz)} motion="loop" delay={0.6 + (i % 5)} whole />
                     </Link>
                   </li>
                 ))}

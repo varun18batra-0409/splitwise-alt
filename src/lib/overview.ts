@@ -43,7 +43,8 @@ export async function loadOverview(memberships: Record<string, string>, preferCu
   // never see a pair. A pair is never netted against a group: it only ever adds its own amount, in its own currency.
   const everything = await loadMyGroupsLight(memberships, { includeDirect: true });
   const all = everything.filter((g) => !isDirect(g.group));
-  const directAll = directEntries(everything.filter((g) => isDirect(g.group))); // every pair, empty ones too (the picker needs them)
+  const pairRows = everything.filter((g) => isDirect(g.group)); // the pairs as loaded (Home's Latest reads their newest rows; nothing else does)
+  const directAll = directEntries(pairRows); // every pair, empty ones too (the picker needs them)
   const direct = directAll.filter(hasHistory); // pairs with any history (Settle and Home)
   const open = all.filter((g) => !g.group.closed);
   const closed = all.filter((g) => g.group.closed);
@@ -138,5 +139,5 @@ export async function loadOverview(memberships: Record<string, string>, preferCu
   // Groups where other people still need to settle with each other.
   const othersPending = all.filter((g) => g.transfers.some((t) => t.from !== g.myId && t.to !== g.myId));
 
-  return { all, open, closed, direct, directAll, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, skippedLinks, othersPending, toCommon };
+  return { all, open, closed, direct, directAll, pairRows, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, skippedLinks, othersPending, toCommon };
 }

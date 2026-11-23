@@ -4,8 +4,7 @@ import { CATEGORIES, getCategory } from "@/lib/categories";
 import { dayKey, expenseDate } from "@/lib/dates";
 import { niceDate, keepAmp } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney, percentsTo100, roundPartsToTotal } from "@/lib/money-display";
-import { Amt } from "@/components/Amt";
+import { overviewMoney, percentsTo100, roundPartsToTarget, roundPartsToTotal, shownParts } from "@/lib/money-display";
 import { spentByCurrency } from "@/lib/secondary";
 import { ColumnChart, HBarChart } from "@/components/Charts";
 import type { GroupExpense, GroupView } from "./view";
@@ -45,10 +44,13 @@ export function ChartsTab({ v }: { v: GroupView }) {
 
   const sign = (e: GroupExpense) => (e.kind === "refund" ? -1 : 1);
   const paid = sumBy((e) => payerIds(e), (e, k) => sign(e) * (payersOf(e).find((p) => p.memberId === k)?.amount ?? 0), spendingOnly(expenses));
-  const people = (m: Map<string, number>) =>
+  // Everyone's figure is rounded together (so the figures add up to the rounded total), ties broken by the group's own member order.
+  const order = v.people.map((mem) => mem.id);
+  const paidShown = shownParts(Object.fromEntries(paid), order, group.currency);
+  const people = (m: Map<string, number>, shownOf: Record<string, number> = {}) =>
     v.people
       .filter((mem) => !(mem.leftAt || mem.removedAt) || (m.get(mem.id) ?? 0) !== 0) // someone who left shows only if they paid
-      .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : `${mem.name}${mem.leftAt || mem.removedAt ? " (left)" : ""}`, value: m.get(mem.id) ?? 0, valueText: backMoney(m.get(mem.id) ?? 0, short), exactText: backMoney(m.get(mem.id) ?? 0, money) }))
+      .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : `${mem.name}${mem.leftAt || mem.removedAt ? " (left)" : ""}`, value: m.get(mem.id) ?? 0, valueText: backMoney(shownOf[mem.id] ?? m.get(mem.id) ?? 0, short), exactText: backMoney(m.get(mem.id) ?? 0, money) }))
       .sort((a, b) => b.value - a.value);
 
   // Each person's share, split by category: what each of us spent on stays, food, travel…
@@ -124,8 +126,8 @@ export function ChartsTab({ v }: { v: GroupView }) {
         }))}
       />
       <ColumnChart title={shownDays.length < days.length ? "Spending by day (last 21 days)" : "Spending by day"} data={dayData} />
-      <HBarChart title="Who paid" data={people(paid)} />
-      <PersonByCategory rows={byPerson} currency={group.currency} />
+      <HBarChart title="Who paid" data={people(paid, paidShown)} />
+      <PersonByCategory rows={byPerson} currency={group.currency} totals={shownParts(Object.fromEntries(byPerson.map((r) => [r.id, r.total])), order, group.currency)} />
     </div>
   );
 }
@@ -142,7 +144,7 @@ const CAT_COLOUR: Record<string, string> = {
   other: "#6f6f7a",
 };
 
-function PersonByCategory({ rows, currency }: { rows: { id: string; name: string; total: number; parts: { id: string; label: string; amount: number; href: string }[] }[]; currency: string }) {
+function PersonByCategory({ rows, currency, totals }: { rows: { id: string; name: string; total: number; parts: { id: string; label: string; amount: number; href: string }[] }[]; currency: string; totals: Record<string, number> }) {
   if (!rows.length) return null;
   return (
     <section aria-label="Each person’s share by category" data-person-categories>
@@ -150,13 +152,14 @@ function PersonByCategory({ rows, currency }: { rows: { id: string; name: string
       <p className="mb-4 text-xs text-fg/50">What each of you spent on stays, food, travel and the rest. Tap a category to see its expenses.</p>
       <ul className="space-y-3">
         {rows.map((r) => {
-          // Their parts add up to their total as shown (from 1,000 up the paise are dropped, so the parts are rounded to match).
-          const shown = roundPartsToTotal(r.parts.map((p) => p.amount), currency);
+          // Everyone's total is rounded together (so the totals add up), and each person's parts are rounded to land on THEIR total as shown.
+          const shownTotal = totals[r.id] ?? r.total;
+          const shown = roundPartsToTarget(r.parts.map((p) => p.amount), shownTotal, currency);
           return (
           <li key={r.id} className="rounded-[18px] border border-line bg-mist/40 px-4 py-3.5" data-person-row={r.name}>
             <div className="flex items-baseline justify-between gap-3">
               <span className="truncate text-[15px] font-semibold">{r.name}</span>
-              <span className="money shrink-0 text-[15px] font-semibold tabular-nums"><Amt minor={r.total} currency={currency} /></span>
+              <span className="money shrink-0 text-[15px] font-semibold tabular-nums" title={formatMoney(r.total, currency)} data-exact={formatMoney(r.total, currency)}>{overviewMoney(shownTotal, currency)}</span>
             </div>
             {/* One bar, split by category */}
             <div className="mt-2.5 flex h-2 overflow-hidden rounded-full bg-fg/[0.06]" aria-hidden>

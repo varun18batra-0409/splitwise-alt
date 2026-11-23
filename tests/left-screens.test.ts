@@ -109,7 +109,7 @@ describe("Our passports: kept for someone who left on their own, hidden for some
 describe("Closed group: the payment page and the shopping list", () => {
   it("Record a payment shows the card instead of the form", () => {
     const pay = src(`${G}/pay/page.tsx`);
-    expect(pay).toContain("payBlocked({ name: group.name, closed: group.closed, leaver: data.leaver })");
+    expect(pay).toContain("payBlocked({ name: group.name, closed: group.closed, leaver: data.leaver, mine })");
     expect(pay.indexOf("data-pay-blocked")).toBeLessThan(pay.indexOf("<RecordPaymentForm"));
     expect(pay).toContain("Back to {group.name}");
   });

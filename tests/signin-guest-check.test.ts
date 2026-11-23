@@ -89,6 +89,23 @@ describe("what the sheet lists", () => {
   });
 });
 
+describe("S7: a group the admin removed this name from is not offered or moved", () => {
+  it("a removed name is not listed and is skipped on sign-in; a name that left on its own is still listed", async () => {
+    state.cookie = await cookie(["P", "Q"]);
+    await db.member.update({ where: { id: m.P.id }, data: { removedAt: new Date() } });
+    await db.member.update({ where: { id: m.Q.id }, data: { leftAt: new Date() } });
+    try {
+      expect((await guestGroupsOnPhone()).map((g) => g.memberId)).toEqual([m.Q.id]);
+      const acc = await account("removed");
+      await signInAs(acc, { confirmed: parseConfirmed([m.P.id]) });
+      expect((await row("P")).accountId).toBeNull();
+    } finally {
+      await db.member.update({ where: { id: m.P.id }, data: { removedAt: null } });
+      await db.member.update({ where: { id: m.Q.id }, data: { leftAt: null } });
+    }
+  });
+});
+
 describe("Cancel / no confirmation moves nothing", () => {
   it("signInAs with an empty confirmation links 0 names, keeps every epoch, and leaves all three on the phone as guests", async () => {
     const acc = await account("none");

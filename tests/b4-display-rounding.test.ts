@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listMoney, percentsTo100, roundPartsToTotal } from "@/lib/money-display";
+import { listMoney, percentsTo100, roundPartsToTarget, roundPartsToTotal, shownParts } from "@/lib/money-display";
 import { formatMoney } from "@/lib/money";
 
 // Batch B4, step 1: display-only helpers so that the rows of a card add up to the total shown above them.
@@ -69,5 +69,53 @@ describe("listMoney: paise on every row when any row has paise", () => {
     expect(formatMoney(267000, "INR")).toBe("₹2,670");
     expect(formatMoney(267000, "INR", { keepDecimals: true })).toBe("₹2,670.00");
     expect(formatMoney(267050, "INR", { keepDecimals: true })).toBe("₹2,670.50");
+  });
+});
+
+// VA2-2 / VD-7: the trip report and Charts round everyone's figure together, ties by the group's own member order.
+// Hand-worked (paise): shares Asha 2,551,450 (25,514.50), Ben 2,551,450, Cy 2,551,500; total 7,654,400 = 76,544.00.
+// Rounded down: 25,514 + 25,514 + 25,515 = 76,543; one unit is missing. Asha and Ben tie at .50 and are equal parts, so the group's
+// member order decides: Asha first. Asha ₹25,515, Ben ₹25,514, Cy ₹25,515 = ₹76,544, however the screen lists them (Ben is "You" and first below).
+describe("shownParts: the same figures on every screen", () => {
+  const order = ["asha", "ben", "cy"];
+  const parts = { ben: 2551450, asha: 2551450, cy: 2551500 }; // keys in the order a screen with "You" first would list them
+  it("Asha 25,515, Ben 25,514, Cy 25,515 adding to 76,544, whatever order the rows are given", () => {
+    const shown = shownParts(parts, order, "INR");
+    expect(shown).toEqual({ asha: 2551500, ben: 2551400, cy: 2551500 });
+    expect(Object.values(shown).reduce((s, x) => s + x, 0)).toBe(7654400);
+    expect(shownParts({ cy: 2551500, asha: 2551450, ben: 2551450 }, order, "INR")).toEqual(shown);
+    expect(formatMoney(shown.asha, "INR")).toBe("₹25,515");
+    expect(formatMoney(shown.ben, "INR")).toBe("₹25,514");
+  });
+  it("Ben's parts land on his shown total: Stay 1,500,050 + Food 1,051,400 are shown as ₹15,000 + ₹10,514 = ₹25,514", () => {
+    const out = roundPartsToTarget([1500050, 1051400], 2551400, "INR");
+    expect(out).toEqual([1500000, 1051400]);
+    expect(out.reduce((s, x) => s + x, 0)).toBe(2551400);
+  });
+  it("who paid: Asha 3,827,250 and Ben 3,827,150 (total 76,544.00) show as ₹38,273 + ₹38,271 = ₹76,544", () => {
+    // Rounded down 38,272 + 38,271 = 76,543; one missing; both fractions are .50, the bigger part (Asha) takes it.
+    const shown = shownParts({ ben: 3827150, asha: 3827250 }, ["asha", "ben"], "INR");
+    expect(shown).toEqual({ asha: 3827300, ben: 3827100 });
+    expect(shown.asha + shown.ben).toBe(7654400);
+  });
+  it("a part that cannot land on the target (or money back) is rounded on its own / left as it is", () => {
+    expect(roundPartsToTarget([1000, 1000, 1000], 100000, "INR")).toEqual(roundPartsToTotal([1000, 1000, 1000], "INR"));
+    expect(roundPartsToTarget([1229800, -4450], 1229800, "INR")).toEqual([1229800, -4450]);
+  });
+});
+
+// VA4-2: Home's Latest shows whole units like the month card ($48.50 reads $49), with the exact amount kept in the tooltip.
+describe("Home's Latest rows round like the month card", () => {
+  it("4,850 cents is $49 on Home and $48.50 exactly", async () => {
+    const { homeMoney } = await import("@/lib/home/display");
+    expect(homeMoney(4850, "USD")).toBe("$49");
+    expect(formatMoney(4850, "USD")).toBe("$48.50");
+  });
+  it("the Latest row asks for whole units (and group lists do not)", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("src/app/(home)/page.tsx", "utf8")).toMatch(/<ActivityRow[^>]* whole \/>/);
+    const row = readFileSync("src/components/ActivityRow.tsx", "utf8");
+    expect(row).toContain("whole ? (m: number) => homeMoney(m, currency) : money");
+    expect(readFileSync("src/app/groups/[id]/_components/ActivityTab.tsx", "utf8")).not.toMatch(/<ActivityRow[^>]* whole/);
   });
 });

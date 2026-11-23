@@ -47,6 +47,7 @@ export default async function GoalPage({
         <p className="-mt-3 mb-6 text-sm text-gray-500">A holiday, a sofa, a rainy-day fund. Loopin keeps count; it doesn’t hold this money. It stays in your own accounts.</p>
         <form action={saveGoal} className="space-y-6">
           <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="currency" value={group.currency} />
           <label className="block">
             <span className="mb-2 block text-sm text-gray-500">What for?</span>
             <input name="name" required maxLength={40} placeholder="Bali in March" className={inputClass} />
@@ -148,6 +149,7 @@ export default async function GoalPage({
       ) : (
         <form action={addGoalEntry} className="mt-6 space-y-2">
           <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="currency" value={group.currency} />
           <input type="hidden" name="goalId" value={goal.id} />
           <FreshKey name="rid" />
           <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
@@ -181,6 +183,7 @@ export default async function GoalPage({
         <summary className="cursor-pointer text-sm text-gray-500">Change or remove this goal <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
         <form action={saveGoal} className="mt-4 space-y-4">
           <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="currency" value={group.currency} />
           <input type="hidden" name="goalId" value={goal.id} />
           <input name="name" defaultValue={goal.name} maxLength={40} aria-label="Goal name" className={inputClass} />
           <input name="target" defaultValue={toInputAmount(goal.target, group.currency)} inputMode="decimal" aria-label="Target" className={inputClass} />

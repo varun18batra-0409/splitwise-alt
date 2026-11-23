@@ -1,3 +1,4 @@
+import { spentAmount } from "@/lib/payers";
 import { closeHint, sharesHint } from "@/lib/settings-words";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { notFound, redirect } from "next/navigation";
@@ -59,7 +60,7 @@ export default async function GroupSettings({
     where: { id },
     include: {
       members: { select: { id: true, name: true, leftAt: true, splitWeight: true, claimedAt: true, addedBy: true, seenAt: true, accountId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
-      expenses: { where: { deletedAt: null }, select: { amount: true } },
+      expenses: { where: { deletedAt: null }, select: { amount: true, kind: true } },
       _count: { select: { expenses: true, payments: true } },
     },
   });
@@ -81,7 +82,7 @@ export default async function GroupSettings({
   // Step 2 of changing the currency: confirm the conversion rate.
   if (convert && isSupportedCurrency(convert) && convert !== group.currency) {
     const live = await getRate(group.currency, convert);
-    const total = group.expenses.reduce((s, e) => s + e.amount, 0);
+    const total = group.expenses.reduce((s, e) => s + spentAmount(e), 0);
     return (
       <>
         <PageHeader title="Change group currency" back={`/groups/${group.id}/settings`} />

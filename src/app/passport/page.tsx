@@ -1,10 +1,8 @@
-import { headers } from "next/headers";
 import Link from "@/components/Link";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { visitorRegion } from "@/lib/region";
-import { celebrateMarks, loadPassport } from "@/lib/passport-db";
+import { celebrateMarks, ensureHomeCountry, loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
 import { passportLine } from "@/lib/passport-line";
 import { parseHandPlaces, passportCounts, passportLockLabel, passportNeedsAnswer, passportShared, stampPages } from "@/lib/passport";
@@ -33,7 +31,7 @@ export const metadata = { title: "Your trip passport", robots: { index: false } 
 export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string; sent?: string; tab?: string; book?: string; all?: string; open?: string; wished?: string; full?: string }> }) {
   const sp = await searchParams;
   const notes = await readNotes(sp, "/passport");
-  const account = await getAccount();
+  const account = await getAccount().then((a) => (a ? ensureHomeCountry(a) : a));
   if (!account)
     return (
       <>
@@ -45,8 +43,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       </>
     );
   const today = todayKey(new Date(), await getTimeZone());
-  const region = visitorRegion(await headers());
-  const p = await loadPassport(account, region.country && countryOf(region.country) ? region.country : "", today, { withMoments: true });
+  const p = await loadPassport(account, today, { withMoments: true });
   // Changes whenever the passport does, so a shared picture is never an old one.
   const counts = passportCounts(p, today);
   const version = `${counts.countries}-${counts.cities}-${counts.days}-${p.stamps.length}-${p.been.length}-${(account.name || "").length}`;
@@ -261,7 +258,11 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
                   <label className="block min-w-0 flex-1">
                     <span className="mb-2 block text-xs text-fg/65">Trips here get city stamps; trips abroad get a country stamp.</span>
                     <SelectField name="country" defaultValue={p.home} aria-label="Home country" className="min-w-0">
-                      <option value="">Not set</option>
+                      {!home && (
+                        <option value="" disabled>
+                          Choose your country
+                        </option>
+                      )}
                       {COUNTRIES.map((c) => (
                         <option key={c.code} value={c.code}>
                           {c.name}

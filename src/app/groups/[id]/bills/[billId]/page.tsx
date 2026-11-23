@@ -9,7 +9,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { changeBill, toggleMissedDay } from "@/app/bill-actions";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
 import { billHold, dailyTotal, missedDays, payerFor } from "@/lib/home/bills";
-import { holdReasonNow, parseSplit } from "@/lib/home/bills-db";
+import { billChangeLines, holdReasonNow, parseSplit } from "@/lib/home/bills-db";
 import { daysInMonth } from "@/lib/home/month";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
@@ -57,6 +57,8 @@ export default async function BillPage({
     const reason = holdReasonNow(bill, active.map((m) => m.id), group.closed, payerId, bill.runs.find((r) => r.period === period && r.status === "waiting")?.reason ?? "");
     return { reason, hold: billHold({ nature: bill.nature, reason, payerId }) };
   };
+  // A daily bill: what pausing, stopping or starting again adds (worked out in the bill's own time zone, like the server does).
+  const lines = bill.nature === "daily" ? await billChangeLines(bill.id) : null;
   const runLabel: Record<string, string> = { added: "Added", waiting: "Waiting for the amount", skipped: "Skipped", adding: "Adding…" };
 
   return (
@@ -97,7 +99,7 @@ export default async function BillPage({
               );
             })}
           </div>
-          <p className="mt-3 text-xs text-gray-500">Tap a day it didn’t come. Added as one expense on the last day of the month.</p>
+          <p className="mt-3 text-xs text-gray-500">Tap a day it didn’t come. Added as one expense on the last day of the month. Pausing or stopping adds the days so far first.</p>
         </section>
       )}
 
@@ -117,7 +119,7 @@ export default async function BillPage({
                       </a>
                     ) : (
                       <Link href={`/groups/${group.id}/add?bill=${bill.id}&period=${r.period}`} className="font-semibold text-fg underline underline-offset-4">
-                        {hold === "payer" ? "Payer left · add it" : hold === "add" ? "Add it" : "Waiting for the amount · Enter it"}
+                        {hold === "payer" ? "Payer left · add it" : r.reason === "deleted" ? "Deleted · Add it again" : hold === "add" ? "Add it" : "Waiting for the amount · Enter it"}
                       </Link>
                     );
                   })()
@@ -145,9 +147,16 @@ export default async function BillPage({
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="billId" value={bill.id} />
           <input type="hidden" name="command" value={bill.paused ? "resume" : "pause"} />
-          <button type="submit" className={secondaryButtonClass}>
-            {bill.paused ? "Start again" : "Pause"}
-          </button>
+          {lines && <input type="hidden" name="expect" value={bill.paused ? (lines.resume?.amount ?? 0) : (lines.stop?.amount ?? 0)} />}
+          {(bill.paused ? lines?.resume : lines?.stop) ? (
+            <ConfirmButton message={(bill.paused ? lines?.resume : lines?.stop)!.line} className={secondaryButtonClass}>
+              {bill.paused ? "Start again" : "Pause"}
+            </ConfirmButton>
+          ) : (
+            <button type="submit" className={secondaryButtonClass}>
+              {bill.paused ? "Start again" : "Pause"}
+            </button>
+          )}
         </form>
       </section>
 
@@ -178,7 +187,8 @@ export default async function BillPage({
         <input type="hidden" name="groupId" value={group.id} />
         <input type="hidden" name="billId" value={bill.id} />
         <input type="hidden" name="command" value="stop" />
-        <ConfirmButton message={`Stop ${bill.name}? Expenses already added stay.`} className="w-full py-3 text-sm font-medium text-red-600">
+        {lines && <input type="hidden" name="expect" value={lines.stop?.amount ?? 0} />}
+        <ConfirmButton message={`Stop ${bill.name}? ${lines?.stop ? `${lines.stop.line} ` : ""}Expenses already added stay.`} className="w-full py-3 text-sm font-medium text-red-600">
           Stop this bill
         </ConfirmButton>
       </form>

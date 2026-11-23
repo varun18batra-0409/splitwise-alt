@@ -1,3 +1,5 @@
+import { parsePayers, spentAmount } from "./payers";
+import { squareGameMoves } from "./pot-currency";
 import { db } from "./db";
 import { hasLeft, LEFT_ERROR } from "./active";
 import { logEvent, type Db, type OtherMoney } from "./events";
@@ -158,9 +160,30 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
 
   const otherAfter = convertOtherMoney(otherBefore, (a) => rebaseSigned(a, oldCurrency, newCurrency, rate));
   if (!otherAfter) return { ok: false, error: "That rate makes a bill, budget, goal or deposit too small or too large. Check it." };
+  // Each finished card game's lines were converted one by one; its result was converted as one expense. Make every player's net match the
+  // converted result exactly (and the game's gap 0), by nudging their own take/return lines by whole minor units.
+  const games = await db.potGame.findMany({ where: { groupId, deletedAt: null, status: "done" }, select: { resultId: true, moves: { select: { id: true, memberId: true, kind: true, amount: true, deletedAt: true } } } });
+  for (const game of games) {
+    const result = game.resultId ? expenseUpdates.find((x) => x.e.id === game.resultId) : undefined;
+    if (game.resultId && (!result || result.e.deletedAt)) continue; // a result that is gone: nothing to match
+    const targets: Record<string, number> = {};
+    if (result) {
+      const paid = parsePayers(result.r!.payers);
+      for (const p of paid.length ? paid : [{ memberId: result.e.paidById, amount: result.r!.amount }]) targets[p.memberId] = (targets[p.memberId] ?? 0) + p.amount;
+      for (const sh of result.r!.shares) {
+        const memberId = result.e.shares.find((x) => x.id === sh.id)?.memberId;
+        if (memberId) targets[memberId] = (targets[memberId] ?? 0) - sh.amount;
+      }
+    }
+    const converted = new Map(otherAfter.potMoves.map((m) => [m.id, m.amount]));
+    const nudged = squareGameMoves(game.moves.map((m) => ({ id: m.id, memberId: m.memberId, kind: m.kind, amount: converted.get(m.id) ?? m.amount, live: !m.deletedAt })), targets);
+    if (!nudged) return { ok: false, error: CURRENCY_ROUNDING_TEXT };
+    otherAfter.potMoves = otherAfter.potMoves.map((m) => (m.id in nudged ? { ...m, amount: nudged[m.id] } : m));
+  }
 
-  const totalBefore = group.expenses.filter((e) => !e.deletedAt).reduce((s, e) => s + e.amount, 0);
-  const totalAfter = expenseUpdates.filter((x) => !x.e.deletedAt).reduce((s, x) => s + x.r!.amount, 0);
+  // The group's spending: money back takes away, a card game's result isn't spending (spentAmount), a deleted expense doesn't count.
+  const totalBefore = group.expenses.filter((e) => !e.deletedAt).reduce((s, e) => s + spentAmount(e), 0);
+  const totalAfter = expenseUpdates.filter((x) => !x.e.deletedAt).reduce((s, x) => s + spentAmount({ amount: x.r!.amount, kind: x.e.kind }), 0);
 
   // Exactly what every amount was, so the change can be undone without rounding.
   const before = {

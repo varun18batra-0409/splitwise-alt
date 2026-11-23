@@ -165,7 +165,7 @@ export async function guestGroupsOnPhone(): Promise<GuestGroup[]> {
   const held = Object.values((await resolveMemberships()).out);
   if (!held.length) return [];
   const rows = await db.member.findMany({
-    where: { id: { in: held }, accountId: null, group: { deletedAt: null } },
+    where: { id: { in: held }, accountId: null, removedAt: null, group: { deletedAt: null } },
     select: { id: true, group: { select: { id: true, name: true, cover: true, type: true, coverAt: true, createdAt: true, _count: { select: { members: { where: { leftAt: null } } } } } } },
   });
   return rows
@@ -261,7 +261,11 @@ async function linkConfirmed(accountId: string, entries: { id: string; epoch: nu
   const acc = await db.account.findUnique({ where: { id: accountId }, select: { email: true } });
   for (const e of entries) {
     if (!ok.has(e.id)) continue;
-    const row = await db.member.findUnique({ where: { id: e.id }, select: { groupId: true, claimedAt: true } });
+    const row = await db.member.findUnique({ where: { id: e.id }, select: { groupId: true, claimedAt: true, removedAt: true } });
+    if (row?.removedAt) {
+      skipped?.push(e.id); // taken out of the group by its admin: never moved into the account
+      continue;
+    }
     if (row) {
       // This account already has a row in that group (it was removed from it, or joined it another way): linking would leave two
       // rows on one account, or bring a removed person back. The guest name stays a guest name on this phone, and is reported as skipped.

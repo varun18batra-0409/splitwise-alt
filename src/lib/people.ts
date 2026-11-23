@@ -9,6 +9,7 @@ import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 import { localPairKey } from "./direct";
 import { openGameFor } from "./pot-db";
+import { newInviteCode } from "./group-setup";
 
 // Renaming people and leaving / rejoining a group. Every change is logged,
 // notifies the others, and can be undone.
@@ -159,6 +160,13 @@ export async function setMember(
           where: { groupId, acceptedAt: null, declinedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }, ...(acct ? [{ email: acct.email }] : [])] },
           data: { declinedAt: new Date() },
         });
+        // A person newly taken out: the invite link they joined by stops working (a new one is made) and every email invite that
+        // carries the old link closes, in this same step (the same as "Make a new link"), so the link they may still hold can't bring them
+        // or anyone else back in. People who haven't joined yet need the new link. (Undoing the removal does not bring the old link back.)
+        if (!m.removedAt) {
+          await tx.group.update({ where: { id: groupId }, data: { inviteCode: newInviteCode() } });
+          await tx.invite.updateMany({ where: { groupId, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
+        }
       }
       return logEvent(tx, {
         groupId,

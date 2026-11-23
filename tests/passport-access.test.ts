@@ -315,7 +315,7 @@ describe("loadPassport counts only trips you really joined", () => {
     const pending = await tripGroup("LpPending", { account: me, added: true, seen: false });
     const opened = await tripGroup("LpOpened", { account: me, added: true, seen: true });
     const left = await tripGroup("LpLeft", { account: me, left: true }); // left after the trip: still counts
-    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01");
     const th = p.index.find((c) => c.code === "TH");
     expect(th?.trips).toBe(2); // opened + left; the never-opened one is not counted
     expect(pending.id).not.toBe(opened.id);
@@ -346,11 +346,11 @@ describe("loadPassport counts only trips you really joined", () => {
     };
     const inG = await mk("In", false);
     const outG = await mk("Out", true);
-    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01");
     expect(p.extras[inG.id]).toEqual({ names: ["Kim"] }); // not Pat (never opened it), not Rob (removed), not me
     expect(p.extras[outG.id]).toBeUndefined(); // removed from this one: no faces at all
     // A friend's view never gets faces.
-    const f = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01", { forFriend: true });
+    const f = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01", { forFriend: true });
     expect(f.extras).toEqual({});
   });
   it("a trip you left before it began is no stamp (and a later trip still is): Thailand left 20 Feb before a 1 Mar start, Japan never left", async () => {
@@ -367,7 +367,7 @@ describe("loadPassport counts only trips you really joined", () => {
     };
     await mk("TH", "2024-03-01", "Bangkok", "TH", new Date("2024-02-20T12:00:00Z"));
     await mk("JP", "2024-05-01", "Tokyo", "JP", null);
-    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01");
     expect(p.index.map((c) => c.code)).toEqual(["JP"]);
     const g = { type: "trip", deletedAt: null, undated: null };
     expect(stampDay({ ...g, tripStart: "2024-03-01", leftAt: new Date("2024-02-20T12:00:00Z") }, "2025-01-01", "UTC")).toBeNull();
@@ -411,12 +411,12 @@ describe("loadPassport counts only trips you really joined", () => {
     const ada = await account("UdAda");
     const bea = await account("UdBea");
     const { g, A, B } = await undatedTrip("UdTH", ada, bea);
-    const mine = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    const mine = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01");
     expect(mine.index.map((c) => c.code)).toContain("TH");
     expect(stampOf(mine, g.id)).toBe("2024-10-01");
-    const friend = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01", { forFriend: true });
+    const friend = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01", { forFriend: true });
     expect(stampOf(friend, g.id)).toBe("2024-10-01");
-    const beas = await loadPassport({ id: bea.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    const beas = await loadPassport({ id: bea.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01");
     expect(stampOf(beas, g.id)).toBe("2024-10-08");
     // The passport reads these facts (undatedTripFacts) and stamps the same days.
     const facts = await undatedTripFacts([{ groupId: g.id, me: { id: A, leftAt: new Date("2024-10-05T12:00:00Z") } }], "Asia/Kolkata");
@@ -449,7 +449,7 @@ describe("loadPassport counts only trips you really joined", () => {
         originalAmount: 1000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 1000, shares: { create: [{ memberId: B, amount: 1000 }] },
       },
     });
-    const p = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: ada.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01");
     expect(p.index.map((c) => c.code)).not.toContain("TH");
     const facts = (await undatedTripFacts([{ groupId: g.id, me: { id: A, leftAt: new Date("2024-10-05T12:00:00Z") } }], "Asia/Kolkata")).get(g.id);
     expect(facts).toBeNull();
@@ -485,7 +485,7 @@ describe("loadPassport counts only trips you really joined", () => {
     await exp("Deleted", "2024-10-25", { deletedAt: new Date("2024-10-26T08:00:00Z") });
     const facts = (await undatedTripFacts([{ groupId: g.id, me: { id: M, leftAt: null } }], "Asia/Kolkata")).get(g.id);
     expect(facts).toEqual({ count: 1, day: "2024-10-01" });
-    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "IN", "2025-01-01");
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "", timeZone: "" }, "2025-01-01");
     expect(stampOf(p, g.id)).toBe("2024-10-01");
   });
 });

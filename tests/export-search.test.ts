@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cell, csvFileName, groupCsv } from "@/lib/csv";
+import { cell, csvFileName, groupCsv, myDataCsv } from "@/lib/csv";
+import { parseImport } from "@/lib/import-formats";
 import { filterActivity, hasFilter, type ActivityItem } from "@/lib/activity";
 
 const members = [
@@ -31,12 +32,12 @@ describe("spreadsheet export", () => {
     expect(csv.startsWith("﻿")).toBe(true);
     const lines = csv.slice(1).trim().split("\r\n");
     expect(lines[0]).toBe(
-      "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Varun's share (INR),Asha's share (INR)",
+      "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Counts as spending (INR),Varun's share (INR),Asha's share (INR)",
     );
-    expect(lines[1]).toBe('2026-10-01,Expense,"Dinner, drinks",Tip paid by Asha,Bites & Sips,Varun,1200.50,,,,,cash,,600.25,600.25');
+    expect(lines[1]).toBe('2026-10-01,Expense,"Dinner, drinks",Tip paid by Asha,Bites & Sips,Varun,1200.50,,,,,cash,,1200.50,600.25,600.25');
     // LM-9: a deleted line keeps its row, but amount, original amount/currency/rate, markup and shares are empty; what it was goes in Notes.
-    expect(lines[2]).toBe("2026-10-03,Expense,Hotel,Deleted (it was 5150.00),Beds & Bunks,Asha,,,,,,card,Deleted,,");
-    expect(lines[3]).toBe("2026-10-04,Payment,Asha paid Varun,,,Asha,600.25,,,,,,,,");
+    expect(lines[2]).toBe("2026-10-03,Expense,Hotel,Deleted (it was 5150.00),Beds & Bunks,Asha,,,,,,card,Deleted,,,");
+    expect(lines[3]).toBe("2026-10-04,Payment,Asha paid Varun,,,Asha,600.25,,,,,,,,,");
   });
 
   it("quotes awkward text and blocks spreadsheet formulas", () => {
@@ -78,5 +79,48 @@ describe("search and filter", () => {
     expect(ids({ who: "me" })).toEqual(["1", "p"]);
     expect(ids({ cat: "food", who: "me" })).toEqual(["1"]);
     expect(ids({ cat: "food", q: "beer" })).toEqual(["3"]);
+  });
+});
+
+// M7: an honest "Counts as spending" column. Hand-worked rows (rupees): Dinner 1,000.00; money back -200.00; a game result 150.00; a payment 400.00.
+// The Amount column adds to 1,000 - 200 + 150 + 400 = 1,350.00; the new column to 1,000 - 200 + 0 = 800.00 (the game moves money between
+// players and the payment is not spending, so its cell is empty). A deleted line has an empty cell too.
+describe("the Counts as spending column", () => {
+  const mk = (description: string, amount: number, kind: string | null, deletedAt: Date | null = null) => ({
+    description, category: "food", amount, paidById: "me", kind, originalAmount: amount, originalCurrency: "INR", exchangeRate: "1", markupAmount: 0, paymentMethod: "cash",
+    createdAt: new Date("2026-10-01T10:00:00Z"), spentAt: null, deletedAt, shares: [{ memberId: "me", amount: amount / 2 }, { memberId: "a", amount: amount / 2 }],
+  });
+  const expenses = [mk("Dinner", 100000, null), mk("Refund", 20000, "refund"), mk("Cards", 15000, "pot"), mk("Mistake", 50000, null, new Date())];
+  const payments = [{ fromId: "a", toId: "me", amount: 40000, createdAt: new Date("2026-10-02T10:00:00Z"), deletedAt: null }];
+  const parse = (csv: string) => csv.slice(1).trim().split("\r\n").map((l) => l.split(","));
+  const sum = (rows: string[][], i: number) => rows.reduce((t, r) => t + Math.round(Number(r[i] || 0) * 100), 0);
+
+  it("group spreadsheet: Amount 1,350.00, Counts as spending 800.00, shares add up to what they did", () => {
+    const rows = parse(groupCsv({ name: "Goa", currency: "INR" }, members, expenses, payments));
+    expect(rows[0][13]).toBe("Counts as spending (INR)");
+    const body = rows.slice(1);
+    expect(sum(body, 6)).toBe(135000);
+    expect(sum(body, 13)).toBe(80000);
+    expect(body.find((r) => r[2] === "Cards")![13]).toBe("0.00");
+    expect(body.find((r) => r[2] === "Refund")![13]).toBe("-200.00");
+    expect(body.find((r) => r[1] === "Payment")![13]).toBe("");
+    expect(body.find((r) => r[2] === "Mistake")![13]).toBe("");
+  });
+
+  it("all my data: the same column at the end, adding to 800.00", () => {
+    const rows = parse(myDataCsv(null, [{ name: "Goa", currency: "INR", type: "trip", closed: false, myId: "me", members, expenses, payments }], new Date("2026-10-05T10:00:00Z")));
+    const head = rows.find((r) => r[0] === "Group")!;
+    expect(head[head.length - 1]).toBe("Counts as spending");
+    const body = rows.filter((r) => r[0] === "Goa");
+    expect(sum(body, 8)).toBe(135000);
+    expect(sum(body, head.length - 1)).toBe(80000);
+  });
+
+  it("bringing the spreadsheet back in reads the same expenses (the new column is not a person)", () => {
+    const csv = groupCsv({ name: "Goa", currency: "INR" }, members, expenses.slice(0, 3), []);
+    const p = parseImport(csv);
+    if (!p.ok) throw new Error(p.error);
+    expect(p.people).toEqual(["Varun", "Asha"]);
+    expect(p.rows.map((r) => [r.description, r.cost])).toEqual([["Dinner", 100000], ["Refund", 20000], ["Cards", 15000]]);
   });
 });

@@ -39,7 +39,7 @@ export function inviteRowLabel(invite: { email: string; invitedById: string; fro
 async function sharedGroupRow(targetAccountId: string, actorAccountId: string | null | undefined): Promise<{ name: string } | null> {
   if (!actorAccountId || !targetAccountId) return null;
   return db.member.findFirst({
-    where: { accountId: targetAccountId, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: actorAccountId, ...JOINED } } } },
+    where: { accountId: targetAccountId, ...JOINED, leftAt: null, removedAt: null, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { accountId: actorAccountId, ...JOINED, leftAt: null, removedAt: null } } } },
     select: { name: true },
     orderBy: { createdAt: "asc" },
   });
@@ -95,7 +95,7 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
     db.member.findMany({ where: { groupId, accountId: { not: null } }, select: { accountId: true, leftAt: true, removedAt: true } }),
     // People you share a group with, both really joined (someone added straight in who hasn't opened it isn't offered yet).
     db.member.findMany({
-      where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
+      where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, leftAt: null, removedAt: null, group: { ...NOT_DIRECT, deletedAt: null, members: { some: { id: { in: Object.values(memberships) }, ...JOINED, leftAt: null, removedAt: null } } } },
       // Their name in a group we share, used when they haven't set a name of their own (never the start of their email).
       select: { accountId: true, name: true },
       orderBy: { createdAt: "asc" },

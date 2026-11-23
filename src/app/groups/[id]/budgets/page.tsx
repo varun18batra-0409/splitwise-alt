@@ -35,6 +35,7 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
       {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
       <form action={saveBudgets} className="space-y-6">
         <input type="hidden" name="groupId" value={group.id} />
+        <input type="hidden" name="currency" value={group.currency} />
         <ul className="divide-y divide-line rounded-2xl border border-line">
           {BUDGET_CATEGORIES.map((c) => {
             const cat = getCategory(c);
