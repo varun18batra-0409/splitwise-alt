@@ -44,7 +44,7 @@ export default function Privacy() {
       <ul className={ul}>
         <li>Group names, people’s names (as typed in the group), expenses, notes, payments and the change history.</li>
         <li>
-          Contacts: when you pick a person from your device’s contacts, their name and phone number (just the one you picked) are saved to the group. Loopin never uploads your address book.
+          Contacts: when you pick a person from your device’s contacts, their name and phone number (just the one you picked) are saved to the group, or to the collection you’re adding them to (only the organiser sees those numbers). Loopin never uploads your address book.
         </li>
         <li>A group’s own photo, if someone in the group adds one. It’s made small on the device first, and only people in that group can see it.</li>
         <li>Moments: a photo and a few words you add to a trip group. Camera details and location are removed, and only people in that group can see them.</li>
@@ -96,6 +96,9 @@ export default function Privacy() {
         <li>
           <strong>“I’ve paid” links:</strong> a link in a reminder opens without signing in. Whoever has it sees the group’s name, the two people’s
           names, the amount owed and how the person owed asked to be paid (their UPI ID or pay link, with a QR code), and can tap “I’ve paid”. It works for that one debt only, and stops after 30 days, once it’s settled, or if the group is closed. Send it only to the person who owes.
+        </li>
+        <li>
+          <strong>Collect links:</strong> a collection’s link opens without signing in. Whoever has it sees the title, the organiser’s name, the amount, how to pay the organiser, and the list of names with who says they’ve paid, how much each person says they paid, and who’s been checked. Phone numbers stay with the organiser. Anyone with the link can tick a name, so send it only to the people paying.
         </li>
         <li>
           <strong>If you leave a group:</strong> you still see it as it was up to the day you left, and your share can’t change after that. Older expenses

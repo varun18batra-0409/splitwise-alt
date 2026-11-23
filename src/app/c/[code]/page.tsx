@@ -474,6 +474,11 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           Share collection link
         </ShareCollection>
       )}
+      {isOrganiser && (
+        <p className="mt-2 text-center text-[13px] text-fg/60" data-collect-link-note>
+          Anyone with this link sees the names and ticks.
+        </p>
+      )}
 
       {/* The organiser's last controls */}
       {isOrganiser && (
