@@ -368,7 +368,10 @@ describe("VA4-6: long country names on stamps are written short", () => {
 describe("wording fixes", () => {
   it("VA1-4: one name for the first-abroad badge", () => {
     expect(read("src/lib/passport.ts")).not.toContain("First flight");
-    expect(read("src/lib/passport.ts").match(/First trip abroad/g)?.length).toBe(2);
+    // The milestone and the badge both use the one name (a code comment may mention it too).
+    const src = read("src/lib/passport.ts");
+    expect(src).toContain('milestones.push("First trip abroad")');
+    expect(src).toMatch(/badge\("first-abroad", "[^"]*", "First trip abroad"/);
   });
   it("VA1-6: 'safe in your account', not 'in your email'", () => {
     const p = read("src/app/account/sign-in/page.tsx");
