@@ -1,0 +1,48 @@
+# One-off, READ-ONLY: daily bills (milk, water) stopped or paused on the live app, and the days of their last month that were
+# never added. Bill name, dates and amounts only: no people, no group names. Uses the read-only key; it cannot change anything.
+name: Stopped daily bills (one-off, read-only)
+on:
+  push:
+    branches: [ops-stopped-bills]
+jobs:
+  list:
+    environment: live-read
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --ignore-scripts @libsql/client@0.15.0
+      - name: List
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_READONLY_TOKEN }}
+        run: |
+          cat > list.js <<'JS'
+          const { createClient } = require("@libsql/client");
+          const db = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+          const ymd = (d, tz) => new Intl.DateTimeFormat("en-CA", { timeZone: tz || "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(d));
+          (async () => {
+            const bills = (await db.execute(`SELECT b."id", b."groupId", b."name", b."amount", b."deletedAt", b."paused", b."pausedAt", b."missed", b."prepaid", b."tz", b."startMonth", b."createdAt"
+              FROM "Bill" b WHERE b."nature" = 'daily' AND (b."deletedAt" IS NOT NULL OR b."paused" = 1)`)).rows;
+            const total = Number((await db.execute(`SELECT COUNT(*) AS n FROM "Bill" WHERE "nature" = 'daily'`)).rows[0].n);
+            console.log(`::notice title=Daily bills::${total} daily bills in all; ${bills.length} stopped or paused`);
+            const groupNo = new Map(); let lost = 0, lostPaise = 0;
+            for (const b of bills) {
+              if (!groupNo.has(b.groupId)) groupNo.set(b.groupId, groupNo.size + 1);
+              const at = b.deletedAt ?? b.pausedAt; if (!at) { console.log(`- ${b.name}: paused, no pause date (older bill)`); continue; }
+              const day = ymd(at, b.tz); const period = day.slice(0, 7); const d = Number(day.slice(8, 10));
+              const run = (await db.execute({ sql: `SELECT "status", "reason" FROM "BillRun" WHERE "billId" = ? AND "period" = ?`, args: [b.id, period] })).rows[0];
+              const startDay = b.startMonth === period ? Math.max(1, Number(ymd(b.createdAt, b.tz).slice(8, 10))) : 1;
+              const missed = (JSON.parse(b.missed || "{}")[period] ?? []).filter((x) => x >= startDay && x < d).length;
+              const pre = (JSON.parse(b.prepaid || "{}")[period] ?? []).reduce((s, e) => s + (e.a || 0), 0);
+              const days = Math.max(0, d - startDay - missed);
+              const owed = run?.status === "added" ? 0 : Math.max(0, days * Number(b.amount) - pre);
+              const state = b.deletedAt ? "stopped" : "paused";
+              if (owed > 0) { lost++; lostPaise += owed; }
+              console.log(`- group ${groupNo.get(b.groupId)} · ${b.name} · ${state} ${day} · ₹${Number(b.amount) / 100}/day · ${period}: ${days} days before (${missed} missed), already charged ₹${pre / 100}, month run: ${run ? run.status + (run.reason ? " (" + run.reason + ")" : "") : "none"} → not added: ₹${owed / 100}`);
+            }
+            console.log(`::notice title=Not added::${lost} bills, ₹${lostPaise / 100} in all, across ${groupNo.size} groups`);
+          })().catch((e) => { console.log("::error title=List failed::" + String(e.message).split("\n")[0]); process.exit(1); });
+          JS
+          node list.js
