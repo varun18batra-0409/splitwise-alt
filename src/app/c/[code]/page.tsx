@@ -476,7 +476,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       )}
       {isOrganiser && (
         <p className="mt-2 text-center text-[13px] text-fg/60" data-collect-link-note>
-          Anyone with this link sees the names and ticks.
+          Anyone with this link sees the names, amounts and ticks.
         </p>
       )}
 

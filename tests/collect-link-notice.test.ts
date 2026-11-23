@@ -15,7 +15,7 @@ const { createCollection, markPaid, loadCollection } = await import("@/lib/colle
 const { default: CollectionPage } = await import("@/app/c/[code]/page");
 const { default: Privacy } = await import("@/app/privacy/page");
 
-const NOTICE = "Anyone with this link sees the names and ticks.";
+const NOTICE = "Anyone with this link sees the names, amounts and ticks.";
 const emails: string[] = [];
 afterAll(async () => {
   const accs = await db.account.findMany({ where: { email: { in: emails } } });
