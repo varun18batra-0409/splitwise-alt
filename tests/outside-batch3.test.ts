@@ -338,3 +338,54 @@ describe("G43: an old budgets form never clears or overwrites someone else's new
     expect(await budgets(g.id)).toEqual({ food: 800000, bills: 400000 });
   });
 });
+
+describe("J8: a resend of a save that already went through is a success and writes nothing more", () => {
+  it("budgets: Food 800,000 to 900,000, then the same form again: ok, still 900,000, one Activity line", async () => {
+    const g = await flat(["Asha", "Ravi"], "couple");
+    expect((await saveBudgetsFor(g.id, g.ids.Asha, { food: "8000" })).ok).toBe(true);
+    const lines = () => db.groupEvent.count({ where: { groupId: g.id, text: "updated the monthly budgets" } });
+    const post = () => saveBudgetsFor(g.id, g.ids.Asha, { food: "9000" }, { was: { food: "800000" }, currency: "INR" });
+    const before = await lines();
+    expect((await post()).ok).toBe(true);
+    expect(await lines()).toBe(before + 1);
+    expect((await post()).ok).toBe(true); // the resend
+    expect(await lines()).toBe(before + 1);
+    expect((await db.budget.findMany({ where: { groupId: g.id } })).map((b) => [b.category, b.amount])).toEqual([["food", 900000]]);
+  });
+
+  it("budgets: clearing a limit twice is fine too", async () => {
+    const g = await flat(["Asha", "Ravi"], "couple");
+    await saveBudgetsFor(g.id, g.ids.Asha, { food: "8000" });
+    const post = () => saveBudgetsFor(g.id, g.ids.Asha, { food: "" }, { was: { food: "800000" }, currency: "INR" });
+    expect((await post()).ok).toBe(true);
+    expect((await post()).ok).toBe(true);
+    expect(await db.budget.count({ where: { groupId: g.id } })).toBe(0);
+  });
+
+  it("deposit: Asha 3,600,000 to 3,700,000, then the same form again: ok, 3,700,000, one Activity line", async () => {
+    const g = await flat(["Asha", "Ravi"]);
+    await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000" } });
+    const form = await opened(g, ["Asha", "Ravi"]);
+    const post = () => saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", heldByWas: "Landlord", amounts: { [g.ids.Asha]: "37000" }, versions: form, currency: "INR" });
+    const lines = () => db.groupEvent.count({ where: { groupId: g.id, text: { startsWith: "updated the deposit" } } });
+    const before = await lines();
+    expect((await post()).ok).toBe(true);
+    expect((await post()).ok).toBe(true); // the resend
+    expect(await lines()).toBe(before + 1);
+    expect(await sharesOf(g.id)).toEqual({ [g.ids.Asha]: { amount: 3700000, status: "held" } });
+  });
+
+  it("deposit: a cleared box sent twice is fine; the holder rename 'Landlord' to 'Sharma' sent twice is fine", async () => {
+    const g = await flat(["Asha", "Ravi"]);
+    await saveDepositFor(g.id, g.ids.Asha, { heldBy: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Ravi]: "2500" } });
+    const form = await opened(g, ["Asha", "Ravi"]);
+    const post = () => saveDepositFor(g.id, g.ids.Asha, { heldBy: "Sharma", heldByWas: "Landlord", amounts: { [g.ids.Asha]: "36000", [g.ids.Ravi]: "" }, versions: form, currency: "INR" });
+    const lines = () => db.groupEvent.count({ where: { groupId: g.id, text: { startsWith: "updated the deposit" } } });
+    const before = await lines();
+    expect((await post()).ok).toBe(true);
+    expect((await post()).ok).toBe(true);
+    expect(await lines()).toBe(before + 1);
+    expect((await db.deposit.findUniqueOrThrow({ where: { groupId: g.id } })).heldBy).toBe("Sharma");
+    expect(await heldTotal(g.id)).toBe(3600000); // Ravi's 250,000 cleared, Asha's 3,600,000 stays
+  });
+});

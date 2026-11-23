@@ -625,6 +625,8 @@ export async function setMoveInFor(
 // changed is written, and only if that person's share is still exactly as shown; a box not in the form is never touched.
 // `currency` is the one the page was drawn in: the write refuses if the group's currency changed (checked inside the write).
 // Without `versions` (older callers) every posted box is written as typed.
+// The key of the deposit form: it changes whenever the holder or any shown share changes, so the form is drawn again from what is stored.
+export const depositFormKey = (heldBy: string, versions: string[]): string => [heldBy, ...versions].join("~");
 export function depositVersion(share: { amount: number; updatedAt: Date } | undefined): string {
   return share ? `${share.updatedAt.toISOString()}|${share.amount}` : "";
 }
@@ -679,9 +681,11 @@ export async function saveDepositFor(
       // The first statement is a write (see money-guard.ts): the group is still in the currency the page showed, and this person still in it.
       await guardGroup(tx, groupId, { currency: input.currency ?? flat.currency, actorId, allowClosed: true }); // (a closed flat could always keep its deposit record up to date)
       const had = await tx.deposit.findUnique({ where: { groupId } });
-      if (heldByEdited && had && heldByWas !== undefined && had.heldBy !== heldByWas) throw new HolderMoved(had.heldBy);
-      const dep = heldByEdited || !had ? await tx.deposit.upsert({ where: { groupId }, create: { groupId, heldBy: heldByEdited ? heldBy : heldByWas ?? heldBy }, update: { heldBy } }) : had;
-      const holder = heldByEdited ? heldBy : dep.heldBy;
+      // A holder edit that is already stored (a resend of a save that went through) is done: nothing to write, not a conflict.
+      const holderWrites = heldByEdited && !(had && had.heldBy === heldBy && heldByWas !== undefined);
+      if (holderWrites && had && heldByWas !== undefined && had.heldBy !== heldByWas) throw new HolderMoved(had.heldBy);
+      const dep = holderWrites || !had ? await tx.deposit.upsert({ where: { groupId }, create: { groupId, heldBy: heldByEdited ? heldBy : heldByWas ?? heldBy }, update: holderWrites ? { heldBy } : {} }) : had;
+      const holder = holderWrites ? heldBy : dep.heldBy;
       // Checked again inside the write: someone may have moved out, or been removed, since the form was read.
       const adds = boxes.filter((b) => b.amount > 0);
       if (adds.length) {
@@ -698,6 +702,8 @@ export async function saveDepositFor(
           if (b.amount === 0 && !input.versions) continue; // a blank box next to history is nothing to do
           throw new Error("DEPOSIT_CHANGED");
         }
+        // Already as this box asks (a resend of a save that went through): nothing to write, not a conflict.
+        if (input.versions && (b.amount === 0 ? now === null : now !== null && now.amount === b.amount)) continue;
         if (input.versions) {
           // The share must still be exactly as the page showed (nobody changed, added or removed it since).
           const same = b.shown ? now !== null && now.updatedAt.toISOString() === b.shown.iso && now.amount === b.shown.amount : now === null;
@@ -718,7 +724,7 @@ export async function saveDepositFor(
         written.push(`${b.name}: ${b.amount ? formatMoney(b.amount, flat.currency) : "cleared"}`);
       }
       // Nothing was changed: no line in Activity (the holder's name may still have been updated above).
-      if (input.versions && !written.length && !heldByEdited) return;
+      if (input.versions && !written.length && !holderWrites) return;
       // The total still held after this save: everyone's held share, including a leaver's that stays on record.
       const stillHeld = (await tx.depositShare.aggregate({ where: { depositId: dep.id, status: "held" }, _sum: { amount: true } }))._sum.amount ?? 0;
       await logEvent(tx, {

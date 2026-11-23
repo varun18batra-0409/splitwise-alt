@@ -120,7 +120,7 @@ describe("J5: an old bill edit page never overwrites a newer change", () => {
     expect((await saveBillFor(f.id, f.ravi, rent(f, { billId: id, amount: "9000", was: ravisPage }), setupDay)).ok).toBe(true);
     expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(900000);
     const r = await saveBillFor(f.id, f.asha, rent(f, { billId: id, amount: "8500", was: shown }), setupDay);
-    expect(r).toEqual({ ok: false, error: "Rent changed since you opened this page, so nothing was saved. Look again and save once more." });
+    expect(r).toEqual({ ok: false, error: "Rent changed to ₹9,000 since you opened this page, so nothing was saved. Look again and save once more." });
     expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(900000);
     // The month's run uses 9,000: 900,000 split 450,000 + 450,000, Asha (payer) +450,000 and Ravi -450,000.
     const bill = await db.bill.findUniqueOrThrow({ where: { id } });
@@ -141,5 +141,32 @@ describe("J5: an old bill edit page never overwrites a newer change", () => {
     const bad = await saveBillFor(f.id, f.asha, rent(f, { billId: id, amount: "7000", was: "nonsense" }), setupDay);
     expect(bad.ok).toBe(false);
     expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(850000);
+  });
+});
+
+describe("J8: a resend of a bill edit that already went through is a success, not a conflict", () => {
+  it("the same edit form (8,000 to 9,000) sent twice: ok both times, the bill is 900,000 and there is one 'changed the bill' line", async () => {
+    const f = await flat();
+    const made = await saveBillFor(f.id, f.asha, rent(f, { key: newKey() }), setupDay);
+    const id = made.ok ? made.id : "";
+    const shown = billVersion(await db.bill.findUniqueOrThrow({ where: { id } }));
+    const edit = () => saveBillFor(f.id, f.asha, rent(f, { billId: id, amount: "9000", was: shown }), setupDay);
+    expect((await edit()).ok).toBe(true);
+    const lines = await db.groupEvent.count({ where: { groupId: f.id, text: { startsWith: "changed the bill" } } });
+    expect((await edit()).ok).toBe(true); // the resend
+    expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(900000);
+    expect(await db.groupEvent.count({ where: { groupId: f.id, text: { startsWith: "changed the bill" } } })).toBe(lines);
+    expect(lines).toBe(1);
+  });
+
+  it("a change to the day by someone else (not the amount) is refused with plain 'changed'", async () => {
+    const f = await flat();
+    const made = await saveBillFor(f.id, f.asha, rent(f, { key: newKey() }), setupDay);
+    const id = made.ok ? made.id : "";
+    const shown = billVersion(await db.bill.findUniqueOrThrow({ where: { id } }));
+    expect((await saveBillFor(f.id, f.ravi, rent(f, { billId: id, day: "5", was: shown }), setupDay)).ok).toBe(true);
+    const r = await saveBillFor(f.id, f.asha, rent(f, { billId: id, amount: "8500", was: shown }), setupDay);
+    expect(r).toEqual({ ok: false, error: "Rent changed since you opened this page, so nothing was saved. Look again and save once more." });
+    expect((await db.bill.findUniqueOrThrow({ where: { id } })).amount).toBe(800000);
   });
 });

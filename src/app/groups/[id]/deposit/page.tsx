@@ -8,7 +8,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonC
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { returnDeposit, saveDeposit } from "@/app/bill-actions";
 import { formatMoney, toInputAmount } from "@/lib/money";
-import { depositVersion } from "@/lib/home/moving-db";
+import { depositFormKey, depositVersion } from "@/lib/home/moving-db";
 import { leaverDepositRows } from "@/lib/leaver-rows";
 import { leaverOf } from "@/lib/left-view-db";
 import { readNotes } from "@/lib/flash";
@@ -59,7 +59,11 @@ export default async function DepositPage({
         <p className="mt-1 text-sm text-gray-500">Kept on record only. It’s never part of who owes whom.</p>
       </section>
 
-      <form action={saveDeposit} className="space-y-5">
+      <form
+        key={depositFormKey(group.deposit?.heldBy ?? "Landlord", group.members.filter((m) => !m.leftAt).map((m) => depositVersion(held.find((x) => x.memberId === m.id))))}
+        action={saveDeposit}
+        className="space-y-5"
+      >
         <input type="hidden" name="groupId" value={group.id} />
         <input type="hidden" name="currency" value={group.currency} />
         {/* Who holds it, as shown: it is only saved if it was edited here and the stored name is still this one. */}

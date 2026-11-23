@@ -23,4 +23,8 @@ export function budgetLevelsCrossed(spent: number, amount: number): ("80" | "100
 }
 
 // The categories a home or couple usually budgets for, in this order.
+// The key of the budgets form: it changes whenever a stored amount changes, so the form is drawn again from the stored values
+// (after "changed since you opened this page" the boxes show what is saved, and the next save carries the matching versions).
+export const budgetFormKey = (was: Record<string, string>): string => BUDGET_CATEGORIES.map((c) => `${c}=${was[c] ?? ""}`).join("&");
+
 export const BUDGET_CATEGORIES = ["groceries", "food", "bills", "shopping", "transport", "activities", "other"];

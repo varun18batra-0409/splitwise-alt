@@ -33,8 +33,16 @@ const splitKey = (json: string) => {
 
 // What an edit form showed of a bill (the bill has no "changed at" time): the fields the form edits that money depends on.
 // The form posts this back; the save refuses if the bill is different by then.
+// Readable fields (so a refusal can say whether only the amount changed), the split as a short fingerprint.
 export function billVersion(b: { nature: string; amount: number; day: number; every: number; payer: string; split: string }): string {
-  return fingerprintOf("bill-shown", b.nature, b.amount, b.day, b.every, b.payer, splitKey(b.split));
+  return [b.nature, b.amount, b.day, b.every, b.payer || "turns", fingerprintOf("split", splitKey(b.split))].join("|");
+}
+// "Rent changed to ₹9,000 since…" when only the amount differs; otherwise just "changed" (type, day, payer or split).
+function billMovedText(name: string, was: string, cur: string, currency: string): string {
+  const [w, c] = [was.split("|"), cur.split("|")];
+  const onlyAmount = w.length === 6 && c.length === 6 && w.every((x, i) => i === 1 || x === c[i]);
+  const what = onlyAmount && /^\d{1,12}$/.test(c[1]) ? ` to ${formatMoney(Number(c[1]), currency)}` : "";
+  return `${name} changed${what} since you opened this page, so nothing was saved. Look again and save once more.`;
 }
 
 export type BillInput = {
@@ -130,7 +138,11 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
         if (!cur) throw new BillLocked("That bill no longer exists.");
         if (isStopped(cur)) throw new BillLocked(STOPPED_CHANGE(cur.name));
         // The bill is still exactly as the form showed it (someone else may have changed the amount, day, payer or split since).
-        if (input.was !== undefined && billVersion(cur) !== input.was) throw new BillLocked(`${cur.name} changed since you opened this page, so nothing was saved. Look again and save once more.`);
+        if (input.was !== undefined) {
+          // Already exactly as this form asks (a resend of a save that went through): nothing to write, not a conflict.
+          if (billVersion(cur) === billVersion(data) && cur.name === data.name && cur.icon === data.icon) return;
+          if (billVersion(cur) !== input.was) throw new BillLocked(billMovedText(cur.name, input.was, billVersion(cur), group.currency));
+        }
         // A paused daily bill keeps its days from the pause worked out from the pause day: turning it into another kind would lose them.
         if (cur.paused && cur.nature === "daily" && data.nature !== "daily") throw new BillLocked(PAUSED_TYPE(cur.name));
         if (cur.nature === "daily" && (data.amount !== cur.amount || data.nature !== cur.nature || splitKey(data.split) !== splitKey(cur.split))) {

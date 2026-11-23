@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { saveBudgets } from "@/app/bill-actions";
-import { BUDGET_CATEGORIES } from "@/lib/home/budgets";
+import { BUDGET_CATEGORIES, budgetFormKey } from "@/lib/home/budgets";
 import { getCategory } from "@/lib/categories";
 import { toInputAmount } from "@/lib/money";
 import { leaverOf } from "@/lib/left-view-db";
@@ -33,7 +33,7 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
       <PageHeader title="Monthly budgets" back={`/groups/${group.id}`} />
       <p className="-mt-3 mb-6 text-sm text-gray-500">Set a limit for what matters. Everyone gets a nudge at 80% and if it goes over. Leave blank for no budget.</p>
       {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
-      <form action={saveBudgets} className="space-y-6">
+      <form key={budgetFormKey(Object.fromEntries(group.budgets.map((b) => [b.category, String(b.amount)])))} action={saveBudgets} className="space-y-6">
         <input type="hidden" name="groupId" value={group.id} />
         <input type="hidden" name="currency" value={group.currency} />
         <ul className="divide-y divide-line rounded-2xl border border-line">

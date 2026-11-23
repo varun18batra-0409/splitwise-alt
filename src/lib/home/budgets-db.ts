@@ -54,8 +54,11 @@ export async function saveBudgetsFor(
     await db.$transaction(async (tx) => {
       // First: the group is still in the currency the page showed (and this person still in it).
       await guardGroup(tx, groupId, { currency: opts.currency ?? group.currency, actorId, allowClosed: true });
+      let wrote = 0;
       for (const c of [...clear.map((x) => ({ ...x, amount: null as number | null })), ...set]) {
         const now = await tx.budget.findUnique({ where: { groupId_category: { groupId, category: c.category } } });
+        // Already as this form asks (a resend of a save that went through): nothing to write, and not a conflict.
+        if (opts.was && (now?.amount ?? null) === c.amount) continue;
         if (opts.was && (now?.amount ?? null) !== c.was) throw new BudgetMoved(c.category, now?.amount ?? null);
         if (c.amount === null) {
           if (now) await tx.budget.deleteMany({ where: { id: now.id, amount: now.amount } });
@@ -65,7 +68,9 @@ export async function saveBudgetsFor(
           const done = await tx.budget.updateMany({ where: { id: now.id, amount: now.amount }, data: { amount: c.amount } });
           if (done.count !== 1) throw new BudgetMoved(c.category, now.amount);
         }
+        wrote++;
       }
+      if (opts.was && !wrote) return; // every box was already as asked: no second line in Activity
       await logEvent(tx, {
         groupId,
         actorId,
