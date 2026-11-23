@@ -15,6 +15,16 @@ type Result = { ok: true; eventId?: string } | { ok: false; error: string; needs
 export const CURRENCY_ROUNDING_TEXT = "At this rate, rounding would leave someone who’s settled up with a tiny balance, so the currency wasn’t changed. Try a slightly different rate.";
 export const CURRENCY_PAYMENT_TEXT = "That rate makes a payment too small or too large. Check it.";
 
+// The most a payment or a share may end away from its plain-converted amount to keep everyone settled: rounding, not a rewrite.
+// max(2 minor units, 1% of the plain amount rounded up). Whole numbers only: 1% of 9,920 is 99.2, so 100.
+export const squareLimit = (plain: number) => Math.max(2, Math.floor((Math.abs(plain) + 99) / 100));
+const MORE_THAN_ROUNDING = (cur: string) => `That’s more than rounding, usually because some expenses were entered in ${cur} at a different rate. Nothing was changed. Check the rate.`;
+export const paymentJumpText = (payer: string, payee: string, was: string, now: string, plain: string, cur: string) =>
+  `At this rate, ${payer}’s ${was} payment to ${payee} would have to become ${now} (not ${plain}) to keep everyone settled. ${MORE_THAN_ROUNDING(cur)}`;
+export const shareJumpText = (person: string, expense: string, now: string, plain: string, cur: string) =>
+  `At this rate, ${person}’s share of ${expense} would have to become ${now} (not ${plain}) to keep everyone settled. ${MORE_THAN_ROUNDING(cur)}`;
+export const paymentRoundedLine = (payer: string, payee: string, was: string, now: string) => `${payer} → ${payee}: ${was} is now ${now} (rounded to keep ${payer} settled).`;
+
 export const PAIR_NO_SETTINGS = "This is just between two people, so it has no settings to change.";
 
 // Rename the group and/or change its card markup. Logged for everyone.
@@ -100,7 +110,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     include: {
       expenses: { include: { shares: true, items: { select: { id: true } } } },
       payments: true,
-      members: { select: { id: true, leftAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      members: { select: { id: true, name: true, leftAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
     },
   });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
@@ -144,6 +154,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   const squarePayments = (rebased: boolean): SquarePayment[] =>
     livePayments.map(({ p, amount }) => ({ id: p.id, createdAt: p.createdAt.getTime(), fromId: p.fromId, toId: p.toId, amount: rebased ? amount! : p.amount }));
   let squared: ReturnType<typeof keepSquareAtZero> = null;
+  let roundedLines: string[] = []; // Activity: payments that moved by 2 or more to keep someone settled (at most 5, then "and N more")
   if (liveExpenses.length || livePayments.length) {
     squared = keepSquareAtZero({
       members: group.members.map((m) => ({ id: m.id, left: Boolean(m.leftAt) })),
@@ -152,9 +163,33 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
       convert: (a) => rebasePayment(a, oldCurrency, newCurrency, rate),
     });
     if (!squared) return { ok: false, error: CURRENCY_ROUNDING_TEXT };
+    // Keeping people settled may nudge a few paise, never rewrite a past payment or share: a bigger move means the rate does not
+    // fit the group's history (some expenses were entered at another rate). Refused before anything is written.
+    const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
+    const bigPay = livePayments
+      .map(({ p, amount }) => ({ p, plain: amount!, final: squared!.payments[p.id], delta: squared!.moved.payments[p.id] ?? 0 }))
+      .filter((x) => Math.abs(x.delta) > squareLimit(x.plain))
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.p.id.localeCompare(b.p.id))[0];
+    if (bigPay) {
+      return { ok: false, error: paymentJumpText(nameOf(bigPay.p.fromId), nameOf(bigPay.p.toId), formatMoney(bigPay.p.amount, oldCurrency), formatMoney(bigPay.final, newCurrency), formatMoney(bigPay.plain, newCurrency), newCurrency) };
+    }
+    const bigShare = liveExpenses
+      .flatMap(({ e, r }) => e.shares.map((s) => ({ e, s, plain: r!.shares.find((x) => x.id === s.id)!.amount })))
+      .map((x) => ({ ...x, final: squared!.shares[x.s.id], delta: squared!.moved.shares[x.s.id] ?? 0 }))
+      .filter((x) => Math.abs(x.delta) > squareLimit(x.plain))
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.s.id.localeCompare(b.s.id))[0];
+    if (bigShare) {
+      return { ok: false, error: shareJumpText(nameOf(bigShare.s.memberId), bigShare.e.description, formatMoney(bigShare.final, newCurrency), formatMoney(bigShare.plain, newCurrency), newCurrency) };
+    }
     for (const x of expenseUpdates) {
       for (const s of x.r!.shares) if (squared.shares[s.id] !== undefined) s.amount = squared.shares[s.id];
     }
+    const moved = livePayments
+      .map(({ p, amount }) => ({ p, plain: amount!, final: squared!.payments[p.id], delta: squared!.moved.payments[p.id] ?? 0 }))
+      .filter((x) => Math.abs(x.delta) >= 2)
+      .sort((a, b) => a.p.createdAt.getTime() - b.p.createdAt.getTime() || a.p.id.localeCompare(b.p.id));
+    roundedLines = moved.slice(0, 5).map((x) => paymentRoundedLine(nameOf(x.p.fromId), nameOf(x.p.toId), formatMoney(x.p.amount, oldCurrency), formatMoney(x.final, newCurrency)));
+    if (moved.length > 5) roundedLines.push(`and ${moved.length - 5} more`);
     for (const x of paymentUpdates) if (squared.payments[x.p.id] !== undefined) x.amount = squared.payments[x.p.id];
   }
 
@@ -286,6 +321,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
             `Currency: ${oldCurrency} → ${newCurrency}`,
             `Rate used: 1 ${oldCurrency} = ${rate} ${newCurrency}`,
             `Group total: ${formatMoney(totalBefore, oldCurrency)} → ${formatMoney(totalAfter, newCurrency)}`,
+            ...roundedLines,
           ]
         : [`Currency: ${oldCurrency} → ${newCurrency}`],
     });

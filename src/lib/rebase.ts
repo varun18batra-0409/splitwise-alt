@@ -125,6 +125,9 @@ export type SquareResult = {
   shares: Record<string, number>; // every share row id -> its amount now
   payments: Record<string, number>; // every payment id -> its amount now
   targets: Record<string, number>; // the balance each fixed person must end on
+  // How far each row ended from its plain-converted amount (final minus plain): 0 for every row nobody nudged.
+  // The caller refuses a change whose nudges are bigger than rounding (see changeGroupCurrency).
+  moved: { shares: Record<string, number>; payments: Record<string, number> };
 };
 
 type Edge = { t: "e"; u: string; v: string } | { t: "r"; u: string; v: string } | { t: "p+"; p: string } | { t: "p-"; p: string };
@@ -137,6 +140,12 @@ export function keepSquareAtZero(input: SquareInput): SquareResult | null {
   for (const e of input.after.expenses) for (const s of e.shares) shares[s.id] = s.amount;
   for (const p of input.after.payments) payments[p.id] = p.amount;
   const net = netBalances(ids, input.after.expenses, input.after.payments);
+  const movedBy = (): SquareResult["moved"] => {
+    const out: SquareResult["moved"] = { shares: {}, payments: {} };
+    for (const e of input.after.expenses) for (const s of e.shares) out.shares[s.id] = shares[s.id] - s.amount;
+    for (const p of input.after.payments) out.payments[p.id] = payments[p.id] - p.amount;
+    return out;
+  };
 
   const targets: Record<string, number> = {};
   const need: Record<string, number> = {};
@@ -150,7 +159,7 @@ export function keepSquareAtZero(input: SquareInput): SquareResult | null {
     } else continue; // free
     need[m.id] = targets[m.id] - (net[m.id] ?? 0);
   }
-  if (Object.values(need).every((n) => n === 0)) return { shares, payments, targets };
+  if (Object.values(need).every((n) => n === 0)) return { shares, payments, targets, moved: movedBy() };
 
   // Which rows could carry a unit from u to v, in the order to try them.
   const edges = new Map<string, Edge[]>();
@@ -240,5 +249,5 @@ export function keepSquareAtZero(input: SquareInput): SquareResult | null {
     input.after.payments.map((p) => ({ ...p, amount: payments[p.id] })),
   );
   for (const id of Object.keys(targets)) if ((check[id] ?? 0) !== targets[id]) return null;
-  return { shares, payments, targets };
+  return { shares, payments, targets, moved: movedBy() };
 }

@@ -450,11 +450,13 @@ export function blockedMessage(check: Extract<CanUndo, { ok: false }>, ctx: { na
 type UndoResult = { ok: true; eventId?: string } | { ok: false; error: string };
 
 // `memberships`: group id -> my member id (the pages pass getMemberships()), so a payment across several groups finds who I am in each.
-export async function undoEvent(eventId: string, actorId: string | undefined, tz: string = DEFAULT_TIME_ZONE, opts: { memberships?: Record<string, string>; guestRules?: boolean } = {}): Promise<UndoResult> {
+// afterHistory: tests only. Runs after every check has passed and before the reversal begins (the gap in which a newer change can land).
+type UndoOpts = { memberships?: Record<string, string>; guestRules?: boolean; afterHistory?: () => Promise<void> };
+export async function undoEvent(eventId: string, actorId: string | undefined, tz: string = DEFAULT_TIME_ZONE, opts: UndoOpts = {}): Promise<UndoResult> {
   return withRetry(() => undoOnce(eventId, actorId, tz, opts));
 }
 
-async function undoOnce(eventId: string, actorId: string | undefined, tz: string, opts: { memberships?: Record<string, string>; guestRules?: boolean }): Promise<UndoResult> {
+async function undoOnce(eventId: string, actorId: string | undefined, tz: string, opts: UndoOpts): Promise<UndoResult> {
   const now = new Date();
   const ev = await db.groupEvent.findUnique({ where: { id: eventId } });
   if (!ev) return { ok: false, error: "That change no longer exists." };
@@ -486,11 +488,29 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   const originAt = await originAtDb(ev);
   const no = actorRefusal(ev, viewer, now, originAt);
   if (no) return { ok: false, error: no };
+  await opts.afterHistory?.();
 
   // The "undone" mark is written inside the reversal's own transaction (see markUndone), so it is saved together
   // with the reversal or not at all. Two people at once, or a repeated tap, can never undo the same change twice:
   // the mark only takes if nobody else's did, and the loser's whole reversal is rolled back.
-  const mark: UndoMark = { eventId: ev.id, actorId };
+  // The history is looked at once more inside that transaction, right after the mark (see UndoMark.recheck): a newer change that landed
+  // after the checks above (an edit, another undo) refuses this one with the same words the first look would have used.
+  const mark: UndoMark = {
+    eventId: ev.id,
+    actorId,
+    recheck: async (tx) => {
+      const fresh = await tx.groupEvent.findUnique({ where: { id: ev.id } });
+      if (!fresh) throw new UndoTaken("That change no longer exists.");
+      const newer = await tx.groupEvent.findMany({ where: { groupId: fresh.groupId, createdAt: { gte: fresh.createdAt } } });
+      // This change counts as not undone yet: the mark was only just written, in this very transaction.
+      const again = historyCheck({ ...fresh, undoneAt: null }, newer, (id) => group.members.find((m) => m.id === id)?.name);
+      if (again.ok) return;
+      if (payload.type === "expense_revert") throw new UndoTaken(REVERT_CLASH);
+      if (payload.type === "currency_restore") throw new UndoTaken(CURRENCY_MOVED_TEXT);
+      const nameOf = (id: string) => (id === actorId ? "You" : group.members.find((m) => m.id === id)?.name);
+      throw new UndoTaken(actorLeft ? leaverFacing(ev, again) : blockedMessage(again, { nameOf, tz }));
+    },
+  };
   let result: UndoResult;
   try {
     // Someone who recorded it for others may Undo it for 10 minutes: the payment code then lets them through (it reads the same window).
@@ -542,6 +562,7 @@ function fromResult(r: { ok: true; eventId?: string } | { ok: false; error: stri
   return r.ok ? { ok: true, eventId: r.eventId } : r;
 }
 
+export const CURRENCY_MOVED_TEXT = "Expenses, payments or other money in the group changed after the currency change, so it can’t be undone safely. Change the currency again instead.";
 export const REVERT_CLASH = "Someone changed this expense a moment ago, so it wasn’t undone. Open it again to see the latest version.";
 
 // The people and amounts of a set of shares, as one comparable text.
@@ -745,15 +766,39 @@ export async function restoreCurrency(groupId: string, actorId: string, p: Extra
     // Anyone who has left was square before this: noted now, checked again after the amounts go back (rounding could leave them a paisa out).
     const leavers = await tx.member.findMany({ where: { groupId, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
     const netBefore = leavers.length ? (await ledgerInTx(tx, groupId)).net : {};
-    // Rows removed since (a card game's result after it was reopened) are skipped.
+    // An expense that still exists must still have exactly the share rows the change converted. An edit in the gap replaces them with
+    // new rows (new ids): writing the old amounts onto rows that are gone would quietly do nothing and leave a mix of currencies.
+    const liveById = new Map(ex.map((x) => [x.id, x]));
     for (const e of p.expenses) {
+      const now = liveById.get(e.id);
+      if (!now) continue; // removed since (a card game's result after it was reopened): skipped
+      const want = e.shares.map((s) => s.id).sort().join("|");
+      const have = now.shares.map((s) => s.id).sort().join("|");
+      if (want !== have) throw new CurrencyMoved();
+    }
+    // (rows removed since are skipped)
+    for (const e of p.expenses) {
+      if (!liveById.has(e.id)) continue;
       const { shares, id, ...fields } = e;
-      await tx.expense.updateMany({ where: { id }, data: fields });
-      for (const s of shares) await tx.expenseShare.updateMany({ where: { id: s.id }, data: { amount: s.amount } });
+      const wrote = await tx.expense.updateMany({ where: { id }, data: fields });
+      if (wrote.count !== 1) throw new CurrencyMoved();
+      for (const s of shares) {
+        const one = await tx.expenseShare.updateMany({ where: { id: s.id }, data: { amount: s.amount } });
+        if (one.count !== 1) throw new CurrencyMoved();
+      }
     }
     for (const x of p.payments) await tx.payment.updateMany({ where: { id: x.id }, data: { amount: x.amount } });
     if (p.other) await writeOtherMoney(tx, p.other);
     await tx.group.update({ where: { id: groupId }, data: { currency: p.currency, ...(p.other ? { settleMin: p.other.settleMin } : {}) } });
+    // The proof, read back from the database: every live expense's shares (and payers) add up to its amount, and the group's balances add up to 0.
+    // Anything else means the amounts did not go back cleanly, so nothing is written.
+    const written = await tx.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true } });
+    for (const x of written) {
+      if (x.shares.reduce((n, s) => n + s.amount, 0) !== x.amount) throw new CurrencyMoved();
+      const payers = parsePayers(x.payers);
+      if (payers.length && payers.reduce((n, q) => n + q.amount, 0) !== x.amount) throw new CurrencyMoved();
+    }
+    if (Object.values((await ledgerInTx(tx, groupId)).net).reduce((n, v) => n + v, 0) !== 0) throw new CurrencyMoved();
     if (leavers.length) {
       const netAfter = (await ledgerInTx(tx, groupId)).net;
       const moved = leavers.find((m) => (netBefore[m.id] ?? 0) === 0 && (netAfter[m.id] ?? 0) !== 0);
@@ -769,7 +814,7 @@ export async function restoreCurrency(groupId: string, actorId: string, p: Extra
     });
   }, { timeout: 15000 });
   } catch (err) {
-    if (err instanceof CurrencyMoved) return { ok: false, error: "Expenses, payments or other money in the group changed after the currency change, so it can’t be undone safely. Change the currency again instead." };
+    if (err instanceof CurrencyMoved) return { ok: false, error: CURRENCY_MOVED_TEXT };
     if (err instanceof LeaverCurrencyBreak) return { ok: false, error: `${err.message} has left the group since, so the currency change can’t be undone. Change the currency again instead.` };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;

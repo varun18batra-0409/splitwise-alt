@@ -110,3 +110,26 @@ export function initialFromExpense(
     version: mode === "edit" ? (e.editedAt ?? e.createdAt).toISOString() : "",
   };
 }
+
+// What the form would post if the person opened it and saved without touching anything: the starting values as a draft.
+// (save-expense.ts works this out for an edit and compares it with what was really posted: the same result means no money changed.)
+export function draftFromInitial(i: ExpenseInitial): ExpenseDraft {
+  return {
+    amount: i.amount,
+    currency: i.currency,
+    paidById: i.paidById,
+    forMode: i.forMode,
+    selected: i.selected,
+    onePersonId: i.onePersonId,
+    splitType: i.splitType,
+    exact: i.exact,
+    percent: i.percent,
+    shares: i.shares,
+    kind: i.kind,
+    multiPay: i.multiPay,
+    payers: i.payers,
+    paymentMethod: i.paymentMethod,
+    markupChoice: i.markupChoice,
+    markupCustom: i.markupCustom,
+  };
+}

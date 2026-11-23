@@ -9,7 +9,8 @@ import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, markUndone, touchedByExpense, type ExpenseSnapshot, type UndoMark } from "./events";
 import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
 import type { RateAnswer } from "./rate-cache";
-import { dayKey, parseDay } from "./dates";
+import { DEFAULT_TIME_ZONE, dayKey, parseDay } from "./dates";
+import { draftFromInitial, initialFromExpense } from "./expense-initial";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { parsePayers, payersJson, payersLabel } from "./payers";
 import { isGameResult } from "./pot-result";
@@ -210,7 +211,7 @@ async function saveExpenseOnce(
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, accountId: true, claimedAt: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, accountId: true, claimedAt: true, splitWeight: true } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (group.deletedAt) return { ok: false, error: "This group was deleted." };
@@ -294,7 +295,23 @@ async function saveExpenseOnce(
   const built = buildExpense(draft, { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
   if (!built.ok) return built;
   const e = built.expense;
-  if (attach?.lines) {
+
+  // An edit that changes no money keeps the stored money exactly. "No money change" means: the form as it was opened (the expense as saved,
+  // turned back into what was typed) works out to the very same result as the form as posted, at the same rate. Comparing two answers of the
+  // same code means a different way of typing the same number can't matter. This matters after the group's currency changed: the saved
+  // shares carry the nudges that keep everyone settled, and working them out again from the typed amounts would undo those nudges
+  // (and drop a kept card fee). The saved shares, payers, amounts and fee then stay as they are; only name, notes, category, date,
+  // item lines and the photo are written.
+  const moneyKept = (() => {
+    if (!existing) return false;
+    if (input.currency !== existing.originalCurrency || existing.baseCurrency !== group.currency) return false;
+    if (cleanRateText(rate) !== cleanRateText(existing.exchangeRate)) return false;
+    const weights = Object.fromEntries(group.members.map((m) => [m.id, m.splitWeight]));
+    const start = initialFromExpense(existing, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz: DEFAULT_TIME_ZONE, today: today() }, "edit");
+    const asOpened = buildExpense(draftFromInitial(start), { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
+    return asOpened.ok && JSON.stringify(asOpened.expense) === JSON.stringify(e);
+  })();
+  if (attach?.lines && !(moneyKept && existing && !(await attachChanges(group.id, existing.id, attach)).lines)) {
     const off = itemsDisagree(attach.lines, e);
     if (off) return { ok: false, error: off };
   }
@@ -312,28 +329,21 @@ async function saveExpenseOnce(
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80) || "Expense";
   const category = isCategory(input.category) ? input.category : guessCategory(name, { india: group.currency === "INR" || input.currency === "INR" });
   const notes = input.notes === undefined ? (existing?.notes ?? "") : input.notes.trim().replace(/\r\n/g, "\n").slice(0, 500);
-  const fields = {
-    description: name,
-    notes,
-    category,
-    amount: e.amount,
-    splitType: e.splitType,
-    forMode: e.forMode,
-    paidById: e.paidById,
-    payers: payersJson(e.payers),
-    kind: existing?.kind === "pot" && e.kind === "expense" ? "pot" : e.kind, // an imported card-game row stays one, unless it is switched to Money back
-    originalAmount: e.originalAmount,
-    originalCurrency: e.originalCurrency,
-    baseCurrency: e.baseCurrency,
-    exchangeRate: e.exchangeRate,
-    rateDate,
-    rateSource,
-    convertedAmount: e.convertedAmount,
-    paymentMethod: e.paymentMethod,
-    markupBp: e.markupBp,
-    markupAmount: e.markupAmount,
-    spentAt,
-  };
+  // Every money field: as worked out now, or (an edit that changed no money) exactly as stored, card fee included.
+  const money = moneyKept && existing
+    ? {
+        amount: existing.amount, splitType: existing.splitType, forMode: existing.forMode, paidById: existing.paidById, payers: existing.payers, kind: existing.kind,
+        originalAmount: existing.originalAmount, originalCurrency: existing.originalCurrency, baseCurrency: existing.baseCurrency, exchangeRate: existing.exchangeRate,
+        rateDate: existing.rateDate, rateSource: existing.rateSource, convertedAmount: existing.convertedAmount, paymentMethod: existing.paymentMethod,
+        markupBp: existing.markupBp, markupAmount: existing.markupAmount,
+      }
+    : {
+        amount: e.amount, splitType: e.splitType, forMode: e.forMode, paidById: e.paidById, payers: payersJson(e.payers),
+        kind: existing?.kind === "pot" && e.kind === "expense" ? "pot" : e.kind, // an imported card-game row stays one, unless it is switched to Money back
+        originalAmount: e.originalAmount, originalCurrency: e.originalCurrency, baseCurrency: e.baseCurrency, exchangeRate: e.exchangeRate,
+        rateDate, rateSource, convertedAmount: e.convertedAmount, paymentMethod: e.paymentMethod, markupBp: e.markupBp, markupAmount: e.markupAmount,
+      };
+  const fields = { description: name, notes, category, ...money, spentAt };
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = formatMoney(e.amount, group.currency);
 
@@ -391,9 +401,12 @@ async function saveExpenseOnce(
     }
   }
 
+  // The shares and payers this save leaves behind: the stored ones when no money changed.
+  const nowShares = moneyKept ? existing.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })) : e.shares;
+  const nowPayers = moneyKept ? parsePayers(existing.payers) : e.payers;
   const changes = diffExpense(
     { ...snapshot(existing), day: dayKey(existing.spentAt ?? existing.createdAt) },
-    { ...snapshot({ ...fields, shares: e.shares }), day: dayKey(spentAt ?? existing.createdAt) },
+    { ...snapshot({ ...fields, shares: nowShares }), day: dayKey(spentAt ?? existing.createdAt) },
     nameOf,
   );
   // Nothing changed in the expense itself: only still saved if its item lines or bill photo did change.
@@ -402,15 +415,15 @@ async function saveExpenseOnce(
 
   // Only people who weren't already in this expense have to still be in the group.
   // Whose balance this edit moves. Someone who has left may stay in the expense, but their share and what they paid can't change.
-  const moved = touchedByExpense(existing, { paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: e.shares });
-  const newcomers = peopleInExpense({ paidById: fields.paidById, payers: e.payers, shares: e.shares }).filter((id) => !inExisting(id));
+  const moved = touchedByExpense(existing, { paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: nowShares });
+  const newcomers = peopleInExpense({ paidById: fields.paidById, payers: nowPayers, shares: nowShares }).filter((id) => !inExisting(id));
   await opts.afterRead?.();
   let eventId: string;
   try {
    eventId = await db.$transaction(async (tx) => {
     await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: newcomers });
     if (changes.length) {
-      const next = { id: existing.id, paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: e.shares };
+      const next = { id: existing.id, paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: nowShares };
       const gone = await leaverBalanceBreaks(tx, group.id, moved, (l) => ({ ...l, expenses: [...l.expenses.filter((x) => x.id !== existing.id), next] }));
       if (gone.length) throw new LeaverStays(`${gone[0]} has left the group, so their share can't change. Ask them to rejoin first.`);
     }
@@ -421,7 +434,10 @@ async function saveExpenseOnce(
     const lock = await tx.expense.updateMany({ where: { id: existing.id, editedAt: existing.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (lock.count !== 1) throw new Clash();
     await claimKey(tx, opts.requestKey, existing.id);
-    if (changes.length) {
+    if (changes.length && moneyKept) {
+      // No money changed: the share rows (and their ids), payers, amounts and card fee stay exactly as they are.
+      await tx.expense.update({ where: { id: existing.id }, data: { description: name, notes, category, spentAt, editedAt: new Date() } });
+    } else if (changes.length) {
       await tx.expenseShare.deleteMany({ where: { expenseId: existing.id } });
       await tx.expense.update({
         where: { id: existing.id },
@@ -444,7 +460,7 @@ async function saveExpenseOnce(
       expenseId: existing.id,
       undo: { type: "expense_revert", expenseId: existing.id, before: expenseState(existing) },
       // Only the people whose money in or share changed (a leaver sees the change only if it touched them).
-      touches: touchedByExpense(existing, { paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: e.shares }),
+      touches: touchedByExpense(existing, { paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: nowShares }),
     });
    });
   } catch (err) {
