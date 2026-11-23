@@ -1,5 +1,5 @@
 import { parsePayers } from "./payers";
-import { chargeLock, chargeLockedText } from "./home/charge-lock";
+import { chargeLock, chargeLockedText, type ChargeLock } from "./home/charge-lock";
 import { LEFT_ERROR, removedText } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
@@ -639,7 +639,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
 
 class RevertClash extends Error {}
 class ChargeLockedNow extends Error {
-  constructor(bill: string, public status?: "adding" | "added" | "covered") {
+  constructor(bill: string, public status?: ChargeLock["status"]) {
     super(bill);
   }
 }
@@ -905,3 +905,4 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
   });
   return { ok: true, eventId };
 }
+export { apply as applyUndoPayload }; // the single place every undo goes through (tests call it directly)

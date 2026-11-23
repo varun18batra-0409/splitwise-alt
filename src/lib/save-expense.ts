@@ -16,8 +16,8 @@ import { isGameResult } from "./pot-result";
 import { findLikelyDuplicate } from "./duplicates";
 import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
-import { chargeLock, chargeLockedText } from "./home/charge-lock";
-import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain, partRestoreRefusal } from "./home/bill-run-link";
+import { chargeLock, chargeLockedText, type ChargeLock } from "./home/charge-lock";
+import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain } from "./home/bill-run-link";
 import { expenseEditRefusal } from "./guest-rules";
 import { CARD_FEE_CHANGED, CURRENCY_CHANGED, PEOPLE_JOINED, PEOPLE_LEFT } from "./offline/words";
 import type { Prisma } from "@prisma/client";
@@ -105,14 +105,13 @@ class LeaverStays extends Error {}
 class LeaverBack extends Error {}
 class ReceiptGone extends Error {}
 class MonthAdded extends Error {
-  constructor(bill: string, public status?: "adding" | "added" | "covered") {
+  constructor(bill: string, public status?: ChargeLock["status"]) {
     super(bill);
   }
 }
 class BillAddedAgain extends Error {}
-class PartCovered extends Error {}
 class ChargeLocked extends Error {
-  constructor(bill: string, public status?: "adding" | "added" | "covered") {
+  constructor(bill: string, public status?: ChargeLock["status"]) {
     super(bill);
   }
 }
@@ -497,11 +496,6 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     await guardGroup(tx, expense.groupId, { currency: expense.group.currency, actorId: actingMemberId });
     await markUndone(tx, opts.mark); // when this is an undo: marked in this very transaction
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
-    // A pause or stop charge can be deleted but never brought back (its days are charged again at the next pause, stop or month end). Restore and Undo alike.
-    if (!deleted) {
-      const part = await partRestoreRefusal(tx, expense);
-      if (part) throw new PartCovered(part);
-    }
     const locked = await chargeLock(tx, expense.groupId, expense.id);
     if (locked) throw deleted ? new ChargeLocked(locked.bill, locked.status) : new MonthAdded(locked.bill, locked.status);
     if (deleted) {
@@ -545,9 +539,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
-    if (err instanceof PartCovered) return { ok: false, error: err.message };
     if (err instanceof BillAddedAgain) return { ok: false, error: `This month’s ${err.message} was already added, so this can’t come back.` };
-    if (err instanceof MonthAdded) return { ok: false, error: err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
+    if (err instanceof MonthAdded) return { ok: false, error: err.status === "part" ? chargeLockedText(err.message, err.status) : err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };
     throw err;
   }

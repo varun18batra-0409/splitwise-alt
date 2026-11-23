@@ -1,5 +1,4 @@
 import type { Prisma } from "@prisma/client";
-import { parsePrepaid } from "./moving";
 
 // An automatic bill's expense and its month are tied together by the bill's month row (BillRun.expenseId).
 // Deleting that expense puts the month back to "waiting" (reason "deleted", the expense id is kept) so the month can be added
@@ -35,13 +34,4 @@ export async function billAddedAgain(tx: Prisma.TransactionClient, e: { id: stri
 // In the restore transaction, after the expense is back: the month is "added" again.
 export async function monthIsAddedAgain(tx: Prisma.TransactionClient, expenseId: string): Promise<void> {
   await tx.billRun.updateMany({ where: { expenseId, status: "waiting", reason: "deleted" }, data: { status: "added", reason: "" } });
-}
-
-// A pause or stop charge ("part" charge) can be deleted (its days are simply not charged any more, and are charged again exactly once at the
-// next pause, stop or month end) but never brought back: bringing it back after those days were charged again would count them twice.
-export const PART_CANT_COME_BACK = "This charge can't come back. Those days will be added again at the next pause, stop or month end.";
-export async function partRestoreRefusal(tx: Prisma.TransactionClient, e: { id: string; groupId: string }): Promise<string | null> {
-  const bills = await tx.bill.findMany({ where: { groupId: e.groupId, prepaid: { contains: e.id } }, select: { prepaid: true } });
-  for (const b of bills) for (const list of Object.values(parsePrepaid(b.prepaid))) if (list.some((x) => x.e === e.id && x.k === "part")) return PART_CANT_COME_BACK;
-  return null;
 }

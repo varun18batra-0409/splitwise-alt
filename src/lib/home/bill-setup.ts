@@ -3,7 +3,7 @@ import { logEvent, type Db } from "../events";
 import { withRetry } from "../once";
 import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
 import { typedZero } from "../zero-amount";
-import { BILL_TEMPLATES, addMissed, coveredDays, dayRangeLabel, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
+import { BILL_TEMPLATES, addMissed, dayRangeLabel, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
 import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
@@ -311,16 +311,12 @@ export async function toggleMissedDayFor(groupId: string, actorId: string, billI
       const now = await tx.bill.findFirst({ where: { id: billId, groupId, deletedAt: null, nature: "daily" }, select: { name: true, prepaid: true } });
       if (!now) return "moved" as const;
       const charges = await liveCharges(tx, parsePrepaid(now.prepaid)[period] ?? []);
-      // Days a live pause or stop charge covers can't change; a deleted one covers nothing, so its days are free again.
-      if (coveredDays(charges).has(day)) {
-        let prevEnd = 0;
-        for (const x of charges) {
-          if (x.k !== "part") continue;
-          const end = Number((x.d ?? "").slice(8, 10)) || 0;
-          const start = x.f && x.f > 0 ? x.f : prevEnd + 1;
-          prevEnd = end;
-          if (day >= start && day <= end) return { locked: `${now.name} for ${dayRangeLabel(period, start, end)} was already added when it was paused, so those days can’t change.` };
-        }
+      // Days up to a pause or stop charge's last day can't change (it covers them, came or not). Part charges are permanent.
+      let prevEnd = 0;
+      for (const x of charges.filter((y) => y.k === "part")) {
+        const end = Number((x.d ?? "").slice(8, 10)) || 0;
+        if (day <= end) return { locked: `${now.name} for ${dayRangeLabel(period, prevEnd + 1, end)} was already added when it was paused, so those days can’t change.` };
+        prevEnd = end;
       }
       // The days up to a leaver's last day were charged to them when they moved out.
       for (const x of charges) {

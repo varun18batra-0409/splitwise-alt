@@ -10,8 +10,8 @@ import { niceDate } from "../format";
 import { createPayment } from "../payments";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
-import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
-import { coveredDays, monthsBetween, payerFor } from "./bills";
+import { addPrepaid, dailyPrecharge, depositRefunds, lastPartDay, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
+import { monthsBetween, payerFor } from "./bills";
 import { prepaidFor } from "./bills-db";
 import type { Transfer } from "../settle";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, LeaverBreak, leaverBalanceBreaks, leaversOffZero } from "../money-guard";
@@ -94,8 +94,8 @@ async function dailyOffers(flat: Flat, leaverId: string, lastDay: string): Promi
     if (run && run.status !== "waiting") continue;
     if ((parsePrepaid(bill.prepaid)[period] ?? []).some((x) => x.m === leaverId)) continue;
     // Days a part charge (a pause or stop) already covered are not charged again; only live charges count (an undone one covers nothing).
-    const covered = coveredDays((await prepaidFor(bill, period)).entries);
-    const d = dailyPrecharge(bill, period, lastDay, members, leaverId, 1, covered);
+    const covered = lastPartDay((await prepaidFor(bill, period)).entries);
+    const d = dailyPrecharge(bill, period, lastDay, members, leaverId, covered + 1);
     if (d.unsupported || d.amount > 0) out.push({ bill, period, d });
   }
   return out;

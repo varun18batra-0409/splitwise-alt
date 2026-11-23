@@ -4,11 +4,11 @@ import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense
 import { sendPushTo } from "../push";
 import { askBill } from "./bill-asks";
 import { toInputAmount, formatMoney } from "../money";
-import { dailyTotal, dayRangeLabel, monthSoFar, monthsBetween, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
+import { dailyTotal, dayRangeLabel, missedDays, monthSoFar, monthsBetween, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
 import { allocateByWeights } from "../split";
 import { addMonths, daysInMonth, dueKey } from "./month";
 import { noteReplaced } from "./bill-run-link";
-import { addPrepaid, joinWeights, parsePrepaid, type Prepaid } from "./moving";
+import { addPrepaid, joinWeights, lastPartDay, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
 import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
 import { previousResult } from "../once";
@@ -73,7 +73,7 @@ export function holdReasonNow(bill: { split: string; nature: string; amount: num
 // some, by percentage or by fixed amounts.
 // `range`: only the days from..to of the month are being added (a part charge, or the days after one); someone who moved in
 // part-way is weighted by the exact days they were there, as amounts (shares allow at most 20, a month has up to 31 days).
-export type DayRange = { from: number; to: number; amount: number };
+export type DayRange = { from: number; to: number; amount: number; skip?: number[] }; // skip: days the bill didn't come
 export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR", range?: DayRange): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> & Partial<Pick<SaveExpenseInput, "percent" | "exact">> {
   const active = members.filter((m) => !m.leftAt);
   const split = parseSplit(splitJson);
@@ -88,7 +88,7 @@ export function splitFields(splitJson: string, members: Member[], period?: strin
   const some = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)).map((m) => m.id) : [];
   if (range && period && split.mode !== "some") {
     const base = (m: Member) => (split.mode === "group" ? m.splitWeight : 100);
-    const w = joinWeights(active.map((m) => ({ id: m.id, splitWeight: base(m), joinedFrom: m.joinedFrom ?? null })), period, range);
+    const w = joinWeights(active.map((m) => ({ id: m.id, splitWeight: base(m), joinedFrom: m.joinedFrom ?? null })), period, { from: range.from, to: range.to, skip: range.skip ?? [] });
     // Always the days of the range (never the whole month's weights): someone who moved in on the 15th and a range of 20-30 Nov is weighted for 11 days, as the others are.
     const parts = allocateByWeights(range.amount, active.map((m) => ({ memberId: m.id, weight: w[m.id] })));
     if (parts.length) {
@@ -260,14 +260,12 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
     }
     note = `${d.days} days × ${formatMoney(bill.amount, group.currency)}`;
     // After a part charge (a pause or stop earlier this month) only the days after it are being added: weight people by those days.
-    // Only the days no live part charge covers are being added: weight people by those days.
-    if (pre.entries.some((x) => x.k === "part")) {
-      const open = monthSoFar(bill, period, `${addMonths(period, 1)}-01`, pre.entries);
-      if (open.days > 0) range = { from: open.fromDay, to: open.lastDay, amount };
-    }
+    // After a part charge (a pause or stop earlier this month) only the days after it are being added: weight people by those days.
+    const covered = lastPartDay(pre.entries);
+    if (covered > 0) range = { from: covered + 1, to: daysInMonth(period), amount, skip: missedDays(bill.missed, period) };
     for (const x of pre.entries) {
       if (x.k === "part") {
-        note += `, less ${formatMoney(x.a, group.currency)} already added for ${dayRangeLabel(period, x.f ?? 1, Number((x.d ?? "").slice(8, 10)) || 1)}`;
+        note += `, less ${formatMoney(x.a, group.currency)} already added for ${dayRangeLabel(period, 1, Number((x.d ?? "").slice(8, 10)) || 1)}`;
         continue;
       }
       note += `, less ${formatMoney(x.a, group.currency)} ${group.members.find((m) => m.id === x.m)?.name ?? "someone"}’s share${x.d ? ` (moved out ${niceDate(x.d)})` : ""}`;
@@ -513,7 +511,7 @@ export async function addMonthSoFar(
   const problem = splitProblem(bill.split, active);
   if (problem) return { ok: false, error: `${bill.name}’s split needs fixing (${problem}) before it can be ${o.verb}, so ${label} can be added. Fix it below.` };
 
-  const input = billExpenseInput(bill, group.id, group.currency, o.period, m.amount, payer, group.members, { from: m.fromDay, to: m.lastDay, amount: m.amount });
+  const input = billExpenseInput(bill, group.id, group.currency, o.period, m.amount, payer, group.members, { from: m.fromDay, to: m.toDay, amount: m.amount, skip: missedDays(bill.missed, o.period) });
   input.name = `${bill.name} · ${label}`;
   input.date = `${o.period}-${String(m.toDay).padStart(2, "0")}`;
   let note = `${m.days} days × ${money(bill.amount, group.currency)}`;
@@ -522,15 +520,8 @@ export async function addMonthSoFar(
   input.notes = note;
   let wrote = false;
   let r: Awaited<ReturnType<typeof saveExpense>>;
-  // The same request again finds its expense by this key. If that expense was deleted since (and the bill is paused or stopped again
-  // the same day), it is gone: a fresh charge gets a fresh key, so the days are never lost.
-  let key = `bill-part-${bill.id}-${o.period}-${m.fromDay}-${m.toDay}`;
-  for (let i = 1; i < 30; i++) {
-    const old = await previousResult(key);
-    if (old === null || old === "") break;
-    if (await db.expense.count({ where: { id: old, deletedAt: null } })) break;
-    key = `bill-part-${bill.id}-${o.period}-${m.fromDay}-${m.toDay}-${i}`;
-  }
+  // The same request again (a double tap, two phones) finds its expense by this key. Part charges can never be deleted, so it is never stale.
+  const key = `bill-part-${bill.id}-${o.period}-${m.toDay}`;
   try {
     r = await saveExpense(input, payer, sameCurrencyRate, {
       now: o.now,
@@ -541,7 +532,7 @@ export async function addMonthSoFar(
         const cur = await tx.bill.findUnique({ where: { id: bill.id } });
         if (await monthSettled(tx as unknown as typeof db, bill.id, o.period)) throw new PartChanged(); // skipped or added in the gap
         if (!cur || cur.deletedAt || cur.missed !== bill.missed || cur.prepaid !== bill.prepaid || cur.amount !== bill.amount || cur.split !== bill.split || cur.paused !== bill.paused) throw new PartChanged();
-        await tx.bill.update({ where: { id: bill.id }, data: { prepaid: addPrepaid(cur.prepaid, o.period, { m: "", a: m.amount, e: expenseId, d: input.date, k: "part", f: m.fromDay }) } });
+        await tx.bill.update({ where: { id: bill.id }, data: { prepaid: addPrepaid(cur.prepaid, o.period, { m: "", a: m.amount, e: expenseId, d: input.date, k: "part" }) } });
         await o.finish(tx);
         wrote = true;
       },
