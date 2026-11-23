@@ -415,7 +415,8 @@ describe("R4 / R5: the backup leaves out the database's own tables and is writte
       execute: async (q: string | { sql: string; args: number[] }) => {
         const sql = typeof q === "string" ? q : q.sql;
         asked.push(sql);
-        if (/FROM sqlite_master WHERE type = 'table'/.test(sql)) return { columns: ["name", "sql"], rows: [["Big", 'CREATE TABLE "Big" ("id" INTEGER PRIMARY KEY)']] };
+        if (/FROM sqlite_master WHERE type = 'table'/.test(sql)) // Real rows can be read by column name (libsql), so the fake rows are objects too.
+        return { columns: ["name", "sql"], rows: [{ name: "Big", sql: 'CREATE TABLE "Big" ("id" INTEGER PRIMARY KEY)' }] };
         if (/FROM sqlite_master WHERE type = 'index'/.test(sql)) return { columns: ["sql"], rows: [] };
         const after = (q as { args: number[] }).args[0];
         const ids = Array.from({ length: total }, (_, i) => i + 1).filter((i) => i > after).slice(0, PAGE_ROWS);
