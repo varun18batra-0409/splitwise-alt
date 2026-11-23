@@ -433,7 +433,6 @@ describe("R4 / R5: the backup leaves out the database's own tables and is writte
     expect(JSON.parse(readFileSync(file, "utf8")).tables.Big.rows).toHaveLength(total);
   });
 });
-});
 
 describe("RM5: the scrubber hides personal details but leaves error codes and dates readable", () => {
   it("keeps ALL-CAPS codes of letters, digits and underscores", () => {
