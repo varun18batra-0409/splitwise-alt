@@ -69,7 +69,7 @@ describe("L1: Activity names only the boxes this save wrote", () => {
     const rows = Object.fromEntries((await db.budget.findMany({ where: { groupId: f.id } })).map((b) => [b.category, b.amount]));
     expect(rows).toEqual({ food: 900000, bills: 500000 });
     const line = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.id, actorId: f.asha, text: "updated the monthly budgets" } });
-    expect(JSON.parse(line.details)).toEqual(["Bills: ₹5,000"]);
+    expect(JSON.parse(line.details)).toEqual(["Bills & Bits: ₹5,000"]);
   });
 
   it("deposit: Ravi already set Asha's share to ₹36,000; Asha's page sets hers ₹36,000 and Ravi's ₹30,000; her line lists only Ravi's", async () => {
