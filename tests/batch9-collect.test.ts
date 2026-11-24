@@ -116,3 +116,35 @@ describe("L26 and G11: a closed collection takes no new ticks; the late alert is
     expect(await tickStillStands(c.code, ravi, t2.paidAt)).toBeNull();
   });
 });
+
+describe("L5: the same phone sending the same typed-name tick again", () => {
+  it("is told ok (nothing changes, flagged as a repeat so no second alert); another phone is still told the name is taken", async () => {
+    const c = await collection({ names: "Kabir" });
+    const first = await markPaid(c.code, { name: "Ravi" }, "phone-ravi");
+    if (!first.ok) throw new Error(first.error);
+    expect(first.repeat).toBeUndefined();
+    const again = await markPaid(c.code, { name: " ravi " }, "phone-ravi");
+    expect(again).toMatchObject({ ok: true, entryId: first.entryId, repeat: true });
+    if (again.ok) expect(again.paidAt.getTime()).toBe(first.paidAt.getTime()); // the same tick, not a new one
+    const other = await markPaid(c.code, { name: "Ravi" }, "phone-someone-else");
+    expect(other.ok).toBe(false);
+    expect((await loadCollection(c.code))!.entries.filter((e) => e.name === "Ravi")).toHaveLength(1);
+  });
+});
+
+describe("L6: the organiser's add is decided on the list as it is when it is written", () => {
+  it("the same name added twice at once is on the list once; the second add is told there is nothing new", async () => {
+    const c = await collection({ names: "Kabir" });
+    const second = await organiserAction(c.code, c.asha.id, { kind: "add", names: "Zed" }, { afterRead: async () => void (await organiserAction(c.code, c.asha.id, { kind: "add", names: "Zed" })) });
+    expect(second).toEqual({ ok: false, error: "Type names that aren’t on the list yet." });
+    expect((await loadCollection(c.code))!.entries.filter((e) => e.name === "Zed")).toHaveLength(1);
+  });
+
+  it("the collection is closed between the read and the write: nobody is added", async () => {
+    const c = await collection({ names: "Kabir" });
+    const r = await organiserAction(c.code, c.asha.id, { kind: "add", names: "Zed" }, { afterRead: async () => void (await organiserAction(c.code, c.asha.id, { kind: "close" })) });
+    expect(r.ok).toBe(false);
+    expect(await db.collectionEntry.count({ where: { collectionId: c.id } })).toBe(1);
+  });
+});
+

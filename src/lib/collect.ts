@@ -83,7 +83,7 @@ async function stillOpen(tx: Prisma.TransactionClient, id: string): Promise<bool
 // Someone says they've paid: their name from the list (or a new one), and how much.
 // The list is read again inside the transaction (after the open check), so two people ticking the same name, or two new names at
 // the last free place, are decided one at a time. `paidAt` is the tick's own time (its version, for the organiser's alert).
-export async function markPaid(code: string, input: { entryId?: string; name?: string; amount?: string; viewerAccountId?: string; viewerName?: string }, payerKey: string, opts: Hooks = {}): Promise<Ok<{ entryId: string; paidAt: Date }> | Fail> {
+export async function markPaid(code: string, input: { entryId?: string; name?: string; amount?: string; viewerAccountId?: string; viewerName?: string }, payerKey: string, opts: Hooks = {}): Promise<Ok<{ entryId: string; paidAt: Date; repeat?: boolean }> | Fail> {
   const c = await loadCollection(code);
   if (!c) return { ok: false, error: "This collection isn’t there any more." };
   const closedText = `${mailSafe(c.organiser)} has closed this collection.`;
@@ -98,7 +98,7 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
   if (!input.entryId && !typedName) return { ok: false, error: "Type your name, so the organiser knows who paid." };
   const method = c.currency === "INR" && c.upiId ? "upi" : "other";
   await opts.afterRead?.();
-  return db.$transaction(async (tx): Promise<Ok<{ entryId: string; paidAt: Date }> | Fail> => {
+  return db.$transaction(async (tx): Promise<Ok<{ entryId: string; paidAt: Date; repeat?: boolean }> | Fail> => {
     if (!(await stillOpen(tx, c.id))) return { ok: false, error: closedText };
     const entries = await tx.collectionEntry.findMany({ where: { collectionId: c.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
     // Ticks one existing due name.
@@ -120,6 +120,8 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
     const name = typedName!;
     const twin = entries.find((x) => sameName(x.name, name));
     if (twin && twin.status === "due") return tick(twin);
+    // The same phone sending the same tick again (a double tap, a resend): it is already saved, so say so and don't alert again.
+    if (twin && payerKey && twin.status !== "due" && twin.payerKey === payerKey && twin.paidAt) return { ok: true, entryId: twin.id, paidAt: twin.paidAt, repeat: true };
     if (twin) return { ok: false, error: `${mailSafe(twin.name)} is already on the list as paid. Add your surname or initial if you’re someone else.` };
     if (entries.length >= MAX_ENTRIES) return { ok: false, error: "This list is full." };
     // A name typed in is linked to the viewer's account only when it is their own name.
@@ -205,30 +207,39 @@ export async function organiserAction(
     case "add": {
       const typed = cleanNames(String(action.names ?? "").split(/[\n,]+/));
       const phones = phonesFor(typed, action.contacts ?? "", c.currency);
-      const names = typed.filter((n) => !c.entries.some((x) => sameName(x.name, n)));
-      // Picked again from contacts: a number for someone already listed without one.
-      const fill = c.entries.filter((x) => !x.phone && Object.keys(phones).some((n) => sameName(n, x.name)));
       const picked = new Set(action.friends ?? []);
-      const friends = picked.size ? (await loopinFriends(accountId)).filter((f) => picked.has(f.id) && !c.entries.some((x) => x.accountId === f.id)) : [];
-      const rows = names.map((name) => ({ collectionId: c.id, name, status: "due", phone: phones[name] ?? "", accountId: friends.find((f) => sameName(f.name, name))?.id ?? "" }));
-      for (const f of friends) if (!rows.some((x) => x.accountId === f.id) && !c.entries.some((x) => sameName(x.name, f.name))) rows.push({ collectionId: c.id, name: f.name, status: "due", phone: "", accountId: f.id });
-      // A friend already on the list by name (not linked yet): link them.
-      const link = c.entries.filter((x) => !x.accountId && x.status === "due" && friends.some((f) => sameName(f.name, x.name)));
-      if (!rows.length && !fill.length && !link.length) return { ok: false, error: "Type names that aren’t on the list yet." };
-      if (c.entries.length + rows.length > MAX_ENTRIES) return { ok: false, error: `A collection can have up to ${MAX_ENTRIES} people.` };
+      const pickedFriends = picked.size ? (await loopinFriends(accountId)).filter((f) => picked.has(f.id)) : [];
+      // What adding would do to a list as it is now. Worked out on the list as first read (for the quick refusals), and again on the
+      // list as it is inside the transaction that writes (so two adds at once, or a tick in between, are seen).
+      const plan = (entries: { id: string; name: string; phone: string; accountId: string; status: string }[]) => {
+        const names = typed.filter((n) => !entries.some((x) => sameName(x.name, n)));
+        // Picked again from contacts: a number for someone already listed without one.
+        const fill = entries.filter((x) => !x.phone && Object.keys(phones).some((n) => sameName(n, x.name)));
+        const friends = pickedFriends.filter((f) => !entries.some((x) => x.accountId === f.id));
+        const rows = names.map((name) => ({ collectionId: c.id, name, status: "due", phone: phones[name] ?? "", accountId: friends.find((f) => sameName(f.name, name))?.id ?? "" }));
+        for (const f of friends) if (!rows.some((x) => x.accountId === f.id) && !entries.some((x) => sameName(x.name, f.name))) rows.push({ collectionId: c.id, name: f.name, status: "due", phone: "", accountId: f.id });
+        // A friend already on the list by name (not linked yet): link them.
+        const link = entries.filter((x) => !x.accountId && x.status === "due" && friends.some((f) => sameName(f.name, x.name)));
+        return { rows, fill, link, friends };
+      };
+      const first = plan(c.entries);
+      if (!first.rows.length && !first.fill.length && !first.link.length) return { ok: false, error: "Type names that aren’t on the list yet." };
+      if (c.entries.length + first.rows.length > MAX_ENTRIES) return { ok: false, error: `A collection can have up to ${MAX_ENTRIES} people.` };
       await opts.afterRead?.();
-      if (rows.length) {
-        // The count again inside a transaction (after a write that takes the lock), so two adds at the last places can't both fit.
-        const room = await db.$transaction(async (tx) => {
-          await tx.collection.updateMany({ where: { id: c.id, deletedAt: null }, data: { deletedAt: null } });
-          if ((await tx.collectionEntry.count({ where: { collectionId: c.id } })) + rows.length > MAX_ENTRIES) return false;
-          await tx.collectionEntry.createMany({ data: rows });
-          return true;
-        });
-        if (!room) return { ok: false, error: `A collection can have up to ${MAX_ENTRIES} people.` };
-      }
-      for (const x of fill) await db.collectionEntry.update({ where: { id: x.id }, data: { phone: phones[Object.keys(phones).find((n) => sameName(n, x.name))!] } });
-      for (const x of link) await db.collectionEntry.update({ where: { id: x.id }, data: { accountId: friends.find((f) => sameName(f.name, x.name))!.id } });
+      // The first statement is a write that only matches while the collection is open (it takes the lock); then the list is read again.
+      const done = await db.$transaction(async (tx) => {
+        if ((await tx.collection.updateMany({ where: { id: c.id, closedAt: null, deletedAt: null }, data: { closedAt: null } })).count !== 1) return { error: "This collection is closed, or isn’t there any more." };
+        const fresh = await tx.collectionEntry.findMany({ where: { collectionId: c.id } });
+        const p = plan(fresh);
+        if (!p.rows.length && !p.fill.length && !p.link.length) return { error: "Type names that aren’t on the list yet." };
+        if (fresh.length + p.rows.length > MAX_ENTRIES) return { error: `A collection can have up to ${MAX_ENTRIES} people.` };
+        if (p.rows.length) await tx.collectionEntry.createMany({ data: p.rows });
+        for (const x of p.fill) await tx.collectionEntry.updateMany({ where: { id: x.id }, data: { phone: phones[Object.keys(phones).find((n) => sameName(n, x.name))!] } });
+        for (const x of p.link) await tx.collectionEntry.updateMany({ where: { id: x.id }, data: { accountId: p.friends.find((f) => sameName(f.name, x.name))!.id } });
+        return { p };
+      });
+      if ("error" in done) return { ok: false, error: done.error };
+      const { rows, link, friends } = done.p;
       // Told only if they really landed on the list (added now, or linked to their name).
       const told = [...new Set([...rows.map((x) => x.accountId), ...link.map((x) => friends.find((f) => sameName(f.name, x.name))!.id)].filter(Boolean))];
       return told.length

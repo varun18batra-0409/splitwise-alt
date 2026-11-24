@@ -60,9 +60,9 @@ export async function confirmPayment(paymentId: string, myMemberId: string | und
   let eventId: string;
   try {
     eventId = await db.$transaction(async (tx) => {
-    // Again inside the transaction (a removal could have landed since the first look).
-    if (await wasRemoved(p.groupId, myMemberId, tx)) throw new Removed(p.group.name);
+    // The write comes first (it takes the database's write lock), so the removal check after it is current; a removal throws and rolls the write back.
     const changed = await tx.payment.updateMany({ where: { id: p.id, okAt: null, deletedAt: null }, data: { okAt: new Date() } });
+    if (await wasRemoved(p.groupId, myMemberId, tx)) throw new Removed(p.group.name);
     if (changed.count !== 1) {
       // Nothing was written: say what is really there. Already confirmed = a retry (fine). Taken off the balances = not "Got it".
       const now = await tx.payment.findUnique({ where: { id: p.id }, select: { okAt: true, deletedAt: true, deletedById: true } });

@@ -51,22 +51,21 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
   };
 
   // Collections you organise, and collections you are on the list of (your own line only).
-  const [organisedAll, mineAll] = await Promise.all([
-    pageAll(
-      (after, take) => db.collection.findMany({ where: { accountId: account.id, deletedAt: null, ...afterCursor(after) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take, include: { entries: { select: { status: true } } } }),
-      ceiling,
-    ),
-    pageAll(
-      (after, take) =>
-        db.collectionEntry.findMany({
-          where: { accountId: account.id, collection: { deletedAt: null, accountId: { not: account.id } }, ...afterCursor(after) },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          take,
-          select: { id: true, createdAt: true, status: true, amount: true, collection: { select: { title: true, currency: true, amount: true, dueDate: true, closedAt: true } } },
-        }),
-      ceiling,
-    ),
-  ]);
+  // One ceiling for both lists together (the cap line says "collections"), the ones you organise first.
+  const organisedAll = await pageAll(
+    (after, take) => db.collection.findMany({ where: { accountId: account.id, deletedAt: null, ...afterCursor(after) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take, include: { entries: { select: { status: true } } } }),
+    ceiling,
+  );
+  const mineAll = await pageAll(
+    (after, take) =>
+      db.collectionEntry.findMany({
+        where: { accountId: account.id, collection: { deletedAt: null, accountId: { not: account.id } }, ...afterCursor(after) },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take,
+        select: { id: true, createdAt: true, status: true, amount: true, method: true, payerKey: true, collection: { select: { title: true, currency: true, amount: true, dueDate: true, closedAt: true } } },
+      }),
+    ceiling - organisedAll.rows.length, // 0 left: nothing more is read, and "capped" is true if there was anything more
+  );
   const organised = organisedAll.rows;
   const mine = mineAll.rows;
   if (organisedAll.capped || mineAll.capped) capped.push({ kind: "collections", limit: ceiling });
@@ -78,7 +77,7 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
     })),
     ...mine.map((e) => ({
       organiser: false, title: e.collection.title, currency: e.collection.currency, amount: e.collection.amount, dueDate: e.collection.dueDate,
-      status: e.collection.closedAt ? "Closed" : "Open", people: 0, paid: 0, checked: 0, yours: YOURS[e.status] ?? e.status, yourAmount: e.status === "due" ? 0 : e.amount,
+      status: e.collection.closedAt ? "Closed" : "Open", people: 0, paid: 0, checked: 0, yours: YOURS[e.status] ?? e.status, yourAmount: e.status === "due" || (e.method === "cash" && e.payerKey === "") ? 0 : e.amount, // cash the organiser recorded is not something you said
     })),
   ];
 

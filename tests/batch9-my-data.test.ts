@@ -87,4 +87,43 @@ describe("download my data: complete, and what you said you paid", () => {
     expect(lines).toContain("On the list,Not yet,INR,300.00,,Open,,,,Not paid yet,");
     expect(lines).toContain("Organiser,Mine,INR,300.00,,Open,1,1,1,,");
   });
+
+  it("L7: one ceiling across the collections you organise and the ones you are on (ceiling 3: 2 organised + 1 of 3 on-list), and the cap line says so", async () => {
+    const me = await account("Both");
+    const org = await account("Orgo");
+    for (let i = 0; i < 2; i++) await db.collection.create({ data: { code: `b9d-own${i}-${stamp}`, title: `Own ${i}`, accountId: me.id, organiser: "Both", currency: "INR", amount: 30000, createdAt: new Date(2026, 0, 1 + i) } });
+    for (let i = 0; i < 3; i++) await db.collection.create({ data: { code: `b9d-on${i}-${stamp}`, title: `On ${i}`, accountId: org.id, organiser: "Orgo", currency: "INR", amount: 30000, createdAt: new Date(2026, 1, 1 + i), entries: { create: [{ name: "Both", accountId: me.id, createdAt: new Date(2026, 1, 1 + i) }] } } });
+    const extra = await loadMyDataExtra(me, {}, {}, now, "UTC", 3);
+    expect(extra.collections.map((c) => c.title)).toEqual(["Own 0", "Own 1", "On 0"]);
+    expect(extra.capped).toEqual([{ kind: "collections", limit: 3 }]);
+    expect(myDataCsv(null, [], now, "UTC", [], extra)).toContain("Only the first 3 collections are in this file. Use Contact support for the rest.");
+    // Exactly 5 fit exactly in a ceiling of 5: nothing cut, no line.
+    const all = await loadMyDataExtra(me, {}, {}, now, "UTC", 5);
+    expect(all.collections).toHaveLength(5);
+    expect(all.capped).toEqual([]);
+  });
+
+  it("L8: cash the organiser recorded is not 'You said you paid' (blank), though a payer's own amount is", async () => {
+    const me = await account("Cash");
+    const org = await account("Orgi");
+    await db.collection.create({
+      data: {
+        code: `b9d-cash-${stamp}`, title: "Cash one", accountId: org.id, organiser: "Orgi", currency: "INR", amount: 30000,
+        entries: { create: [{ name: "Cash", accountId: me.id, status: "confirmed", amount: 30000, method: "cash", payerKey: "" }] },
+      },
+    });
+    await db.collection.create({
+      data: {
+        code: `b9d-upi-${stamp}`, title: "Upi one", accountId: org.id, organiser: "Orgi", currency: "INR", amount: 30000,
+        entries: { create: [{ name: "Cash", accountId: me.id, status: "confirmed", amount: 30000, method: "upi", payerKey: "phone-1" }] },
+      },
+    });
+    const extra = await loadMyDataExtra(me, {}, {}, now, "UTC");
+    expect(extra.collections.find((c) => c.title === "Cash one")).toMatchObject({ yours: "Paid and checked", yourAmount: 0 });
+    expect(extra.collections.find((c) => c.title === "Upi one")).toMatchObject({ yourAmount: 30000 });
+    const lines = myDataCsv({ email: me.email, name: "Cash", createdAt: now }, [], now, "UTC", [], extra).split("\r\n");
+    expect(lines).toContain("On the list,Cash one,INR,300.00,,Open,,,,Paid and checked,");
+    expect(lines).toContain("On the list,Upi one,INR,300.00,,Open,,,,Paid and checked,300.00");
+  });
 });
+

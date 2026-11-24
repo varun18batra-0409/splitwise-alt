@@ -13,6 +13,7 @@ const { eraseGroups } = await import("@/lib/purge");
 const { netBalances } = await import("@/lib/balances");
 const { moveOut } = await import("@/lib/home/moving-db");
 const { confirmPayment, rejectPayment, SAID_GOT_IT, SAID_NOT_RECEIVED } = await import("@/lib/payment-ok");
+const { removedText } = await import("@/lib/active");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const groupIds: string[] = [];
@@ -113,3 +114,15 @@ describe("L33: the loser of 'Got it' / 'Not received' is told what was really sa
     expect(await s.net()).toEqual({ [s.A]: 0, [s.R]: 0 });
   });
 });
+
+describe("M2: 'Got it' writes first, then checks the removal, and a removal undoes the write", () => {
+  it("Ravi is removed from the flat after he opened the page and before Got it is saved: refused with the removal text, and the payment is still unconfirmed", async () => {
+    const s = await scene();
+    const name = (await db.group.findUniqueOrThrow({ where: { id: s.gid } })).name;
+    const r = await confirmPayment(s.payment.id, s.R, { afterRead: async () => void (await db.member.update({ where: { id: s.R }, data: { removedAt: new Date() } })) });
+    expect(r).toEqual({ ok: false, error: removedText(name) });
+    expect((await s.row()).okAt).toBeNull(); // the write was rolled back
+    expect(await s.events("payment_confirmed")).toBe(0);
+  });
+});
+

@@ -76,7 +76,7 @@ export async function markPaidAction(f: FormData) {
   const viewer = await getAccount();
   const r = await markPaid(code, { entryId: entryId && entryId !== "new" ? entryId : undefined, name: field(f, "name"), amount: field(f, "amount"), viewerAccountId: viewer?.id, viewerName: viewer?.name }, key);
   if (!r.ok) redirect(await flashTo(["c", code], { error: r.error }));
-  after(() => tellOrganiser(code, r.entryId, r.paidAt, viewer?.id));
+  if (!r.repeat) after(() => tellOrganiser(code, r.entryId, r.paidAt, viewer?.id));
   redirect(back({ ticked: "1" }));
 }
 

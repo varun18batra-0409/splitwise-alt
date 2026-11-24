@@ -17,6 +17,7 @@ export type MonthExtras = {
   upcoming?: { id: string; name: string; icon: string; when: string; who: string; amount: string; status: "added" | "due" | "enter"; label?: string; href?: string }[];
   insights?: { id: string; text: string; tone: "warn" | "info"; href?: string }[];
   budgets?: { category: string; spent: number; amount: number; level: "ok" | "near" | "over" }[];
+  budgetDaysLeft?: number; // days left in the budget month (the group's budget zone), for the "days to go" beside budget bars
   forecast?: { total: number; mine: number } | null;
   deposit?: { total: number; mine: number } | null;
   goals?: { id: string; name: string; saved: number; target: number }[];
@@ -35,6 +36,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
   const mine = net[myId] ?? 0;
   const monthName = new Date(`${key}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" });
   const left = daysLeft(new Date(), v.tz);
+  const budgetLeft = extras.budgetDaysLeft ?? left;
   const settle = !group.closed && transfers.length > 0;
   const settleDayText = group.settleDay ? `Settle-up day is the ${group.settleDay === 31 ? "last day" : ordinal(group.settleDay)}` : "";
 
@@ -288,7 +290,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 </div>
                 {b.level === "over" && (
                   <p className="mt-1.5 text-xs text-owe">
-                    {overviewMoney(b.spent - b.amount, group.currency)} over{left > 0 ? `, with ${left} ${left === 1 ? "day" : "days"} to go` : ""}
+                    {overviewMoney(b.spent - b.amount, group.currency)} over{budgetLeft > 0 ? `, with ${budgetLeft} ${budgetLeft === 1 ? "day" : "days"} to go` : ""}
                   </p>
                 )}
                 {b.level === "near" && <p className="mt-1.5 text-xs text-gray-500">{overviewMoney(b.amount - b.spent, group.currency)} left for the month</p>}

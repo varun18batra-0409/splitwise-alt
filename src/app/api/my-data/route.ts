@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getAccount, getMemberships } from "@/lib/identity";
-import { myDataCsv } from "@/lib/csv";
+import { myDataCsv, type MyDataExtra } from "@/lib/csv";
 import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { laterRowEvents, readableWhere } from "@/lib/left-view-db";
@@ -26,7 +26,7 @@ export async function GET() {
   const tz = await getTimeZone();
   const now = new Date();
   const mine = groups.filter((g) => g.members.some((m) => m.id === memberships[g.id]));
-  const extra = account
+  const extra: MyDataExtra = account
     ? await loadMyDataExtra(
         account,
         Object.fromEntries(mine.map((g) => [g.id, memberships[g.id]])),
@@ -36,7 +36,7 @@ export async function GET() {
       )
     : {};
   const support = account ? await loadMySupport(account.id) : { rows: [], capped: false };
-  const extraAll = support.capped && "capped" in extra ? { ...extra, capped: [...(extra.capped ?? []), { kind: "messages to support", limit: MY_DATA_CEILING }] } : extra;
+  const extraAll: MyDataExtra = support.capped ? { ...extra, capped: [...(extra.capped ?? []), { kind: "messages to support", limit: MY_DATA_CEILING }] } : extra;
   const body = myDataCsv(
     account ? { email: account.email, name: account.name ?? "", createdAt: account.createdAt } : null,
     await Promise.all(

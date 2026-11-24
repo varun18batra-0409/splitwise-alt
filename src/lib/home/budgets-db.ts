@@ -7,8 +7,9 @@ import { claimJob, finishJob, sendPushTo } from "../push";
 import { coveredByOldGroupRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { BUDGET_CATEGORIES, budgetLevelsCrossed, budgetStatus } from "./budgets";
 import { monthSummary } from "./summary";
-import { monthKey } from "./month";
-import { groupZone } from "./group-zone";
+import { addMonths, daysLeft, monthKey } from "./month";
+import { canonicalZone, groupZone } from "./group-zone";
+import { JOINED } from "../membership";
 import { monthWindow, onDate } from "./home-data";
 import { FORM_OUT_OF_DATE } from "../form-currency";
 import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
@@ -96,18 +97,50 @@ class BudgetMoved extends Error {
   }
 }
 
-// The group's own zone for budgets (see group-zone.ts), the same for the screen and the alerts.
-export async function budgetZoneOf(groupId: string): Promise<string> {
-  const members = await db.member.findMany({ where: { groupId, leftAt: null, removedAt: null }, select: { timeZone: true } });
-  return groupZone(members.map((m) => m.timeZone));
+// The group's own zone and month for budgets (see group-zone.ts), the same for the screen and the alerts.
+// Only people who are still in and have joined vote (not names nobody has joined as). The zone is FROZEN for the month the first time
+// it is worked out for that month (a NotifyLog row "budget-zone:<group>:<month>" whose state holds the zone), so one person travelling
+// can't move the month's edge half-way through it. A frozen zone is used only while it still reads that month at `now`.
+export async function budgetMonthOf(groupId: string, now = new Date()): Promise<{ zone: string; month: string }> {
+  const prefix = `budget-zone:${groupId}:`;
+  const here = monthKey(now, "UTC");
+  const months = [addMonths(here, -1), here, addMonths(here, 1)];
+  const frozenFor = async () => {
+    for (const r of await db.notifyLog.findMany({ where: { key: { in: months.map((m) => prefix + m) } }, select: { key: true, state: true } })) {
+      const month = r.key.slice(prefix.length);
+      const zone = canonicalZone(r.state);
+      if (zone && monthKey(now, zone) === month) return { zone, month };
+    }
+    return null;
+  };
+  const frozen = await frozenFor();
+  if (frozen) return frozen;
+  const members = await db.member.findMany({ where: { groupId, leftAt: null, removedAt: null, ...JOINED }, select: { timeZone: true } });
+  const zone = groupZone(members.map((m) => m.timeZone));
+  const month = monthKey(now, zone);
+  try {
+    await db.notifyLog.create({ data: { key: prefix + month, state: zone } });
+  } catch {
+    // Another request froze it at the same moment: theirs is the one both read.
+    const theirs = await frozenFor();
+    if (theirs) return theirs;
+  }
+  return { zone, month };
+}
+export async function budgetZoneOf(groupId: string, now = new Date()): Promise<string> {
+  return (await budgetMonthOf(groupId, now)).zone;
+}
+// Days left in the budget month (for "N days to go" beside the budget bars), counted in the budget zone.
+export async function budgetDaysLeft(groupId: string, now = new Date()): Promise<number> {
+  return daysLeft(now, (await budgetMonthOf(groupId, now)).zone);
 }
 
 // This month's budgets for a group, with what's been spent. The month is the group's (budgetZoneOf), not the viewer's.
 export async function budgetsNow(groupId: string, expenses: Parameters<typeof monthSummary>[0], myId: string, now = new Date()) {
   const budgets = await db.budget.findMany({ where: { groupId } });
   if (!budgets.length) return [];
-  const tz = await budgetZoneOf(groupId);
-  const s = monthSummary(expenses, myId, monthKey(now, tz), tz);
+  const { zone: tz, month } = await budgetMonthOf(groupId, now);
+  const s = monthSummary(expenses, myId, month, tz);
   return budgetStatus(
     BUDGET_CATEGORIES.flatMap((c) => budgets.filter((b) => b.category === c)),
     s.byCategory,
@@ -124,8 +157,7 @@ export async function checkBudgets(groupId: string, now = new Date(), opts: { le
   const legacyOk = opts.legacy !== false;
   const budgets = await db.budget.findMany({ where: { groupId } });
   if (!budgets.length) return [];
-  const zone = await budgetZoneOf(groupId);
-  const month = monthKey(now, zone);
+  const { zone, month } = await budgetMonthOf(groupId, now);
   // Only this month's expenses are read (the month widened by 14 hours each way, so no time zone can miss one); monthSummary
   // below still keeps exactly the ones that fall in the month in the group's zone. Older history is not needed for the budget numbers.
   const win = monthWindow(month);
