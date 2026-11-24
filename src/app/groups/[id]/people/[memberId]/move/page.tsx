@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { moveOutAction } from "@/app/bill-actions";
-import { moveOutPreview } from "@/lib/home/moving-db";
+import { moveOutPreview, waitKey } from "@/lib/home/moving-db";
 import { formatMoney } from "@/lib/money";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
@@ -289,8 +289,8 @@ export default async function MoveOutPage({
           <div>
             <MoveOutButton
               className={primaryButtonClass}
-              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments.map((t) => ({ ...t, waits: p.waits.includes(`${t.from}>${t.to}${t.cover ? ":cover" : ""}`), cover: Boolean(t.cover) })), nameOf: Name, money, handovers })}
-              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily.map((t) => ({ ...t, waits: p.waitsWithDaily.includes(`${t.from}>${t.to}${t.cover ? ":cover" : ""}`), cover: Boolean(t.cover) })), nameOf: Name, money, handovers }) : undefined}
+              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments.map((t) => ({ ...t, waits: p.waits.includes(waitKey(t)), cover: t.cover })), nameOf: Name, money, handovers })}
+              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily.map((t) => ({ ...t, waits: p.waitsWithDaily.includes(waitKey(t)), cover: t.cover })), nameOf: Name, money, handovers }) : undefined}
             >
               Settle {leaver.id === myId ? "up" : leaver.name} &amp; mark as moved out
             </MoveOutButton>

@@ -154,7 +154,7 @@ export type UndoPayload =
   | { type: "expense_restore"; expenseId: string }
   | { type: "expense_revert"; expenseId: string; before: ExpenseState }
   | { type: "payment_delete"; paymentId: string; across?: PaymentAcross }
-  | { type: "payment_restore"; paymentId: string; byReceiver?: boolean; across?: PaymentAcross } // byReceiver: the person paid took it off, so only they can bring it back (missing on older lines)
+  | { type: "payment_restore"; paymentId: string; byReceiver?: boolean; byPayer?: boolean; across?: PaymentAcross } // byReceiver: the person paid took it off, so only they can bring it back (missing on older lines). byPayer: the same for a covering payment its payer ("can't cover it") took off
   | { type: "group_set"; data: { name?: string; cardMarkupBp?: number; secondaryCurrency?: string; closed?: boolean; closedAt?: string | null } }
   | {
       type: "currency_restore";
@@ -214,6 +214,8 @@ export type MoveOutUndo = {
     payments: { id: string; fromId: string; toId: string; amount: number }[];
     // Of those, the ones where a flatmate covers a person still settling up (add-only): the one who PAYS is asked to confirm them.
     coverIds?: string[];
+    // Likewise when the leaver OWES (add-only): the leaver pays a flatmate, and the one PAID (the flatmate who takes it on) is asked.
+    coverToIds?: string[];
     // The move-out's own Activity lines (bill changes, the daily charge, the square-up payments): they don't count as "changed again since".
     eventIds: string[];
   };

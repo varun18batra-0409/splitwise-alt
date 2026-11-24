@@ -128,3 +128,13 @@ export function coverLine(o: { settling: string[]; leaver: string; amount: strin
     : `${o.leaver} still owes ${who} ${o.amount}. ${o.leaver} pays ${o.cover} now, and ${o.cover} then owes ${one ? who : "them"}.`;
 }
 export const COVER_PICK_LABEL = "Who covers it";
+
+// The heading over the payments waiting for the viewer's answer on Settle. `sides`: for each, undefined = an ordinary "Did you get this?",
+// "from" = asked to cover what someone settling up owes the leaver, "to" = asked to take on what the leaver owed someone settling up.
+export function waitingHeading(sides: (undefined | "from" | "to")[]): string {
+  const one = sides.length === 1;
+  if (sides.every((s) => s === "from")) return one ? "Can you cover this?" : "Can you cover these?";
+  if (sides.every((s) => s === "to")) return one ? "Can you take this on?" : "Can you take these on?";
+  if (sides.some((s) => s)) return "Waiting for you";
+  return `Did you get ${one ? "this" : "these"}?`;
+}

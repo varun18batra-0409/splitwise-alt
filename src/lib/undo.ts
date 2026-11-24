@@ -6,7 +6,7 @@ import { withRetry } from "./once";
 import { diffExpense, expenseState, itemsForState, logEvent, markUndone, parseDetails, parseUndo, touchedByExpense, UndoTaken, type UndoMark, type UndoPayload } from "./events";
 import { POT_EDIT_ERROR, setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { isGameResult } from "./pot-result";
-import { NOT_RECEIVED_TEXT_START, onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
+import { NOT_RECEIVED_TEXT_START, onlyReceiverCanBringBack, payerOnlyText, receiverOnlyText } from "./refused-payment";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
 import { memberInUse } from "./member-use";
@@ -294,6 +294,8 @@ export function actorRefusal(ev: EventLike, viewer: UndoViewer, now: Date, origi
   if (payload.type === "payment_restore" && ev.actorId !== actorId) {
     // Older lines have no flag: the payment itself says whether the person paid took it off (deletedById is the receiver).
     const pay = viewer.payments?.find((x) => x.id === payload.paymentId);
+    // A covering payment its payer took off ("I can’t cover it"): only that payer can bring it back (the leaver, back in the flat, can't put it back on them).
+    if (payload.byPayer === true) return payerOnlyText(find(pay?.fromId ?? ev.actorId ?? "")?.name ?? "the person asked to cover it");
     const byReceiver = payload.byReceiver === true || (ev.kind === "payment_deleted" && Boolean(ev.text?.startsWith(NOT_RECEIVED_TEXT_START))) || (pay ? onlyReceiverCanBringBack(pay, actorId) : false);
     if (byReceiver) return receiverOnlyText(find(pay?.toId ?? ev.actorId ?? "")?.name ?? "the person who was paid");
   }

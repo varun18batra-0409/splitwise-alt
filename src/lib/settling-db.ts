@@ -110,12 +110,8 @@ export async function moveOutAgainIfSquare(tx: Prisma.TransactionClient, groupId
     if ((net[id] ?? 0) !== 0) continue;
     const was = settling.get(id)!;
     const m = await tx.member.findUnique({ where: { id }, select: { name: true } });
-    // Money in a card game that is still open: stays settling at 0 (see above). Read here rather than through pot-db to keep this file light.
-    const game = await tx.potGame.findFirst({ where: { groupId, status: "open", deletedAt: null, moves: { some: { memberId: id, deletedAt: null } } }, select: { id: true } });
-    if (game) continue;
-    // A move-out charge of theirs on a daily bill (milk) was deleted and that month is not added yet: the month-end bill still charges them
-    // those days, so they are NOT moved out yet (a left person can't be charged). They stay settling until that is paid, then the next payment moves them out.
-    if (await hasDeletedChargePending(tx, groupId, id)) continue;
+    // Held back (an open card game, or a month still to be billed with their days in it): stays settling at 0, see settlingHeld.
+    if (await settlingHeld(tx, groupId, id)) continue;
     // Only if they are still exactly as read (in the group, not moved out): otherwise someone else got there first.
     const wrote = await tx.member.updateMany({
       where: { id, groupId, leftAt: null, removedAt: null },
@@ -140,6 +136,16 @@ export async function moveOutAgainIfSquare(tx: Prisma.TransactionClient, groupId
   return out;
 }
 
+// Something still holds a person settling up only at 0, so they are not moved out yet (and the People link to move them out is not offered):
+// - money in a card game that is still open (read here rather than through pot-db to keep this file light);
+// - a move-out charge of theirs on a daily bill (milk) was deleted and that month is not added or skipped yet: the month-end bill still charges
+//   them those days, so they are NOT moved out yet (a left person can't be charged). They stay settling until that is sorted.
+export async function settlingHeld(tx: Db, groupId: string, id: string): Promise<boolean> {
+  const game = await tx.potGame.findFirst({ where: { groupId, status: "open", deletedAt: null, moves: { some: { memberId: id, deletedAt: null } } }, select: { id: true } });
+  if (game) return true;
+  return hasDeletedChargePending(tx, groupId, id);
+}
+
 // Thrown from inside a write when the person doing it is settling up only (see requireNotSettling).
 export class SettlingStopped extends Error {
   constructor() {
@@ -154,7 +160,7 @@ export async function requireNotSettling(tx: Db, groupId: string, actorId: strin
 }
 
 // Does a daily bill still have days to charge this person at month end because their move-out charge was deleted (and that month is not added)?
-async function hasDeletedChargePending(tx: Prisma.TransactionClient, groupId: string, id: string): Promise<boolean> {
+async function hasDeletedChargePending(tx: Db, groupId: string, id: string): Promise<boolean> {
   const bills = await tx.bill.findMany({ where: { groupId, nature: "daily", deletedAt: null }, select: { id: true, prepaid: true } });
   for (const bill of bills) {
     if (!bill.prepaid || bill.prepaid === "{}") continue;
@@ -164,7 +170,8 @@ async function hasDeletedChargePending(tx: Prisma.TransactionClient, groupId: st
       const alive = await tx.expense.count({ where: { id: { in: mine.map((x) => x.e) }, deletedAt: null } });
       if (alive) continue; // a live charge still stands: the days are paid
       const run = await tx.billRun.findUnique({ where: { billId_period: { billId: bill.id, period } }, select: { status: true } });
-      if (!run || run.status === "waiting") return true;
+      // Only a month that is added or skipped is finished. One being added right now ("adding") may still name them, so it counts as pending.
+      if (!run || (run.status !== "added" && run.status !== "skipped")) return true;
     }
   }
   return false;

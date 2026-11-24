@@ -3,7 +3,7 @@
 // if they say it wasn't received, the person who left comes back into the flat until it's sorted.
 export function moveOutConfirm(opts: {
   leaverName: string; // "Ravi", or "you"
-  payments: { from: string; to: string; amount: number; waits?: boolean; cover?: boolean }[]; // waits: the person paid is asked to confirm it (cover: it is the one who pays that is asked)
+  payments: { from: string; to: string; amount: number; waits?: boolean; cover?: "from" | "to" | boolean }[]; // waits: the person paid is asked to confirm it (cover "from": it is the one who pays that is asked; cover "to": the person paid, who takes it on)
   nameOf: (memberId: string) => string; // "You" for the viewer
   money: (minor: number) => string;
   // Charges the person was paid (an earlier leaver's daily share) that go to this month's payer: one sentence in the question says so.
@@ -21,6 +21,7 @@ export function moveOutConfirm(opts: {
     const from = nameOf(t.from);
     const to = t.to === t.from ? "themselves" : nameOf(t.to).replace(/^You$/, "you");
     const line = `${from} ${from === "You" ? "pay" : "pays"} ${to} ${money(t.amount)}`;
+    if (t.waits && t.cover === "to") return `${line} (${to === "you" ? "you are" : `${to} is`} asked to confirm taking it on)`;
     if (t.waits && t.cover) return `${line} (${from === "You" ? "you are" : `${from} is`} asked to confirm covering it)`;
     return t.waits ? `${line} (${to === "you" ? "you are" : `${to} is`} asked to confirm it)` : line;
   });

@@ -1,4 +1,5 @@
 import { compactName } from "@/lib/format";
+import { waitingHeading } from "@/lib/settling";
 import { neutralGameText } from "@/lib/game-words";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { Confetti } from "@/components/Confetti";
@@ -246,12 +247,12 @@ export default async function GroupSettle({
 
       {/* A flat move-out's final payment to you: it already counts, and you can say Got it or Not received. Every other payment counts at once, with no question. */}
       {confirmCount > 0 && (
-        <section aria-label={waiting.every((w) => w.asCoverer) ? "Can you cover this?" : "Did you get these?"} className="mb-6">
+        <section aria-label={waiting.some((w) => w.coverSide) ? waitingHeading(waiting.map((w) => w.coverSide)) : "Did you get these?"} className="mb-6">
           <h2 className="mb-2.5 px-1 text-[13px] font-semibold text-fg/55">
-            {waiting.every((w) => w.asCoverer) ? (confirmCount === 1 ? "Can you cover this?" : "Can you cover these?") : waiting.some((w) => w.asCoverer) ? "Waiting for you" : `Did you get ${confirmCount === 1 ? "this" : "these"}?`}
+            {waitingHeading(waiting.map((w) => w.coverSide))}
           </h2>
           <ul className="space-y-3">
-            {waiting.map((p, i) => p.asCoverer ? (
+            {waiting.map((p, i) => p.coverSide === "from" ? (
               // A covering payment: a flat's move-out where someone still settling up owes the leaver. You are the one asked to cover it.
               <PayTicket
                 plain
@@ -279,6 +280,38 @@ export default async function GroupSettle({
                     <input type="hidden" name="paymentId" value={p.id} />
                     <ConfirmButton message={`Can’t cover ${money(p.amount)} for ${p.to.name}? It comes off the balances (you can undo), and ${p.to.name} comes back into ${group.name} until it’s sorted.`} className={QUIET}>
                       I can’t cover it
+                    </ConfirmButton>
+                  </form>
+                </div>
+              </PayTicket>
+            ) : p.coverSide === "to" ? (
+              // A covering payment the other way: the leaver owed someone still settling up, and pays you instead. You are the one asked to take it on.
+              <PayTicket
+                plain
+                key={p.id}
+                attrs={{ "data-waiting-take-on": p.from.name }}
+                stub={{ letter: p.from.name }}
+                from={p.from.name}
+                to="You"
+                mark={mark}
+                tone="plain"
+                sr={`${p.from.name} pays you ${money(p.amount)} for what they owed someone still settling up`}
+                showSr={false}
+              >
+                <p className="mt-2.5 text-[15px] leading-snug">
+                  <strong className="font-semibold">{p.from.name}</strong> moved out and owed someone still settling up <strong className="font-display text-[19px] font-medium tabular-nums text-owed">{money(p.amount)}</strong>. {p.from.name} pays you now, and you then owe them.
+                </p>
+                <div className="mt-auto pt-3">
+                  <form action={confirmPaymentAction}>
+                    <input type="hidden" name="paymentId" value={p.id} />
+                    <button type="submit" data-haptic="success" className={`${i === 0 ? CREAM : OUTLINE_PILL} w-full`}>
+                      I’ll take it on
+                    </button>
+                  </form>
+                  <form action={rejectPaymentAction}>
+                    <input type="hidden" name="paymentId" value={p.id} />
+                    <ConfirmButton message={`Can’t take on ${money(p.amount)} from ${p.from.name}? It comes off the balances (you can undo), and ${p.from.name} comes back into ${group.name} until it’s sorted.`} className={QUIET}>
+                      I can’t take it on
                     </ConfirmButton>
                   </form>
                 </div>

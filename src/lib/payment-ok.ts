@@ -3,7 +3,7 @@ import { db } from "./db";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { GroupChanged, groupChangedText, guardGroup, leaversOffZero } from "./money-guard";
-import { bringBackLeavers, moveOutCoverIds, moveOutPaymentIds, NotSquare } from "./payment-change";
+import { bringBackLeavers, moveOutCoverIds, moveOutPaymentIds, NotSquare, type CoverSide } from "./payment-change";
 import { pushToReceiver, tellBroughtBack } from "./payment-claims";
 import { GUEST_REFUSAL, madeSinceClaim } from "./guest-words";
 
@@ -39,9 +39,11 @@ export function guestMayAnswer(me: { accountId: string | null; claimedAt: Date |
 async function mine(paymentId: string, myMemberId: string | undefined) {
   const p = await db.payment.findUnique({ where: { id: paymentId }, include: { group: { select: { id: true, name: true, currency: true, closed: true, deletedAt: true } }, from: { select: { name: true } }, to: { select: { name: true } } } });
   if (!p || p.deletedAt || p.group.deletedAt) return { error: "That payment isn’t there any more." } as const;
-  // A covering payment (a flatmate pays the leaver what a person still settling up owes) is answered by the one who PAYS; every other one by the person paid.
-  const cover = (await moveOutCoverIds(db, [p.groupId])).has(p.id);
-  if (!myMemberId || (cover ? p.fromId !== myMemberId : p.toId !== myMemberId)) return { error: cover ? "Only the person asked to cover this can answer it." : "Only the person who was paid can confirm it." } as const;
+  // A covering payment is answered by the flatmate covering: the one who PAYS when the leaver is owed ("from"), the one PAID when the leaver
+  // owes ("to"). Every other move-out payment is answered by the person paid.
+  const cover = (await moveOutCoverIds(db, [p.groupId])).get(p.id);
+  const askedId = cover === "from" ? p.fromId : p.toId;
+  if (!myMemberId || askedId !== myMemberId) return { error: cover === "from" ? "Only the person asked to cover this can answer it." : cover === "to" ? "Only the person asked to take this on can answer it." : "Only the person who was paid can confirm it." } as const;
   const me = await db.member.findUnique({ where: { id: myMemberId }, select: { accountId: true, claimedAt: true } });
   if (!guestMayAnswer(me, p)) return { error: GUEST_REFUSAL } as const;
   // Someone an admin removed can't change the group's payments: not "Got it", and not "Not received" (which would bring them and the payer back).
@@ -71,7 +73,7 @@ export async function confirmPayment(paymentId: string, myMemberId: string | und
       if (now?.okAt && !now.deletedAt) return "";
       throw new Answered(now?.deletedAt && now.deletedById === myMemberId ? SAID_NOT_RECEIVED : "That payment isn’t there any more.");
     }
-    return logEvent(tx, { groupId: p.groupId, actorId: myMemberId!, kind: "payment_confirmed", text: cover ? `agreed to cover ${formatMoney(p.amount, p.group.currency)} for ${p.to.name} ✓` : `confirmed getting ${formatMoney(p.amount, p.group.currency)} from ${p.from.name} ✓`, paymentId: p.id });
+    return logEvent(tx, { groupId: p.groupId, actorId: myMemberId!, kind: "payment_confirmed", text: cover === "from" ? `agreed to cover ${formatMoney(p.amount, p.group.currency)} for ${p.to.name} ✓` : cover === "to" ? `agreed to take on ${formatMoney(p.amount, p.group.currency)} from ${p.from.name} ✓` : `confirmed getting ${formatMoney(p.amount, p.group.currency)} from ${p.from.name} ✓`, paymentId: p.id });
     });
   } catch (err) {
     if (err instanceof Removed) return { ok: false, error: removedText(p.group.name) };
@@ -113,9 +115,10 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
         groupId: p.groupId,
         actorId: myMemberId!,
         kind: "payment_deleted",
-        text: cover ? `can’t cover ${amountText} for ${p.to.name}, so it’s off the balances` : `hasn’t received ${amountText} from ${p.from.name}, so it’s off the balances`,
+        text: cover === "from" ? `can’t cover ${amountText} for ${p.to.name}, so it’s off the balances` : cover === "to" ? `can’t take on ${amountText} from ${p.from.name}, so it’s off the balances` : `hasn’t received ${amountText} from ${p.from.name}, so it’s off the balances`,
         paymentId: p.id,
-        undo: { type: "payment_restore", paymentId: p.id, byReceiver: true }, // only the person paid can bring it back (see refused-payment.ts)
+        // Only the one who took it off can bring it back (see refused-payment.ts): the person paid, or for "can't cover it" the payer (byPayer).
+        undo: { type: "payment_restore", paymentId: p.id, ...(cover === "from" ? { byPayer: true } : { byReceiver: true }) },
       });
       // Whoever has left or been removed comes back, each written only if still exactly as read (otherwise everything rolls back);
       // then nobody this touched is left (or was left) off zero.
@@ -134,7 +137,7 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
   // Each person put back who has an account is told (after it is saved). The person answering knows already.
   for (const m of out.back) {
     if (cover && m.accountId && m.id !== myMemberId) {
-      pushToReceiver(m.id, { title: `💬 ${p.group.name}`, body: `${p.from.name} can’t cover the ${amountText}, so you’re back in ${p.group.name} until it’s sorted.`, url: `/groups/${p.groupId}/settle`, tag: `brought-back-${p.id}-${m.id}` }, "payments.answered", myMemberId);
+      pushToReceiver(m.id, { title: `💬 ${p.group.name}`, body: `${cover === "from" ? p.from.name : p.to.name} can’t ${cover === "from" ? "cover" : "take on"} the ${amountText}, so you’re back in ${p.group.name} until it’s sorted.`, url: `/groups/${p.groupId}/settle`, tag: `brought-back-${p.id}-${m.id}` }, "payments.answered", myMemberId);
     } else if (m.accountId && m.id !== myMemberId) tellBroughtBack({ groupId: p.groupId, groupName: p.group.name, memberId: m.id, receiverName: p.to.name, amountText, paymentId: p.id, receiverId: myMemberId });
   }
   return { ok: true, eventId: out.eventId || undefined, back: out.back.map((m) => ({ id: m.id, name: m.name })) };
@@ -144,13 +147,14 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
 // Only move-out final payments (older needsOk rows from the earlier rule are not asked about).
 export async function waitingForMe(groupId: string, myMemberId: string) {
   const rows = await db.payment.findMany({ where: { groupId, OR: [{ toId: myMemberId }, { fromId: myMemberId }], needsOk: true, okAt: null, deletedAt: null }, include: { from: { select: { name: true, leftAt: true, removedAt: true } }, to: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 20 });
-  if (!rows.length) return rows.map((r) => ({ ...r, asCoverer: false }));
+  if (!rows.length) return rows.map((r) => ({ ...r, asCoverer: false, coverSide: undefined as CoverSide | undefined }));
   if (await wasRemoved(groupId, myMemberId)) return []; // someone an admin removed can't answer it, so it isn't shown to them
   const mine = await moveOutPaymentIds(db, [groupId]);
   const covers = await moveOutCoverIds(db, [groupId]);
   const me = await db.member.findUnique({ where: { id: myMemberId }, select: { accountId: true, claimedAt: true } });
-  // The person paid is asked about every move-out payment except a covering one (there the one who pays is asked); `asCoverer` says which this is.
+  // The person paid is asked about every move-out payment except a covering one, where the covering flatmate is asked (`coverSide` says
+  // which side they are on; `asCoverer` is true for either).
   return rows
-    .filter((r) => mine.has(r.id) && guestMayAnswer(me, r) && (covers.has(r.id) ? r.fromId === myMemberId : r.toId === myMemberId)) // a payment from before they took the name is not theirs to answer
-    .map((r) => ({ ...r, asCoverer: covers.has(r.id) }));
+    .filter((r) => mine.has(r.id) && guestMayAnswer(me, r) && (covers.get(r.id) === "from" ? r.fromId === myMemberId : r.toId === myMemberId)) // a payment from before they took the name is not theirs to answer
+    .map((r) => ({ ...r, asCoverer: covers.has(r.id), coverSide: covers.get(r.id) }));
 }

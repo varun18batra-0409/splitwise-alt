@@ -4,9 +4,9 @@ import { logEvent, markUndone, parseUndo, type Db, type PaymentAcross, type Undo
 import { formatMoney } from "./money";
 import { withRetry } from "./once";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, leaversOffZero } from "./money-guard";
-import { RestoreRefused, restorePayments } from "./payments";
+import { RestoreRefused, restorePayments, takenOffByPayerLine } from "./payments";
 import { paymentChangeRefusal } from "./guest-rules";
-import { onlyReceiverCanBringBack, receiverOnlyText } from "./refused-payment";
+import { onlyReceiverCanBringBack, payerOnlyText, receiverOnlyText } from "./refused-payment";
 import { partyMessages, pushAllToReceivers, tellBroughtBack, tellParties } from "./payment-claims";
 import type { Prisma } from "@prisma/client";
 
@@ -111,14 +111,18 @@ export async function moveOutPaymentIds(client: Db, groupIds: string[]): Promise
   return out;
 }
 
-// Of those, the covering payments (a flatmate paying the leaver what a person still settling up owes): the one who PAYS is asked about these.
-export async function moveOutCoverIds(client: Db, groupIds: string[]): Promise<Set<string>> {
-  const out = new Set<string>();
+// Of those, the covering payments, with who is asked: "from" = a flatmate pays the leaver what a person still settling up owes (the one who
+// PAYS is asked); "to" = the leaver owes, and pays a flatmate who takes it on (the one PAID is asked). Other move-out payments are not in it.
+export type CoverSide = "from" | "to";
+export async function moveOutCoverIds(client: Db, groupIds: string[]): Promise<Map<string, CoverSide>> {
+  const out = new Map<string, CoverSide>();
   if (!groupIds.length) return out;
-  const rows = await client.groupEvent.findMany({ where: { groupId: { in: groupIds }, kind: "member_left", undo: { contains: '"coverIds"' } }, select: { undo: true }, take: 500 });
+  const rows = await client.groupEvent.findMany({ where: { groupId: { in: groupIds }, kind: "member_left", OR: [{ undo: { contains: '"coverIds"' } }, { undo: { contains: '"coverToIds"' } }] }, select: { undo: true }, take: 500 });
   for (const r of rows) {
     const u = parseUndo(r.undo);
-    if (u?.type === "member_set" && u.moveOut?.money?.coverIds) for (const id of u.moveOut.money.coverIds) out.add(id);
+    if (u?.type !== "member_set" || !u.moveOut?.money) continue;
+    for (const id of u.moveOut.money.coverIds ?? []) out.set(id, "from");
+    for (const id of u.moveOut.money.coverToIds ?? []) out.set(id, "to");
   }
   return out;
 }
@@ -156,6 +160,8 @@ async function changePaymentOnce(paymentId: string, actorId: string | undefined,
   if (!opts.noLeavers && (await wasRemoved(payment.groupId, actorId))) return { ok: false, error: removedText(payment.group.name) };
   // A payment the person paid took off can only be brought back by them: anyone else (even a non-party) is told that, in those words.
   if (!deleted && payment.deletedAt && onlyReceiverCanBringBack(payment, actorId)) return { ok: false, error: receiverOnlyText(payment.to.name) };
+  // A covering payment its payer took off ("I can’t cover it") can only be brought back by that payer (restorePayments checks it again inside the write).
+  if (!deleted && payment.deletedAt && actorId !== payment.fromId && (await takenOffByPayerLine(db, payment))) return { ok: false, error: payerOnlyText(payment.from.name) };
   if (opts.guestRules) {
     const me = await db.member.findUnique({ where: { id: actorId }, select: { accountId: true, claimedAt: true } });
     const no = paymentChangeRefusal(me?.accountId === null, actorId, payment, me?.claimedAt);

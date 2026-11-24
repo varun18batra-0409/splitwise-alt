@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { confirmMovedBack, isBringBackLine, coverLine, SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingFrom, settlingNoManualMoveOut, settlingNamed, settlingTag, squareAgainText, withSettlingLeft, type HistoryLine } from "../src/lib/settling";
+import { confirmMovedBack, isBringBackLine, coverLine, SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingFrom, settlingNoManualMoveOut, settlingNamed, settlingTag, squareAgainText, waitingHeading, withSettlingLeft, type HistoryLine } from "../src/lib/settling";
 import { memberMark } from "../src/lib/left-view";
 import { moveOutConfirm } from "../src/lib/move-confirm";
+import { onlyPayerCanBringBack, payerOnlyText } from "../src/lib/refused-payment";
 
 // "Settling up only" (pure rules). Someone who moved out and was brought back so they can settle is not a member again: the latest line in the
 // group's history about them going out or coming back decides. Nothing is stored for it.
@@ -187,11 +188,41 @@ describe("the move-out question names who is asked to cover", () => {
   it("a covering payment asks the one who pays, and says so", () => {
     const text = moveOutConfirm({
       leaverName: "A",
-      payments: [{ from: "b", to: "a", amount: 118_000 }, { from: "b", to: "a", amount: 62_000, waits: true, cover: true }],
+      payments: [{ from: "b", to: "a", amount: 118_000 }, { from: "b", to: "a", amount: 62_000, waits: true, cover: "from" }],
       nameOf: (id) => (id === "a" ? "A" : "B"),
       money: (n) => `₹${n / 100}`,
     });
     expect(text).toContain("B pays A ₹1180; B pays A ₹620 (B is asked to confirm covering it).");
+  });
+});
+
+describe("S1/S3/S4: who can bring back a covering payment, and the words for both directions", () => {
+  it("only the payer can bring back a covering payment the payer took off; anyone can once someone else took it off", () => {
+    const flagged = JSON.stringify({ type: "payment_restore", paymentId: "p1", byPayer: true });
+    const plain = JSON.stringify({ type: "payment_restore", paymentId: "p1" });
+    expect(onlyPayerCanBringBack({ deletedById: "b", fromId: "b" }, flagged, "a")).toBe(true); // A (the leaver) can't
+    expect(onlyPayerCanBringBack({ deletedById: "b", fromId: "b" }, flagged, "b")).toBe(false); // B can
+    expect(onlyPayerCanBringBack({ deletedById: "b", fromId: "b" }, plain, "a")).toBe(false); // an ordinary delete by the payer: either party
+    expect(onlyPayerCanBringBack({ deletedById: "a", fromId: "b" }, flagged, "b")).toBe(false); // taken off by someone else since
+    expect(payerOnlyText("B")).toBe("Only B can bring this back: they said they can’t cover it.");
+  });
+  it("the heading over what waits for you", () => {
+    expect(waitingHeading(["from"])).toBe("Can you cover this?");
+    expect(waitingHeading(["from", "from"])).toBe("Can you cover these?");
+    expect(waitingHeading(["to"])).toBe("Can you take this on?");
+    expect(waitingHeading(["to", "to"])).toBe("Can you take these on?");
+    expect(waitingHeading(["to", undefined])).toBe("Waiting for you");
+    expect(waitingHeading([undefined])).toBe("Did you get this?");
+    expect(waitingHeading([undefined, undefined])).toBe("Did you get these?");
+  });
+  it("when the leaver owes, the question says the covering flatmate is asked to take it on", () => {
+    const text = moveOutConfirm({
+      leaverName: "B",
+      payments: [{ from: "b", to: "a", amount: 315_500, waits: true, cover: "to" }],
+      nameOf: (id) => (id === "a" ? "A" : "B"),
+      money: (n) => `₹${n / 100}`,
+    });
+    expect(text).toContain("B pays A ₹3155 (A is asked to confirm taking it on).");
   });
 });
 

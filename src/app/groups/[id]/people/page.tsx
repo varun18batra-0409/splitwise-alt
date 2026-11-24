@@ -1,7 +1,7 @@
 import { neutralGameText } from "@/lib/game-words";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { movedBackIn, setMoveIn } from "@/app/bill-actions";
-import { settlingIn } from "@/lib/settling-db";
+import { settlingHeld, settlingIn } from "@/lib/settling-db";
 import { confirmMovedBack, settlingTag } from "@/lib/settling";
 import { PassportIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { payerIds } from "@/lib/payers";
@@ -101,6 +101,9 @@ export default async function PeoplePage({
   const tz = await getTimeZone();
   // Someone who moved out and was brought back only to settle up (settling.ts): tagged here, and the way back in is "has moved back in".
   const settling = await settlingIn(db, group.id);
+  // Settling people something still holds at 0 (an open game, a month still to be billed): not offered the move-out link, the app moves them out when it clears.
+  const held = new Set<string>();
+  for (const id of settling.keys()) if (await settlingHeld(db, group.id, id)) held.add(id);
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const small = "rounded-full border border-line px-4 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
 
@@ -257,8 +260,8 @@ export default async function PeoplePage({
               </form>
             )}
             {/* Only the person moving out, or the admin, can confirm a move-out, so nobody else is offered the link. */}
-            {/* Someone settling up only is offered the same link only when they are exactly square (something held them back from being moved out again). */}
-            {group.type === "home" && !m.leftAt && !leaver && (!settling.has(m.id) || (bal === 0 && !me)) && (me || isAdmin) && (
+            {/* Someone settling up only is offered the same link only when they are exactly square and nothing still holds them (an open game, a month still to be billed): the app moves them out when it clears. */}
+            {group.type === "home" && !m.leftAt && !leaver && (!settling.has(m.id) || (bal === 0 && !me && !held.has(m.id))) && (me || isAdmin) && (
               <Link href={`/groups/${group.id}/people/${m.id}/move`} className={`${small} inline-block`}>
                 {me ? "I’m moving out" : `${m.name} is moving out`}
               </Link>

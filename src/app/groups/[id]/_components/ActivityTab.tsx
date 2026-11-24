@@ -9,7 +9,7 @@ import { viewerDetails } from "@/lib/left-view";
 import { niceDate, rateText } from "@/lib/format";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { canUndo } from "@/lib/undo";
-import { onlyReceiverCanBringBack } from "@/lib/refused-payment";
+import { onlyPayerCanBringBack, onlyReceiverCanBringBack } from "@/lib/refused-payment";
 import { deleteQuestion } from "@/lib/payment-change";
 import { deleteExpense, removePayment, restoreExpense, restorePayment, undoChange } from "@/app/actions";
 import { SwipeRow } from "@/components/SwipeRow";
@@ -66,6 +66,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
   }
   for (const list of byItem.values()) list.sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
   const historyOf = (_key: "expenseId" | "paymentId", id: string) => byItem.get(id) ?? [];
+  // A covering payment its payer took off ("I can’t cover it") can only be brought back by that payer: no Restore for anyone else (the server refuses it too).
+  const payerOnly = (item: { id: string; fromId: string; deletedById: string | null }) =>
+    onlyPayerCanBringBack(item, [...historyOf("paymentId", item.id)].reverse().find((e) => e.kind === "payment_deleted")?.undo, myId);
   // Someone who left (or was removed) can read the group but not change it: no Edit, Delete, Repeat, Restore or reactions (the server refuses each).
   const canChange = !group.closed && !v.leaver;
   const limit = Math.max(PAGE, Math.min(5000, shown));
@@ -246,7 +249,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
                         {/* Only the payer and the person paid can delete or restore a payment (the server refuses everyone else, the admin too).
                             Not shown to anyone but the person paid, once they took it off themselves. */}
-                        {payGate && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
+                        {payGate && !live && canChange && !onlyReceiverCanBringBack(item, myId) && !payerOnly(item) && (
                           <SignInTrigger signin={payGate} ctx={signin!} marker="payment-restore" className="text-sm font-medium text-accent">
                             Restore payment
                           </SignInTrigger>
@@ -256,7 +259,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                             Delete payment
                           </SignInTrigger>
                         )}
-                        {!payGate && isParty && !live && canChange && !onlyReceiverCanBringBack(item, myId) && (
+                        {!payGate && isParty && !live && canChange && !onlyReceiverCanBringBack(item, myId) && !payerOnly(item) && (
                           <form action={restorePayment}>
                             <input type="hidden" name="groupId" value={group.id} />
                             <input type="hidden" name="paymentId" value={item.id} />

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { moveOutPaymentIds } from "./payment-change";
+import { moveOutCoverIds, moveOutPaymentIds, type CoverSide } from "./payment-change";
 import { guestMayAnswer } from "./payment-ok";
 import { formatMoney } from "./money";
 import { billStatuses } from "./home/bills-db";
@@ -50,11 +50,16 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     const answering = live.filter((m) => !m.removedAt).map((m) => m.id);
     const groupOf = new Map(live.map((m) => [m.id, m.group]));
 
-    const asking = answering.length ? await db.payment.findMany({ where: { toId: { in: answering }, needsOk: true, okAt: null, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
+    // Payments made to me, and (for a covering flatmate) payments from me: the same "who is asked" rule as waitingForMe in payment-ok.ts.
+    const asking = answering.length ? await db.payment.findMany({ where: { OR: [{ toId: { in: answering } }, { fromId: { in: answering } }], needsOk: true, okAt: null, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
     // Only a flat move-out's final payments still ask (older rows flagged by the earlier rule are not asked about).
-    const moveOut = asking.length ? await moveOutPaymentIds(db, [...new Set(asking.map((p) => p.groupId))]) : new Set<string>();
-    const payments = asking.filter((p) => moveOut.has(p.id) && guestMayAnswer(live.find((m) => m.id === p.toId), p)); // (a guest never sees a payment from before they took the name)
-    const nameIds = [...new Set(payments.map((p) => p.fromId))];
+    const groupsAsking = [...new Set(asking.map((p) => p.groupId))];
+    const moveOut = asking.length ? await moveOutPaymentIds(db, groupsAsking) : new Set<string>();
+    const covers = asking.length ? await moveOutCoverIds(db, groupsAsking) : new Map<string, CoverSide>();
+    // Who is asked: the person paid, except for a covering payment where the leaver is owed, where the one who pays is asked.
+    const askedOf = (p: { id: string; fromId: string; toId: string }) => (covers.get(p.id) === "from" ? p.fromId : p.toId);
+    const payments = asking.filter((p) => moveOut.has(p.id) && answering.includes(askedOf(p)) && guestMayAnswer(live.find((m) => m.id === askedOf(p)), p)); // (a guest never sees a payment from before they took the name)
+    const nameIds = [...new Set(payments.flatMap((p) => [p.fromId, p.toId]))];
     const names = nameIds.length ? await db.member.findMany({ where: { id: { in: nameIds } }, select: { id: true, name: true } }) : [];
     const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
 
@@ -62,9 +67,13 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     const whereOf = (g: { id: string; name: string; type: string }) => (g.type === "direct" ? "With a person" : g.name);
     const hrefOf = (g: { id: string; type: string }) => (g.type === "direct" ? `/people/${g.id}` : `/groups/${g.id}/settle`);
     for (const p of payments) {
-      const g = groupOf.get(p.toId);
+      const g = groupOf.get(askedOf(p));
       if (!g) continue;
-      items.push({ id: `payment:${p.id}`, kind: "payment", text: `${nameOf(p.fromId)} says they paid you ${formatMoney(p.amount, g.currency)}`, where: whereOf(g), href: hrefOf(g), groupId: g.id, fromId: p.fromId, at: p.createdAt });
+      const side = covers.get(p.id);
+      const money = formatMoney(p.amount, g.currency);
+      // A covering payment asks a question instead (the same words as the Settle card's heading, with who and how much).
+      const text = side === "from" ? `Can you cover this? ${nameOf(p.toId)} is owed ${money}` : side === "to" ? `Can you take this on? ${nameOf(p.fromId)} owed ${money}` : `${nameOf(p.fromId)} says they paid you ${money}`;
+      items.push({ id: `payment:${p.id}`, kind: "payment", text, where: whereOf(g), href: hrefOf(g), groupId: g.id, ...(side ? {} : { fromId: p.fromId }), at: p.createdAt });
     }
 
     // Bills that wait for an amount, where I'm the one who pays this month.

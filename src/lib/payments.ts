@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { formatMoney, MAX_MINOR } from "./money";
-import { receiverOnlyText } from "./refused-payment";
+import type { Db } from "./events";
+import { payerFlagged, payerOnlyText, receiverOnlyText } from "./refused-payment";
 import { moveOutAgainIfSquare } from "./settling-db";
 
 // The ONE place a payment row is written. Every route that records a payment
@@ -56,6 +57,13 @@ export async function createPayment(tx: Tx, p: NewPayment) {
 //    Asha's total 80000 against a debt of 40000. Refused; nothing changes.
 export class RestoreRefused extends Error {}
 
+// Did the payer take this payment off as a covering payment ("I can’t cover it")? Read from the payment's latest "taken off" line.
+export async function takenOffByPayerLine(client: Db, p: { id: string; fromId: string; deletedById: string | null }): Promise<boolean> {
+  if (!p.deletedById || p.deletedById !== p.fromId) return false;
+  const line = await client.groupEvent.findFirst({ where: { paymentId: p.id, kind: "payment_deleted" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { undo: true } });
+  return payerFlagged(line?.undo);
+}
+
 export async function restorePayments(tx: Tx, ids: string[], actorId: string, groupId?: string): Promise<string[]> {
   if (!ids.length) return [];
   const rows = await tx.payment.findMany({
@@ -68,6 +76,13 @@ export async function restorePayments(tx: Tx, ids: string[], actorId: string, gr
     if (p.deletedById && p.deletedById === p.toId && actorId !== p.toId) {
       const to = await tx.member.findUnique({ where: { id: p.toId }, select: { name: true } });
       throw new RestoreRefused(receiverOnlyText(to?.name ?? "the person who was paid"));
+    }
+  }
+  // The same for a covering payment its payer took off ("I can’t cover it"): only the payer can bring it back, so the leaver can't put it back on them.
+  for (const p of rows) {
+    if (actorId !== p.fromId && (await takenOffByPayerLine(tx, p))) {
+      const from = await tx.member.findUnique({ where: { id: p.fromId }, select: { name: true } });
+      throw new RestoreRefused(payerOnlyText(from?.name ?? "the person asked to cover it"));
     }
   }
   for (const p of rows) {
