@@ -1,4 +1,4 @@
-import { allocateByWeights, type Share } from "../split";
+import { allocateByWeights } from "../split";
 import type { Transfer } from "../settle";
 import { daysInMonth } from "./month";
 import { countedMissed } from "./bills";
