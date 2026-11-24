@@ -115,6 +115,11 @@ jobs:
           (npm run start > server.log 2>&1 &)
           npx --yes wait-on@8.0.1 -t 60000 http://localhost:3000
           npx tsx scripts/screenshots.ts 2>&1 | tee shots.log || { echo "::error title=Screenshots failed::$(tail -40 shots.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')%0A--- server ---%0A$(tail -20 server.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+          # A screen that failed (✗), including one whose preparation failed, fails the run, as on iPhone and desktop. "–" lines are screens
+          # that don't apply to this run's data (fewer Home cards today); they are listed, not counted as failures.
+          taken=$(grep -c '^✓' shots.log || true); failed=$(grep -c '^✗' shots.log || true); na=$(grep -c '^–' shots.log || true)
+          echo "::notice title=Android screens::$taken taken, $failed failed, $na not applicable $(grep '^–' shots.log | head -8 | tr '\n' ' ')"
+          if [ "${failed:-0}" -gt 0 ]; then echo "::error title=Android screenshots failed::$failed failed. $(grep '^✗' shots.log | head -8 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; fi
       # Release evidence: the iPhone and desktop screenshots and the UAT MUST pass. They are allowed to finish
       # (continue-on-error), so the evidence below is still saved to the screenshots branch, and then the
       # "Required evidence" step at the end turns the job red. Speed and load numbers stay warnings on purpose

@@ -128,11 +128,28 @@ async function signBackIn() {
   else await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base }]);
 }
 
+// A screen whose preparation fails is a failed picture (✗) and nothing is saved: a picture of the wrong screen hides the problem (this used
+// to be a quiet note, and the settle sheet pictures showed the plain page for days). A step that finds the screen genuinely doesn't apply to
+// this run's data (fewer Home cards today, a trip with no busiest day) throws NotApplicable instead: "–", nothing saved, not a failure.
+class NotApplicable extends Error {}
+async function prepared(name: string, run: () => Promise<void>): Promise<boolean> {
+  try {
+    await run();
+    return true;
+  } catch (e) {
+    if (e instanceof NotApplicable) {
+      console.log("–", name, `(not applicable: ${e.message})`);
+      return false;
+    }
+    throw new Error(`could not prepare: ${String(e).split("\n")[0]}`);
+  }
+}
+
 async function shot(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
   try {
     await gotoQuiet(page, base + path, hosted);
     await page.waitForTimeout(900); // let the bar animation finish
-    if (prepare) await prepare(page).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+    if (prepare && !(await prepared(name, () => prepare(page)))) return;
     await fullShot(page, `${out}/${name}.png`, fullPage);
     console.log("✓", name);
   } catch (e) {
@@ -154,7 +171,7 @@ async function both(name: string, path: string, prepare?: (p: Page) => Promise<v
 }
 
 // One card of Home's sliding row, on its own: the row is brought into view and paused, then moved straight to card n (no click,
-// so the floating tab bar can't get in the way). A row with fewer cards: nothing is saved for the missing ones.
+// so the floating tab bar can't get in the way). A row with fewer cards: "not applicable", and nothing is saved for the missing ones.
 async function rowCard(name: string, n: number) {
   await shot(name, "/", async (p) => {
     const row = p.locator('section[aria-roledescription="carousel"]').first();
@@ -162,7 +179,7 @@ async function rowCard(name: string, n: number) {
     const pause = p.getByRole("button", { name: /Pause the highlights/ });
     if (await pause.count()) await pause.click({ force: true });
     const total = await row.locator('[aria-roledescription="slide"]').count();
-    if (n > total) throw new Error(`only ${total} cards`);
+    if (n > total) throw new NotApplicable(`Home shows ${total} cards today`);
     const track = row.locator("div.snap-x").first();
     // Move to card n and check the card at the left edge really is n (after a window resize the row can snap back to the first card).
     // Try a few times; if it still is not card n, say so rather than saving a picture of the wrong card.
@@ -283,11 +300,13 @@ const openBreakdown = async (p: Page) => {
   await p.waitForTimeout(300);
 };
 const openRecordSheet = async (p: Page) => {
-  const priya = p.locator("[data-settle-card='Priya']:has([data-record-open])");
-  const card = (await priya.count()) ? priya.first() : p.locator("[data-settle-card]:has([data-record-open])").first();
+  // The sheet opens from the record button, or from "Mark received" on someone who owes you (look change, 24 Nov).
+  const opener = "[data-record-open], [data-mark-received]";
+  const priya = p.locator(`[data-settle-card='Priya']:has(:is(${opener}))`);
+  const card = (await priya.count()) ? priya.first() : p.locator(`[data-settle-card]:has(:is(${opener}))`).first();
   // The page must be interactive before the click counts, and at 320 the floating bar can sit on top of the button: scroll it clear
   // of the bar, click, and if no sheet appeared (the click came before the page woke up), click again.
-  const open = card.locator("[data-record-open]");
+  const open = card.locator(opener).first();
   await open.evaluate((el) => el.scrollIntoView({ block: "center" }));
   for (let tries = 0; tries < 6; tries++) {
     await open.click({ force: true }).catch(() => {});
@@ -945,9 +964,13 @@ if (!hosted) {
       await shot(n, `/groups/${pune.id}/wrapped`, async (p) => {
         for (let k = 0; k < 7; k++) {
           if ((await p.locator(`[data-wrapped-slide='${kind}']`).count()) > 0) break;
-          await p.getByRole("button", { name: "Next" }).click();
+          const next = p.getByRole("button", { name: "Next" });
+          if (!(await next.count())) break; // the last slide
+          await next.click();
           await p.waitForTimeout(250);
         }
+        // Wrapped only makes a slide the data supports (the busiest day needs spending on two days or more).
+        if (!(await p.locator(`[data-wrapped-slide='${kind}']`).count())) throw new NotApplicable(`this trip's Wrapped has no "${kind}" slide`);
         await p.waitForTimeout(1000);
       }, false);
     await shot("104-balances-titles", `/groups/${pune.id}?tab=balances`);
@@ -1487,7 +1510,7 @@ if (!hosted) {
         try {
           await gotoQuiet(p, base + path);
           await p.waitForTimeout(700);
-          if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          if (prepare && !(await prepared(`M1-${name}-${w}`, () => prepare(p)))) continue;
           await assertMomentPhotosDecoded(p, `M1-${name}-${w}`); // fails the screenshot (✗) if any moment picture did not draw
           await fullShot(p, `${out}/M1-${name}-${w}.png`, full ?? true);
           console.log("✓", `M1-${name}-${w}`);
@@ -1612,7 +1635,7 @@ if (!hosted) {
           await p.setViewportSize({ width: w, height: 780 });
           await gotoQuiet(p, base + s.path);
           await p.waitForTimeout(800);
-          if (s.prepare) await s.prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          if (s.prepare && !(await prepared(name, () => s.prepare!(p)))) continue;
           await assertMomentPhotosDecoded(p, name);
           await fullShot(p, `${out}/${name}.png`, s.full ?? true);
           console.log("✓", name);
@@ -1796,7 +1819,7 @@ if (!desktop) {
         await p.setViewportSize(dims(w));
         await gotoQuiet(p, base + path, hosted);
         await p.waitForTimeout(700);
-        if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+        if (prepare && !(await prepared(`${name}-${w}`, () => prepare(p)))) continue;
         await p.screenshot({ path: `${out}/${name}-${w}.png`, fullPage });
         console.log("✓", `${name}-${w}`);
       }
@@ -1919,7 +1942,7 @@ if (!desktop) {
           await p.setViewportSize(gjDims(w));
           await gotoQuiet(p, base + path, hosted);
           await p.waitForTimeout(700);
-          if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          if (prepare && !(await prepared(`${name}-${w}`, () => prepare(p)))) continue;
           await p.screenshot({ path: `${out}/${name}-${w}.png`, fullPage });
           console.log("✓", `${name}-${w}`);
         }
