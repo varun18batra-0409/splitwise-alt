@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "@/components/Link";
 import { Polaroid } from "@/components/Polaroid";
+import { RowControls } from "@/components/RowControls";
 import type { CoverChoice } from "@/lib/covers";
 import { CARD_ROW_MAX, cardWord, rowEnd } from "@/lib/home/group-card";
 
@@ -27,8 +28,10 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
   const shown = groups.slice(0, CARD_ROW_MAX);
   const end = rowEnd(total);
   return (
+    <RowControls>
     <ul
       aria-label="Your groups"
+      data-row-scroller
       className="-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-5 pt-3 [scrollbar-width:none]"
       data-group-cards
     >
@@ -94,5 +97,6 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
         </li>
       )}
     </ul>
+    </RowControls>
   );
 }

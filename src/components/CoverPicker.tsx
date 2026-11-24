@@ -4,6 +4,7 @@ import { COVERS, type CoverChoice } from "@/lib/covers";
 const PICKER_ORDER = [...COVERS.filter((c) => !c.id.startsWith("photo-")), ...COVERS.filter((c) => c.id.startsWith("photo-"))];
 import { GroupCover } from "./GroupCover";
 import { NewPhotoButton, OwnPhotoButton } from "./OwnPhoto";
+import { RowControls } from "./RowControls";
 
 // "Picture": a row of the drawn covers to choose from (a radio group sent as
 // `cover`). Controlled on New group (it follows the type until you pick one),
@@ -36,7 +37,8 @@ export function CoverPicker({
       <p className="text-xs text-gray-500">Swipe for more</p>
       {/* Free sideways scrolling (no snapping, which pulled the row back to the start), and a sideways
           swipe here never moves the page or triggers the phone's back gesture. */}
-      <div className="-mx-1 grid auto-cols-[70px] grid-flow-col grid-rows-2 gap-3 overflow-x-auto overscroll-x-contain px-1 pb-2 pt-2 [scrollbar-width:none] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:hidden">
+      <RowControls>
+      <div data-row-scroller className="-mx-1 grid auto-cols-[70px] grid-flow-col grid-rows-2 gap-3 overflow-x-auto overscroll-x-contain px-1 pb-2 pt-2 [scrollbar-width:none] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:hidden">
         {own?.groupId ? <OwnPhotoButton groupId={own.groupId} /> : onNewPhoto ? <NewPhotoButton onPicked={onNewPhoto} /> : null}
         {[...(own?.src ? [{ id: "own" as const, label: "Your own photo" }] : []), ...PICKER_ORDER].map((c) => (
           <label
@@ -55,6 +57,7 @@ export function CoverPicker({
           </label>
         ))}
       </div>
+      </RowControls>
     </fieldset>
   );
 }

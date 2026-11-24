@@ -67,7 +67,8 @@ export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Gam
                         {g.status === "done" && g.id in toSettle && (
                           toSettle[g.id] > 0 ? (
                             <span className="mt-1 inline-block rounded-full bg-owe/[0.14] px-2 py-0.5 text-[11px] font-semibold text-owe" data-to-settle={toSettle[g.id]}>
-                              {money(toSettle[g.id])} to settle
+                              {/* The amount is already on this row (the result and "you were up"): say it once. */}
+                              {mine && toSettle[g.id] === Math.abs(mine.net) ? "To settle" : top && toSettle[g.id] === top.net ? "To settle" : `${money(toSettle[g.id])} to settle`}
                             </span>
                           ) : (
                             <span className="mt-1 inline-block rounded-full bg-owed/[0.14] px-2 py-0.5 text-[11px] font-semibold text-owed" data-to-settle="0">

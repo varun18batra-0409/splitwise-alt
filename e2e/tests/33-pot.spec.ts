@@ -120,6 +120,7 @@ test("a game night from first chips in to settled", async ({ browser }) => {
   await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "60000");
 
   // Dev hands Asha ₹100 at the table: she marks it paid right on the game, and stays there.
+  await pays.locator("summary", { hasText: "Paid at the table?" }).click(); // the per-payment buttons sit under one quiet line; Settle up is the one main action
   await pays.getByRole("button", { name: "Mark paid: Dev pays you" }).click();
   await A.waitForURL(/\/pot\/[^/?]+\?paid=1/);
   await settled(A);

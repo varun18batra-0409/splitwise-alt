@@ -73,6 +73,7 @@ export function SettleCard({
   href,
   caption,
   lead,
+  markReceived,
 }: {
   id: string;
   name: string;
@@ -90,6 +91,8 @@ export function SettleCard({
   // The person page's single card: a headline ("Rohan owes you ₹600") and a note replace the name row and the big amount, and `add`
   // (Add expense) is the main button, with `main` as the second one.
   lead?: { headline: string; note: string; add: React.ReactNode };
+  // Someone owes you: "Mark received" sits in plain sight beside the main button (Remind), both outline buttons, and opens the same sheet the ⋮ menu used to.
+  markReceived?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -218,6 +221,16 @@ export function SettleCard({
             <button type="button" onClick={() => setSheetOpen(true)} className={lead ? BIG_OUTLINE : BIG_CREAM} data-record-open>
               {main.label}
             </button>
+          ) : markReceived ? (
+            // Remind and Mark received side by side; on a narrow phone they stack instead of squeezing.
+            <div className="flex flex-wrap gap-2.5" data-settle-card-actions>
+              <div className="min-w-[9.5rem] flex-1">{main.node}</div>
+              <div className="min-w-[9.5rem] flex-1">
+                <button type="button" onClick={() => setSheetOpen(true)} className={BIG_OUTLINE} data-mark-received="">
+                  {markReceived}
+                </button>
+              </div>
+            </div>
           ) : (
             main.node
           )}

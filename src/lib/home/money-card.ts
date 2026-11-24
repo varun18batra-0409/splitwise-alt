@@ -617,7 +617,8 @@ export type NetCard =
 export function homeNetCard(x: { items: NetItem[]; common: string; toCommon: (amount: number, currency: string) => number | null }): NetCard {
   const open = x.items.filter((i) => i.net !== 0);
   if (open.length === 0) {
-    return { kind: "square", label: "All square", text: "You’re all square", href: "/settle", aria: "All square. You’re all square. Open Settle up" };
+    // "All square" is said once (the label); the line under it says what that means, not the same words again.
+    return { kind: "square", label: "All square", text: "Nothing to settle", href: "/settle", aria: "All square. Nothing to settle. Open Settle up" };
   }
   const sum = { group: 0, direct: 0 };
   const approxKind = { group: false, direct: false };
@@ -670,4 +671,19 @@ export function homeNetCard(x: { items: NetItem[]; common: string; toCommon: (am
   const split = lines.length ? ` ${lines.map((l) => l.text).join(", ")}.` : "";
   const aria = tone === "plain" ? `Net, it evens out.${split} Open Settle up` : `Net, ${say} ${amount}.${split} Open Settle up`;
   return { kind: "net", tone, label: `Net · ${say}`, amount, value, approx, lines, href: "/settle", aria };
+}
+
+// ---- Home for someone with only one-to-one expenses (no group) ----
+// Instead of an unnamed "Net · you're owed", one line per person: "With Rohan: owes you ₹600" / "With Meera: you owe ₹250". Up to three
+// (the biggest first, in their own currency, ties by name), then "and 2 more". Nothing is added together or converted here.
+export type PersonLine = { key: string; name: string; text: string; amount: string; tone: "owed" | "owe" };
+export function homePersonLines(entries: { key: string; name: string; currency: string; net: number }[], max = 3): { lines: PersonLine[]; more: number; aria: string } {
+  const open = entries.filter((e) => e.net !== 0).sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name));
+  const lines = open.slice(0, max).map((e): PersonLine => {
+    const amount = formatMoney(Math.abs(e.net), e.currency);
+    return { key: e.key, name: e.name, amount, tone: e.net > 0 ? "owed" : "owe", text: e.net > 0 ? `With ${e.name}: owes you ${amount}` : `With ${e.name}: you owe ${amount}` };
+  });
+  const more = Math.max(0, open.length - lines.length);
+  const aria = `${[...lines.map((l) => l.text), ...(more ? [`and ${more} more`] : [])].join(". ")}. Open Settle up`;
+  return { lines, more, aria };
 }

@@ -1247,9 +1247,8 @@ async function main() {
     assert(/1 payment instead of 2/.test((await card.innerText()).replace(/\s+/g, " ")), "doesn't say 1 payment instead of 2");
     // A payment is recorded at once here, so it never says “I’ve paid”.
     assert((await V.locator("main").getByText("I’ve paid").count()) === 0, "the all-groups Settle screen says “I’ve paid”");
-    // "Mark received" (Varun is owed) is in the ⋮ menu and opens the sheet; only confirming it saves anything.
-    await card.locator("[data-settle-menu]").click();
-    await card.getByRole("link", { name: "Mark received" }).or(card.getByRole("button", { name: "Mark received" })).click();
+    // "Mark received" (Varun is owed) is a visible button beside Remind and opens the sheet; only confirming it saves anything.
+    await card.locator("[data-mark-received]").click();
     const sheet = V.locator("[data-record-sheet]");
     await sheet.waitFor();
     assert(/Mark received/.test(await sheet.innerText()) && /Loopin doesn’t move money/.test(await sheet.innerText()), "the sheet doesn't say what it records");
@@ -1414,7 +1413,7 @@ async function main() {
     await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on ONE slim Net card (about 80px: “Net · you’re owed/you owe” and the net amount once, “Group” and “With a person” lines only when both exist, or “All square” + “You’re all square”), the whole card is one link to Settle up with no buttons inside, no photo or tint; nothing under it (what needs you is in Updates behind the bell)", async () => {
+  await step(V, "Home", "Home opens on ONE slim Net card (about 80px: “Net · you’re owed/you owe” and the net amount once, “Group” and “With a person” lines only when both exist, or “All square” + “Nothing to settle”), the whole card is one link to Settle up with no buttons inside, no photo or tint; nothing under it (what needs you is in Updates behind the bell)", async () => {
     await go(V, "/");
     const money = V.locator("[data-balance-card]").first();
     await money.waitFor();
@@ -1431,7 +1430,7 @@ async function main() {
     assert(look.bg === "none" && look.border === "0px", `the money card is tinted or outlined (${look.bg}, ${look.border})`);
     const name = (await money.getAttribute("aria-label")) ?? "";
     if (kind === "square") {
-      assert(tone === "square" && text === "All square You’re all square", `all-square card: ${tone} ${text}`);
+      assert(tone === "square" && text === "All square Nothing to settle", `all-square card: ${tone} ${text}`);
       assert(/^All square/.test(name), `all-square card's name: ${name}`);
     } else {
       assert(kind === "net", `unknown money card kind ${kind}`);
@@ -2681,6 +2680,11 @@ async function main() {
     assert(rent, "no Rent bill");
     await go(V, `${gh}/bills/${rent.id}`);
     await V.getByRole("button", { name: "Skip this time" }).click();
+    // It asks first, right on the page, naming the bill and the month.
+    const ask = V.locator("[data-ask-open]");
+    await ask.waitFor();
+    assert(/^Skip Rent for [A-Z][a-z]+ \d{4}\? It won’t be added for that month\.$/.test((await ask.locator("p").innerText()).trim()), `the skip question says: ${await ask.innerText()}`);
+    await ask.getByRole("button", { name: "Skip it" }).click();
     await V.waitForURL(/saved=1/);
     const skipped = await db.billRun.findMany({ where: { billId: rent.id, status: "skipped" } });
     assert(skipped.length === 1, `skipped runs: ${skipped.map((r) => r.period).join(", ")}`);

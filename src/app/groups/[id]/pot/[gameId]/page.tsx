@@ -4,7 +4,7 @@ import { TrophyIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
-import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { GAME_NOTE, TOOK_HOME_NOTES, neutralGameText } from "@/lib/game-words";
@@ -19,7 +19,7 @@ import { UndoBar } from "@/components/UndoBar";
 import { canUndo, originAtDb, paymentsForUndo } from "@/lib/undo";
 import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
-import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, outlineButtonClass, SettleRow } from "@/components/SettleRow";
+import { DifferentAmountLink, differentAmountFor, outlineButtonClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
 import { SelectField } from "@/components/SelectField";
@@ -105,7 +105,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                   <SettleRow
                     key={`${t.from}-${t.to}`}
                     data={{ "data-transfer": done ? "paid" : "pending" }}
-                    avatarName={t.from === myId ? "You" : you(t.from)}
+                    avatarName={nameOf(t.from)}
                     title={`${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}
                     amount={money(done || left === t.amount ? t.amount : left)}
                     tone={t.to === myId ? "owed" : t.from === myId ? "owe" : "neutral"}
@@ -115,47 +115,60 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
                       ) : undefined
                     }
-                    action={
-                      done || group.closed ? undefined : (
-                        // Paid? Mark it right here: you stay on the game.
-                        <form action={recordCustomPayment} className={actionFormClass}>
-                          <input type="hidden" name="groupId" value={group.id} />
-                          <input type="hidden" name="currency" value={group.currency} />
-                          <input type="hidden" name="fromId" value={t.from} />
-                          <input type="hidden" name="toId" value={t.to} />
-                          <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
-                          <input type="hidden" name="back" value={`pot:${game.id}`} />
-                          <FreshKey name="rid" />
-                          <button type="submit" className={pending.length === 1 ? filledActionClass : outlineButtonClass} aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
-                            Mark paid
-                          </button>
-                        </form>
-                      )
-                    }
-                    link={done || group.closed ? undefined : <DifferentAmountLink href={differentAmountFor(group.id, t.from, t.to, toInputAmount(left, group.currency), false)} />}
                   />
                 );
               })}
             </ul>
           )}
-          {pending.length > 1 && !group.closed && (
-            <form action={markGamePaidAction} className="mt-3">
-              <input type="hidden" name="gameId" value={game.id} />
-              <FreshKey name="rid" />
-              <ConfirmButton message={`Mark all ${pending.length} payments of this game paid? Everyone is told, and you can undo it.`} className={primaryButtonClass}>
-                Mark all {pending.length} paid
-              </ConfirmButton>
-            </form>
-          )}
-          {/* (One disclaimer on this page: the Game night note under the tally says the same.) */}
-          <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
-            {stillOwed > 0 ? `Still to settle in this group: ${money(stillOwed)}.` : "Everyone in this group is square ✓"}
-          </p>
+          {/* One main action: Settle up. Marking payments paid right here is still possible, tucked under "Paid at the table?". */}
           {stillOwed > 0 && (
-            <Link href={`/groups/${group.id}/settle`} className={`mt-3 ${secondaryButtonClass}`}>
+            <Link href={`/groups/${group.id}/settle`} className={`mt-4 ${primaryButtonClass}`} data-pot-settle>
               Settle up
             </Link>
           )}
+          {pending.length > 0 && !group.closed && (
+            <details className="group mt-3" data-pot-mark-paid>
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 text-[14.5px] font-medium text-fg/75 underline underline-offset-4 [&::-webkit-details-marker]:hidden">
+                Paid at the table?
+              </summary>
+              <ul className="mt-2 space-y-3">
+                {pending.map((t) => (
+                  <li key={`${t.from}-${t.to}`} className="rounded-[18px] border border-line px-4 py-3" data-pot-mark-row>
+                    <p className="text-[15px] font-semibold leading-snug">
+                      {you(t.from)} {t.from === myId ? "pay" : "pays"} {youLow(t.to)} <span className="money tabular-nums">{money(t.left)}</span>
+                    </p>
+                    <form action={recordCustomPayment} className="mt-2 flex">
+                      <input type="hidden" name="groupId" value={group.id} />
+                      <input type="hidden" name="currency" value={group.currency} />
+                      <input type="hidden" name="fromId" value={t.from} />
+                      <input type="hidden" name="toId" value={t.to} />
+                      <input type="hidden" name="amount" value={toInputAmount(t.left, group.currency)} />
+                      <input type="hidden" name="back" value={`pot:${game.id}`} />
+                      <FreshKey name="rid" />
+                      <button type="submit" className={outlineButtonClass} aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
+                        Mark paid
+                      </button>
+                    </form>
+                    <DifferentAmountLink href={differentAmountFor(group.id, t.from, t.to, toInputAmount(t.left, group.currency), false)} />
+                  </li>
+                ))}
+              </ul>
+              {pending.length > 1 && (
+                <form action={markGamePaidAction} className="mt-3">
+                  <input type="hidden" name="gameId" value={game.id} />
+                  <FreshKey name="rid" />
+                  <ConfirmButton message={`Mark all ${pending.length} payments of this game paid? Everyone is told, and you can undo it.`} className={outlineButtonClass}>
+                    Mark all {pending.length} paid
+                  </ConfirmButton>
+                </form>
+              )}
+            </details>
+          )}
+          {/* (One disclaimer on this page: the Game night note under the tally says the same.) The amount is said once: when the whole
+              group's open money is just this game's result, the headline above already says it. */}
+          <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
+            {stillOwed > 0 ? (ranked[0] && stillOwed === ranked[0].net ? "Not settled yet." : `Still to settle in this group: ${money(stillOwed)}.`) : "Everyone in this group is square ✓"}
+          </p>
         </section>
   );
 

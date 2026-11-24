@@ -4,7 +4,7 @@ import { FocusOnShow } from "@/components/FocusOnShow";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { formatMoney, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { formatMoney, glueAmounts, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { overKey, overpayQuestion } from "@/lib/pay-record";
 import { defaultPayment } from "@/lib/pay-default";
 import { RecordPaymentForm } from "@/components/RecordPaymentForm";
@@ -78,7 +78,13 @@ export default async function RecordPayment({
     `/groups/${group.id}/pay?${new URLSearchParams({ from: f, to: t, amount: toInputAmount(a, group.currency) })}`;
 
   // A suggestion that is exactly what the form already says (same From, To and amount) is not offered again.
-  const suggestions = transfers.filter((t) => !(t.from === from && t.to === to && parseAmount(qAmount, group.currency) === t.amount));
+  // Yours come first (the order is otherwise kept): the viewer looks for their own payment before anyone else's.
+  const mineFirst = (t: { from: string; to: string }) => (t.from === myId || t.to === myId ? 0 : 1);
+  const suggestions = transfers
+    .filter((t) => !(t.from === from && t.to === to && parseAmount(qAmount, group.currency) === t.amount))
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => mineFirst(a.t) - mineFirst(b.t) || a.i - b.i)
+    .map((x) => x.t);
   const fromSettle = sp.back === "settle";
   const owes = /^\d{1,12}$/.test(sp.owes ?? "") ? Number(sp.owes) : null;
   const typed = parseAmount(sp.amount ?? "", group.currency);
@@ -97,7 +103,7 @@ export default async function RecordPayment({
       <RecordPaymentForm
         groupId={group.id}
         currency={group.currency}
-        people={people.map((m) => ({ id: m.id, name: m.name, me: m.id === myId, gets: net[m.id] > 0 ? money(net[m.id]) : "" }))}
+        people={people.map((m) => ({ id: m.id, name: m.name, me: m.id === myId, gets: net[m.id] > 0 ? glueAmounts(money(net[m.id])) : "" }))}
         defaultFrom={from}
         defaultTo={to}
         defaultAmount={qAmount}
@@ -116,8 +122,8 @@ export default async function RecordPayment({
         note={PAYMENT_LINE}
       >
         {suggestions.length > 0 && (
-          <section aria-label="Smart Settle suggests">
-            <p className="mb-1 text-[13px] text-fg/55">Smart Settle suggests</p>
+          <section aria-label="Suggested payments for everyone">
+            <p className="mb-1 text-[13px] text-fg/55">Suggested payments for everyone</p>
             <ul className="divide-y divide-[#26262c]">
               {suggestions.map((t) => (
                 <li key={`${t.from}-${t.to}`}>
@@ -125,7 +131,7 @@ export default async function RecordPayment({
                     <span className="min-w-0 truncate">
                       {short(t.from)} → {t.to === myId ? "you" : short(t.to)}
                     </span>
-                    <span className="shrink-0 font-semibold tabular-nums">{money(t.amount)}</span>
+                    <span className="shrink-0 whitespace-nowrap font-semibold tabular-nums">{glueAmounts(money(t.amount))}</span>
                   </Link>
                 </li>
               ))}

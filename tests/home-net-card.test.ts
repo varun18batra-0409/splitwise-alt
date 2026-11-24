@@ -51,7 +51,7 @@ describe("the slim Net card", () => {
   it("(4) everything zero, or nothing at all: All square, You’re all square", () => {
     for (const items of [[], [inr(0, false), inr(0, true)]]) {
       const c = card(items);
-      expect(c).toMatchObject({ kind: "square", label: "All square", text: "You’re all square", href: "/settle" });
+      expect(c).toMatchObject({ kind: "square", label: "All square", text: "Nothing to settle", href: "/settle" });
     }
   });
   it("it never says All square while any money is open, even when the net is 0: 'Net · evens out' with both lines", () => {

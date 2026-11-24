@@ -7,6 +7,8 @@ import { PageHeader, ErrorNote, secondaryButtonClass } from "@/components/ui";
 import { BillForm } from "@/components/BillForm";
 import { billVersion } from "@/lib/home/bill-setup";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { AskFirstButton } from "@/components/AskFirstButton";
+import { skipAsk } from "@/lib/home/bill-skip-words";
 import { changeBill, toggleMissedDay } from "@/app/bill-actions";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
 import { billHold, countedMissed, dailyTotal, isStopped, missedDays, payerFor, skipTarget } from "@/lib/home/bills";
@@ -147,16 +149,18 @@ export default async function BillPage({
 
       <section className="mb-8 grid grid-cols-2 gap-2">
         {(!bill.paused || (stopped && waitingMonth)) && (
-          <form action={changeBill}>
+          <form action={changeBill} className="has-[[data-ask-open]]:col-span-2">
             <input type="hidden" name="groupId" value={group.id} />
             <input type="hidden" name="billId" value={bill.id} />
             <input type="hidden" name="command" value="skip" />
             <input type="hidden" name="period" value={skipPeriod} />
-            {/* The page names the month it means (hidden), so an old page can only skip that month. A confirm naming the month waits for the
-                founder's look-change decision: today's button has no question, so adding one is a visible change. */}
-            <button type="submit" className={secondaryButtonClass}>
-              Skip this time
-            </button>
+            {/* The page names the month it means (hidden), so an old page can only skip that month. Tapping the button asks first, naming that month. */}
+            <AskFirstButton
+              label="Skip this time"
+              message={skipAsk(bill.name, skipPeriod)}
+              confirmLabel="Skip it"
+              className={secondaryButtonClass}
+            />
           </form>
         )}
         {!stopped && (

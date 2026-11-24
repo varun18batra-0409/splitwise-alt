@@ -4,7 +4,7 @@ import { ShareCountdown } from "@/components/ShareCountdown";
 import { ExactAmount } from "@/components/ExactAmount";
 import { GroupCover } from "@/components/GroupCover";
 import { PassStack } from "@/components/PassStack";
-import { routeCode, type GroupMark, type NetCard, type PassField, type TicketAction, type TicketLine } from "@/lib/home/money-card";
+import { routeCode, type PersonLine, type GroupMark, type NetCard, type PassField, type TicketAction, type TicketLine } from "@/lib/home/money-card";
 import type { TripPass } from "@/lib/home/coming-up";
 import type { CoverChoice } from "@/lib/covers";
 
@@ -266,6 +266,31 @@ export function MoneyCard({ card }: { card: NetCard }) {
           ))}
         </span>
       )}
+    </Link>
+  );
+}
+
+// Home for someone with only one-to-one expenses: the same slim card, one line per person (see homePersonLines). The name is bold, the amount carries
+// the colour (orange you owe, green you're owed). The whole card is one link to Settle up.
+export function PersonMoneyCard({ lines, more, aria }: { lines: PersonLine[]; more: number; aria: string }) {
+  return (
+    <Link
+      href="/settle"
+      aria-label={aria}
+      className="block rounded-[22px] bg-[#16161a] px-4 py-3.5 text-fg shadow-[inset_0_0_0_1px_#26262c] transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100 min-[360px]:px-[18px]"
+      data-balance-card
+      data-money-card="people"
+      data-ticket="people"
+    >
+      <ul className="space-y-2.5" data-person-lines>
+        {lines.map((l) => (
+          <li key={l.key} className="min-w-0 break-words text-[15px] leading-snug text-fg/75" data-person-line={l.tone}>
+            With <b className="font-semibold text-fg">{l.name}</b>: {l.tone === "owed" ? "owes you" : "you owe"}{" "}
+            <span className={`money whitespace-nowrap font-display text-[19px] font-medium tabular-nums ${l.tone === "owed" ? "text-owed" : "text-owe"}`}>{l.amount}</span>
+          </li>
+        ))}
+      </ul>
+      {more > 0 && <p className="mt-2.5 text-[14px] text-fg/60" data-person-more>{`and ${more} more`}</p>}
     </Link>
   );
 }

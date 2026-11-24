@@ -5,7 +5,6 @@ import { getMemberships } from "@/lib/identity";
 import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
-import { listMoney } from "@/lib/money-display";
 import { differentAmountFor, filledActionClass, outlineButtonClass, PayAppButtons } from "@/components/SettleRow";
 import { CLEAR_BOTH_NOTE, CLEAR_BOTH_SUBTITLE, crossActionLabel, crossPreview, clearBothLines, evenCaption, isEvenItem, settleRowId } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
@@ -23,7 +22,7 @@ import { type StubCover } from "@/components/HomeMoney";
 import { firstName, InfoNote, OUTLINE_PILL, PayView } from "@/components/PayScreens";
 import { BackIcon, iconButtonClass } from "@/components/icons";
 import { Initial, SettleCard, type MenuItem } from "@/components/SettleUp";
-import { BIG_CREAM } from "@/lib/settle-ui";
+import { BIG_OUTLINE } from "@/lib/settle-ui";
 import { directEntryOn } from "@/lib/direct";
 import { filterDirect, type DirectEntry } from "@/lib/direct-db";
 import { PAYMENT_TOO_BIG_SHORT } from "@/lib/payments";
@@ -46,8 +45,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   // A person who has cards in two currencies shows each card's exact own-currency amount (nothing converted, no "≈"); everyone else is as before.
   const amt = (it: Item, n: number, fmt: (minor: number) => string = (x) => formatMoney(x, common)) =>
     it.mixed ? formatMoney(Math.abs(it.netOwn), it.currency) : `${it.converted ? "≈ " : ""}${fmt(Math.abs(n))}`;
-  // The TO PAY and TO RECEIVE cards: if any has paise, every amount keeps its two decimals so they line up (₹2,670.00 beside ₹30,723.44).
-  const listFmt = listMoney(settleItems.map((it) => Math.abs(it.net)), common);
+  // Each card's amount is written on its own: ₹2,670 when whole, ₹30,723.44 when there are paise (no ".00" on a whole amount).
   // The picture on the stub: the group of this person's biggest part (the first one listed).
   const coverOf = (it: Item): { cover?: StubCover; mark: ReturnType<typeof groupMark> } => {
     const g = all.find((x) => x.group.id === it.parts[0]?.groupId)?.group;
@@ -168,7 +166,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   const owedCount = new Set([...inList.map((it) => it.key), ...owedPairs.map(whoKey)]).size;
   const oweTotal = `${approx(oweItems) || pairApprox(owePairs)}${formatMoney(sumOf(oweItems) + pairSum(owePairs), common)}`;
   const owedTotal = `${approx(inList) || pairApprox(owedPairs)}${formatMoney(sumOf(inList) + pairSum(owedPairs), common)}`;
-  const groupOwedTotal = `${approx(inList)}${formatMoney(sumOf(inList), common)}`; // the TO RECEIVE section is about groups only
+  const groupOwedTotal = `${approx(inList)}${formatMoney(sumOf(inList), common)}`; // the To receive section is about groups only
   const showOwe = oweCount > 0 || owedCount === 0; // if I owe anyone, the summary is about that; the owed total sits in its own section
   const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
   const notInTotalLine = notInTotal.length
@@ -191,14 +189,13 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const groupLine = names.length <= 2 ? names.join(" · ") : `${names.length} groups`;
     const even = way === "even";
     const tone = even ? ("even" as const) : it.netOwn > 0 ? ("owed" as const) : ("owe" as const);
-    const amount = even ? "Even across groups" : it.netOwn === 0 ? "Even" : amt(it, it.net, listFmt);
+    const amount = even ? "Even across groups" : it.netOwn === 0 ? "Even" : amt(it, it.net);
     const pv = crossPreview(it, common);
     // Remind about a part where they owe you (never one where you're the one paying).
     const biggest = [...parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
     const { buttons } = payButtonsOf(it);
     const b0 = buttons[0];
     const menu: MenuItem[] = [];
-    if (way === "in") menu.push({ key: "received", label: "Mark received", opensSheet: true, attrs: { "data-mark-received": "" } });
     if (partHref) menu.push({ key: "part", label: way === "in" ? "Received a different amount" : "Pay part", href: partHref, attrs: { "data-different-amount": "" } });
     if (way === "out" && it.netOwn < 0) menu.push({ key: "details", label: "Payment details", href: `/settle?pay=${encodeURIComponent(it.id)}` });
     for (const p of parts) {
@@ -214,6 +211,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         key={it.id}
         id={settleRowId(way === "in" ? "remind" : "pay", it.id)}
         caption={even ? evenCaption(it) : undefined}
+        markReceived={way === "in" && biggest ? "Mark received" : undefined}
         name={it.name}
         groupLine={groupLine}
         amount={amount}
@@ -223,7 +221,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
             ? {
                 kind: "node",
                 node: (
-                  <Link href={`/groups/${biggest.groupId}/remind?from=${biggest.fromId}`} data-remind className={BIG_CREAM}>
+                  <Link href={`/groups/${biggest.groupId}/remind?from=${biggest.fromId}`} data-remind className={BIG_OUTLINE}>
                     Remind {first}
                   </Link>
                 ),
@@ -298,7 +296,6 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
     const a = iOwe && e.other.accountId ? accounts.find((x) => x.id === e.other.accountId) : undefined;
     const b0 = payButtons(a, { amount: -e.net, currency: e.currency, toName: e.other.name, note: "Loopin settle-up" })[0];
     const menu: MenuItem[] = [];
-    if (!iOwe) menu.push({ key: "received", label: "Mark received", opensSheet: true, attrs: { "data-mark-received": "" } });
     menu.push({ key: "history", label: "View history", href: `/people/${e.groupId}` });
     menu.push({ key: "part", label: iOwe ? "Pay part" : "Received a different amount", href: partHref, attrs: { "data-different-amount": "" } });
     if (iOwe && a && (a.upiId || a.payLink)) menu.push({ key: "details", label: "Payment details", href: `/settle?pay=${encodeURIComponent(`direct:${e.groupId}`)}` });
@@ -309,6 +306,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         name={e.other.name}
         groupLine={line}
         caption={iOwe ? `You owe ${e.other.name}` : `${e.other.name} owes you`}
+        markReceived={iOwe ? undefined : "Mark received"}
         href={`/people/${e.groupId}`}
         amount={amount}
         tone={iOwe ? "owe" : "owed"}
@@ -318,7 +316,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
             : {
                 kind: "node",
                 node: (
-                  <Link href={`/groups/${e.groupId}/remind?from=${e.other.id}`} data-remind className={BIG_CREAM}>
+                  <Link href={`/groups/${e.groupId}/remind?from=${e.other.id}`} data-remind className={BIG_OUTLINE}>
                     Remind {first}
                   </Link>
                 ),
@@ -393,7 +391,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   );
 
   const sectionHead = (label: string, n: number, right?: React.ReactNode) => (
-    <h2 className="mb-2.5 mt-7 flex items-baseline justify-between gap-3 px-1 text-[13px] font-semibold tracking-[0.14em] text-fg/75">
+    <h2 className="mb-2.5 mt-7 flex items-baseline justify-between gap-3 px-1 text-[14px] font-semibold text-fg/75">
       <span>{`${label} · ${n}`}</span>
       {right}
     </h2>
@@ -446,7 +444,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         </div>
       ) : (
         <section aria-label="Summary" data-settle-summary className="rounded-[24px] border border-line bg-white px-5 py-5">
-          <p className="text-[12.5px] font-medium tracking-[0.14em] text-fg/70">{showOwe ? "TOTAL YOU OWE" : "TOTAL OWED TO YOU"}</p>
+          <p className="text-[14px] font-medium text-fg/70">{showOwe ? "Total you owe" : "Total owed to you"}</p>
           <p
             className={`money mt-2 whitespace-nowrap font-display font-semibold leading-none tracking-[-0.02em] lining-nums tabular-nums ${showOwe ? "text-owe" : "text-owed"} ${
               [...(showOwe ? oweTotal : owedTotal)].length <= 9 ? "text-[38px] min-[360px]:text-[44px]" : [...(showOwe ? oweTotal : owedTotal)].length <= 12 ? "text-[32px] min-[360px]:text-[38px]" : "text-[26px] min-[360px]:text-[30px]"
@@ -470,7 +468,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
 
       {direct.length > 0 && (
         <section id="direct" className="scroll-mt-6" aria-label="With a person" data-direct-section>
-          <h2 className="mb-2.5 mt-7 px-1 text-[13px] font-semibold tracking-[0.14em] text-fg/75">WITH A PERSON</h2>
+          <h2 className="mb-2.5 mt-7 px-1 text-[14px] font-semibold text-fg/75">With a person</h2>
           <nav aria-label="Show" className="mb-3 flex gap-1 rounded-full border border-line p-1">
             {filterLink("open", "Open")}
             {filterLink("all", "All")}
@@ -486,46 +484,46 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
           {directShown.length === 0 && <p className="px-1 py-3 text-[15px] text-fg/65" data-direct-none>{q ? "Nobody by that name here." : show === "settled" ? "Nobody is settled yet." : "Nothing to settle with a person."}</p>}
           {dOwe.length > 0 && (
             <>
-              {sectionHead("YOU OWE", dOwe.length)}
+              {sectionHead("You owe", dOwe.length)}
               <ul className="lp-rise space-y-3">{dOwe.map(directCard)}</ul>
             </>
           )}
           {dOwed.length > 0 && (
             <>
-              {sectionHead("OWE YOU", dOwed.length)}
+              {sectionHead("Owe you", dOwed.length)}
               <ul className="lp-rise space-y-3">{dOwed.map(directCard)}</ul>
             </>
           )}
           {dSettled.length > 0 && (
             <>
-              {sectionHead("SETTLED", dSettled.length)}
+              {sectionHead("Settled", dSettled.length)}
               <ul className="lp-rise space-y-3">{dSettled.map(settledCard)}</ul>
             </>
           )}
         </section>
       )}
 
-      {direct.length > 0 && settleItems.length > 0 && <h2 className="mb-1 mt-9 px-1 text-[13px] font-semibold tracking-[0.14em] text-fg/75" data-in-groups>IN GROUPS</h2>}
+      {direct.length > 0 && settleItems.length > 0 && <h2 className="mb-1 mt-9 px-1 text-[14px] font-semibold text-fg/75" data-in-groups>In groups</h2>}
 
       {outList.length > 0 && (
         <section id="pay" className="scroll-mt-6" aria-label="To pay">
-          {sectionHead("TO PAY", outList.length)}
+          {sectionHead("To pay", outList.length)}
           <ul className="lp-rise space-y-3">{outList.map((it) => card(it, "out"))}</ul>
         </section>
       )}
       {evenList.length > 0 && (
         <section id="even" className="scroll-mt-6" aria-label="Even across groups" data-even-section>
-          {sectionHead("EVEN ACROSS GROUPS", evenList.length)}
+          {sectionHead("Even across groups", evenList.length)}
           <ul className="lp-rise space-y-3">{evenList.map((it) => card(it, "even"))}</ul>
         </section>
       )}
       {inList.length > 0 && (
         <section id="remind" className="scroll-mt-6" aria-label="To receive">
           {sectionHead(
-            "TO RECEIVE",
+            "To receive",
             inList.length,
             showOwe && outList.length > 0 ? (
-              <span className="money text-[15px] font-semibold tracking-normal tabular-nums text-owed" data-settle-owed-total>
+              <span className="money text-[15px] font-semibold tabular-nums text-owed" data-settle-owed-total>
                 {groupOwedTotal}
               </span>
             ) : undefined,

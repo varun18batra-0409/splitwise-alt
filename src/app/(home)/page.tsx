@@ -48,11 +48,11 @@ import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { countryOf, tripStops } from "@/lib/geo";
-import { MoneyCard, type StubCover, type TripPassView } from "@/components/HomeMoney";
+import { MoneyCard, PersonMoneyCard, type StubCover, type TripPassView } from "@/components/HomeMoney";
 import { greetingWord } from "@/lib/home/owe-card";
 import { PassStack } from "@/components/PassStack";
 import { TripCountdown } from "@/components/TripCountdown";
-import { homeNetCard } from "@/lib/home/money-card";
+import { homeNetCard, homePersonLines } from "@/lib/home/money-card";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadHomeMemories } from "@/lib/moments-db";
@@ -190,6 +190,9 @@ export default async function Home({
     common,
     toCommon,
   });
+  // Only one-to-one expenses, no group: Home names each person ("With Rohan: owes you ₹600") instead of an unnamed "Net".
+  const personLines = homePersonLines(direct.map((p) => ({ key: p.groupId, name: p.other.name, currency: p.currency, net: p.net })));
+  const personOnly = byActivity.length === 0 && personLines.lines.length > 0;
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
     invitations.length > 0 ? (
@@ -469,6 +472,7 @@ export default async function Home({
   const highlights = homeHighlights({
     weather: weatherCard,
     hasMonth: Boolean(month),
+    signedIn: Boolean(account),
     // The festival or season coming up in this visitor's country (Christmas, New Year, Diwali, Eid…), only inside its dates.
     season: seasonNow(new Date(), tz, region.country),
     // New postcards and a bill due soon have no line of their own on Home, so the sliding cards bring them up.
@@ -616,7 +620,7 @@ export default async function Home({
 
           {/* Money (the mockup's short "You owe" card: label, the exact amount, who and where, faces, ONE full-width cream button, no photo);
               nothing sits under it: what needs you is in Updates behind the bell. */}
-          <MoneyCard card={netCard} />
+          {personOnly ? <PersonMoneyCard {...personLines} /> : <MoneyCard card={netCard} />}
 
           {/* Coming up: the countdown card for each trip that is next (the trip's polaroid, "12 days to go", everyone going, Share),
               earliest first, swiped sideways. Founder, 15 Nov: this card, not the mockup's. */}
@@ -645,7 +649,14 @@ export default async function Home({
               </Link>
             </div>
             {byActivity.length === 0 ? (
-              <p className="py-4 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
+              <>
+                {/* Only people so far: the dashed "New group" tile is still one tap away. */}
+                {direct.length > 0 && <GroupCards groups={[]} total={0} />}
+                <p className="py-4 text-sm text-gray-500">
+                  No open groups.{" "}
+                  <Link href="/groups/new" className="font-medium text-fg underline underline-offset-4">Create one</Link>, or reopen a closed one.
+                </p>
+              </>
             ) : (
               <div className="-mt-2">
                 <GroupCards groups={groupCards} total={byActivity.length} />
@@ -721,7 +732,7 @@ export default async function Home({
                       </div>
                     ) : month && (
                       <div key="month" className="flex flex-1 flex-col">
-                        <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-12 pt-5" data-month-card>
+                        <div className="relative flex flex-1 flex-col overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-12 pt-5" data-month-card>
                           {/* The month's name, large and faint behind the numbers. */}
                           <span aria-hidden className="pointer-events-none absolute -right-2 top-1 select-none font-display text-[120px] font-semibold leading-none text-white/[0.06]">
                             {month.name.slice(0, 3)}

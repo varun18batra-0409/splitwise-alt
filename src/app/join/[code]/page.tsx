@@ -279,9 +279,12 @@ export default async function JoinPage({
         </>
       )}
 
-      <p className="mt-6 text-center text-[13px] text-fg/50" data-join-footnote>{account ? (invitedFirst ? "No amounts are shown before you join." : "No names or amounts are shown before you join.") : "No amounts are shown before you join."}</p>
-      <p className="mt-8 text-center text-xs text-gray-400">Loopin keeps count. It never touches your money.</p>
-      <GetAppButton variant="card" className="mt-6" />
+      <GetAppButton variant="card" className="mt-8" />
+      {/* The small print together, in one quiet block under the card. */}
+      <div className="mt-6 space-y-1 text-center text-[13px] leading-snug text-fg/55">
+        <p data-join-footnote>{account ? (invitedFirst ? "No amounts are shown before you join." : "No names or amounts are shown before you join.") : "No amounts are shown before you join."}</p>
+        <p>Loopin keeps count. It never touches your money.</p>
+      </div>
     </>
   );
 }

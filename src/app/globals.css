@@ -135,11 +135,10 @@ fieldset {
     backdrop-filter: blur(24px) saturate(150%);
     border: 1px solid rgb(244 242 236 / 0.12);
   }
-  /* The bottom bar: nearly solid, so nothing scrolling under it shows through the labels. */
+  /* The bottom bar: fully solid, so nothing scrolling under it shows through the labels. (Safari on iPhone drew the blur behind a
+     see-through colour, and text could be seen under the bar: no blur, no transparency.) */
   .glass-bar {
-    background: rgb(31 31 36 / 0.94);
-    -webkit-backdrop-filter: blur(24px) saturate(150%);
-    backdrop-filter: blur(24px) saturate(150%);
+    background: #1f1f24;
     border: 1px solid rgb(244 242 236 / 0.12);
   }
   /* Money in the new face: tight and even-width figures. */
@@ -333,6 +332,8 @@ fieldset {
 
 /* Hide the floating Add expense bar while the tour is open. */
 body:has(.intro-tour) .bottom-nav { display: none; }
+/* A solid strip behind the floating bar, the page's own colour, so scrolling text never shows in the gap around it (iPhone Safari). */
+.bottom-nav { background: linear-gradient(to top, var(--color-canvas) 0, var(--color-canvas) calc(100% - 14px), transparent); }
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
@@ -843,4 +844,64 @@ h3 {
 }
 p {
   text-wrap-style: pretty;
+}
+
+/* ---- Mouse and trackpad only (a computer): the pointer says "press me", buttons get a light tint, and sideways rows show arrows. ----
+   Nothing here applies to a phone or tablet touch screen, so nothing changes there. Kept in the base layer so a screen's own
+   colours and cursors still win. */
+@layer base {
+  @media (hover: hover) and (pointer: fine) {
+    button:not(:disabled),
+    summary,
+    a[href],
+    label[for],
+    select,
+    [role="button"]:not([aria-disabled="true"]),
+    [role="tab"] {
+      cursor: pointer;
+    }
+    button:not(:disabled):not(.pop):hover,
+    summary:hover,
+    a[href][class*="border"]:hover {
+      background-image: linear-gradient(rgb(244 242 236 / 0.06), rgb(244 242 236 / 0.06));
+    }
+    .pop:hover {
+      filter: brightness(0.94);
+    }
+  }
+}
+@layer components {
+  .row-arrow {
+    display: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .row-controls:hover .row-arrow,
+    .row-controls:focus-within .row-arrow {
+      display: flex;
+    }
+    .row-arrow {
+      position: absolute;
+      top: 50%;
+      z-index: 5;
+      width: 32px;
+      height: 32px;
+      margin-top: -16px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      border: 1px solid rgb(244 242 236 / 0.25);
+      background: #16161a;
+      color: #f4f2ec;
+      box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.8);
+    }
+    .row-arrow-left {
+      left: 6px;
+    }
+    .row-arrow-right {
+      right: 6px;
+    }
+    .row-arrow:hover {
+      background: #1f1f24;
+    }
+  }
 }

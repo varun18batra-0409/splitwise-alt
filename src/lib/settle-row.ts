@@ -1,7 +1,7 @@
 // What one payment row on Settle up offers. The same rules everywhere:
 //   one big action on the ticket – "Pay Nupur" (I'm paying: it opens the steps, where "Open payment app" lives) or "Remind Meera" (I'm owed);
 //                             cream on the screen's first ticket, an outline pill on the others
-//   one quiet text action   – "I've paid" (when I pay) or "Mark paid" (money owed to me, and payments between others). Both record the
+//   one quiet text action   – "I've paid" (when I pay), "Mark received" (money owed to me) or "Mark paid" (payments between others). Both record the
 //                             payment: it counts straight away and the other person is told.
 //   one quiet "More ›"      – "Paid a different amount?"
 // Never two cream buttons on one screen.
@@ -18,7 +18,7 @@ export type RowPlan = {
   main: "pay-app" | "remind" | null;
   action: "record" | null;
   actionFilled: boolean; // the action is the row's one filled button
-  actionLabel: "I’ve paid" | "Mark paid" | null;
+  actionLabel: "I’ve paid" | "Mark received" | "Mark paid" | null;
   differentAmount: boolean; // show "Paid a different amount?"
   filledButtons: number; // how many filled buttons the row shows: never more than one
 };
@@ -47,7 +47,8 @@ export function planSettleRow(f: RowFacts): RowPlan {
   const action: RowPlan["action"] = canRecord ? "record" : null;
   // Only my own action can be the filled one; "Mark paid" on a payment between two other people stays an outline button, so it never competes with mine.
   const actionFilled = action !== null && main === null && (f.iPay || f.iAmPaid);
-  const actionLabel = action === null ? null : f.iPay ? "I’ve paid" : "Mark paid";
+  // Same words as the all-groups Settle up: money coming to me is "Mark received"; a payment between two other people stays "Mark paid".
+  const actionLabel = action === null ? null : f.iPay ? "I’ve paid" : f.iAmPaid ? "Mark received" : "Mark paid";
   return {
     main,
     action,

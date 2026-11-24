@@ -49,7 +49,7 @@ describe("the founder's names", () => {
     }
     expect(read("src/lib/home/money-card.ts")).toContain("With a person");
     expect(read("src/app/settle/page.tsx")).toContain("With a person · only you can see this");
-    expect(read("src/app/settle/page.tsx")).toContain("WITH A PERSON");
+    expect(read("src/app/settle/page.tsx")).toContain(">With a person</h2>");
   });
 });
 

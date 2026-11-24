@@ -29,7 +29,7 @@ describe("1. Even across groups", () => {
   it("the page: To pay is only net < 0, Even has its own section, Clear both uses settleAcrossGroups, no Payment details for net 0", () => {
     const page = src("src/app/settle/page.tsx");
     expect(page).toContain("const oweItems = settleItems.filter((it) => it.netOwn < 0)"); // the summary count
-    expect(page).toContain('sectionHead("EVEN ACROSS GROUPS"');
+    expect(page).toContain('sectionHead("Even across groups"');
     expect(page).toContain('label: even ? "Clear both"');
     expect(page).toContain("action={settleAcrossGroups}");
     expect(page).toContain('way === "out" && it.netOwn < 0');
@@ -146,7 +146,7 @@ describe("Review fixes: even needs one currency", () => {
     const page = src("src/app/settle/page.tsx");
     expect(page).toContain("settleItems.filter((it) => it.netOwn <= 0 && !isEvenItem(it))");
     expect(page).toContain("settleItems.filter((it) => it.netOwn > 0)");
-    expect(page).toContain('it.netOwn === 0 ? "Even" : amt(it, it.net, listFmt)');
+    expect(page).toContain('it.netOwn === 0 ? "Even" : amt(it, it.net)');
   });
   it("all square is not shown while there are even people", () => {
     const page = src("src/app/settle/page.tsx");

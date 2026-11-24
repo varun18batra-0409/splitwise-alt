@@ -10,10 +10,14 @@ export type ToolDef = { id: string; name: string; icon: React.ReactNode };
 export function ToolRow({ label, tools, active, onPick }: { label: string; tools: ToolDef[]; active: string; onPick: (id: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState(false);
+  const [before, setBefore] = useState(false); // scrolled along already: the left edge fades too
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () => setMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+    const measure = () => {
+      setMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+      setBefore(el.scrollLeft > 4);
+    };
     measure();
     el.addEventListener("scroll", measure, { passive: true });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
@@ -24,9 +28,12 @@ export function ToolRow({ label, tools, active, onPick }: { label: string; tools
     };
   }, [tools.length]);
   useEffect(() => revealSelected(ref.current, 4), [active]);
+  // A soft fade at the edge where more is waiting (right at first, left too once scrolled), so it's plain the row slides.
+  const fade = `linear-gradient(to right,${before ? "transparent,#000 28px" : "#000,#000 0"},${more ? "#000 calc(100% - 32px),transparent" : "#000,#000"})`;
+  const fadeStyle = more || before ? { WebkitMaskImage: fade, maskImage: fade } : undefined;
   return (
     <nav aria-label={label} className="flex-none">
-      <div ref={ref} className="flex gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none]" style={more ? { WebkitMaskImage: "linear-gradient(to right,#000 calc(100% - 28px),transparent)", maskImage: "linear-gradient(to right,#000 calc(100% - 28px),transparent)" } : undefined} data-tool-row>
+      <div ref={ref} className="flex gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]" style={fadeStyle} data-tool-row>
         {tools.map((t) => {
           const on = active === t.id;
           return (
@@ -36,7 +43,7 @@ export function ToolRow({ label, tools, active, onPick }: { label: string; tools
               aria-pressed={on}
               data-tool={t.id}
               onClick={() => onPick(t.id)}
-              className={`flex h-16 min-w-[52px] flex-1 shrink-0 flex-col items-center justify-center gap-1 rounded-[12px] border px-1 text-[11px] transition-transform active:scale-95 motion-reduce:transition-none ${on ? "border-fg bg-mist font-semibold text-fg" : "border-transparent bg-[#16161a] text-fg/80"}`}
+              className={`flex h-16 min-w-[56px] flex-1 shrink-0 flex-col items-center justify-center gap-1 rounded-[12px] border px-2.5 text-[11px] transition-transform active:scale-95 motion-reduce:transition-none ${on ? "border-fg bg-mist font-semibold text-fg" : "border-transparent bg-[#16161a] text-fg/80"}`}
             >
               {t.icon}
               <span className="whitespace-nowrap">{t.name}</span>

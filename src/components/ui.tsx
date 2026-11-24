@@ -65,11 +65,12 @@ export function ErrorNote({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Your own avatar is "Y" everywhere (`you`), whatever your name is.
-export function Avatar({ name, you }: { name: string; you?: boolean }) {
+// Everyone's avatar, yours included, is the initial of their name (it used to be "Y" for you). `you` is still accepted so callers need no change;
+// it only matters for the word used in sentences, never for the letter.
+export function Avatar({ name }: { name: string; you?: boolean }) {
   return (
     <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${avatarTone(name)}`}>
-      {you ? "Y" : name.trim().charAt(0).toUpperCase()}
+      {(name.trim().charAt(0) || "?").toUpperCase()}
     </span>
   );
 }

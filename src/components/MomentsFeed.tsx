@@ -12,16 +12,16 @@ export function MomentsFeed({ cards, groupId, now, tz, className = "space-y-3" }
     <ul className={className}>
       {cards.map((c) => (
         <li key={c.id}>
-          <Link href={`${here}/${c.id}`} id={`m-${c.id}`} className="flex min-h-[4.5rem] items-center gap-3 rounded-[14px] border border-line bg-white p-2.5 active:bg-mist" data-moment-row={c.id}>
+          <Link href={`${here}/${c.id}`} id={`m-${c.id}`} className="flex min-h-[4.5rem] items-center gap-3 rounded-[14px] border border-line bg-white p-2.5 active:bg-mist max-[359px]:gap-2" data-moment-row={c.id}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={c.thumb} alt="" width={104} height={84} loading="lazy" className="h-[84px] w-[104px] shrink-0 rounded-[10px] bg-mist object-cover" />
-            <span className="min-w-0 flex-1 border-l border-line pl-3">
+            <img src={c.thumb} alt="" width={104} height={84} loading="lazy" className="h-[84px] w-[104px] shrink-0 rounded-[10px] bg-mist object-cover max-[359px]:h-[60px] max-[359px]:w-[72px]" />
+            <span className="min-w-0 flex-1 border-l border-line pl-3 max-[359px]:pl-2">
               {/* Two lines: who (never cut) and when, then the words. No "added a moment": the list already says what these are. */}
-              <span className="flex min-w-0 items-baseline gap-1.5 text-[15px]">
-                <span className="shrink-0 font-semibold">{c.authorName}</span>
+              <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-[15px]">
+                <span className="min-w-0 break-words font-semibold">{c.authorName}</span>
                 <span className="shrink-0 whitespace-nowrap text-fg/55" data-moment-time>· {timeAgo(c.createdAt, now, tz)}</span>
               </span>
-              {c.caption && <span className="emoji-font-display block break-words font-display text-[15px] italic text-fg/75">“{glueLastWord(c.caption)}”</span>}
+              {c.caption && <span className="emoji-font-display line-clamp-2 break-words font-display text-[15px] italic text-fg/75 max-[359px]:text-[14px]">“{glueLastWord(c.caption)}”</span>}
             </span>
             <ChevronRightIcon size={20} className="shrink-0 text-fg/55" />
           </Link>

@@ -46,6 +46,9 @@ export type HighlightTrip = {
 
 export type HighlightInput = {
   hasMonth: boolean;
+  // Not signed in (a guest on this phone): postcards and the passport need an account, so those two cards say so and lead to sign-in.
+  // Left out (undefined) counts as signed in, as before.
+  signedIn?: boolean;
   postcardsNew: number;
   billsDue: { groupId: string; billId: string; name: string; group: string; inDays: number; amount: string }[];
   // The festival or season card for this visitor's country and today's date (null: none now).
@@ -64,6 +67,7 @@ const place = (t: HighlightTrip) => t.stops.find((s) => s.city)?.city || t.name;
 // The sliding cards, in the order described at the top. Between 1 and 6; never a card with nothing to say.
 export function homeHighlights(x: HighlightInput): Highlight[] {
   const out: Highlight[] = [];
+  const guest = x.signedIn === false;
 
   // 1. The usual weather for your next trip.
   if (x.weather)
@@ -111,9 +115,9 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       tone: "rose",
       eyebrow: "Postcards",
       title: "Send a postcard",
-      text: "A trip photo, a real-looking stamp and a wax seal. In Loopin or on WhatsApp.",
-      button: "Write one",
-      href: "/postcards/new",
+      text: guest ? "A trip photo, a real-looking stamp and a wax seal. You need an account to send one." : "A trip photo, a real-looking stamp and a wax seal. In Loopin or on WhatsApp.",
+      button: guest ? "Sign in to send postcards" : "Write one",
+      href: guest ? `/signin?${new URLSearchParams({ back: "/postcards/new" })}` : "/postcards/new",
       art: "postcard",
       ...postcardPhoto,
     });
@@ -130,8 +134,8 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       n >= 1
         ? `${x.passportAbroad !== undefined && x.passportAbroad < n ? `${x.passportAbroad} abroad, plus home. ` : ""}Flip through your stamps, or see where friends who share theirs have been.`
         : "Tick the countries you’ve been to and get your stamps.",
-    button: "Open your passport",
-    href: "/passport",
+    button: guest ? "Sign in to keep your passport" : "Open your passport",
+    href: guest ? `/signin?${new URLSearchParams({ back: "/passport" })}` : "/passport",
     art: "passport",
     ...(x.scenes?.passport ? { photo: x.scenes.passport, scene: true, keepsake: { kind: "passport" as const, stamps: (x.scenes.stamps ?? []).slice(0, 2) } } : {}),
   });

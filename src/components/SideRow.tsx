@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { revealIfNewPick } from "@/lib/reveal-selected";
+import { RowControls } from "@/components/RowControls";
 
 // A row that scrolls sideways (chips, small cards). Words fit, no new look: while there is more to the right a soft fade at the
 // edge says so (gone at the end), and a newly picked item is scrolled fully into view. Otherwise the row moves only when the finger
@@ -28,8 +29,10 @@ export function SideRow({ children, className = "", ...rest }: { children: React
   const shown = useRef<Element | null>(null);
   useEffect(() => revealIfNewPick(ref.current, shown));
   return (
-    <div ref={ref} className={`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`} style={more ? { WebkitMaskImage: MASK, maskImage: MASK } : undefined} {...rest}>
-      {children}
-    </div>
+    <RowControls>
+      <div ref={ref} data-row-scroller className={`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`} style={more ? { WebkitMaskImage: MASK, maskImage: MASK } : undefined} {...rest}>
+        {children}
+      </div>
+    </RowControls>
   );
 }

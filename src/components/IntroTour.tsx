@@ -329,24 +329,24 @@ export function IntroTour({
           >
             {/* One main heading per screen: the slide in view is the h1, the others (hidden from readers) are h2. Same look. */}
             {i === active ? (
-              <h1 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h1>
+              <h1 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight [@media(max-height:700px)]:text-[26px]">{s.title}</h1>
             ) : (
-              <h2 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h2>
+              <h2 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight [@media(max-height:700px)]:text-[26px]">{s.title}</h2>
             )}
-            <div className="flex flex-1 items-center justify-center py-8 [@media(max-height:700px)]:py-2">{s.art}</div>
+            <div className="flex min-h-0 flex-1 items-center justify-center py-8 [@media(max-height:700px)]:py-1 [@media(max-height:700px)]:[&>*]:origin-center [@media(max-height:700px)]:[&>*]:scale-[0.92]">{s.art}</div>
             <p className="min-h-[3.5rem] text-center text-sm text-gray-500 [@media(max-height:700px)]:min-h-0">{s.caption}</p>
           </section>
         ))}
       </div>
 
-      <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))] [@media(max-height:700px)]:mt-3 [@media(max-height:700px)]:space-y-2">
+      <div className="mt-4 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))] [@media(max-height:700px)]:mt-3 [@media(max-height:700px)]:space-y-2">
         {/* "Next" is the main button; on the last step it becomes the way in ("Create your first group"). */}
         {last ? (
-          <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-tour-main>
+          <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] [@media(max-height:700px)]:py-3" data-tour-main>
             {cta}
           </Link>
         ) : (
-          <button type="button" onClick={() => go(active + 1)} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-tour-next data-tour-main>
+          <button type="button" onClick={() => go(active + 1)} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] [@media(max-height:700px)]:py-3" data-tour-next data-tour-main>
             Next
           </button>
         )}
@@ -355,7 +355,7 @@ export function IntroTour({
             type="button"
             onClick={() => go(active - 1)}
             disabled={active === 0}
-            className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist disabled:opacity-0"
+            className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist disabled:opacity-0 [@media(max-height:700px)]:py-1"
             data-tour-back
           >
             Back
@@ -365,7 +365,7 @@ export function IntroTour({
           </span>
           {/* A small "See it again" only on the last step; the other steps have just Back and the count. */}
           {last ? (
-            <button type="button" onClick={() => go(0)} className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist" data-tour-again>
+            <button type="button" onClick={() => go(0)} className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist [@media(max-height:700px)]:py-1" data-tour-again>
               See it again
             </button>
           ) : (
@@ -380,7 +380,7 @@ export function IntroTour({
         )}
         {/* The sign-in line shows on the last step only. */}
         {last && signInHref && (
-          <Link href={signInHref} onClick={seen} className="block text-center text-xs text-gray-500">
+          <Link href={signInHref} onClick={seen} className="block pb-1 text-center text-xs leading-snug text-gray-500">
             Save your groups to your email · <span className="font-medium text-fg underline underline-offset-4">Sign up or sign in</span>
           </Link>
         )}

@@ -260,6 +260,22 @@ await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.waitForTimeout(300);
 });
 await shot("28-settle", "/settle");
+// Computer only (VD-1, VD-2): the sideways arrows that show while the mouse is over Home's groups row, and a button under the mouse on Settle up.
+if (desktop) {
+  await shot("desktop-row-arrows", "/", async (p) => {
+    const row = p.locator("[data-group-cards]").first();
+    await row.scrollIntoViewIfNeeded();
+    await row.hover();
+    await p.waitForTimeout(400);
+  }, false);
+  await shot("desktop-hover-button", "/settle", async (p) => {
+    const remind = p.locator("[data-remind]").first();
+    const target = (await remind.count()) ? remind : p.locator("[data-settle-card] button, [data-settle-card] a[class*='border']").first();
+    await target.scrollIntoViewIfNeeded();
+    await target.hover();
+    await p.waitForTimeout(400);
+  }, false);
+}
 // All-groups Settle up, 15 Nov design: a breakdown opened in place, and the Record payment sheet (Priya has a UPI ID in this seed, so
 // her card's sheet shows "Pay with UPI" above the confirm button; with nobody to pay, the first card's sheet is shown).
 const openBreakdown = async (p: Page) => {
@@ -373,6 +389,14 @@ await shot("G8-flat-bills", f, async (p) => {
   await p.waitForTimeout(600);
 });
 await shot("51-flat-bills", `${f}?tab=bills`);
+// Batch 6: the bill page with the question "Skip Rent for <month>?" open on the page.
+await shot("bill-skip-confirm", `${f}?tab=bills`, async (p) => {
+  await p.locator('a[href*="/bills/"]:not([href$="/new"])').first().click();
+  await p.waitForURL(/\/bills\/[^/?]+$/);
+  await p.getByRole("button", { name: "Skip this time" }).click();
+  await p.locator("[data-ask-open]").waitFor();
+  await p.waitForTimeout(300);
+}, false);
 await shot("52-add-bill", `${f}/bills/new`);
 await shot("53-add-bill-electricity", `${f}/bills/new`, async (p) => {
   await p.getByRole("button", { name: "Electricity" }).click();
@@ -647,7 +671,7 @@ if (!desktop && !hosted) {
     // Money both ways, in two groups: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat). The card now NETS them: 2291600 - 420000 = 1871600 paise = ₹18,716 owed to him.
     ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "net", has: /^net \| Net · you’re owed ₹18,716$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| All square You’re all square$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| All square Nothing to settle$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -1078,6 +1102,16 @@ if (!hosted) {
       await p.getByRole("textbox", { name: "Your message" }).fill(`${note} Same time next year?`);
       await p.waitForTimeout(1300);
     }, false);
+    // VA2-5: the composer on the shortest phone (320x640): Flip and Next stay pinned and visible.
+    if (!desktop) {
+      await page.setViewportSize({ width: 320, height: 640 });
+      await shot("n320x640-postcard-note", ed, async (p) => {
+        await p.getByRole("tab", { name: "Note" }).click();
+        await p.getByRole("textbox", { name: "Your message" }).fill(`${note} Same time next year?`);
+        await p.waitForTimeout(1300);
+      }, false);
+      await page.setViewportSize(screen);
+    }
     const onNote = async (p: Page, t: string) => {
       await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill(`${note} Same time next year?`);
@@ -1801,6 +1835,10 @@ if (!desktop) {
           await p.waitForTimeout(400);
         }, false);
         await c2.close();
+        // New: the same phone with nobody signed in (a guest): the postcard and passport cards say they need sign-in, "All square" once.
+        const c3 = await fresh({ locale: "en-IN", cookies: [{ name: SESSION_COOKIE, value: await encodeSession({ m: held }) }, { name: "lp_tour", value: "1" }] });
+        await snapAt(c3, "AS3-guest-home", "/", undefined, false);
+        await c3.close();
       } finally {
         await dbRetry("AS3 clean-up", () => db.account.delete({ where: { id: acc.id } })).catch(() => undefined);
       }

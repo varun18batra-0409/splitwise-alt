@@ -1,6 +1,7 @@
 "use client";
 
 import { Children, useRef, useState } from "react";
+import { RowControls } from "@/components/RowControls";
 
 // More than one trip on Home: one full card on screen, swipe for the next
 // (soonest first). Dots underneath say how many there are and which one is showing.
@@ -14,8 +15,10 @@ export function TripRow({ children }: { children: React.ReactNode }) {
   };
   return (
     <>
+      <RowControls>
       <ul
         ref={ref}
+        data-row-scroller
         data-trip-row
         onScroll={(e) => {
           const el = e.currentTarget;
@@ -29,6 +32,7 @@ export function TripRow({ children }: { children: React.ReactNode }) {
           </li>
         ))}
       </ul>
+      </RowControls>
       <div className="mt-2.5 flex justify-center gap-1.5">
         {items.map((_, i) => (
           <button

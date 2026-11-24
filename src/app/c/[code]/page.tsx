@@ -198,7 +198,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             {closed ? " · Closed" : ""}
           </p>
           <div className="mt-5" data-collection-progress>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-1 gap-2 text-center min-[360px]:grid-cols-3">
               <div className="min-w-0">
                 <p data-collection-confirmed className={`money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums ${p.confirmedAmount > 0 ? "text-owed" : ""}`}>
                   {money(p.confirmedAmount)}
@@ -207,19 +207,19 @@ export default async function CollectionPage({ params, searchParams }: Props) {
               </div>
               {p.target > 0 ? (
                 <>
-                  <div className="min-w-0 border-l border-line">
+                  <div className="min-w-0 border-t border-line pt-2 min-[360px]:border-l min-[360px]:border-t-0 min-[360px]:pt-0">
                     <p {...(p.reportedAmount > 0 ? { "data-collection-reported": "" } : {})} className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">
                       {money(p.reportedAmount)}
                     </p>
                     <p className="text-[13px] text-fg/60">says paid</p>
                   </div>
-                  <div className="min-w-0 border-l border-line">
+                  <div className="min-w-0 border-t border-line pt-2 min-[360px]:border-l min-[360px]:border-t-0 min-[360px]:pt-0">
                     <p className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">{money(remaining)}</p>
                     <p className="text-[13px] text-fg/60">not paid yet</p>
                   </div>
                 </>
               ) : (
-                <div className="col-span-2 min-w-0 border-l border-line">
+                <div className="min-w-0 border-t border-line pt-2 min-[360px]:col-span-2 min-[360px]:border-l min-[360px]:border-t-0 min-[360px]:pt-0">
                   <p {...(p.reportedAmount > 0 ? { "data-collection-reported": "" } : {})} className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">
                     {money(p.reportedAmount)}
                   </p>
@@ -253,23 +253,24 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
           <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
         </div>
-        <p className="mt-2 flex items-baseline justify-between gap-3 text-sm" data-collection-progress>
+        <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm" data-collection-progress>
           {/* Narrow phones: each count on its own line, and the "·" only between them on wider ones, glued to the count before it
               (a line never starts with "·"). */}
           <span className="flex min-w-0 flex-col text-fg/70 min-[390px]:block">
             {countsLine(p).split(" · ").map((part, i, all) => (
-              <span key={i} className="whitespace-nowrap">
+              <span key={i}>
                 {part}
                 {i < all.length - 1 && <span aria-hidden className="max-[389px]:hidden">{" ·\u00a0"}</span>}
               </span>
             ))}
           </span>
-          <span className="font-semibold tabular-nums" data-collection-confirmed>
-            <span className="whitespace-nowrap">{lines.confirmed}</span>
+          {/* The amounts get their own line when there isn't room beside the counts (they wrap as a whole, never over the bar). */}
+          <span className="min-w-0 max-w-full font-semibold tabular-nums" data-collection-confirmed>
+            <span>{lines.confirmed}</span>
             {p.target > 0 && (
               <>
                 {" "}
-                <span className="whitespace-nowrap font-normal text-fg/60">of {money(p.target)}</span>
+                <span className="font-normal text-fg/60">of {money(p.target)}</span>
               </>
             )}
           </span>

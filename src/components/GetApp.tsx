@@ -159,11 +159,11 @@ export function GetAppButton({ variant = "icon", className = "" }: { variant?: "
   }
   return (
     <>
-      <div className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 ${className}`}>
-        <img src="/icon-192.png" alt="" className="h-10 w-10 shrink-0 rounded-xl border border-line" />
+      <div className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3 max-[359px]:gap-2.5 max-[359px]:px-3.5 ${className}`}>
+        <img src="/icon-192.png" alt="" className="h-10 w-10 shrink-0 rounded-xl border border-line max-[359px]:h-9 max-[359px]:w-9" />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium">Get the Loopin app</span>
-          <span className="block text-xs text-gray-400">On your home screen in seconds</span>
+          <span className="block text-[15px] font-medium leading-snug">Get the Loopin app</span>
+          <span className="block text-[13px] leading-snug text-fg/60">On your home screen in seconds</span>
         </span>
         <button type="button" onClick={go} className="shrink-0 rounded-full border border-fg/25 bg-transparent px-4 py-2 text-sm font-semibold text-fg transition-transform active:scale-[0.97]">
           {prompt ? "Install" : "Get it"}

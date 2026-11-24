@@ -166,7 +166,7 @@ export function RecordPaymentForm({
                   required
                 />
                 {m.me ? "You" : m.name}
-                {m.gets && <span className="text-xs opacity-80">{m.me ? "get" : "gets"} {m.gets}</span>}
+                {m.gets && <span className="whitespace-nowrap text-xs opacity-80">{m.me ? "get" : "gets"} {m.gets}</span>}
               </label>
             ))}
           </div>
