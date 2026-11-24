@@ -10,7 +10,7 @@ const FINE = "(hover: hover) and (pointer: fine)";
 
 export function RowControls({ children, className = "", as = "div" }: { children: React.ReactNode; className?: string; as?: "div" | "span" }) {
   const Tag: React.ElementType = as; // "span" where a test or style looks for the first child div of a parent (Settings > Picture): then the scrolling row stays that div
-  const wrap = useRef<HTMLElement>(null);
+  const wrap = useRef<HTMLDivElement>(null); // typed as a div for React's ref check; a span works the same at run time
   const [can, setCan] = useState({ left: false, right: false });
 
   useEffect(() => {
