@@ -19,7 +19,7 @@ export function HomeBanner({ children }: { children: React.ReactNode }) {
   const slideEls = useRef<(HTMLDivElement | null)[]>([]);
 
   // The row is as tall as the card showing, not as the tallest card: a short card (your month at 320) isn't stretched into a tall empty one.
-  // (Before the page wakes up, or with no script, every card still stretches to the tallest, as before.)
+  // (Before the page wakes up, or with no script, every card still stretches to the tallest, as before.) The track hides vertical overflow, so an up/down swipe on a card always scrolls the page, never the card.
   useEffect(() => {
     const el = track.current;
     const slide = slideEls.current[at];
@@ -48,7 +48,7 @@ export function HomeBanner({ children }: { children: React.ReactNode }) {
     <section aria-roledescription="carousel" aria-label="Highlights" className="relative">
       <div
         ref={track}
-        className="flex snap-x snap-mandatory overflow-x-auto items-start rounded-[24px] border border-line bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory overflow-x-auto items-start overflow-y-hidden rounded-[24px] border border-line bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {slides.map((s, i) => (
           <div key={i} ref={(node) => { slideEls.current[i] = node; }} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${n}`} className="relative flex w-full shrink-0 snap-start snap-always flex-col">

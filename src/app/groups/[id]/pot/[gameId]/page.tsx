@@ -71,6 +71,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const settlement = open ? null : await gameSettlement(group.id, game);
   const stillOwed = settlement?.stillOwed ?? 0;
   const pending = (settlement?.transfers ?? []).filter((t) => !t.done);
+  const pendingLeft = pending.reduce((sum, t) => sum + t.left, 0); // what this game's own unpaid payments still come to
   // Undo right after Mark paid / Mark all paid.
   const justDid = sp.did && /^[A-Za-z0-9_-]{6,40}$/.test(sp.did) ? await db.groupEvent.findFirst({ where: { id: sp.did, groupId: group.id } }) : null;
   const newer = justDid ? await db.groupEvent.findMany({ where: { groupId: group.id, createdAt: { gte: justDid.createdAt } } }) : [];
@@ -165,9 +166,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             </details>
           )}
           {/* (One disclaimer on this page: the Game night note under the tally says the same.) The amount is said once: when the whole
-              group's open money is just this game's result, the headline above already says it. */}
+              group's open money is exactly this game's own unpaid payments and its result, the headline above already says it. */}
           <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
-            {stillOwed > 0 ? (ranked[0] && stillOwed === ranked[0].net ? "Not settled yet." : `Still to settle in this group: ${money(stillOwed)}.`) : "Everyone in this group is square ✓"}
+            {stillOwed > 0 ? (ranked[0] && stillOwed === ranked[0].net && stillOwed === pendingLeft ? "Not settled yet." : `Still to settle in this group: ${money(stillOwed)}.`) : "Everyone in this group is square ✓"}
           </p>
         </section>
   );

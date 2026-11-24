@@ -225,8 +225,10 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
 // started, `days` the distinct days of those trips (overlaps count once), `stamps` what is drawn in the book (trip stamps plus
 // "Been there" ones), `cities` the different cities. Pure.
 export type PassportCounts = { countries: number; trips: number; days: number; stamps: number; cities: number };
-export function passportCounts(p: { trips: { start: string; end: string; undated?: boolean }[]; stamps: unknown[]; been: unknown[]; stats: { countries: number; trips: number; cities: number } }, today: string): PassportCounts {
-  return { countries: p.stats.countries, trips: p.stats.trips, days: daysAway(p.trips, today), stamps: p.stamps.length + p.been.length, cities: p.stats.cities };
+// `stamps` counts what is drawn: one stamp per country (see oneStampPerCountry) plus the stamps for trips at home, so "N stamps" matches the book.
+export function passportCounts(p: { trips: { start: string; end: string; undated?: boolean }[]; stamps: Stamp[]; been: Stamp[]; stats: { countries: number; trips: number; cities: number } }, today: string): PassportCounts {
+  const abroad = oneStampPerCountry(p.stamps.filter((s) => s.kind === "country"), p.been).length;
+  return { countries: p.stats.countries, trips: p.stats.trips, days: daysAway(p.trips, today), stamps: p.stamps.filter((s) => s.kind !== "country").length + abroad, cities: p.stats.cities };
 }
 
 // Which badges to show: the ones earned, plus the next one to win (the unearned one closest to done; a tie goes to the first in the

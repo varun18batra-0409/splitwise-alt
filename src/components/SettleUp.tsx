@@ -229,7 +229,7 @@ export function SettleCard({
             <div className="flex flex-wrap gap-2.5" data-settle-card-actions>
               <div className="min-w-[9.5rem] flex-1">{main.node}</div>
               <div className="min-w-[9.5rem] flex-1">
-                <button type="button" onClick={() => setSheetOpen(true)} className={BIG_OUTLINE} data-mark-received="">
+                <button type="button" onClick={() => setSheetOpen(true)} className={BIG_OUTLINE} data-mark-received="" aria-label={`Mark received from ${name}`}>
                   {markReceived}
                 </button>
               </div>

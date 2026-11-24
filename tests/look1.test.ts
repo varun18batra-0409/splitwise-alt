@@ -210,6 +210,7 @@ describe("18. Skip this time asks first (batch 6)", () => {
   it("names the bill and the month, in the founder's words", () => {
     expect(skipAsk("Rent", "2026-10")).toBe("Skip Rent for October 2026? It won’t be added for that month.");
     expect(skipAsk("Wi-Fi", "2027-01")).toBe("Skip Wi-Fi for January 2027? It won’t be added for that month.");
+    expect(skipAsk("Rent", "")).toBe("Skip Rent this time?"); // no month to name: the plain question, never "that month"
   });
   it("the bill page keeps the hidden month field and the same changeBill action, and only the confirm button submits", () => {
     const page = src("src/app/groups/[id]/bills/[billId]/page.tsx");

@@ -17,15 +17,20 @@ export function AskFirstButton({ label, message, confirmLabel, cancelLabel = "No
 }) {
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false); // true once the page is awake: only then does the first tap ask
-  const first = useRef<HTMLButtonElement>(null);
+  const notNow = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
   useEffect(() => setArmed(true), []);
+  // The safe choice ("Not now") is focused when the question opens; when it closes, focus goes back to the button that opened it.
   useEffect(() => {
-    if (open) first.current?.focus();
+    if (open) notNow.current?.focus();
+    else if (wasOpen.current) trigger.current?.focus();
+    wasOpen.current = open;
   }, [open]);
 
   if (!open) {
     return (
-      <button type={armed ? "button" : "submit"} className={className} onClick={armed ? () => setOpen(true) : undefined} data-ask-first>
+      <button ref={trigger} type={armed ? "button" : "submit"} className={className} onClick={armed ? () => setOpen(true) : undefined} data-ask-first data-armed={armed ? "1" : undefined}>
         {label}
       </button>
     );
@@ -42,10 +47,10 @@ export function AskFirstButton({ label, message, confirmLabel, cancelLabel = "No
     >
       <p className="text-[15px] leading-snug text-fg">{message}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => setOpen(false)} className={cancelClassName ?? "inline-flex min-h-11 items-center justify-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg"}>
+        <button ref={notNow} type="button" onClick={() => setOpen(false)} className={cancelClassName ?? "inline-flex min-h-11 items-center justify-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg"}>
           {cancelLabel}
         </button>
-        <button ref={first} type="submit" data-haptic="success" className={confirmClassName ?? "pop inline-flex min-h-11 items-center justify-center bg-fg px-4 text-sm font-semibold text-canvas"} data-ask-confirm>
+        <button type="submit" data-haptic="success" className={confirmClassName ?? "pop inline-flex min-h-11 items-center justify-center bg-fg px-4 text-sm font-semibold text-canvas"} data-ask-confirm>
           {confirmLabel}
         </button>
       </div>

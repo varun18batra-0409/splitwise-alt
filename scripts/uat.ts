@@ -2679,6 +2679,7 @@ async function main() {
     const rent = await db.bill.findFirst({ where: { groupId: homeId(), name: "Rent", deletedAt: null } });
     assert(rent, "no Rent bill");
     await go(V, `${gh}/bills/${rent.id}`);
+    await V.locator("button[data-ask-first][data-armed]").waitFor(); // the page must be awake: before that the button is a plain submit
     await V.getByRole("button", { name: "Skip this time" }).click();
     // It asks first, right on the page, naming the bill and the month.
     const ask = V.locator("[data-ask-open]");

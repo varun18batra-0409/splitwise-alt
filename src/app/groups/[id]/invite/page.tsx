@@ -6,7 +6,7 @@ import Link from "@/components/Link";
 import { Notice } from "@/components/Notice";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
-import { getMyMemberId, privatePath } from "@/lib/identity";
+import { getAccount, getMyMemberId, privatePath } from "@/lib/identity";
 import { invitePeople, makeNewInviteLink } from "@/app/actions";
 import { isGroupAdmin, pickAdmin } from "@/lib/group-admin";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -75,6 +75,7 @@ export default async function AddPeoplePage({
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
+  const signedIn = Boolean(await getAccount()); // "Not signed in · Sign in" is only said to someone who is not
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left keeps the history, but not the invite link.
   if (group.members.find((m) => m.id === myId)?.leftAt)
@@ -253,7 +254,9 @@ export default async function AddPeoplePage({
               ? { text: "On Loopin ✓", cls: "bg-owed/15 text-owed" }
               : me
                 ? // F3: you are never "not on Loopin yet": signed out, it's this device only.
-                  { text: "Not signed in", cls: "bg-mist text-gray-500", signIn: true }
+                  signedIn
+                    ? { text: "Only on this device", cls: "bg-mist text-gray-500" } // signed in but this seat has no account yet: the old, accurate words
+                    : { text: "Not signed in", cls: "bg-mist text-gray-500", signIn: true }
                 : invitedRows.has(m.id)
                   ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
                   : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };

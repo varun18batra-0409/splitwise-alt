@@ -393,6 +393,7 @@ await shot("51-flat-bills", `${f}?tab=bills`);
 await shot("bill-skip-confirm", `${f}?tab=bills`, async (p) => {
   await p.locator('a[href*="/bills/"]:not([href$="/new"])').first().click();
   await p.waitForURL(/\/bills\/[^/?]+$/);
+  await p.locator("button[data-ask-first][data-armed]").waitFor(); // awake first: before that the button is a plain submit
   await p.getByRole("button", { name: "Skip this time" }).click();
   await p.locator("[data-ask-open]").waitFor();
   await p.waitForTimeout(300);

@@ -23,8 +23,11 @@ function useRowControls(getBox: () => HTMLElement | null) {
       if (!fine?.matches || e.ctrlKey) return;
       const to = wheelMove({ deltaX: e.deltaX, deltaY: e.deltaY, scrollLeft: row.scrollLeft, max: row.scrollWidth - row.clientWidth });
       if (to === null) return;
+      const by = to - row.scrollLeft;
+      if (by === 0) return; // it can't move further this way: the page scrolls as usual
       e.preventDefault();
-      row.scrollLeft = to;
+      // scrollBy (not setting scrollLeft): a row that snaps to its cards then follows the direction of the turn instead of snapping back.
+      row.scrollBy({ left: by, behavior: "instant" as ScrollBehavior });
     };
     measure();
     row.addEventListener("scroll", measure, { passive: true });

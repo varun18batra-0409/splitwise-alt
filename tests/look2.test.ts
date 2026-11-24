@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { oneStampPerCountry, shareStamps, stampPages, type Stamp } from "../src/lib/passport";
+import { oneStampPerCountry, passportCounts, shareStamps, stampPages, type Stamp } from "../src/lib/passport";
 
 // Look set 2 (mockups for the founder, not released). Mostly source checks: the real layout is judged from the screenshots.
 const src = (f: string) => readFileSync(f, "utf8");
@@ -55,10 +55,11 @@ describe("23, 24, 25. postcards", () => {
     expect(c).toContain("data-waiting={waiting || undefined}");
     expect(c).toContain('waiting ? "opacity-40" : ""');
   });
-  it("a sealed card says the morning of one day (no clock time), and the seal is the same L everywhere", () => {
+  it("a sealed card names the sender's day and keeps the reader's own opening line, and the seal is the same L everywhere", () => {
     const page = src("src/app/postcards/[id]/page.tsx");
-    expect(page).toContain("sealed this to open on the morning of {opensShort}");
-    expect(page).not.toContain("opensLine");
+    expect(page).toContain("sealed this to open on {opens}");
+    expect(page).not.toContain("morning");
+    expect(page).toContain("opensLine(p.opensAt, tz)"); // the reader's own local opening line is kept
     expect(src("src/components/postcards/Sealed.tsx")).toContain('waxSeal("crimson:crest", "L", "sealed")');
   });
 });
@@ -126,6 +127,11 @@ describe("32 and 33. passport stamps and picture", () => {
   it("a country is stamped once: trips and Been there never repeat it", () => {
     expect(oneStampPerCountry([stamp("a", "JP"), stamp("b", "JP"), stamp("c", "TH")], [stamp("d", "JP", true), stamp("e", "IT", true)]).map((s) => s.id)).toEqual(["a", "c", "e"]);
   });
+  it("the stamp count is what is drawn: one per country plus the home-trip stamps", () => {
+    const home: Stamp = { ...stamp("h", "IN"), kind: "city", name: "Goa" };
+    const c = passportCounts({ trips: [], stamps: [stamp("a", "JP"), stamp("b", "JP"), stamp("c", "TH"), home], been: [stamp("d", "JP", true), stamp("e", "IT", true)], stats: { countries: 5, trips: 3, cities: 2 } }, "2026-10-27");
+    expect(c.stamps).toBe(4); // JP, TH, IT + Goa (JP twice and "Been there" JP are one stamp)
+  });
   it("the book pages and the share picture use the same rule", () => {
     const stamps = [stamp("a", "JP"), stamp("b", "JP")];
     const been = [stamp("c", "JP", true)];
@@ -150,7 +156,7 @@ describe("34 and 35. trip report", () => {
     const r = src("src/app/groups/[id]/report/page.tsx");
     expect(r).toContain("const placeShot = tripPhotoSrc(group);");
     expect(r).toContain("{placeShot ? (");
-    expect(r).toContain("whitespace-nowrap text-[40px]");
+    expect(r).toContain("[overflow-wrap:anywhere] text-[40px]"); // the big total may wrap: a crore-sized one is never cut at 320
     expect(r).toContain("break-words");
   });
 });
@@ -199,7 +205,7 @@ describe("43. invite screen badge", () => {
   it("says Not signed in with a Sign in link", () => {
     const s = src("src/app/groups/[id]/invite/page.tsx");
     expect(s).toContain('text: "Not signed in"');
-    expect(s).not.toContain("Only on this device");
+    expect(s).toContain("signedIn\n"); // only someone who is not signed in sees it; a signed-in guest seat keeps the old words
   });
 });
 

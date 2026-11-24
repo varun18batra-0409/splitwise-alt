@@ -67,7 +67,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <div className={`relative px-6 pb-7 ${coverOf(group) !== "plain" ? "-mt-8" : "pt-7"}`}>
             <p className="text-sm text-fg/60">{[dateRange(r), r.days > 1 ? `${r.days} days` : "", `${r.count} expenses`].filter(Boolean).join(" · ")}</p>
             <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</h1>
-            <p className="mt-4 money whitespace-nowrap text-[40px] font-semibold leading-none tabular-nums max-[359px]:text-[34px]">{m(r.total)}</p>
+            <p className="mt-4 money [overflow-wrap:anywhere] text-[40px] font-semibold leading-none tabular-nums max-[359px]:text-[34px]">{m(r.total)}</p>
             {/* Each part stays whole on a line; on a small phone the second drops under the first instead of breaking mid-way. */}
             <p className="mt-2 flex flex-wrap gap-x-2 text-sm text-fg/70">
               {r.people > 1 && <span className="whitespace-nowrap">about {m(r.perPerson)} each</span>}

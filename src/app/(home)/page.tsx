@@ -192,7 +192,8 @@ export default async function Home({
   });
   // Only one-to-one expenses, no group: Home names each person ("With Rohan: owes you ₹600") instead of an unnamed "Net".
   const personLines = homePersonLines(direct.map((p) => ({ key: p.groupId, name: p.other.name, currency: p.currency, net: p.net })));
-  const personOnly = byActivity.length === 0 && personLines.lines.length > 0;
+  // (A group you left that still has a balance keeps the normal card: it must never vanish behind the person lines.)
+  const personOnly = byActivity.length === 0 && personLines.lines.length > 0 && open.every((g) => g.myBalance === 0);
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
     invitations.length > 0 ? (
