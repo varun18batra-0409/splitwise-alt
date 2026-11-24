@@ -154,6 +154,8 @@ export function SettleCard({
               </div>
             </div>
           )}
+          {/* No ⋮ when there is nothing in it (the person page keeps its one menu in the page header). */}
+          {menu.length > 0 && (
           <div ref={menuBox} className="relative -mr-2 -mt-2 shrink-0">
             <button
               ref={menuBtn}
@@ -196,6 +198,7 @@ export function SettleCard({
               </ul>
             )}
           </div>
+          )}
         </div>
 
         {lead ? (

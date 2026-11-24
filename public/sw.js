@@ -71,8 +71,18 @@ async function saved(req) {
   return (await caches.open(name)).match(req, { ignoreSearch: req === SHELL });
 }
 
+// The plain offline page, in Loopin's own look (dark, off-white, Fraunces-style serif for the heading, one cream button): no connection and no saved
+// offline screen. It has no outside files, so it always draws. "Try again" reloads the page the person was on.
 const OFFLINE_MESSAGE =
-  '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="background:#0d0d0f;color:#f4f2ec;font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;text-align:center"><div><p style="font-size:22px;font-weight:600">You’re offline</p><p style="color:#9a978f">Loopin needs the internet. Check your connection and try again.</p></div>';
+  '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Loopin</title>' +
+  '<body style="margin:0;min-height:100vh;background:#0d0d0f;color:#f4f2ec;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;box-sizing:border-box">' +
+  '<main style="max-width:320px">' +
+  '<p style="margin:0 0 28px;font-family:Georgia,ui-serif,serif;font-size:26px;font-weight:600;letter-spacing:-0.01em">loopin</p>' +
+  '<div style="background:#16161a;border:1px solid #26262c;border-radius:24px;padding:32px 24px">' +
+  '<h1 style="margin:0;font-family:Georgia,ui-serif,serif;font-size:26px;font-weight:600;line-height:1.15">You’re offline</h1>' +
+  '<p style="margin:12px 0 24px;color:#a8a59d;font-size:16px;line-height:1.45">Loopin needs the internet. Check your connection and try again.</p>' +
+  '<button type="button" onclick="location.reload()" style="width:100%;height:52px;border:0;border-radius:999px;background:#f4f2ec;color:#0d0d0f;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">Try again</button>' +
+  '</div></main></body></html>';
 
 // Where a failed page load goes instead (or "" for today's plain message).
 function offlineTarget(path) {

@@ -48,7 +48,10 @@ export async function GET(req: Request) {
   // The boxed ARRIVED stamps are 1.16x wider than the round ones: size by that, so neighbours (and their waves) never touch.
   const size = Math.min(190, Math.floor(Math.min(cellW / 1.16, cellH) * 0.84));
 
-  const counts = [n.countries ? plural(n.countries, "country", "countries") : "", n.trips ? plural(n.trips, "trip", "trips") : "", n.days ? `${n.days} ${n.days === 1 ? "day" : "days"} travelled` : ""].filter(Boolean).join(" · ");
+  // "5 countries (4 abroad)": the home country has no country stamp, so the stamps on the right match the number in brackets.
+  const stamped = new Set(all.map((x) => x.code.toUpperCase())).size;
+  const countriesLine = n.countries ? `${plural(n.countries, "country", "countries")}${stamped > 0 && stamped < n.countries ? ` (${stamped} abroad)` : ""}` : "";
+  const counts = [countriesLine, n.trips ? plural(n.trips, "trip", "trips") : "", n.days ? `${n.days} ${n.days === 1 ? "day" : "days"} travelled` : ""].filter(Boolean).join(" · ");
   const badges = p.badges.filter((b) => b.earned).slice(0, 3);
   const mrz1 = `P<LOOPIN<<${name.toUpperCase().replace(/[^A-Z]+/g, "<")}`.padEnd(30, "<").slice(0, 30);
   const mrz2 = `${String(n.countries).padStart(2, "0")}C${String(n.cities).padStart(3, "0")}T${String(n.trips).padStart(3, "0")}`.padEnd(30, "<").slice(0, 30);
@@ -107,7 +110,7 @@ export async function GET(req: Request) {
                 ))}
               </div>
             )}
-            <div style={{ position: "absolute", left: 26, right: 26, bottom: 28, display: "flex", flexDirection: "column", fontSize: 19, letterSpacing: 3, color: "#6d6656" }}>
+            <div style={{ position: "absolute", left: 26, right: 26, bottom: 28, display: "flex", flexDirection: "column", fontSize: 18, letterSpacing: 1.5, color: "#6d6656" }}>
               <span>{mrz1}</span>
               <span>{mrz2}</span>
             </div>

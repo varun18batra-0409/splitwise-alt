@@ -2,7 +2,8 @@ import { reactionSvg, waxSeal } from "@/lib/postcards/looks";
 
 // A sealed postcard: a cream envelope with a wax seal and the day it opens. Nothing of the card shows.
 export function SealedEnvelope({ from, opens, className = "", small = false }: { from: string; opens: string; className?: string; small?: boolean }) {
-  const seal = waxSeal("crimson:crest", from || "L", "sealed");
+  // The same seal on every screen (the shelf, Memories and the card itself): the Loopin L, whoever sent it.
+  const seal = waxSeal("crimson:crest", "L", "sealed");
   return (
     <div className={`relative aspect-[3/2] overflow-hidden rounded-[3px] shadow-[0_24px_48px_-18px_rgba(0,0,0,0.85),0_6px_14px_-6px_rgba(0,0,0,0.6)] [container-type:inline-size] ${className}`} data-sealed>
       <span aria-hidden className="absolute inset-0 bg-[radial-gradient(120%_90%_at_0%_0%,#fbf7ef,#f1e8d7_70%,#eadfca)]" />

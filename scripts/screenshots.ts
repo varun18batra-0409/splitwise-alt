@@ -1796,6 +1796,31 @@ if (!desktop) {
     await snapAt(c, "SO-signup", "/signin?mode=signup", undefined, false);
     await c.close();
   }
+  // VA4-5: the page the service worker shows when there is no connection and no saved offline screen. It is drawn from the very text in
+  // public/sw.js (so the picture can never differ from what a phone gets), without needing the browser to go offline.
+  {
+    const sw = readFileSync("public/sw.js", "utf8");
+    const m = /const OFFLINE_MESSAGE =([\s\S]*?);\n/.exec(sw);
+    if (m) {
+      const html = new Function(`return (${m[1]});`)() as string;
+      const c = await fresh({ locale: "en-US" });
+      const p = await c.newPage();
+      try {
+        for (const w of widths) {
+          await p.setViewportSize(dims(w));
+          await p.setContent(html);
+          await p.waitForTimeout(300);
+          await p.screenshot({ path: `${out}/offline-page-${w}.png` });
+          console.log("✓", `offline-page-${w}`);
+        }
+      } catch (e) {
+        console.log("✗", "offline-page", String(e).split("\n")[0]);
+      } finally {
+        await p.close();
+        await c.close();
+      }
+    }
+  }
 
   // AS-3: a phone that holds three guest groups. The check shows when the typed code is sent (the same sheet shows before Google and
   // fingerprint or face). Local copy only: it makes three small groups and removes them again.

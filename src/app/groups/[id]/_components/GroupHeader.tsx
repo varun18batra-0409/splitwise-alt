@@ -53,13 +53,13 @@ export function GroupHeader({ v, switchTo }: { v: LiteView; switchTo: SwitchItem
     <details className="group/wx" data-trip-weather>
       <summary className="-my-3 flex min-h-11 cursor-pointer list-none items-center font-semibold [&::-webkit-details-marker]:hidden">{weather.pill}</summary>
       <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-full rounded-2xl border border-line bg-white p-4 text-sm shadow-2xl shadow-black/60">
-        <p className="text-xs text-gray-400">
+        <p className="text-[13px] text-fg/70">
           {weather.where} in {weather.month}, usually
         </p>
         <p className="mt-1 font-semibold">{weather.w.temps.replace(/^Usually /, "").replace(/^\w/, (x) => x.toUpperCase())}</p>
         <p className="mt-1 text-fg/80">{weather.w.sky}</p>
         <p className="mt-2 text-fg/80">{weather.w.tip}</p>
-        <p className="mt-3 text-[11px] text-gray-400">Long-term averages for the month, not a forecast.</p>
+        <p className="mt-3 text-[13px] text-fg/70">Long-term averages for the month, not a forecast.</p>
       </div>
     </details>
   );
@@ -68,11 +68,14 @@ export function GroupHeader({ v, switchTo }: { v: LiteView; switchTo: SwitchItem
 
   const switcher = (big: boolean) => (
     <details className={`group/switch relative min-w-0 ${big ? "max-w-full" : "flex-1"}`}>
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
-        <h1 className={`font-display font-semibold tracking-[-0.02em] ${big ? "line-clamp-2 text-[clamp(32px,10vw,44px)] leading-[1.02]" : "line-clamp-2 text-[24px] leading-[1.1]"}`}>{group.name}</h1>
-        <span className={`shrink-0 transition-transform group-open/switch:rotate-180 ${big ? "text-fg/80" : "text-gray-400"}`}>
-          <ChevronDown size={18} />
-        </span>
+      <summary className="block cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        {/* The arrow sits inside the name, after its last word, so a long name never leaves it alone on a line. */}
+        <h1 className={`font-display font-semibold tracking-[-0.02em] [overflow-wrap:anywhere] ${big ? "text-[clamp(32px,10vw,44px)] leading-[1.02]" : "text-[24px] leading-[1.1]"}`}>
+          {group.name}
+          <span aria-hidden className={`ml-1.5 inline-block align-middle transition-transform group-open/switch:rotate-180 ${big ? "text-fg/80" : "text-gray-400"}`}>
+            <ChevronDown size={18} />
+          </span>
+        </h1>
         <span className="sr-only">Switch group</span>
       </summary>
       <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-line bg-white p-2 shadow-2xl shadow-black/60">

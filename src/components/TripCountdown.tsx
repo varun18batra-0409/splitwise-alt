@@ -10,7 +10,7 @@ import { placePhoto } from "@/lib/places";
 // the head count ("12 December · 6 people") with a small dashed curve ending in a map pin (no names line).
 // The number stays off-white (green and orange are for money only); "Today" shows on the day.
 
-type Group = { id: string; name: string; type: string; cover: string; coverAt: Date | null; tripStart?: string | null; members: { id: string; name: string; leftAt: Date | null }[] };
+type Group = { id: string; name: string; type: string; cover: string; coverAt: Date | null; tripStart?: string | null; tripPlace?: string | null; members: { id: string; name: string; leftAt: Date | null }[] };
 
 export function TripCountdown({ group, phase, slot = 0, today }: { group: Group; phase: TripPhase; slot?: number; today?: string }) {
   const w = countdownWords(group.name, phase);
@@ -23,7 +23,8 @@ export function TripCountdown({ group, phase, slot = 0, today }: { group: Group;
   const glow = "";
   const place = placeOf(group.name);
   // The destination's photo (Thailand → Maya Bay), so Home doesn't show the group's photo three times.
-  const dest = placePhoto(group.name, group.id);
+  // It reads "Where to?" as well as the name (a trip called "Weekend" to Manali shows Manali, not a generic photo).
+  const dest = placePhoto(`${group.name} ${group.tripPlace ?? ""}`.trim(), group.id);
   // "12 December · 6 people" (the start day, then the head count); an undated trip says just the people.
   const meta = tripMetaLine(group.tripStart, people.length, today ?? new Date().toISOString().slice(0, 10));
 

@@ -11,7 +11,7 @@ import { useFocusTrap } from "@/lib/use-focus-trap";
 // Calm dark slices with a soft off-white edge (colour is kept for money).
 const SLICES = ["#1f1f24", "#2a2a31", "#35353d"];
 const GOLD = "#b9b7b1";
-const INK = "#f4f2ec";
+const INK = "#fbfaf6"; // a touch lighter than the page white so names stay clear on the dark slices
 const SPIN_MS = 4200;
 
 // A small wheel with a pointer: the button's icon.
@@ -142,10 +142,10 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
                     const rot = onScreen < 180 ? mid - 90 : mid + 90;
                     const lost = winner !== null && winner !== i;
                     return (
-                      <g key={p.id} opacity={lost ? 0.45 : 1} style={{ transition: "opacity 300ms" }}>
-                        <path d={`M${r},${r} L${x1},${y1} A${r},${r} 0 ${slice > 180 ? 1 : 0},1 ${x2},${y2} Z`} fill={SLICES[i % SLICES.length]} stroke={GOLD} strokeWidth="1.6" />
+                      <g key={p.id}>
+                        <path d={`M${r},${r} L${x1},${y1} A${r},${r} 0 ${slice > 180 ? 1 : 0},1 ${x2},${y2} Z`} fill={SLICES[i % SLICES.length]} stroke={GOLD} strokeWidth="1.6" opacity={lost ? 0.55 : 1} style={{ transition: "opacity 300ms" }} />
                         {/* Names read outwards from the middle, over two lines when long. */}
-                        <text x={tx} y={ty} transform={`rotate(${rot} ${tx} ${ty})`} textAnchor="middle" fill={INK} fontSize={size} fontWeight="700" style={{ letterSpacing: "0.02em" }}>
+                        <text x={tx} y={ty} transform={`rotate(${rot} ${tx} ${ty})`} textAnchor="middle" fill={INK} fillOpacity={lost ? 0.85 : 1} fontSize={size} fontWeight="700" style={{ letterSpacing: "0.02em" }}>
                           {ls.map((l, k) => (
                             <tspan key={k} x={tx} dy={k === 0 ? (ls.length === 1 ? "0.35em" : "-0.2em") : "1.15em"}>
                               {l}

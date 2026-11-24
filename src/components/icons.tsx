@@ -123,6 +123,32 @@ export const CheckIcon = (p: P) => (
   </Svg>
 );
 
+// A small padlock: something sealed or kept back.
+export const LockIcon = (p: P) => (
+  <Svg {...p}>
+    <rect x="5" y="11" width="14" height="9" rx="2.5" />
+    <path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
+  </Svg>
+);
+
+// A clock face: time has run out or something is waiting.
+export const ClockIcon = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Svg>
+);
+
+// A smiley with a small plus: add a reaction (not the same as the add-a-moment plus).
+export const ReactIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M20.2 12.6A8.5 8.5 0 1 1 11.4 3.8" />
+    <path d="M8.8 14.2a4.2 4.2 0 0 0 6.4 0" />
+    <path d="M9 10h.01M14 10h.01" />
+    <path d="M18.5 2.5v5M16 5h5" />
+  </Svg>
+);
+
 export const LinkIcon = (p: P) => (
   <Svg {...p}>
     <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />

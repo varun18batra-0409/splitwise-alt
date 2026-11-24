@@ -13,6 +13,7 @@ import { onlyReceiverCanBringBack } from "@/lib/refused-payment";
 import { deleteQuestion } from "@/lib/payment-change";
 import { deleteExpense, removePayment, restoreExpense, restorePayment, undoChange } from "@/app/actions";
 import { SwipeRow } from "@/components/SwipeRow";
+import { ReactIcon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { ActivityRow } from "@/components/ActivityRow";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -406,7 +407,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                                 {row.map(btn)}
                                 <details className="group/more static">
                                   <summary aria-label="More reactions" className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full bg-canvas/60 text-lg text-fg/70 group-open/more:bg-fg/15 [&::-webkit-details-marker]:hidden">
-                                    +
+                                    <ReactIcon size={20} />
                                   </summary>
                                   <div className="absolute inset-x-0 top-full z-10 mt-1.5 flex flex-wrap gap-1 rounded-xl border border-line bg-mist p-1.5 shadow-[0_12px_24px_-12px_rgba(0,0,0,0.8)]">
                                     {ALL_REACTIONS.filter((x) => !row.includes(x)).map(btn)}

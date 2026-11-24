@@ -34,24 +34,36 @@ export default async function StampAlbumPage() {
           {count} of {list.length} collected
         </p>
       )}
-      <ul className="grid grid-cols-3 gap-x-4 gap-y-7 rounded-[22px] bg-[radial-gradient(120%_90%_at_0%_0%,#2a2620,#1b1915_70%)] px-5 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-        {list.map((id, i) => {
-          const r = RARE[id.slice(2)];
-          const got = have.has(id);
-          const open = rareOpen(id);
-          return (
-            <li key={id} className="flex flex-col items-center text-center" data-album-stamp={id} data-collected={got ? "1" : "0"}>
-              <span
-                aria-hidden
-                className={`block w-[72px] [&>svg]:h-auto [&>svg]:w-full ${got ? `drop-shadow-[0_3px_4px_rgba(0,0,0,0.5)] ${i % 2 ? "rotate-[2deg]" : "-rotate-[2deg]"}` : "opacity-[0.55] grayscale"}`}
-                dangerouslySetInnerHTML={{ __html: stampSvg(withHome(id, home), `al${i}`) }}
-              />
-              <span className={`mt-2 text-[12.5px] font-semibold leading-tight [overflow-wrap:normal] [text-wrap:balance] max-[389px]:min-h-[2.5em] ${got ? "text-fg" : "text-fg/75"}`}>{r.name}</span>
-              <span className={`text-[11px] [text-wrap:balance] ${open ? "text-[#e2c27a]" : "text-fg/70"}`}>{open ? "On issue now" : rareWhen(id)}</span>
-            </li>
-          );
-        })}
-      </ul>
+      {[
+        { title: "Yours", ids: list.filter((id) => have.has(id)), key: "yours" },
+        { title: "Available now", ids: list.filter((id) => !have.has(id) && rareOpen(id)), key: "now" },
+        { title: "Coming later", ids: list.filter((id) => !have.has(id) && !rareOpen(id)), key: "later" },
+      ]
+        .filter((g) => g.ids.length > 0)
+        .map((g) => (
+          <section key={g.key} aria-label={g.title} className="mb-6" data-album-group={g.key}>
+            <h2 className="mb-3 font-display text-lg font-semibold tracking-tight">{g.title}</h2>
+            <ul className="grid grid-cols-3 gap-x-4 gap-y-7 rounded-[22px] bg-[radial-gradient(120%_90%_at_0%_0%,#2a2620,#1b1915_70%)] px-5 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+              {g.ids.map((id) => {
+                const i = list.indexOf(id);
+                const r = RARE[id.slice(2)];
+                const got = have.has(id);
+                return (
+                  <li key={id} className="flex flex-col items-center text-center" data-album-stamp={id} data-collected={got ? "1" : "0"}>
+                    <span
+                      aria-hidden
+                      className={`block w-[72px] [&>svg]:h-auto [&>svg]:w-full ${got ? `drop-shadow-[0_3px_4px_rgba(0,0,0,0.5)] ${i % 2 ? "rotate-[2deg]" : "-rotate-[2deg]"}` : "opacity-[0.55] grayscale"}`}
+                      dangerouslySetInnerHTML={{ __html: stampSvg(withHome(id, home), `al${i}`) }}
+                    />
+                    {/* One label style for every stamp: the name, then when it is available. */}
+                    <span className={`mt-2 text-[13px] font-semibold leading-tight [overflow-wrap:normal] [text-wrap:balance] max-[389px]:min-h-[2.5em] ${got ? "text-fg" : "text-fg/80"}`}>{r.name}</span>
+                    <span className="text-[13px] leading-tight text-fg/70 [text-wrap:balance]">{rareOpen(id) ? "On issue now" : rareWhen(id)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
       <Link href="/postcards/new" className="pop mt-8 flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas">
         Write a postcard
       </Link>

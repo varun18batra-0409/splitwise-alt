@@ -11,7 +11,7 @@ import { payButtons } from "@/lib/pay-links";
 import { readPayLink, type PayLinkState } from "@/lib/pay-link";
 import { iPaidAction, undoIPaidAction } from "@/app/pay-link-actions";
 import { PAYMENT_LINE } from "@/lib/money";
-import { ChevronDown } from "@/components/icons";
+import { ChevronDown, ClockIcon } from "@/components/icons";
 import { readNotes } from "@/lib/flash";
 
 // The "I've paid" page: the link inside a Remind message. Whoever owes opens
@@ -31,17 +31,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title, description: `For “${s.group.name}”. Pay, then tap I’ve paid. No sign-in needed.`, robots, openGraph: { title, description: `For “${s.group.name}”. Pay, then tap I’ve paid.` } };
 }
 
-function Mark({ tone }: { tone: "ok" | "rest" }) {
-  const ring = tone === "ok" ? "text-owed" : "text-fg/60";
+function Mark({ tone }: { tone: "ok" | "rest" | "closed" }) {
+  const ring = tone === "ok" ? "text-owed" : "text-fg/60"; // "closed" is a clock, not a tick: nothing was paid
   return (
     <span aria-hidden className={`lp-pop-in relative mx-auto flex h-16 w-16 items-center justify-center rounded-full ${ring}`}>
       <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="32" cy="32" r="30" strokeOpacity="0.35" />
         <circle cx="32" cy="32" r="30" strokeDasharray="188.5" className="lp-draw-ring" />
       </svg>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 12.5l4.5 4.5L19 7.5" className="lp-draw-tick" />
-      </svg>
+      {tone === "closed" ? (
+        <ClockIcon size={28} />
+      ) : (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.5 4.5L19 7.5" className="lp-draw-tick" />
+        </svg>
+      )}
     </span>
   );
 }
@@ -67,7 +71,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
       <>
         {header}
         <section className="vault rounded-[20px] px-6 py-10 text-center" data-paylink="gone">
-          <Mark tone="rest" />
+          <Mark tone="closed" />
           <h1 className="mt-5 font-display text-[clamp(22px,7vw,26px)] font-semibold leading-tight tracking-tight">This link has closed</h1>
           <p className="mx-auto mt-2 max-w-[19rem] text-sm text-fg/60">Payment links last 30 days and stop once you’re square. If you still owe something, ask for a fresh reminder.</p>
           <Link href="/" className="pop mt-7 inline-block bg-fg px-6 py-3 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">

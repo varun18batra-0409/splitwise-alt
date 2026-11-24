@@ -1,7 +1,7 @@
 import { neutralGameText } from "@/lib/game-words";
 import { getCategory } from "@/lib/categories";
 import { ExpenseGlyph } from "./ExpenseGlyph";
-import { formatMoney } from "@/lib/money";
+import { decimalsOf, formatMoney } from "@/lib/money";
 import { homeMoney } from "@/lib/home/display";
 import { cardFeeLabel, type ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
@@ -10,16 +10,15 @@ import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-
 // Right-hand side: what it meant for you. The amount first (bold), what it is
 // underneath; rows that weren't yours stay quiet.
 function Effect({ label, amount, exact, sub, cls, note }: { label: string; amount?: string; exact?: string; sub?: string; cls: string; note?: string }) {
-  if (!amount) return <span className="shrink-0 whitespace-nowrap text-right text-[12px] leading-tight text-fg/60">{label}</span>;
+  if (!amount) return <span className="shrink-0 whitespace-nowrap text-right text-[13px] leading-tight text-fg/70">{label}</span>;
   return (
     <span className="shrink-0 whitespace-nowrap text-right leading-tight">
       <span className={`block text-[15px] font-semibold tabular-nums tracking-tight ${cls}`} title={exact} data-exact={exact}>{amount}</span>
-      <span className="mt-0.5 block text-[11px] text-fg/60">
-        {label}
-        {sub && <span className="whitespace-nowrap tabular-nums"> · {sub}</span>}
-      </span>
+      <span className="mt-0.5 block text-[13px] text-fg/70">{label}</span>
+      {/* A foreign amount gets its own line, so the label and the amount never crowd each other. */}
+      {sub && <span className="mt-0.5 block whitespace-nowrap text-[13px] tabular-nums text-fg/70">{sub}</span>}
       {note && (
-        <span className="mt-0.5 block text-[11px] text-fg/60" data-card-fee>
+        <span className="mt-0.5 block text-[13px] text-fg/70" data-card-fee>
           {note}
         </span>
       )}
@@ -153,6 +152,11 @@ export function ActivityRow({
       </span>
     );
   };
+  // One number style per row: when the home amount or the foreign amount has paise/cents, both show them ("₹1,180.00" beside "THB 400.50").
+  const hasParts = (m: number, c: string) => m % 10 ** decimalsOf(c) !== 0;
+  const keep = !whole && o ? hasParts(item.effect, currency) || hasParts(o.effect, o.currency) : false;
+  const same = (m: number) => formatMoney(m, currency, { keepDecimals: keep });
+  const sameForeign = (m: number) => (o ? formatMoney(m, o.currency, { keepDecimals: keep }) : "");
   return (
     <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
       <ExpenseGlyph title={item.title} category={item.category} motion={deleted ? undefined : motion} delay={delay} label={cat.label} />
@@ -187,9 +191,9 @@ export function ActivityRow({
       {deleted ? (
         <Effect label="deleted" cls="" />
       ) : item.effect > 0 ? (
-        <Effect label={item.refund ? "you get back" : "you lent"} amount={short(item.effect)} exact={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" note={cardFeeLabel(item.cardFeeBp)} />
+        <Effect label={item.refund ? "you get back" : "you lent"} amount={keep ? same(item.effect) : short(item.effect)} exact={money(item.effect)} sub={o ? sameForeign(o.effect) : undefined} cls="text-owed" note={cardFeeLabel(item.cardFeeBp)} />
       ) : item.effect < 0 ? (
-        <Effect label="you owe" amount={short(-item.effect)} exact={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" note={cardFeeLabel(item.cardFeeBp)} />
+        <Effect label="you owe" amount={keep ? same(-item.effect) : short(-item.effect)} exact={money(-item.effect)} sub={o ? sameForeign(-o.effect) : undefined} cls="text-owe" note={cardFeeLabel(item.cardFeeBp)} />
       ) : (
         // Zero for you: either it wasn't yours at all, or you paid exactly your own part.
         <Effect

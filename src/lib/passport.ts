@@ -299,7 +299,7 @@ export function newestMark(marks: Mark[], seen: Set<string>): Mark | undefined {
 // `homeName`: null leaves the home pages out (what a friend and the share picture see: countries only). Pure.
 export type StampPage = { title: string; stamps: Stamp[] };
 export function stampPages(stamps: Stamp[], been: Stamp[], per = 6, homeName?: string | null): StampPage[] {
-  const countries = [...stamps.filter((s) => s.kind === "country"), ...been];
+  const countries = oneStampPerCountry(stamps.filter((s) => s.kind === "country"), been);
   const pages: StampPage[] = [];
   for (let i = 0; i < countries.length; i += per) pages.push({ title: "Stamps", stamps: countries.slice(i, i + per) });
   if (homeName === null) return pages;
@@ -312,7 +312,19 @@ export function stampPages(stamps: Stamp[], been: Stamp[], per = 6, homeName?: s
 // The stamps the share picture holds, newest trips first, then Been there: country stamps only, never a city stamp from a trip at
 // home. (The picture says "Stamps"; the home trips live on their own pages of the book.) Pure.
 export function shareStamps(stamps: Stamp[], been: Stamp[]): Stamp[] {
-  return [...[...stamps].reverse().filter((s) => s.kind === "country"), ...been];
+  return oneStampPerCountry([...stamps].reverse().filter((s) => s.kind === "country"), been);
+}
+
+// One stamp per country in the book and the picture: a country visited on a trip (or on several) is stamped once, and a "Been there"
+// stamp is left out for a country that already has one. (The index and the counts still know about every trip.) Pure; keeps the order given.
+export function oneStampPerCountry(countryStamps: Stamp[], been: Stamp[]): Stamp[] {
+  const seen = new Set<string>();
+  return [...countryStamps, ...been].filter((s) => {
+    const code = s.code.toUpperCase();
+    if (seen.has(code)) return false;
+    seen.add(code);
+    return true;
+  });
 }
 
 

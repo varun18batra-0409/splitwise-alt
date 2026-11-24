@@ -182,7 +182,15 @@ async function mailTo(to: string, where: { subject?: { contains: string }; text?
 async function signup(page: Page, name: string, address: string, emailFilled = false) {
   await page.waitForURL(/\/signin/);
   await page.locator('input[name="email"]').waitFor();
-  const nameBox = page.locator('input[name="name"]');
+  let nameBox = page.locator('input[name="name"]');
+  if (!(await nameBox.count()) && name) {
+    // Sign in no longer asks for a name (look set 2, VA2-9): a new person is made on the Create account page, which does.
+    const u = new URL(page.url());
+    u.searchParams.set("mode", "signup");
+    await page.goto(u.toString());
+    await page.locator('input[name="email"]').waitFor();
+    nameBox = page.locator('input[name="name"]');
+  }
   if (await nameBox.count()) await nameBox.fill(name);
   if (!emailFilled) await page.locator('input[name="email"]').fill(address);
   const since = new Date(Date.now() - 1000);

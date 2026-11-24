@@ -132,16 +132,16 @@ export function ChartsTab({ v }: { v: GroupView }) {
   );
 }
 
-// One quiet colour per category, used in the per-person bars and their keys.
+// One clearly different colour per category (none is the money green or the owed orange), used in the per-person bars and their keys.
 const CAT_COLOUR: Record<string, string> = {
-  accommodation: "#b8a3ea",
-  food: "#ece7da",
-  transport: "#86b8ea",
-  activities: "#c2b59b",
-  shopping: "#e7a0c6",
-  groceries: "#d3d9e3",
-  bills: "#9aa0ab",
-  other: "#6f6f7a",
+  accommodation: "#a78bfa", // violet
+  food: "#e8c468", // warm gold
+  transport: "#5aa9f0", // blue
+  activities: "#4fd1c5", // teal
+  shopping: "#f07eb0", // pink
+  groceries: "#e9e6dc", // off-white
+  bills: "#8a96ad", // slate
+  other: "#6f6f7a", // grey
 };
 
 function PersonByCategory({ rows, currency, totals }: { rows: { id: string; name: string; total: number; parts: { id: string; label: string; amount: number; href: string }[] }[]; currency: string; totals: Record<string, number> }) {

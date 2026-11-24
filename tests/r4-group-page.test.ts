@@ -83,7 +83,9 @@ describe("header (mockup 03) and the tabs", () => {
   it("tap targets are 44px (back, menu, faces, Invite) and the group name is never cut to one line", () => {
     expect(head).toContain("h-11 w-11");
     expect(head).toContain("min-h-11");
-    expect(head).toContain("line-clamp-2 text-[24px]");
+    // Changed (look set 2, VA1-23): the name wraps in full (no 2-line clamp) with the switcher arrow inside the h1, after its last word, so it is never alone on a line.
+    expect(head).toContain("[overflow-wrap:anywhere]");
+    expect(head).toContain('"text-[24px] leading-[1.1]"');
     expect(head).not.toContain("truncate text-[24px]");
   });
   it("the page's tab bar has four equal columns that fit 320 px, with a 44px target", () => {

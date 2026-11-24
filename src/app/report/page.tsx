@@ -61,7 +61,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
         </fieldset>
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-gray-600">Anything we should know? (optional)</span>
-          <textarea name="note" rows={3} maxLength={500} className={inputClass} />
+          <textarea name="note" rows={3} maxLength={500} className={`${inputClass} resize-none`} />
         </label>
         {/* For a moment nothing is picked to start with: the button stays off until a reason is chosen (the reason is also required on the server). */}
         <button

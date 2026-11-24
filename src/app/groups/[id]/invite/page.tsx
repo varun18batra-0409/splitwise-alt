@@ -2,6 +2,7 @@ import { neutralGameText } from "@/lib/game-words";
 import { bounceIfDirect } from "@/lib/direct-db";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import Link from "@/components/Link";
 import { Notice } from "@/components/Notice";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
@@ -246,13 +247,13 @@ export default async function AddPeoplePage({
       <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
         {group.members.map((m) => {
           const me = m.id === myId;
-          const status = m.leftAt
+          const status: { text: string; cls: string; signIn?: boolean } = m.leftAt
             ? { text: "Left", cls: "bg-mist text-gray-500" }
             : m.accountId
               ? { text: "On Loopin ✓", cls: "bg-owed/15 text-owed" }
               : me
                 ? // F3: you are never "not on Loopin yet": signed out, it's this device only.
-                  { text: "Only on this device", cls: "bg-mist text-gray-500" }
+                  { text: "Not signed in", cls: "bg-mist text-gray-500", signIn: true }
                 : invitedRows.has(m.id)
                   ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
                   : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
@@ -265,6 +266,14 @@ export default async function AddPeoplePage({
               </span>
               <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap max-[389px]:ml-[52px] ${status.cls}`} data-member-status={me ? "me" : undefined}>
                 {status.text}
+                {status.signIn && (
+                  <>
+                    {" · "}
+                    <Link href={`/signin?${new URLSearchParams({ back: `/groups/${group.id}/invite` })}`} className="font-semibold text-fg underline underline-offset-2">
+                      Sign in
+                    </Link>
+                  </>
+                )}
               </span>
             </li>
           );

@@ -48,15 +48,16 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
           <ExpenseGlyph title={b.bill.name} category="bills" emoji={BILL_EMOJI[b.bill.icon]} size={44} />
           <span className="min-w-0 flex-1 max-[389px]:min-w-[120px]">
             <span className="block [overflow-wrap:break-word] font-display text-[17px] font-semibold leading-tight tracking-tight">{b.bill.name}</span>
-            <span className="block text-[13px] text-fg/60">
-              {/* Who pays stays whole ("Asha pays this month"): in a narrow row the glued line broke inside the name ("A / sha pays"). */}
-              {keepDots(`${cadence}${b.bill.nature === "daily" ? "" : ` · ${ordinalDay(b.bill.day).replace(/^last day$/, "Last day")}`}`)}
-              {"\u00a0· "}
-              <span className="whitespace-nowrap">
-                {who}
-                {turns}
-              </span>
-              {b.bill.nature === "varies" && b.usual ? keepDots(` · usually ${money(b.usual)}`) : ""}
+            {/* One line made from its parts, so there is never a stray "·": cadence and day, then who pays (whole: "A / sha pays" never splits), then the usual amount. */}
+            <span className="block text-[13px] text-fg/60" data-bill-meta>
+              {[
+                <span key="c">{keepDots(`${cadence}${b.bill.nature === "daily" ? "" : ` · ${ordinalDay(b.bill.day).replace(/^last day$/, "Last day")}`}`)}</span>,
+                <span key="w" className="whitespace-nowrap">
+                  {who}
+                  {turns}
+                </span>,
+                ...(b.bill.nature === "varies" && b.usual ? [<span key="u">{keepDots(`usually ${money(b.usual)}`)}</span>] : []),
+              ].flatMap((part, i) => (i === 0 ? [part] : [<span key={`d${i}`}>{"\u00a0· "}</span>, part]))}
             </span>
             {b.status === "waiting" && hold === "fix" && b.reason && <span className="block text-xs text-fg/75">On hold: {b.reason}</span>}
           </span>
@@ -79,7 +80,7 @@ export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: B
             </span>
           )}
         </span>
-        <ChevronRight size={16} className="shrink-0 text-fg/55 max-[389px]:order-2" />
+        <ChevronRight size={16} className="w-4 shrink-0 text-fg/55 max-[389px]:order-2" />
       </li>
     );
   };

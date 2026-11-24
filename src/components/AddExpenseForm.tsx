@@ -1249,7 +1249,7 @@ export function AddExpenseForm({
                             <span className="block truncate">{who(id)}</span>
                             {amt !== null && <span className="block text-xs text-gray-400">{money(amt)}</span>}
                           </span>
-                          <button type="button" aria-label={`Fewer shares for ${who(id)}`} onClick={() => stepShare(id, -0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
+                          <button type="button" aria-label={`Fewer shares for ${who(id)}`} onClick={() => stepShare(id, -0.5)} className="h-10 w-10 rounded-full border border-line text-lg active:bg-mist">
                             −
                           </button>
                           <input
@@ -1257,9 +1257,9 @@ export function AddExpenseForm({
                             aria-label={`${who(id)} shares`}
                             value={shares[id] ?? "1"}
                             onChange={(e) => setShares((prev) => ({ ...prev, [id]: e.target.value }))}
-                            className="w-14 bg-transparent py-2 text-center font-display text-lg outline-none"
+                            className="w-14 bg-transparent py-2 text-center text-base outline-none"
                           />
-                          <button type="button" aria-label={`More shares for ${who(id)}`} onClick={() => stepShare(id, 0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
+                          <button type="button" aria-label={`More shares for ${who(id)}`} onClick={() => stepShare(id, 0.5)} className="h-10 w-10 rounded-full border border-line text-lg active:bg-mist">
                             +
                           </button>
                         </li>
@@ -1306,7 +1306,7 @@ export function AddExpenseForm({
       </section>
 
       {/* More: the less common options, closed to keep the form short. */}
-      <section aria-label="More" data-more>
+      <section aria-label="More" data-more className={showMore ? "pb-24" : undefined}>
         <button
           type="button"
           onClick={() => setShowMore((v) => !v)}

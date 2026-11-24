@@ -150,14 +150,15 @@ function Splurge({ d }: { d: Extract<SlideData, { kind: "splurge" }> }) {
 function Awards({ d }: { d: Extract<SlideData, { kind: "awards" }> }) {
   const shown = d.awards.slice(0, 8);
   return (
-    <div className="flex h-full flex-col justify-center">
+    <div className="flex h-full flex-col justify-start pt-3">
       <ul className={`grid gap-2.5 ${shown.length > 2 ? "grid-cols-2" : "grid-cols-1"}`} data-wrapped-headline>
         {shown.map((a, k) => (
-          <li key={k} className="lp-card rounded-[18px] border border-[#f7f4ec]/10 bg-[#f7f4ec]/[0.05] px-3.5 py-3 backdrop-blur-sm" style={{ animationDelay: `${k * 70}ms` }}>
+          // With an odd number of awards the last one takes the whole row, so there is never an empty slot beside it.
+          <li key={k} className={`lp-card rounded-[18px] border border-[#f7f4ec]/10 bg-[#f7f4ec]/[0.05] px-3.5 py-3 backdrop-blur-sm ${shown.length > 2 && shown.length % 2 === 1 && k === shown.length - 1 ? "col-span-2" : ""}`} style={{ animationDelay: `${k * 70}ms` }}>
             <TitleIcon title={a.title} size={shown.length > 4 ? 32 : 40} accent={ACCENT.awards} />
             <span className="mt-2 block font-display text-[15px] font-semibold leading-tight">{a.title}</span>
             <span className="block truncate text-[16px] font-medium leading-tight text-[#f4f2ec]/75">{a.name}</span>
-            {shown.length <= 4 && <span className="mt-0.5 block text-[11px] leading-snug text-[#f7f4ec]/55">{a.why}</span>}
+            {shown.length <= 6 && <span className="mt-0.5 block text-[13px] leading-snug text-[#f7f4ec]/70">{a.why}</span>}
           </li>
         ))}
       </ul>

@@ -6,6 +6,7 @@ import { PostcardBack, PostcardFront, type BackProps, type FrontProps } from "@/
 import { PostcardOneSide, type OneSideProps } from "@/components/postcards/OneSide";
 import { PostcardShare } from "@/components/postcards/PostcardView";
 import { avatarTone } from "@/components/ui";
+import { LockIcon } from "@/components/icons";
 import { DateField } from "@/components/DateField";
 import type { PostcardGroup } from "@/lib/postcards/people";
 import { sameDayLater } from "@/lib/dates";
@@ -128,7 +129,7 @@ function OpensOn({ value, onChange }: { value: string; onChange: (v: string) => 
       {picking && <DateField min={iso(tomorrow)} max={iso(new Date(now.getFullYear() + 2, now.getMonth(), now.getDate()))} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Day it opens" className="mt-3" />}
       {value && (
         <p className="mt-3 flex items-center gap-2 rounded-[16px] border border-line bg-[#16161a] px-4 py-3 text-[13.5px] text-fg/85" data-sealed-note>
-          <span aria-hidden className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-fg" />
+          <LockIcon size={16} className="shrink-0" />
           Sealed until {nice}. They’ll know it’s coming, but can’t read it till then.
         </p>
       )}

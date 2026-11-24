@@ -202,7 +202,7 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
               <p className="mt-3 text-[12px] font-semibold text-[#8a8270]">Badges</p>
               <ul className="mt-2 grid grid-cols-3 gap-1.5" data-badges>
                 {visibleBadges(badges).map((b) => (
-                  <li key={b.id} title={b.why} className={`rounded-[10px] border px-1.5 py-1.5 text-center ${b.earned ? "border-[#26231d]/40 bg-[#26231d]/[0.07]" : "border-[#26231d]/10 opacity-60"}`} data-badge={b.id} data-earned={b.earned ? "1" : "0"}>
+                  <li key={b.id} title={b.why} className={`rounded-[10px] border px-1.5 py-1.5 text-center ${b.earned ? "border-[#26231d]/40 bg-[#26231d]/[0.07]" : "border-dashed border-[#26231d]/40 text-[#4a4538]"}`} data-badge={b.id} data-earned={b.earned ? "1" : "0"}>
                     <span className="flex h-5 justify-center text-[#26231d]">
                       <BadgeIcon id={b.id} size={20} />
                     </span>
@@ -240,7 +240,7 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
                       <p className="flex items-center gap-2">
                         <Flag code={r.code} size={28} shape="tile" />
                         <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
-                        <span className="shrink-0 text-[12px] text-[#5c564a]">{[r.trips ? `${r.trips} ${r.trips === 1 ? "trip" : "trips"}` : "", r.byHand ? "Been there" : ""].filter(Boolean).join(" · ")}</span>
+                        <span className="shrink-0 text-[12px] text-[#5c564a]">{[r.trips ? `${r.trips} ${r.trips === 1 ? "trip" : "trips"}` : "", r.byHand && !r.trips ? "Been there" : ""].filter(Boolean).join(" · ")}</span>
                       </p>
                       {r.cities.length > 0 && <p className="truncate pl-9 text-[12px] text-[#7a7262]">{r.cities.join(", ")}</p>}
                     </li>

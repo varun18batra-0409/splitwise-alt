@@ -65,7 +65,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
               <Link href="/passport/send" className="flex h-12 items-center justify-center rounded-full border border-fg/25 text-[15px] font-semibold active:bg-fg/10" data-passport-send>
                 Send in Loopin
               </Link>
-              <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={shareWords} label="Share" />
+              <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={shareWords} label="Share" className="pop flex h-12 w-full items-center justify-center bg-fg px-4 text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]" />
             </div>
           </div>
         )}

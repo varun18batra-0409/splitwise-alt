@@ -75,10 +75,16 @@ describe("R3: one set of numbers", () => {
 });
 
 describe("R3: book pages", () => {
-  const stamp = (i: number): Stamp => ({ id: `s${i}`, kind: "country", code: "TH", name: "Thailand", flag: "", when: "2026-05-05", cities: [], byHand: false });
+  // Each stamp is a different country (one stamp per country, look set 2).
+  const stamp = (i: number): Stamp => ({ id: `s${i}`, kind: "country", code: `C${i}`, name: `Country ${i}`, flag: "", when: "2026-05-05", cities: [], byHand: false });
   it("7 stamps are 6 on the first page and 1 on the next", () => {
     const pages = stampPages(Array.from({ length: 7 }, (_, i) => stamp(i)), []);
     expect(pages.map((x) => x.stamps.length)).toEqual([6, 1]);
+  });
+  it("a country stamped twice (two trips, or a trip and Been there) is drawn once", () => {
+    const th = (id: string, byHand: boolean): Stamp => ({ id, kind: "country", code: "TH", name: "Thailand", flag: "", when: "", cities: [], byHand });
+    const pages = stampPages([th("a", false), th("b", false)], [th("c", true)]);
+    expect(pages.flatMap((x) => x.stamps.map((s) => s.id))).toEqual(["a"]);
   });
   it("no stamps, no pages", () => expect(stampPages([], [])).toEqual([]));
   it("trip stamps come before 'Been there' ones, on the same run of pages", () => {

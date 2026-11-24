@@ -88,12 +88,9 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   const part = { groupId: group.id, fromId: from, toId: to, amount: Math.abs(net) };
   const partHref = differentAmountFor(group.id, from, to, toInputAmount(Math.abs(net), currency), false);
   const first = name.trim().split(/\s+/)[0] || name;
-  const menu: MenuItem[] = owed
-    ? [
-        { key: "received", label: "Mark received", opensSheet: true, attrs: { "data-mark-received": "" } },
-        { key: "part", label: "Received a different amount", href: partHref, attrs: { "data-different-amount": "" } },
-      ]
-    : [{ key: "part", label: "Pay part", href: partHref, attrs: { "data-different-amount": "" } }];
+  // One ⋮ menu on this page (the header's): the card has none of its own. "Mark received" is a visible button on the card when someone owes you.
+  const partLabel = owed ? "Received a different amount" : "Pay part";
+  const menu: MenuItem[] = [];
 
   const addButton = (
     <Link href={`/groups/${group.id}/add`} className={`${primaryButtonClass} mt-4`} data-person-add>
@@ -137,6 +134,11 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                   Save name
                 </button>
               </form>
+            )}
+            {net !== 0 && (
+              <Link href={partHref} className="flex min-h-11 items-center px-3 text-[15px] active:bg-fg/10" data-different-amount="">
+                {partLabel}
+              </Link>
             )}
             <a href={`/groups/${group.id}/export`} className="flex min-h-11 items-center px-3 text-[15px] active:bg-fg/10" data-person-export>
               Export
@@ -199,6 +201,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                 : { kind: "sheet", label: "Record payment" }
             }
             menu={menu}
+            markReceived={owed ? "Mark received" : undefined}
             breakdown={
               <div className="mt-1 rounded-2xl bg-mist px-3.5 py-3 text-[13.5px] leading-snug text-fg/75" data-breakdown-body>
                 <p className="font-semibold text-fg" data-cross-total>

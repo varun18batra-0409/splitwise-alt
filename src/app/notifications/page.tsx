@@ -185,36 +185,6 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
       )}
 
       {tab === "all" && <>
-      {/* Notifications: what this device allows, then what Loopin sends. */}
-      <PhoneStatus />
-      {account && (
-        <Link href="/account/notifications" className="mb-4 flex min-h-11 items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-notify-link>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">Notifications &amp; email</span>
-            <span className="block text-xs text-gray-400">Choose what Loopin sends you, on this device and by email.</span>
-          </span>
-          <span aria-hidden className="text-gray-400">›</span>
-        </Link>
-      )}
-      {account && (
-        // Collection and passport alerts: on the phone or not (always listed here too).
-        <form action={setCollectPush} className="mb-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
-          <input type="hidden" name="on" value={account.collectPush ? "0" : "1"} />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">What Loopin sends</span>
-            <span className="block text-xs text-gray-400">Collections (added, reminders, payments) and passport moments. Group alerts are chosen in each group’s settings.</span>
-          </span>
-          <button
-            type="submit"
-            role="switch"
-            aria-checked={account.collectPush}
-            aria-label="Collection notifications on this device"
-            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${account.collectPush ? "bg-fg" : "bg-fg/15"}`}
-          >
-            <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${account.collectPush ? "left-6" : "left-1"}`} />
-          </button>
-        </form>
-      )}
       {rows.length > 0 && <h2 className="mb-1 px-1 font-display text-lg font-semibold tracking-tight">Activity</h2>}
       {rows.length === 0 && needs.total > 0 ? null : rows.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-10 text-center text-sm text-gray-600">
@@ -298,6 +268,39 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
           ))}
         </div>
       )}
+      {/* Settings come after the activity, smaller: what this device allows, then what Loopin sends. */}
+      <section aria-label="Notification settings" className="mt-10 space-y-3" data-update-settings>
+        <h2 className="px-1 text-sm font-medium text-fg/70">Notification settings</h2>
+        <PhoneStatus compact />
+        {account && (
+          <Link href="/account/notifications" className="flex min-h-11 items-center gap-3 rounded-2xl border border-line px-4 py-2.5 active:bg-mist" data-notify-link>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">Notifications &amp; email</span>
+              <span className="block text-[13px] text-fg/70">Choose what Loopin sends you, on this device and by email.</span>
+            </span>
+            <span aria-hidden className="text-gray-400">›</span>
+          </Link>
+        )}
+        {account && (
+          // Collection and passport updates: on the phone or not (always listed here too).
+          <form action={setCollectPush} className="flex items-center gap-3 rounded-2xl border border-line px-4 py-2.5">
+            <input type="hidden" name="on" value={account.collectPush ? "0" : "1"} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">What Loopin sends</span>
+              <span className="block text-[13px] text-fg/70">Collections (added, reminders, payments) and passport moments. Group updates are chosen in each group’s settings.</span>
+            </span>
+            <button
+              type="submit"
+              role="switch"
+              aria-checked={account.collectPush}
+              aria-label="Collection notifications on this device"
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${account.collectPush ? "bg-fg" : "bg-fg/15"}`}
+            >
+              <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${account.collectPush ? "left-6" : "left-1"}`} />
+            </button>
+          </form>
+        )}
+      </section>
       </>}
     </>
   );

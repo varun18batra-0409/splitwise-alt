@@ -62,7 +62,7 @@ export function MoneyTicket({ v, facts: _facts }: { v: LiteView; facts?: GroupFa
       }
       line={
         hasHistory ? (
-          <p className="mt-1 text-[13px] leading-snug text-fg/55" data-summary-line>
+          <p className="mt-1 text-[13px] leading-snug text-fg/70" data-summary-line>
             {summaryLine(v)}{" "}
             <Link href={`/groups/${group.id}?tab=balances&why=${myId}#why-${myId}`} className="font-semibold text-fg underline underline-offset-4" data-why>
               Why?

@@ -9,7 +9,7 @@ import { useDragToClose } from "@/lib/use-drag-close";
 // "Share": a small panel with three ways to share the countdown.
 // - WhatsApp: the story-sized picture (for a chat or Status) through the
 //   phone's share step; where pictures can't be shared, WhatsApp opens with the words.
-// - Everyone in the trip, in Loopin: in their Alerts and a buzz on their devices.
+// - Everyone in the trip, in Loopin: in their Updates and a buzz on their devices.
 // - More apps: Instagram and the rest, through the phone's share step.
 export function ShareCountdown({ groupId, line, className }: { groupId: string; line: string; className?: string }) {
   const [open, setOpen] = useState(false);
@@ -108,7 +108,8 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
           >
             <span aria-hidden className="mx-auto mb-4 block h-1 w-10 rounded-full bg-fg/20" />
             <p className="font-display text-xl font-semibold tracking-tight">Share the countdown</p>
-            <p className="mt-1 text-sm text-fg/60">{words}</p>
+            {/* The sheet itself is all line icons and words; the emoji stay in the message that is sent. */}
+            <p className="mt-1 text-sm text-fg/60">{line.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]+/gu, "").replace(/\s+/g, " ").trim()}</p>
             <div className="mt-5 space-y-2.5">
               <button type="button" onClick={whatsapp} disabled={busy !== ""} className={row}>
                 <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75">
@@ -130,7 +131,7 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{busy === "app" ? "Sending…" : "Everyone in the trip"}</span>
-                  <span className="block text-xs text-fg/50">In Loopin: their Alerts and a buzz on their devices</span>
+                  <span className="block text-xs text-fg/50">In Loopin: their Updates and a buzz on their devices</span>
                 </span>
               </button>
             </div>

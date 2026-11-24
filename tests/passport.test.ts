@@ -56,11 +56,11 @@ describe("Trip passport: stamps", () => {
     const b = Object.fromEntries(p.badges.map((x) => [x.id, x.earned ? "✓" : `${x.have}/${x.need}`]));
     expect(b).toEqual({ "first-abroad": "✓", beach: "✓", hills: "0/3", city: "1/3", cities: "4/10", countries: "4/10", frequent: "2/5", year: "✓", trips: "5/10" });
   });
-  it("pages: country stamps (trips abroad, then Been there) on \"Stamps\", then the home trips on their own pages", () => {
+  it("pages: one stamp per country (trips abroad, then Been there for countries without a trip stamp) on \"Stamps\", then the home trips on their own pages", () => {
     const pages = stampPages(p.stamps, p.been, 2, "India");
-    // Country stamps: Thailand, Italy (trips) + Italy, Japan (Been there) = 4 -> 2 pages. Home: Goa x3 -> 2 pages.
-    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Stamps", 2], ["Stamps", 2], ["Trips at home · India", 2], ["Trips at home · India", 1]]);
-    expect(pages.slice(0, 2).flatMap((x) => x.stamps).slice(-2).every((s) => s.byHand)).toBe(true);
+    // Changed (look set 2, VA4-7): Italy has a trip stamp, so its "Been there" one is not drawn again. Country stamps: Thailand, Italy, Japan = 3 -> 2 pages. Home: Goa x3 -> 2 pages.
+    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Stamps", 2], ["Stamps", 1], ["Trips at home · India", 2], ["Trips at home · India", 1]]);
+    expect(pages.slice(0, 2).flatMap((x) => x.stamps).map((s) => [s.code, s.byHand])).toEqual([["TH", false], ["IT", false], ["JP", true]]);
     expect(pages.slice(0, 2).flatMap((x) => x.stamps).every((s) => s.kind === "country")).toBe(true);
     expect(pages.slice(2).flatMap((x) => x.stamps).every((s) => s.kind === "city")).toBe(true);
   });

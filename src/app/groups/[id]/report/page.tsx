@@ -14,6 +14,7 @@ import { getCategory } from "@/lib/categories";
 import { TripShare } from "@/components/TripShare";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf } from "@/lib/covers";
+import { tripPhotoSrc } from "@/lib/places";
 
 export const metadata = { title: "Trip report" };
 
@@ -40,6 +41,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       {overviewMoney(shown, group.currency)}
     </span>
   );
+  const placeShot = tripPhotoSrc(group);
   const title = group.type === "trip" ? "Trip report" : "Group report";
 
   return (
@@ -52,18 +54,25 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <section className="vault overflow-hidden rounded-[24px] text-fg" aria-label="The trip in numbers">
             {coverOf(group) !== "plain" && (
               <div className="relative h-[170px] overflow-hidden" aria-hidden>
-                <GroupCover {...coverFor(group)} uid={`report-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+                {placeShot ? (
+                  // The same place photo the group's own page shows (a Tokyo trip is Tokyo, not palms).
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={placeShot} alt="" className="lp-drift absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <GroupCover {...coverFor(group)} uid={`report-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+                )}
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,20,0)_30%,#141418_100%)]" />
               </div>
             )}
             <div className={`relative px-6 pb-7 ${coverOf(group) !== "plain" ? "-mt-8" : "pt-7"}`}>
             <p className="text-sm text-fg/60">{[dateRange(r), r.days > 1 ? `${r.days} days` : "", `${r.count} expenses`].filter(Boolean).join(" · ")}</p>
             <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</h1>
-            <p className="mt-4 money text-[40px] font-semibold leading-none tabular-nums">{m(r.total)}</p>
-            <p className="mt-2 text-sm text-fg/70">
-              {r.people > 1 && <>about {m(r.perPerson)} each</>}
-              {r.people > 1 && r.days > 1 && " · "}
-              {r.days > 1 && <>{m(r.perDay)} a day</>}
+            <p className="mt-4 money whitespace-nowrap text-[40px] font-semibold leading-none tabular-nums max-[359px]:text-[34px]">{m(r.total)}</p>
+            {/* Each part stays whole on a line; on a small phone the second drops under the first instead of breaking mid-way. */}
+            <p className="mt-2 flex flex-wrap gap-x-2 text-sm text-fg/70">
+              {r.people > 1 && <span className="whitespace-nowrap">about {m(r.perPerson)} each</span>}
+              {r.people > 1 && r.days > 1 && <span aria-hidden className="max-[359px]:hidden">·</span>}
+              {r.days > 1 && <span className="whitespace-nowrap">{m(r.perDay)} a day</span>}
             </p>
 
             <ul className="mt-6 space-y-3">
@@ -79,7 +88,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                         <span className="block text-[13px] leading-tight text-fg/65" data-category-plain>{getCategory(c.id).plain}</span>
                       </span>
                     </span>
-                    <span className="shrink-0 pl-3 tabular-nums text-fg/70">
+                    <span className="shrink-0 whitespace-nowrap pl-3 tabular-nums text-fg/70">
                       {rm(catShown[r.categories.indexOf(c)], c.amount)} · {c.pct}%
                     </span>
                   </div>
@@ -118,9 +127,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <h2 className="mt-6 text-sm font-semibold">Each person’s part</h2>
                 <ul className="mt-2 space-y-1 text-sm text-fg/70">
                   {r.shares.map((s, si) => (
-                    <li key={s.id} className="flex justify-between">
-                      <span>{s.id === myId ? "You" : s.name}</span>
-                      <span className="tabular-nums">{rm(shareBy[s.id] ?? s.amount, s.amount)}</span>
+                    <li key={s.id} className="flex justify-between gap-3">
+                      <span className="min-w-0 break-words">{s.id === myId ? "You" : s.name}</span>
+                      <span className="shrink-0 whitespace-nowrap tabular-nums">{rm(shareBy[s.id] ?? s.amount, s.amount)}</span>
                     </li>
                   ))}
                 </ul>
@@ -132,11 +141,11 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               <ul className="mt-2 space-y-1 text-sm text-fg/70">
                 {r.settle.map((s, i) => (
                   <li key={i} className="flex justify-between gap-3">
-                    <span>
+                    <span className="min-w-0 break-words">
                       {s.fromId === myId ? "You" : s.from} → {s.toId === myId ? "You" : s.to}
                     </span>
                     {/* The colour rule: orange only when it is money you pay, green when it is coming to you, plain when it is between two others. */}
-                    <span className={`tabular-nums ${s.fromId === myId ? "text-owe" : s.toId === myId ? "text-owed" : "text-fg/80"}`}>{exact(s.amount)}</span>
+                    <span className={`shrink-0 whitespace-nowrap tabular-nums ${s.fromId === myId ? "text-owe" : s.toId === myId ? "text-owed" : "text-fg/80"}`}>{exact(s.amount)}</span>
                   </li>
                 ))}
               </ul>

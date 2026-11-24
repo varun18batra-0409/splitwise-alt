@@ -220,6 +220,9 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
   const sendBlock = () =>
     !message.trim() ? "Write a few words first" : tooLong ? (oneSide ? `A one-side card holds up to ${ONESIDE_MAX} characters. Take a few out.` : overText(fitInfo.over)) : "";
 
+  // Next looks dimmed (still tappable, it explains why) until there is a message to send on.
+  const waiting = !(tab === "front" && !oneSide) && !message.trim();
+
   // Next: Front goes to Note. Note (or the one-side Card) needs a message that fits: if not, the Message tool opens and says so (never silent).
   const next = () => {
     if (tab === "front" && !oneSide) return goStep("back");
@@ -381,7 +384,13 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
                 Flip
               </button>
             )}
-            <button type="button" onClick={next} data-next className="flex h-[52px] w-[150px] items-center justify-center rounded-full bg-fg text-[17px] font-semibold text-canvas active:scale-[0.97] motion-reduce:transition-none">
+            <button
+              type="button"
+              onClick={next}
+              data-next
+              data-waiting={waiting || undefined}
+              className={`flex h-[52px] w-[150px] items-center justify-center rounded-full bg-fg text-[17px] font-semibold text-canvas transition-opacity active:scale-[0.97] motion-reduce:transition-none ${waiting ? "opacity-40" : ""}`}
+            >
               Next
             </button>
           </div>

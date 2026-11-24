@@ -313,7 +313,7 @@ export default async function GroupSettings({
         </section>
 
         {/* The one Save for everything above */}
-        <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10">
+        <div className="sticky bottom-0 z-10 -mx-5 -mt-4 border-t border-line bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3" data-save-bar>
           <button type="submit" className={primaryButtonClass}>
             Save settings
           </button>
@@ -321,7 +321,7 @@ export default async function GroupSettings({
       </form>
 
       {/* People & data: one list of links */}
-      <h2 className={`mt-12 ${sectionTitle}`}>People &amp; data</h2>
+      <h2 className={`mt-8 ${sectionTitle}`}>People &amp; data</h2>
       <ul className="mt-6 divide-y divide-line rounded-2xl border border-line">
         <SettingsLink href={`/groups/${group.id}/people`} label="Manage people" hint={`${group.members.filter((m) => !m.leftAt).length === 1 ? "1 person" : `${group.members.filter((m) => !m.leftAt).length} people`} · rename, remove, leave`} />
         <SettingsLink href={`/groups/${group.id}/invite`} label="Add people" hint="Loopin users, contacts or email" />

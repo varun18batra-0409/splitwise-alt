@@ -1,4 +1,4 @@
-import { opensLine, sealedDay } from "@/lib/postcards/opens";
+import { sealedDay } from "@/lib/postcards/opens";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
@@ -40,6 +40,7 @@ export default async function PostcardPage({ params, searchParams }: { params: P
   const first = (n?: string | null) => (n ?? "").trim().split(/\s+/)[0] || "A friend";
   const c = cardProps(p, first(from?.name), tz);
   const opens = p.opensAt ? sealedDay(p.opensAt, from?.timeZone, tz) : ""; // the day the sender wrote it for, in their zone
+  const opensShort = p.opensAt ? sealedDay(p.opensAt, from?.timeZone, tz, "short") : "";
   const r = reactionOf(p.reaction);
 
   return (
@@ -65,9 +66,9 @@ export default async function PostcardPage({ params, searchParams }: { params: P
             <SealedEnvelope from={first(from?.name)} opens={opens} />
           </div>
           <p className="mt-6 text-center text-sm leading-relaxed text-fg/60">
-            {first(from?.name)} wrote this for {opens}.<br />
-            {/* The date is said once: a time is added only when the reader's own clock says it opens at a time other than midnight. */}
-            {p.opensAt && opensLine(p.opensAt, tz) !== `Opens ${sealedDay(p.opensAt, tz, tz)}` ? `${opensLine(p.opensAt, tz)}. ` : ""}We’ll let you know when it opens.
+            {first(from?.name)} sealed this to open on the morning of {opensShort}.<br />
+            {/* One friendly day, never an odd clock time like 02:29: the sender's day is the day it opens. */}
+            We’ll let you know when it opens.
           </p>
         </>
       ) : (
