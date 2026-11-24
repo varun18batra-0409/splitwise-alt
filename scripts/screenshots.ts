@@ -1411,9 +1411,10 @@ if (!hosted) {
   const tag = Date.now().toString(36);
   const acct = (n: string) => db.account.create({ data: { email: `shots-mo-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n } });
   const [varu, nupur, riya] = [await acct("Varu"), await acct("Nupur"), await acct("Riya")];
-  // Real photos of the trip's place (the build's downloaded Thailand pictures), sent through the same form and /api/moment route a phone
-  // uses (the form shrinks them to 1600 / 480 px). Never the app icon or a hand-made file: those hide real picture problems.
-  const photos = realPhotos("thailand");
+  // Real photos of the trips' place (these trips are Phuket and Koh Samui, so the build's downloaded Thai island pictures: boats, beaches,
+  // cliffs; not Bangkok's temples), sent through the same form and /api/moment route a phone uses (the form shrinks them to 1600 / 480 px).
+  // Never the app icon or a hand-made file: those hide real picture problems.
+  const photos = realPhotos("thai-islands");
   let turn = 0;
   const nextPhoto = () => photos[turn++ % photos.length];
   // The members join well before Riya leaves (someone who "joined" after the day they left would be dropped as a later joiner).
