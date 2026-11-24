@@ -10,6 +10,7 @@ import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
 import { cutAt, finishStoppedBill, parseSplit, stopWordsFor } from "./bills-db";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
+import { squareSettlersNow } from "../settling-run";
 import { settlingIn, settlingSelfRefusal } from "../settling-db";
 import { SETTLING_SELF } from "../settling";
 
@@ -203,6 +204,13 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
 
 // Skip this month, pause, resume or stop a bill.
 export async function billCommand(groupId: string, actorId: string, billId: string, command: string, now = new Date(), opts: { afterRead?: () => Promise<void>; period?: string } = {}): Promise<Result> {
+  const r = await billCommandOnce(groupId, actorId, billId, command, now, opts);
+  // Skipping or stopping a month can end the reason to keep someone settling at exactly 0 (an unbilled month that was to charge them).
+  if (r.ok) await squareSettlersNow(groupId).catch(() => undefined);
+  return r;
+}
+
+async function billCommandOnce(groupId: string, actorId: string, billId: string, command: string, now = new Date(), opts: { afterRead?: () => Promise<void>; period?: string } = {}): Promise<Result> {
   const bill = await db.bill.findFirst({ where: { id: billId, groupId, deletedAt: null }, include: { group: { include: { members: true } } } });
   if (!bill) return { ok: false, error: "That bill no longer exists." };
   if (!bill.group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change bills." };

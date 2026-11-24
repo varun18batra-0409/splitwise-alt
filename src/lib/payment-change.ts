@@ -111,6 +111,18 @@ export async function moveOutPaymentIds(client: Db, groupIds: string[]): Promise
   return out;
 }
 
+// Of those, the covering payments (a flatmate paying the leaver what a person still settling up owes): the one who PAYS is asked about these.
+export async function moveOutCoverIds(client: Db, groupIds: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!groupIds.length) return out;
+  const rows = await client.groupEvent.findMany({ where: { groupId: { in: groupIds }, kind: "member_left", undo: { contains: '"coverIds"' } }, select: { undo: true }, take: 500 });
+  for (const r of rows) {
+    const u = parseUndo(r.undo);
+    if (u?.type === "member_set" && u.moveOut?.money?.coverIds) for (const id of u.moveOut.money.coverIds) out.add(id);
+  }
+  return out;
+}
+
 export type ChangeOpts = {
   memberships?: Record<string, string>; // groupId -> my member id (for a payment across several groups)
   mark?: UndoMark; // when this is an Undo: the change being undone, marked in the same transaction

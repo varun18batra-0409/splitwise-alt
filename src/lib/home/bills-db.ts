@@ -11,6 +11,7 @@ import { noteReplaced } from "./bill-run-link";
 import { dailyMonthShares, joinWeights, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
 import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
+import { squareSettlersNow } from "../settling-run";
 import { previousResult } from "../once";
 import { logEvent, touchedByExpense } from "../events";
 import { REPEAT_BILL_MARK } from "../membership";
@@ -425,6 +426,8 @@ export async function runBillsForGroup(groupId: string, now = new Date(), opts: 
     await settleStuckRuns(bill, ctx, periodsDue(bill, now), now).catch((err) => console.error("bill stuck check failed", bill.id, String(err).slice(0, 200)));
     await finishStoppedBill(bill.id, now).catch(() => false); // a stopped bill with nothing left to add is finished
   }
+  // A month added (with someone's share), skipped, or a bill finished can end the reason to keep someone settling at 0: check once per group.
+  await squareSettlersNow(groupId).catch((err) => console.error("settling check failed", groupId, String(err).slice(0, 200)));
   return counts;
 }
 
@@ -683,6 +686,7 @@ export async function addWaitingBill(
     if (e) await db.bill.update({ where: { id: bill.id }, data: { amount: e.amount } });
   }
   await finishStoppedBill(bill.id).catch(() => false); // the last month of a stopped bill was just added
+  await squareSettlersNow(input.groupId).catch(() => undefined); // the month now has its share: someone kept settling for it may be free to go
   return r;
 }
 

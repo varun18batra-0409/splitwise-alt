@@ -246,10 +246,44 @@ export default async function GroupSettle({
 
       {/* A flat move-out's final payment to you: it already counts, and you can say Got it or Not received. Every other payment counts at once, with no question. */}
       {confirmCount > 0 && (
-        <section aria-label="Did you get these?" className="mb-6">
-          <h2 className="mb-2.5 px-1 text-[13px] font-semibold text-fg/55">Did you get {confirmCount === 1 ? "this" : "these"}?</h2>
+        <section aria-label={waiting.every((w) => w.asCoverer) ? "Can you cover this?" : "Did you get these?"} className="mb-6">
+          <h2 className="mb-2.5 px-1 text-[13px] font-semibold text-fg/55">
+            {waiting.every((w) => w.asCoverer) ? (confirmCount === 1 ? "Can you cover this?" : "Can you cover these?") : waiting.some((w) => w.asCoverer) ? "Waiting for you" : `Did you get ${confirmCount === 1 ? "this" : "these"}?`}
+          </h2>
           <ul className="space-y-3">
-            {waiting.map((p, i) => (
+            {waiting.map((p, i) => p.asCoverer ? (
+              // A covering payment: a flat's move-out where someone still settling up owes the leaver. You are the one asked to cover it.
+              <PayTicket
+                plain
+                key={p.id}
+                attrs={{ "data-waiting-cover": p.to.name }}
+                stub={{ letter: p.to.name }}
+                from="You"
+                to={p.to.name}
+                mark={mark}
+                tone="plain"
+                sr={`You pay ${p.to.name} ${money(p.amount)} to cover what someone still settling up owes`}
+                showSr={false}
+              >
+                <p className="mt-2.5 text-[15px] leading-snug">
+                  <strong className="font-semibold">{p.to.name}</strong> moved out, and someone still settling up owes them <strong className="font-display text-[19px] font-medium tabular-nums text-owe">{money(p.amount)}</strong>. You cover it now, and they then owe you.
+                </p>
+                <div className="mt-auto pt-3">
+                  <form action={confirmPaymentAction}>
+                    <input type="hidden" name="paymentId" value={p.id} />
+                    <button type="submit" data-haptic="success" className={`${i === 0 ? CREAM : OUTLINE_PILL} w-full`}>
+                      I’ll cover it
+                    </button>
+                  </form>
+                  <form action={rejectPaymentAction}>
+                    <input type="hidden" name="paymentId" value={p.id} />
+                    <ConfirmButton message={`Can’t cover ${money(p.amount)} for ${p.to.name}? It comes off the balances (you can undo), and ${p.to.name} comes back into ${group.name} until it’s sorted.`} className={QUIET}>
+                      I can’t cover it
+                    </ConfirmButton>
+                  </form>
+                </div>
+              </PayTicket>
+            ) : (
               <PayTicket
                 plain
                 key={p.id}

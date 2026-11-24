@@ -53,17 +53,18 @@ export async function settlingIn(client: Db, groupId: string): Promise<Map<strin
   return found;
 }
 
-// A read together with the moment it was made, so a write that checks again inside its transaction can reuse it when the group's going-out /
-// coming-back history has not moved since (one cheap count instead of reading the whole history a second time).
-export type SettlingRead = { map: Map<string, Settling>; at: Date };
+// A read together with how many going-out / coming-back lines the group had when it was made, so a write that checks again inside its
+// transaction can reuse it when that number has not moved (one cheap count instead of reading the whole history a second time). No clocks are
+// compared: lines are only ever added (an Undo writes a line of its own), so the same count means the same history.
+export type SettlingRead = { map: Map<string, Settling>; lines: number };
+const linesIn = (client: Db, groupId: string) => client.groupEvent.count({ where: { groupId, kind: { in: ["member_left", "member_rejoined"] } } });
 export async function settlingRead(client: Db, groupId: string): Promise<SettlingRead> {
-  const at = new Date(); // taken BEFORE the read: a line written meanwhile is then counted as new (safe: it only costs a re-read)
-  return { map: await settlingIn(client, groupId), at };
+  const lines = await linesIn(client, groupId); // counted BEFORE the read: a line written meanwhile makes the later count bigger (safe: it only costs a re-read)
+  return { map: await settlingIn(client, groupId), lines };
 }
 export async function settlingFresh(tx: Db, groupId: string, prev: SettlingRead): Promise<Map<string, Settling>> {
   if (!prev.map.size) return settlingIn(tx, groupId); // nobody settling: the first step of settlingIn is already one cheap query
-  const moved = await tx.groupEvent.count({ where: { groupId, kind: { in: ["member_left", "member_rejoined"] }, createdAt: { gte: prev.at } } });
-  return moved ? settlingIn(tx, groupId) : prev.map;
+  return (await linesIn(tx, groupId)) === prev.lines ? prev.map : settlingIn(tx, groupId);
 }
 
 // Several groups at once (the Home counts): the same, one group id to its map.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { confirmMovedBack, isBringBackLine, coverLine, SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingFrom, settlingNoManualMoveOut, settlingNamed, settlingTag, squareAgainText, withSettlingLeft, type HistoryLine } from "../src/lib/settling";
 import { memberMark } from "../src/lib/left-view";
+import { moveOutConfirm } from "../src/lib/move-confirm";
 
 // "Settling up only" (pure rules). Someone who moved out and was brought back so they can settle is not a member again: the latest line in the
 // group's history about them going out or coming back decides. Nothing is stored for it.
@@ -179,6 +180,18 @@ describe("a flatmate covers it (the move-out line)", () => {
   });
   it("the leaver owes the settling person: A pays B instead, and B then owes C", () => {
     expect(coverLine({ settling: ["C"], leaver: "A", amount: "₹6,200", cover: "B", leaverOwed: false })).toBe("A still owes C ₹6,200. A pays B now, and B then owes C.");
+  });
+});
+
+describe("the move-out question names who is asked to cover", () => {
+  it("a covering payment asks the one who pays, and says so", () => {
+    const text = moveOutConfirm({
+      leaverName: "A",
+      payments: [{ from: "b", to: "a", amount: 118_000 }, { from: "b", to: "a", amount: 62_000, waits: true, cover: true }],
+      nameOf: (id) => (id === "a" ? "A" : "B"),
+      money: (n) => `₹${n / 100}`,
+    });
+    expect(text).toContain("B pays A ₹1180; B pays A ₹620 (B is asked to confirm covering it).");
   });
 });
 

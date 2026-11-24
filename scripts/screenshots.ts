@@ -1788,6 +1788,20 @@ if (!hosted) {
     // "A flatmate covers it" (24 Nov): Varu (owed 60,000 for the rent) moves out while Riya, who owes 30,000 of it, is only settling up. Nupur, who stays,
     // pays Varu Riya's part now, and Riya then owes Nupur. The line and the "Who covers it" picker are on the move-out page.
     await gshots(varu, [{ name: "S4-move-out-flatmate-covers", path: `/groups/${settleFlat.id}/people/${settleId("Varu")}/move` }]);
+    // "Can you cover this?" (24 Nov): Varu moved out of a flat where Riya, still settling up, owed part of what Varu was owed. Nupur, who stays, was set to
+    // cover it, but Varu was the one confirming, so Nupur is asked on her Settle screen. Seeded the way the move-out writes it (a payment that asks Nupur, and the
+    // move-out line that names it as a covering payment).
+    const coverFlat = await flatOf("Flat 402 (cover)", false);
+    const coverId = (n: string) => coverFlat.members.find((m) => m.name === n)!.id;
+    const coverPay = await db.payment.create({ data: { groupId: coverFlat.id, fromId: coverId("Nupur"), toId: coverId("Varu"), amount: 3000000, createdById: coverId("Varu"), needsOk: true } });
+    await db.member.update({ where: { id: coverId("Varu") }, data: { leftAt: new Date("2026-11-24T12:00:00Z") } });
+    await db.groupEvent.create({
+      data: {
+        groupId: coverFlat.id, actorId: coverId("Varu"), kind: "member_left", touches: coverId("Varu"), text: "moved out (last day 24 Nov 2026)",
+        undo: JSON.stringify({ type: "member_set", memberId: coverId("Varu"), data: { leftAt: null }, moveOut: { bills: [], money: { currency: "INR", shares: [], payments: [{ id: coverPay.id, fromId: coverId("Nupur"), toId: coverId("Varu"), amount: 3000000 }], coverIds: [coverPay.id], eventIds: [] } } }),
+      },
+    });
+    await gshots(nupur, [{ name: "S5-settle-can-you-cover", path: `/groups/${coverFlat.id}/settle`, full: false }]);
     // Refusal when naming her on a new expense: the Add page is opened while Riya is still a member (a page left open), she is then brought back
     // to settle, and the person saves an expense paid by Riya.
     const staleFlat = await flatOf("Flat 402 (page left open)", false);

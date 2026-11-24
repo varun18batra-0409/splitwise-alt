@@ -654,7 +654,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
       if (itemsAfter.length) await tx.expenseItem.createMany({ data: itemsAfter.map((i, position) => ({ expenseId, position, name: i.name, amount: i.amount, people: JSON.stringify(i.people) })) });
     }
     // Undoing an edit can leave someone settling up only at exactly 0: moved out again (their line follows this step's line).
-    await squareSettlers(tx, e.groupId, settlingNow);
+    if (movedByUndo.length) await squareSettlers(tx, e.groupId, settlingNow); // (only when the undo changes someone's money)
     return logEvent(tx, {
       groupId: e.groupId,
       actorId,

@@ -212,6 +212,8 @@ export type MoveOutUndo = {
     shares: { expenseId: string; amount: number; splitType: string; forMode: string; before: { memberId: string; amount: number }[]; after: { memberId: string; amount: number }[] }[];
     // The square-up payments the move-out recorded.
     payments: { id: string; fromId: string; toId: string; amount: number }[];
+    // Of those, the ones where a flatmate covers a person still settling up (add-only): the one who PAYS is asked to confirm them.
+    coverIds?: string[];
     // The move-out's own Activity lines (bill changes, the daily charge, the square-up payments): they don't count as "changed again since".
     eventIds: string[];
   };

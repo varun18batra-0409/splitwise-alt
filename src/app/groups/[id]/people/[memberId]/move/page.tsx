@@ -120,9 +120,21 @@ export default async function MoveOutPage({
       </dl>
       {/* A flatmate who stays covers the part that a person still settling up owes (or is owed): a real payment, already in the list below. */}
       {p.cover && (
-        <p className="mt-3 rounded-2xl bg-mist px-4 py-3 text-sm" data-cover-line>
-          {p.cover.text}
-        </p>
+        // (Follows the "Add it now" tick like the payments below, so the amount shown is the one recorded.)
+        p.coverWithDaily && p.coverWithDaily.text !== p.cover.text ? (
+          <>
+            <p className="mt-3 hidden rounded-2xl bg-mist px-4 py-3 text-sm group-has-[input[name=addDaily]:checked]/mv:block" data-cover-line>
+              {p.coverWithDaily.text}
+            </p>
+            <p className="mt-3 rounded-2xl bg-mist px-4 py-3 text-sm group-has-[input[name=addDaily]:checked]/mv:hidden" data-cover-line>
+              {p.cover.text}
+            </p>
+          </>
+        ) : (
+          <p className="mt-3 rounded-2xl bg-mist px-4 py-3 text-sm" data-cover-line>
+            {p.cover.text}
+          </p>
+        )
       )}
       {p.bills.length > 0 && (
         <p className="mt-2 text-xs text-gray-500">Bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>
@@ -136,7 +148,7 @@ export default async function MoveOutPage({
       {notes.error && <ErrorNote>{notes.error.slice(0, 160)}</ErrorNote>}
 
       {/* Changing the day reloads the numbers below. */}
-      {canConfirm && (
+      {canConfirm && !(p.ok && p.settlingSquare) && (
       <form method="get" className="mb-7 flex items-end gap-2 border-y border-line py-3.5" data-allow-repeat="1">
         <label className="flex-1">
           <span className="block text-sm text-gray-500">Last day in the flat</span>
@@ -277,13 +289,13 @@ export default async function MoveOutPage({
           <div>
             <MoveOutButton
               className={primaryButtonClass}
-              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments.map((t) => ({ ...t, waits: p.waits.includes(`${t.from}>${t.to}`) })), nameOf: Name, money, handovers })}
-              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily.map((t) => ({ ...t, waits: p.waitsWithDaily.includes(`${t.from}>${t.to}`) })), nameOf: Name, money, handovers }) : undefined}
+              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments.map((t) => ({ ...t, waits: p.waits.includes(`${t.from}>${t.to}${t.cover ? ":cover" : ""}`), cover: Boolean(t.cover) })), nameOf: Name, money, handovers })}
+              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily.map((t) => ({ ...t, waits: p.waitsWithDaily.includes(`${t.from}>${t.to}${t.cover ? ":cover" : ""}`), cover: Boolean(t.cover) })), nameOf: Name, money, handovers }) : undefined}
             >
               Settle {leaver.id === myId ? "up" : leaver.name} &amp; mark as moved out
             </MoveOutButton>
             <p className="mt-3 text-center text-xs leading-relaxed text-gray-500">
-              {Name(leaver.id)} stay{leaver.id === myId ? "" : "s"} in the history and leave{leaver.id === myId ? "" : "s"} the bills after {niceDate(lastDay)}.
+              {Name(leaver.id)} stay{leaver.id === myId ? "" : "s"} in the history and leave{leaver.id === myId ? "" : "s"} the bills after {niceDate(p.lastDay)}.
               <br />
               {p.waits.length > 0 || p.waitsWithDaily.length > 0
                 ? `The payments above are recorded as paid. Anyone paid who is on Loopin is asked to confirm; if they say it wasn’t received, ${leaver.id === myId ? "you are" : `${leaver.name} is`} back in the flat until it’s sorted. Everyone is told.`

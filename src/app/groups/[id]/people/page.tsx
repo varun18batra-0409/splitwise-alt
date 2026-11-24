@@ -257,7 +257,8 @@ export default async function PeoplePage({
               </form>
             )}
             {/* Only the person moving out, or the admin, can confirm a move-out, so nobody else is offered the link. */}
-            {group.type === "home" && !m.leftAt && !leaver && !settling.has(m.id) && (me || isAdmin) && (
+            {/* Someone settling up only is offered the same link only when they are exactly square (something held them back from being moved out again). */}
+            {group.type === "home" && !m.leftAt && !leaver && (!settling.has(m.id) || (bal === 0 && !me)) && (me || isAdmin) && (
               <Link href={`/groups/${group.id}/people/${m.id}/move`} className={`${small} inline-block`}>
                 {me ? "I’m moving out" : `${m.name} is moving out`}
               </Link>

@@ -502,7 +502,7 @@ async function saveExpenseOnce(
       });
     }
     // An edit can leave someone settling up only at exactly 0 (their share changed): moved out again, right after this step's line.
-    await squareSettlers(tx, group.id, settlingNow);
+    if (changes.length && !moneyKept) await squareSettlers(tx, group.id, settlingNow); // (only an edit that changes money: not one that changes words)
     if (attach) await writeAttach(tx, group.id, existing.id, attach, false);
     // Only the item lines changed: still a logged, undoable change. Only the bill photo: logged, with no undo (the old file is deleted).
     // The line's words (and the details mark) tell the leaver's view that nothing else about the expense changed (see asOfCut).
