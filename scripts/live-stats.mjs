@@ -63,6 +63,14 @@ log(`## Errors, last 7 days (where they happened, not the messages)`);
 for (const r of await q(`SELECT path, COUNT(*) n FROM ErrorLog WHERE ${after("createdAt")} GROUP BY path ORDER BY n DESC LIMIT 15`, at(Date.now() - 7 * 86_400_000)))
   log(`- ${hideCodes(String(r.path).split("?")[0]).replace(/[^/]*@[^/]*/g, ":email").replace(/[a-z0-9]{20,}/gi, ":id")}: ${r.n}`);
 log("");
+// Before "settling up only" goes live: how many people it could tag. A flat (home group) person brought back by "Not received" (or a deleted
+// payment) and not since rejoined or moved out is "settling up only". Upper bound, counts only (no names, no amounts).
+log("## Settling up only: who it could tag");
+log(`- Bring-back lines not undone, in flats: ${await one(`SELECT COUNT(*) FROM GroupEvent e JOIN "Group" g ON g.id = e.groupId WHERE g.type = 'home' AND e.kind = 'member_rejoined' AND e.undoneAt IS NULL AND (e.text LIKE '%is sorted' OR e.undo LIKE '%"settling":true%')`)} (in trips and other groups, not affected: ${await one(`SELECT COUNT(*) FROM GroupEvent e JOIN "Group" g ON g.id = e.groupId WHERE g.type <> 'home' AND e.kind = 'member_rejoined' AND e.undoneAt IS NULL AND e.text LIKE '%is sorted'`)})`);
+log(`- Flats with at least one: ${await one(`SELECT COUNT(DISTINCT e.groupId) FROM GroupEvent e JOIN "Group" g ON g.id = e.groupId WHERE g.type = 'home' AND e.kind = 'member_rejoined' AND e.undoneAt IS NULL AND (e.text LIKE '%is sorted' OR e.undo LIKE '%"settling":true%')`)}`);
+log(`- Of those lines, the newest leave/return line in that flat (nothing later): ${await one(`SELECT COUNT(*) FROM GroupEvent e JOIN "Group" g ON g.id = e.groupId WHERE g.type = 'home' AND e.kind = 'member_rejoined' AND e.undoneAt IS NULL AND (e.text LIKE '%is sorted' OR e.undo LIKE '%"settling":true%') AND NOT EXISTS (SELECT 1 FROM GroupEvent l WHERE l.groupId = e.groupId AND l.kind IN ('member_left','member_rejoined') AND l.undoneAt IS NULL AND l.createdAt > e.createdAt)`)}`);
+log(`- Those lines by age: under 30 days ${await one(`SELECT COUNT(*) FROM GroupEvent e JOIN "Group" g ON g.id = e.groupId WHERE g.type = 'home' AND e.kind = 'member_rejoined' AND e.undoneAt IS NULL AND e.text LIKE '%is sorted' AND ${after("e.createdAt")}`, at(Date.now() - 30 * 86_400_000))}, all ages ${await one(`SELECT COUNT(*) FROM GroupEvent e JOIN "Group" g ON g.id = e.groupId WHERE g.type = 'home' AND e.kind = 'member_rejoined' AND e.undoneAt IS NULL AND e.text LIKE '%is sorted'`)}`);
+log("");
 log("## Table sizes");
 for (const t of ["Expense", "ExpenseShare", "GroupEvent", "RateLimit", "RequestKey", "NotifyLog", "LoginCode"]) log(`- ${t}: ${await one(`SELECT COUNT(*) FROM "${t}"`)}`);
 
