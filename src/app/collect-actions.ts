@@ -10,7 +10,7 @@ import { deliverNotes } from "@/lib/account-notes";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { formatMoney } from "@/lib/money";
 import { cleanNames } from "@/lib/names";
-import { createCollection, loadCollection, markPaid, organiserAction, undoPaid } from "@/lib/collect";
+import { createCollection, markPaid, organiserAction, tickStillStands, undoPaid } from "@/lib/collect";
 import { flashTo } from "@/lib/flash";
 
 // Collect: making a collection (signed in), ticking "I've paid" (anyone with
@@ -76,7 +76,7 @@ export async function markPaidAction(f: FormData) {
   const viewer = await getAccount();
   const r = await markPaid(code, { entryId: entryId && entryId !== "new" ? entryId : undefined, name: field(f, "name"), amount: field(f, "amount"), viewerAccountId: viewer?.id, viewerName: viewer?.name }, key);
   if (!r.ok) redirect(await flashTo(["c", code], { error: r.error }));
-  after(() => tellOrganiser(code, r.entryId, viewer?.id));
+  after(() => tellOrganiser(code, r.entryId, r.paidAt, viewer?.id));
   redirect(back({ ticked: "1" }));
 }
 
@@ -110,10 +110,11 @@ export async function organiserActionForm(f: FormData) {
 }
 
 // For the organiser (in Alerts and on their phones): "Ravi says they paid ₹300".
-async function tellOrganiser(code: string, entryId: string, tickerAccountId?: string) {
-  const c = await loadCollection(code);
-  const e = c?.entries.find((x) => x.id === entryId);
-  if (!c || !e) return;
+async function tellOrganiser(code: string, entryId: string, paidAt: Date, tickerAccountId?: string) {
+  // Only while that same tick still stands: if it was taken back (or checked) since, the alert would be about something that is not true.
+  const t = await tickStillStands(code, entryId, paidAt);
+  if (!t) return;
+  const { c, e } = t;
   await deliverNotes([
     // From the person who ticked (the signed-in account on this request, if any; not the entry's own account, which may be
     // someone else's), so an organiser who blocked them isn't told.

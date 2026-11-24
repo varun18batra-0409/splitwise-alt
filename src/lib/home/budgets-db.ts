@@ -4,11 +4,11 @@ import { typedZero } from "../zero-amount";
 import { getCategory } from "../categories";
 import { logEvent } from "../events";
 import { claimJob, finishJob, sendPushTo } from "../push";
-import { DEFAULT_TIME_ZONE } from "../dates";
 import { coveredByOldGroupRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { BUDGET_CATEGORIES, budgetLevelsCrossed, budgetStatus } from "./budgets";
 import { monthSummary } from "./summary";
 import { monthKey } from "./month";
+import { groupZone } from "./group-zone";
 import { monthWindow, onDate } from "./home-data";
 import { FORM_OUT_OF_DATE } from "../form-currency";
 import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
@@ -96,10 +96,17 @@ class BudgetMoved extends Error {
   }
 }
 
-// This month's budgets for a group, with what's been spent.
-export async function budgetsNow(groupId: string, expenses: Parameters<typeof monthSummary>[0], myId: string, tz: string, now = new Date()) {
+// The group's own zone for budgets (see group-zone.ts), the same for the screen and the alerts.
+export async function budgetZoneOf(groupId: string): Promise<string> {
+  const members = await db.member.findMany({ where: { groupId, leftAt: null, removedAt: null }, select: { timeZone: true } });
+  return groupZone(members.map((m) => m.timeZone));
+}
+
+// This month's budgets for a group, with what's been spent. The month is the group's (budgetZoneOf), not the viewer's.
+export async function budgetsNow(groupId: string, expenses: Parameters<typeof monthSummary>[0], myId: string, now = new Date()) {
   const budgets = await db.budget.findMany({ where: { groupId } });
   if (!budgets.length) return [];
+  const tz = await budgetZoneOf(groupId);
   const s = monthSummary(expenses, myId, monthKey(now, tz), tz);
   return budgetStatus(
     BUDGET_CATEGORIES.flatMap((c) => budgets.filter((b) => b.category === c)),
@@ -117,16 +124,17 @@ export async function checkBudgets(groupId: string, now = new Date(), opts: { le
   const legacyOk = opts.legacy !== false;
   const budgets = await db.budget.findMany({ where: { groupId } });
   if (!budgets.length) return [];
-  const month = monthKey(now, DEFAULT_TIME_ZONE);
+  const zone = await budgetZoneOf(groupId);
+  const month = monthKey(now, zone);
   // Only this month's expenses are read (the month widened by 14 hours each way, so no time zone can miss one); monthSummary
-  // below still keeps exactly the ones that fall in the month in India time. Older history is not needed for the budget numbers.
+  // below still keeps exactly the ones that fall in the month in the group's zone. Older history is not needed for the budget numbers.
   const win = monthWindow(month);
   const group = await db.group.findUnique({
     where: { id: groupId },
     include: { members: { where: { leftAt: null }, select: { id: true } }, expenses: { where: { deletedAt: null, ...onDate(win.from, win.to) }, include: { shares: true } } },
   });
   if (!group || group.deletedAt) return [];
-  const s = monthSummary(group.expenses, "", month, DEFAULT_TIME_ZONE);
+  const s = monthSummary(group.expenses, "", month, zone);
   const sent: string[] = [];
   const crossed = budgetStatus(budgets, s.byCategory).flatMap((b) => budgetLevelsCrossed(b.spent, b.amount).map((level) => ({ b, level })));
   if (!crossed.length) return sent;

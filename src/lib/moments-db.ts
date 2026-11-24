@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
+import { MY_DATA_CEILING, afterCursor, pageAll } from "./page-all";
 import { JOINED } from "./membership";
 import { blockedEitherWay } from "./blocks";
 import { ALL_REACTIONS } from "./reactions";
@@ -299,12 +300,21 @@ async function loadMemoryGroups(memberships: Record<string, string>, opts: { per
 
 // ---------- Download my data ----------
 // Moments you added (text only, no photos). Nothing written by other people.
-export async function loadMyMoments(accountId: string): Promise<{ createdAt: Date; group: string; caption: string; day: string; groupId: string; id: string }[]> {
-  const rows = await db.moment.findMany({ where: { authorAccountId: accountId }, orderBy: { createdAt: "asc" }, take: 1000, select: { id: true, groupId: true, caption: true, takenOn: true, createdAt: true } });
-  if (!rows.length) return [];
-  const groups = await db.group.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.groupId))] } }, select: { id: true, name: true, tripStart: true, tripEnd: true } });
+export async function loadMyMomentsPaged(accountId: string, ceiling = MY_DATA_CEILING) {
+  const { rows, capped } = await pageAll((after, take) =>
+    db.moment.findMany({ where: { authorAccountId: accountId, ...afterCursor(after) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take, select: { id: true, groupId: true, caption: true, takenOn: true, createdAt: true } }),
+    ceiling,
+  );
+  if (!rows.length) return { moments: [] as MyMoment[], capped };
+  const ids = [...new Set(rows.map((r) => r.groupId))];
+  const groups: { id: string; name: string; tripStart: string; tripEnd: string }[] = [];
+  for (let i = 0; i < ids.length; i += 500) groups.push(...(await db.group.findMany({ where: { id: { in: ids.slice(i, i + 500) } }, select: { id: true, name: true, tripStart: true, tripEnd: true } })));
   const g = new Map(groups.map((x) => [x.id, x]));
-  return rows.map((r) => ({ id: r.id, groupId: r.groupId, createdAt: r.createdAt, group: g.get(r.groupId)?.name ?? "A group", caption: r.caption, day: dayLabel(r.takenOn, g.get(r.groupId)?.tripStart ?? "", g.get(r.groupId)?.tripEnd ?? "") || r.takenOn }));
+  return { capped, moments: rows.map((r) => ({ id: r.id, groupId: r.groupId, createdAt: r.createdAt, group: g.get(r.groupId)?.name ?? "A group", caption: r.caption, day: dayLabel(r.takenOn, g.get(r.groupId)?.tripStart ?? "", g.get(r.groupId)?.tripEnd ?? "") || r.takenOn })) };
+}
+type MyMoment = { createdAt: Date; group: string; caption: string; day: string; groupId: string; id: string };
+export async function loadMyMoments(accountId: string): Promise<MyMoment[]> {
+  return (await loadMyMomentsPaged(accountId)).moments;
 }
 
 // ---------- Postcards ----------

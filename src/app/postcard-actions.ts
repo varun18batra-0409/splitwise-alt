@@ -1,5 +1,6 @@
 "use server";
 
+import { startOfDayIn } from "@/lib/dates";
 import { cleanPhoto } from "@/lib/strip-meta";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
@@ -97,9 +98,7 @@ async function sendPostcard(f: FormData): Promise<{ error?: string }> {
   // (the phone has not reported its zone yet, or they have moved), the day shown can be a day off the one picked.
   const day = field(f, "opensOn", 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-    const noonUtc = new Date(`${day}T12:00:00Z`);
-    const offset = new Date(noonUtc.toLocaleString("en-US", { timeZone: tz })).getTime() - new Date(noonUtc.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
-    const at = new Date(new Date(`${day}T00:00:00Z`).getTime() - offset);
+    const at = startOfDayIn(day, tz) ?? new Date(NaN); // the first moment of that day on the sender's clocks
     const now = Date.now();
     if (Number.isNaN(at.getTime()) || at.getTime() <= now || at.getTime() > now + 2 * 366 * 86_400_000) await fail("Pick a day from tomorrow, up to two years ahead.");
     opensAt = at;

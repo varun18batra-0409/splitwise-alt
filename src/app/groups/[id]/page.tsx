@@ -150,7 +150,7 @@ export default async function GroupPage({
   const activeCount = fv ? active.length : v.expenses.length; // (the summary's slim list holds only the ones that count)
   const [bills, budgets, depositShares, heads, goalRows, list, games, shopRows] = await Promise.all([
     home && (tab === "month" || tab === "bills") ? billStatuses(group.id) : Promise.resolve<Awaited<ReturnType<typeof billStatuses>>>([]),
-    monthTab ? budgetsNow(group.id, active, myId, v.tz) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
+    monthTab ? budgetsNow(group.id, active, myId) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
     // The deposit tile (held shares only).
     monthTab ? db.depositShare.findMany({ where: { deposit: { groupId: group.id }, status: "held" } }) : Promise.resolve([] as { amount: number; memberId: string }[]),
     // Heads up and next month's estimate.

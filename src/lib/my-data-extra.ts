@@ -7,7 +7,8 @@ import { passportShared } from "./passport";
 import { CATEGORIES, allows } from "./account-notify";
 import { parseNotify, NOTIFY_KINDS } from "./notify-prefs";
 import type { MyDataExtra } from "./csv";
-import { loadMyMoments } from "./moments-db";
+import { loadMyMomentsPaged } from "./moments-db";
+import { MY_DATA_CEILING, afterCursor, pageAll } from "./page-all";
 import { loadMyWishes, mySharing } from "./wishes-db";
 import { SHARE_ALL } from "./wishes";
 
@@ -15,18 +16,26 @@ import { SHARE_ALL } from "./wishes";
 // Text only. Nothing from other people beyond the names that are on your own cards. The privacy page lists exactly this.
 type A = { id: string; homeCountry: string; places: string; passportShare: string; passportChoiceAt: Date | null; notifyPrefs: string; collectPush: boolean; timeZone: string };
 
-export async function loadMyDataExtra(account: A, memberships: Record<string, string>, groupNames: Record<string, string>, now: Date, tz: string): Promise<Required<MyDataExtra>> {
+export async function loadMyDataExtra(account: A, memberships: Record<string, string>, groupNames: Record<string, string>, now: Date, tz: string, ceiling = MY_DATA_CEILING): Promise<Required<MyDataExtra>> {
+  const capped: { kind: string; limit: number }[] = [];
   // Postcards: the ones you sent, and the ones you were sent that are open (a sealed card you haven't been able to read is not in the file).
   // People who blocked you or whom you blocked are left out, the same as in your postcards list.
   const hidden = [...(await blockedEitherWay(account.id))];
-  const cards = await db.postcard.findMany({
-    where: { OR: [{ fromId: account.id }, { toId: account.id, fromId: { notIn: hidden }, OR: [{ opensAt: null }, { opensAt: { lte: now } }] }] },
-    orderBy: { createdAt: "asc" },
-    take: 1000,
-    select: { fromId: true, toId: true, words: true, message: true, place: true, createdAt: true },
-  });
-  const people = await db.account.findMany({ where: { id: { in: [...new Set(cards.flatMap((c) => [c.fromId, c.toId]))] } }, select: { id: true, name: true } });
-  const nameOf = new Map(people.map((p) => [p.id, p.name.trim()]));
+  const found = await pageAll(
+    (after, take) =>
+      db.postcard.findMany({
+        where: { AND: [{ OR: [{ fromId: account.id }, { toId: account.id, fromId: { notIn: hidden }, OR: [{ opensAt: null }, { opensAt: { lte: now } }] }] }, afterCursor(after)] },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take,
+        select: { id: true, fromId: true, toId: true, words: true, message: true, place: true, createdAt: true },
+      }),
+    ceiling,
+  );
+  const cards = found.rows;
+  if (found.capped) capped.push({ kind: "postcards", limit: ceiling });
+  const personIds = [...new Set(cards.flatMap((c) => [c.fromId, c.toId]))];
+  const people: { id: string; name: string }[] = [];
+  for (let i = 0; i < personIds.length; i += 500) people.push(...(await db.account.findMany({ where: { id: { in: personIds.slice(i, i + 500) } }, select: { id: true, name: true } })));
   const postcards = cards.map((c) => {
     const sent = c.fromId === account.id;
     return { createdAt: c.createdAt, sent, other: nameOf.get(sent ? c.toId : c.fromId) || "A friend", words: c.words, message: c.message, place: c.place };
@@ -41,24 +50,34 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
   };
 
   // Collections you organise, and collections you are on the list of (your own line only).
-  const [organised, mine] = await Promise.all([
-    db.collection.findMany({ where: { accountId: account.id, deletedAt: null }, orderBy: { createdAt: "asc" }, take: 500, include: { entries: { select: { status: true } } } }),
-    db.collectionEntry.findMany({
-      where: { accountId: account.id, collection: { deletedAt: null, accountId: { not: account.id } } },
-      orderBy: { createdAt: "asc" },
-      take: 500,
-      select: { status: true, amount: true, collection: { select: { title: true, currency: true, amount: true, dueDate: true, closedAt: true } } },
-    }),
+  const [organisedAll, mineAll] = await Promise.all([
+    pageAll(
+      (after, take) => db.collection.findMany({ where: { accountId: account.id, deletedAt: null, ...afterCursor(after) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take, include: { entries: { select: { status: true } } } }),
+      ceiling,
+    ),
+    pageAll(
+      (after, take) =>
+        db.collectionEntry.findMany({
+          where: { accountId: account.id, collection: { deletedAt: null, accountId: { not: account.id } }, ...afterCursor(after) },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          take,
+          select: { id: true, createdAt: true, status: true, amount: true, collection: { select: { title: true, currency: true, amount: true, dueDate: true, closedAt: true } } },
+        }),
+      ceiling,
+    ),
   ]);
+  const organised = organisedAll.rows;
+  const mine = mineAll.rows;
+  if (organisedAll.capped || mineAll.capped) capped.push({ kind: "collections", limit: ceiling });
   const YOURS: Record<string, string> = { due: "Not paid yet", paid: "You said you paid", confirmed: "Paid and checked" };
   const collections = [
     ...organised.map((c) => ({
       organiser: true, title: c.title, currency: c.currency, amount: c.amount, dueDate: c.dueDate, status: c.closedAt ? "Closed" : "Open",
-      people: c.entries.length, paid: c.entries.filter((e) => e.status !== "due").length, checked: c.entries.filter((e) => e.status === "confirmed").length, yours: "",
+      people: c.entries.length, paid: c.entries.filter((e) => e.status !== "due").length, checked: c.entries.filter((e) => e.status === "confirmed").length, yours: "", yourAmount: 0,
     })),
     ...mine.map((e) => ({
       organiser: false, title: e.collection.title, currency: e.collection.currency, amount: e.collection.amount, dueDate: e.collection.dueDate,
-      status: e.collection.closedAt ? "Closed" : "Open", people: 0, paid: 0, checked: 0, yours: YOURS[e.status] ?? e.status,
+      status: e.collection.closedAt ? "Closed" : "Open", people: 0, paid: 0, checked: 0, yours: YOURS[e.status] ?? e.status, yourAmount: e.status === "due" ? 0 : e.amount,
     })),
   ];
 
@@ -78,11 +97,22 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
     settings.push({ setting: `Device notifications in ${groupNames[m.groupId] ?? "a group"}`, where: "Device", status: n.off ? "Off" : off.length ? `On, except ${off.join(", ")}` : "On" });
   }
   // Moments you added: your own words only, with a link to where you can open each in the app (photos are not in the file, like postcards).
-  const moments = (await loadMyMoments(account.id)).map((m) => ({ createdAt: m.createdAt, group: m.group, caption: m.caption, day: m.day, link: `/groups/${m.groupId}/moments/${m.id}` }));
+  const momentsFound = await loadMyMomentsPaged(account.id, ceiling);
+  if (momentsFound.capped) capped.push({ kind: "moments", limit: ceiling });
+  const moments = momentsFound.moments.map((m) => ({ createdAt: m.createdAt, group: m.group, caption: m.caption, day: m.day, link: `/groups/${m.groupId}/moments/${m.id}` }));
   // Want to go: your own list and who you showed each place to (first names). Nobody else's list is ever in your file.
   const [wished, shares] = await Promise.all([loadMyWishes(account.id), mySharing(account.id)]);
   const wishes = wished
     .map((c) => ({ country: countryOf(c)?.name ?? c, sharedWith: [...new Set(shares.filter((s) => s.country === c || s.country === SHARE_ALL).map((s) => s.name))].sort((a, b) => a.localeCompare(b, "en")) }))
     .sort((a, b) => a.country.localeCompare(b.country, "en"));
-  return { postcards, passport, collections, settings, moments, wishes };
+  return { postcards, passport, collections, settings, moments, wishes, capped };
+}
+
+// The messages this account sent to Loopin support, all of them (up to the ceiling), for the same file.
+export async function loadMySupport(accountId: string, ceiling = MY_DATA_CEILING) {
+  const { rows, capped } = await pageAll(
+    (after, take) => db.report.findMany({ where: { kind: "support", reporterId: accountId, ...afterCursor(after) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take, select: { id: true, createdAt: true, note: true, contact: true, status: true } }),
+    ceiling,
+  );
+  return { rows: rows.map((r) => ({ createdAt: r.createdAt, note: r.note, contact: r.contact, status: r.status })), capped };
 }

@@ -83,3 +83,46 @@ export function sameDayLater(from: Date, addMonths: number): Date {
   const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   return new Date(first.getFullYear(), first.getMonth(), Math.min(from.getDate(), last));
 }
+
+// ---------- The first moment of a calendar day in a time zone ----------
+
+// The calendar day ("2027-03-14") a moment falls on in `tz`, read straight from the zone (never the noon-UTC day marker rule of dayKey).
+function localDayAt(ms: number, tz: string): string {
+  return formatter("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+}
+
+// How far the zone's clock is ahead of UTC at that moment, in milliseconds (whole seconds).
+function offsetAt(ms: number, tz: string): number {
+  const parts = formatter("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }).formatToParts(new Date(ms));
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  const asUtc = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second"));
+  return asUtc - Math.floor(ms / 1000) * 1000;
+}
+
+// The very first moment of the calendar day `day` ("YYYY-MM-DD") on the clocks of `tz`; null if `day` isn't a real date.
+// Start from midnight as if the zone were UTC, take away the zone's offset, then work the offset out AGAIN at that moment (the offset
+// can be different there: on the day clocks change, the offset at noon is not the offset at midnight), and check the answer really is
+// the first moment of that day. If the check fails (a zone whose clocks skip midnight, e.g. Santiago on 5 Sep 2027, jumps from
+// 23:59 to 01:00) it is found by searching, and is the first moment that is on that day.
+// Hand-worked: 2027-03-14 New York: clocks go forward at 02:00 that day, so midnight is still on -5:00 = 05:00Z (not 04:00Z).
+export function startOfDayIn(day: string, tz: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return null;
+  const guess = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(guess) || new Date(guess).toISOString().slice(0, 10) !== day) return null;
+  const zone = isTimeZone(tz) ? tz : DEFAULT_TIME_ZONE;
+  const first = (ms: number) => localDayAt(ms, zone) === day && localDayAt(ms - 1000, zone) < day;
+  const once = guess - offsetAt(guess, zone);
+  const twice = guess - offsetAt(once, zone);
+  if (first(twice)) return new Date(twice);
+  if (first(once)) return new Date(once);
+  // Search whole seconds for the first moment whose local day is `day` or later (offsets are never beyond 14 hours, so 27 hours either side is enough).
+  let lo = Math.floor((guess - 27 * 3_600_000) / 1000);
+  let hi = Math.floor((guess + 27 * 3_600_000) / 1000);
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (localDayAt(mid * 1000, zone) >= day) hi = mid;
+    else lo = mid;
+  }
+  return new Date(hi * 1000);
+}

@@ -16,6 +16,14 @@ import { GUEST_REFUSAL, madeSinceClaim } from "./guest-words";
 type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 
 class Removed extends Error {}
+class Answered extends Error {} // the message is the answer to show
+
+// What each answer already said, when the other one got there first (L33). Display only: the ledger is whatever was actually saved.
+export const SAID_NOT_RECEIVED = "You already said you didn’t get this, so it’s off the balances.";
+export const SAID_GOT_IT = "You already said you got this, so it still counts. If that was a mistake, delete it from the activity.";
+
+// Tests only: runs after the first read and before the write (the gap in which the other answer can land).
+type Hooks = { afterRead?: () => Promise<void> };
 
 // Only people who can actually tap the button are asked: they've joined (not just a name).
 export function needsOkFor(receiver: { id: string; accountId?: string | null; claimedAt?: Date | null } | undefined, actorId: string): boolean {
@@ -43,22 +51,29 @@ async function mine(paymentId: string, myMemberId: string | undefined) {
   return { p } as const;
 }
 
-export async function confirmPayment(paymentId: string, myMemberId: string | undefined): Promise<Result> {
+export async function confirmPayment(paymentId: string, myMemberId: string | undefined, opts: Hooks = {}): Promise<Result> {
   const r = await mine(paymentId, myMemberId);
   if (!("p" in r) || !r.p) return { ok: false, error: r.error };
   const { p } = r;
   if (p.okAt) return { ok: true };
+  await opts.afterRead?.();
   let eventId: string;
   try {
     eventId = await db.$transaction(async (tx) => {
     // Again inside the transaction (a removal could have landed since the first look).
     if (await wasRemoved(p.groupId, myMemberId, tx)) throw new Removed(p.group.name);
     const changed = await tx.payment.updateMany({ where: { id: p.id, okAt: null, deletedAt: null }, data: { okAt: new Date() } });
-    if (changed.count !== 1) return "";
+    if (changed.count !== 1) {
+      // Nothing was written: say what is really there. Already confirmed = a retry (fine). Taken off the balances = not "Got it".
+      const now = await tx.payment.findUnique({ where: { id: p.id }, select: { okAt: true, deletedAt: true, deletedById: true } });
+      if (now?.okAt && !now.deletedAt) return "";
+      throw new Answered(now?.deletedAt && now.deletedById === myMemberId ? SAID_NOT_RECEIVED : "That payment isn’t there any more.");
+    }
     return logEvent(tx, { groupId: p.groupId, actorId: myMemberId!, kind: "payment_confirmed", text: `confirmed getting ${formatMoney(p.amount, p.group.currency)} from ${p.from.name} ✓`, paymentId: p.id });
     });
   } catch (err) {
     if (err instanceof Removed) return { ok: false, error: removedText(p.group.name) };
+    if (err instanceof Answered) return { ok: false, error: err.message };
     throw err;
   }
   return { ok: true, eventId: eventId || undefined };
@@ -70,13 +85,14 @@ export type RejectResult = { ok: true; eventId?: string; back: { id: string; nam
 // nothing, so if the payer and/or the person paid has left, they are put back into the group IN THE SAME TRANSACTION: the money is
 // owed again, and the people who owe it can see it and settle it.
 // Hand-worked: Asha left after paying Ravi 40000 (both at 0). Ravi says Not received: the payment goes, Asha is back at -40000, Ravi +40000.
-export async function rejectPayment(paymentId: string, myMemberId: string | undefined): Promise<RejectResult> {
+export async function rejectPayment(paymentId: string, myMemberId: string | undefined, opts: Hooks = {}): Promise<RejectResult> {
   const r = await mine(paymentId, myMemberId);
   if (!("p" in r) || !r.p) return { ok: false, error: r.error };
   const { p } = r;
   if (p.okAt) return { ok: false, error: "You already confirmed this one. Delete it from the activity if it was a mistake." };
   if (p.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   const amountText = formatMoney(p.amount, p.group.currency);
+  await opts.afterRead?.();
   let out: { eventId: string; back: { id: string; name: string; accountId: string | null }[] };
   try {
     out = await db.$transaction(async (tx) => {
@@ -85,7 +101,12 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
       // Again inside the transaction (a removal could have landed since the first look).
       if (await wasRemoved(p.groupId, myMemberId, tx)) throw new Removed(p.group.name);
       const changed = await tx.payment.updateMany({ where: { id: p.id, deletedAt: null, okAt: null }, data: { deletedAt: new Date(), deletedById: myMemberId } });
-      if (changed.count !== 1) return { eventId: "", back: [] };
+      if (changed.count !== 1) {
+        // Nothing was written: already taken off = a retry (fine); confirmed in the meantime = it still counts.
+        const now = await tx.payment.findUnique({ where: { id: p.id }, select: { okAt: true, deletedAt: true } });
+        if (now?.okAt && !now.deletedAt) throw new Answered(SAID_GOT_IT);
+        return { eventId: "", back: [] };
+      }
       const eventId = await logEvent(tx, {
         groupId: p.groupId,
         actorId: myMemberId!,
@@ -103,6 +124,7 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
     });
   } catch (err) {
     if (err instanceof Removed) return { ok: false, error: removedText(p.group.name) };
+    if (err instanceof Answered) return { ok: false, error: err.message };
     if (err instanceof NotSquare) return { ok: false, error: "Balances just changed. Look again, then try once more." };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;

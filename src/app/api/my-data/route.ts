@@ -5,7 +5,8 @@ import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { laterRowEvents, readableWhere } from "@/lib/left-view-db";
 import { asOfCut, hideLaterNotes, leaverCut } from "@/lib/left-view";
-import { loadMyDataExtra } from "@/lib/my-data-extra";
+import { loadMyDataExtra, loadMySupport } from "@/lib/my-data-extra";
+import { MY_DATA_CEILING } from "@/lib/page-all";
 import { withClearing } from "@/lib/clearing-db";
 
 // "Download all my data" (Account): one CSV with every group I'm in on this
@@ -34,6 +35,8 @@ export async function GET() {
         tz,
       )
     : {};
+  const support = account ? await loadMySupport(account.id) : { rows: [], capped: false };
+  const extraAll = support.capped && "capped" in extra ? { ...extra, capped: [...(extra.capped ?? []), { kind: "messages to support", limit: MY_DATA_CEILING }] } : extra;
   const body = myDataCsv(
     account ? { email: account.email, name: account.name ?? "", createdAt: account.createdAt } : null,
     await Promise.all(
@@ -61,8 +64,8 @@ export async function GET() {
     ),
     now,
     tz,
-    account ? await db.report.findMany({ where: { kind: "support", reporterId: account.id }, orderBy: { createdAt: "asc" }, select: { createdAt: true, note: true, contact: true, status: true }, take: 500 }) : [],
-    extra,
+    support.rows,
+    extraAll,
   );
   return new Response(body, {
     headers: {

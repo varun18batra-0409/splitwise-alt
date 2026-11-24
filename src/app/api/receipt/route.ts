@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const MAX_RECEIPT_BYTES = 1_500_000;
+const NO_LONGER_IN = "You’re no longer in this group, so the photo wasn’t kept.";
+class NoLongerIn extends Error {}
 
 export async function POST(req: Request) {
   const h = await headers();
@@ -36,11 +38,19 @@ export async function POST(req: Request) {
   const stored = await storePhoto("receipt", clean, type);
   let saved: { id: string };
   try {
-    saved = await db.receipt.create({ data: { groupId, data: stored.data, blobKey: stored.blobKey, type, createdById: me.id }, select: { id: true } });
+    // The receipt is written and the person counted again in one transaction: someone who left or was removed (or a group deleted)
+    // while the photo was coming in keeps no receipt. The write comes first, so the count after it is current.
+    saved = await db.$transaction(async (tx) => {
+      const made = await tx.receipt.create({ data: { groupId, data: stored.data, blobKey: stored.blobKey, type, createdById: me.id }, select: { id: true } });
+      const still = await tx.member.count({ where: { id: me.id, groupId, leftAt: null, removedAt: null, group: { deletedAt: null } } });
+      if (still !== 1) throw new NoLongerIn();
+      return made;
+    });
   } catch (err) {
-    // The file is stored but the row wasn't saved: put the file on the to-delete list so it isn't left behind.
-    console.error("receipt: save failed", String(err).slice(0, 160));
+    // The file is stored but the row wasn't kept: put the file on the to-delete list so it isn't left behind.
     await removePhotos([stored.blobKey]);
+    if (err instanceof NoLongerIn) return Response.json({ ok: false, error: NO_LONGER_IN }, { status: 403 });
+    console.error("receipt: save failed", String(err).slice(0, 160));
     return Response.json({ ok: false, error: "We couldn’t save that photo. Please try again." }, { status: 500 });
   }
 

@@ -160,34 +160,46 @@ const CLAIM_STATUS: Record<string, string> = {
 export type MyDataExtra = {
   postcards?: { createdAt: Date; sent: boolean; other: string; words: string; message: string; place: string }[];
   passport?: { home: string; sharing: string; countries: { name: string; trips: number; places: string[]; byHand: boolean }[] };
-  collections?: { organiser: boolean; title: string; currency: string; amount: number; dueDate: string; status: string; people: number; paid: number; checked: number; yours: string }[];
+  collections?: { organiser: boolean; title: string; currency: string; amount: number; dueDate: string; status: string; people: number; paid: number; checked: number; yours: string; yourAmount?: number }[];
   settings?: { setting: string; where: string; status: string }[];
   // Moments you added (text only, no photos; nothing written by other people). `link` is the in-app address of the viewer.
   moments?: { createdAt: Date; group: string; caption: string; day: string; link: string }[];
   // "Want to go": your own list, and the first names of the friends you showed each place to ("Whole list" when you showed it all).
   // Never anyone else's list.
   wishes?: { country: string; sharedWith: string[] }[];
+  // Sections that were cut at the ceiling (kind = what the section holds, e.g. "postcards"). Each ends with a line saying so.
+  capped?: { kind: string; limit: number }[];
 };
+
+// The last line of a section that was cut at the ceiling.
+export const cappedLine = (kind: string, limit: number) => [`Only the first ${limit.toLocaleString("en-US")} ${kind} are in this file. Use Contact support for the rest.`];
 
 function extraLines(extra: MyDataExtra, tz?: string): (string | number)[][] {
   const out: (string | number)[][] = [];
+  const cut = (kind: string) => {
+    const c = extra.capped?.find((x) => x.kind === kind);
+    if (c) out.push(cappedLine(c.kind, c.limit));
+  };
   if (extra.postcards) {
     out.push([], ["Your postcards (sent and received; text only, no photos)"], ["Date", "Sent or received", "With", "Words on the front", "Message", "Postmark"]);
     for (const c of extra.postcards) out.push([dayKey(c.createdAt, tz), c.sent ? "Sent" : "Received", c.other, c.words, c.message, c.place]);
+    cut("postcards");
   }
   if (extra.passport) {
     out.push([], ["Your passport"], ["Home country", extra.passport.home], ["Who can see it", extra.passport.sharing], ["Country", "Trips on Loopin", "Places", "Added by hand"]);
     for (const c of extra.passport.countries) out.push([c.name, c.trips || "", c.places.join("; "), c.byHand ? "Yes" : ""]);
   }
   if (extra.collections) {
-    out.push([], ["Collections you organise or are on"], ["Your part", "Title", "Currency", "Per person", "Pay by", "Status", "People listed", "Say they've paid", "Checked", "Your own entry"]);
+    out.push([], ["Collections you organise or are on"], ["Your part", "Title", "Currency", "Per person", "Pay by", "Status", "People listed", "Say they've paid", "Checked", "Your own entry", "You said you paid"]);
     for (const c of extra.collections) {
-      out.push([c.organiser ? "Organiser" : "On the list", c.title, c.currency, c.amount ? plain(c.amount, c.currency) : "", c.dueDate, c.status, c.organiser ? c.people : "", c.organiser ? c.paid : "", c.organiser ? c.checked : "", c.yours]);
+      out.push([c.organiser ? "Organiser" : "On the list", c.title, c.currency, c.amount ? plain(c.amount, c.currency) : "", c.dueDate, c.status, c.organiser ? c.people : "", c.organiser ? c.paid : "", c.organiser ? c.checked : "", c.yours, !c.organiser && c.yourAmount ? plain(c.yourAmount, c.currency) : ""]);
     }
+    cut("collections");
   }
   if (extra.moments) {
     out.push([], ["Moments you added (text only, no photos)"], ["Date", "Group", "Words", "Day", "Open in Loopin"]);
     for (const m of extra.moments) out.push([dayKey(m.createdAt, tz), m.group, m.caption, m.day, m.link]);
+    cut("moments");
   }
   if (extra.wishes) {
     out.push([], ["Places you want to go (only you, and the friends named here)"], ["Country", "Shown to"]);
@@ -267,7 +279,7 @@ export function myDataCsv(
   rows.sort((a, b) => a.group.localeCompare(b.group) || a.date.getTime() - b.date.getTime());
   // The messages this account sent to Loopin support (what was written and the reply email left, if any).
   const mine: (string | number)[][] = support.length
-    ? [[], ["Your messages to support"], ["Date", "Message", "Reply email", "Status"], ...support.map((m) => [dayKey(m.createdAt, tz), m.note, m.contact, m.status === "resolved" ? "Dealt with" : "Received"])]
+    ? [[], ["Your messages to support"], ["Date", "Message", "Reply email", "Status"], ...support.map((m) => [dayKey(m.createdAt, tz), m.note, m.contact, m.status === "resolved" ? "Dealt with" : "Received"]), ...(extra.capped?.some((x) => x.kind === "messages to support") ? [cappedLine("messages to support", extra.capped.find((x) => x.kind === "messages to support")!.limit)] : [])]
     : [];
   const lines = [...top, header, ...rows.map((r) => r.cells), ...mine, ...extraLines(extra, tz)].map((r) => r.map(cell).join(","));
   return "﻿" + lines.join("\r\n") + "\r\n";

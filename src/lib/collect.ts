@@ -1,4 +1,5 @@
 import { mailSafe } from "./mail-safe";
+import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { NOT_DIRECT } from "./direct"; // a pair of two people is not "sharing a group"
 import { blockedEitherWay } from "./blocks";
@@ -72,38 +73,69 @@ export async function loadCollection(code: string) {
   return c && !c.deletedAt ? c : null;
 }
 
+// A collection that is closed (or deleted) takes no new ticks. The first statement of the transaction is a write that only matches
+// while it is still open, so a close that landed after the page was read is seen here, and every read after it is current
+// (the same idea as money-guard.ts). It changes nothing itself (closedAt stays null).
+async function stillOpen(tx: Prisma.TransactionClient, id: string): Promise<boolean> {
+  return (await tx.collection.updateMany({ where: { id, closedAt: null, deletedAt: null }, data: { closedAt: null } })).count === 1;
+}
+
 // Someone says they've paid: their name from the list (or a new one), and how much.
-export async function markPaid(code: string, input: { entryId?: string; name?: string; amount?: string; viewerAccountId?: string; viewerName?: string }, payerKey: string): Promise<Ok<{ entryId: string }> | Fail> {
+// The list is read again inside the transaction (after the open check), so two people ticking the same name, or two new names at
+// the last free place, are decided one at a time. `paidAt` is the tick's own time (its version, for the organiser's alert).
+export async function markPaid(code: string, input: { entryId?: string; name?: string; amount?: string; viewerAccountId?: string; viewerName?: string }, payerKey: string, opts: Hooks = {}): Promise<Ok<{ entryId: string; paidAt: Date }> | Fail> {
   const c = await loadCollection(code);
   if (!c) return { ok: false, error: "This collection isn’t there any more." };
-  if (c.closedAt) return { ok: false, error: `${mailSafe(c.organiser)} has closed this collection.` };
+  const closedText = `${mailSafe(c.organiser)} has closed this collection.`;
+  if (c.closedAt) return { ok: false, error: closedText };
   let amount = c.amount;
   if (!amount) {
     const a = parseAmount(String(input.amount ?? ""), c.currency);
     if (a === null) return { ok: false, error: "Enter how much you paid." };
     amount = a;
   }
-  if (input.entryId) {
-    const e = c.entries.find((x) => x.id === input.entryId);
-    if (!e) return { ok: false, error: "Pick your name from the list." };
-    if (e.status !== "due") return { ok: false, error: `${mailSafe(e.name)} is already marked as paid.` };
-    // Ticked by someone signed in to Loopin: they'll hear when it's checked. The entry is linked to their account only when the name
-    // they ticked is theirs (the same name as their account's): ticking someone else's name never ties that entry to you.
-    const who = !e.accountId && input.viewerAccountId && input.viewerAccountId !== c.accountId && input.viewerName && sameName(input.viewerName, e.name) ? { accountId: input.viewerAccountId } : {};
-    const done = await db.collectionEntry.updateMany({ where: { id: e.id, status: "due" }, data: { status: "paid", amount, method: c.currency === "INR" && c.upiId ? "upi" : "other", payerKey, paidAt: new Date(), ...who } });
-    if (done.count !== 1) return { ok: false, error: `${mailSafe(e.name)} is already marked as paid.` };
-    return { ok: true, entryId: e.id };
-  }
-  const name = cleanNames([String(input.name ?? "")])[0];
-  if (!name) return { ok: false, error: "Type your name, so the organiser knows who paid." };
-  const twin = c.entries.find((x) => sameName(x.name, name));
-  if (twin && twin.status === "due") return markPaid(code, { entryId: twin.id, amount: input.amount, viewerAccountId: input.viewerAccountId, viewerName: input.viewerName }, payerKey);
-  if (twin) return { ok: false, error: `${mailSafe(twin.name)} is already on the list as paid. Add your surname or initial if you’re someone else.` };
-  if (c.entries.length >= MAX_ENTRIES) return { ok: false, error: "This list is full." };
-  // A name typed in is linked to the viewer's account only when it is their own name.
-  const viewer = input.viewerAccountId && input.viewerAccountId !== c.accountId && input.viewerName && sameName(input.viewerName, name) ? input.viewerAccountId : "";
-  const e = await db.collectionEntry.create({ data: { collectionId: c.id, name, amount, status: "paid", method: c.currency === "INR" && c.upiId ? "upi" : "other", payerKey, paidAt: new Date(), accountId: viewer } });
-  return { ok: true, entryId: e.id };
+  const typedName = input.entryId ? "" : cleanNames([String(input.name ?? "")])[0];
+  if (!input.entryId && !typedName) return { ok: false, error: "Type your name, so the organiser knows who paid." };
+  const method = c.currency === "INR" && c.upiId ? "upi" : "other";
+  await opts.afterRead?.();
+  return db.$transaction(async (tx): Promise<Ok<{ entryId: string; paidAt: Date }> | Fail> => {
+    if (!(await stillOpen(tx, c.id))) return { ok: false, error: closedText };
+    const entries = await tx.collectionEntry.findMany({ where: { collectionId: c.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+    // Ticks one existing due name.
+    const tick = async (e: (typeof entries)[number]): Promise<Ok<{ entryId: string; paidAt: Date }> | Fail> => {
+      if (e.status !== "due") return { ok: false, error: `${mailSafe(e.name)} is already marked as paid.` };
+      // Ticked by someone signed in to Loopin: they'll hear when it's checked. The entry is linked to their account only when the name
+      // they ticked is theirs (the same name as their account's): ticking someone else's name never ties that entry to you.
+      const who = !e.accountId && input.viewerAccountId && input.viewerAccountId !== c.accountId && input.viewerName && sameName(input.viewerName, e.name) ? { accountId: input.viewerAccountId } : {};
+      const paidAt = new Date();
+      const done = await tx.collectionEntry.updateMany({ where: { id: e.id, status: "due" }, data: { status: "paid", amount, method, payerKey, paidAt, ...who } });
+      if (done.count !== 1) return { ok: false, error: `${mailSafe(e.name)} is already marked as paid.` };
+      return { ok: true, entryId: e.id, paidAt };
+    };
+    if (input.entryId) {
+      const e = entries.find((x) => x.id === input.entryId);
+      if (!e) return { ok: false, error: "Pick your name from the list." };
+      return tick(e);
+    }
+    const name = typedName!;
+    const twin = entries.find((x) => sameName(x.name, name));
+    if (twin && twin.status === "due") return tick(twin);
+    if (twin) return { ok: false, error: `${mailSafe(twin.name)} is already on the list as paid. Add your surname or initial if you’re someone else.` };
+    if (entries.length >= MAX_ENTRIES) return { ok: false, error: "This list is full." };
+    // A name typed in is linked to the viewer's account only when it is their own name.
+    const viewer = input.viewerAccountId && input.viewerAccountId !== c.accountId && input.viewerName && sameName(input.viewerName, name) ? input.viewerAccountId : "";
+    const paidAt = new Date();
+    const e = await tx.collectionEntry.create({ data: { collectionId: c.id, name, amount, status: "paid", method, payerKey, paidAt, accountId: viewer } });
+    return { ok: true, entryId: e.id, paidAt };
+  });
+}
+
+// The organiser's "X says they paid" alert is sent only while that very tick (its time is its version) is still waiting to be checked.
+export async function tickStillStands(code: string, entryId: string, paidAt: Date) {
+  const c = await loadCollection(code);
+  const e = c?.entries.find((x) => x.id === entryId);
+  if (!c || !e || e.status !== "paid" || e.paidAt?.getTime() !== paidAt.getTime()) return null;
+  return { c, e };
 }
 
 // Tests only: runs after the reads and before the write (the gap in which the other person can act).
@@ -144,7 +176,10 @@ export async function organiserAction(
     case "unconfirm":
       if (!e || e.status !== "confirmed") return { ok: false, error: "Nothing to change there." };
       await opts.afterRead?.();
-      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "confirmed", confirmedAt: e.confirmedAt }, data: { status: "paid", confirmedAt: null } })).count !== 1) return { ok: false, error: CHANGED };
+      // Cash the organiser recorded themselves (no payer's phone on it) goes back to "still to pay": nobody else said they paid.
+      // Anything a payer ticked goes back to "paid" (their own tick), as before.
+      const cashByOrganiser = e.method === "cash" && e.payerKey === "";
+      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "confirmed", confirmedAt: e.confirmedAt }, data: cashByOrganiser ? { status: "due", amount: 0, method: "", paidAt: null, confirmedAt: null } : { status: "paid", confirmedAt: null } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true };
     case "cash":
       if (!e || e.status !== "due") return { ok: false, error: "They’re already marked as paid." };
@@ -181,7 +216,17 @@ export async function organiserAction(
       const link = c.entries.filter((x) => !x.accountId && x.status === "due" && friends.some((f) => sameName(f.name, x.name)));
       if (!rows.length && !fill.length && !link.length) return { ok: false, error: "Type names that aren’t on the list yet." };
       if (c.entries.length + rows.length > MAX_ENTRIES) return { ok: false, error: `A collection can have up to ${MAX_ENTRIES} people.` };
-      if (rows.length) await db.collectionEntry.createMany({ data: rows });
+      await opts.afterRead?.();
+      if (rows.length) {
+        // The count again inside a transaction (after a write that takes the lock), so two adds at the last places can't both fit.
+        const room = await db.$transaction(async (tx) => {
+          await tx.collection.updateMany({ where: { id: c.id, deletedAt: null }, data: { deletedAt: null } });
+          if ((await tx.collectionEntry.count({ where: { collectionId: c.id } })) + rows.length > MAX_ENTRIES) return false;
+          await tx.collectionEntry.createMany({ data: rows });
+          return true;
+        });
+        if (!room) return { ok: false, error: `A collection can have up to ${MAX_ENTRIES} people.` };
+      }
       for (const x of fill) await db.collectionEntry.update({ where: { id: x.id }, data: { phone: phones[Object.keys(phones).find((n) => sameName(n, x.name))!] } });
       for (const x of link) await db.collectionEntry.update({ where: { id: x.id }, data: { accountId: friends.find((f) => sameName(f.name, x.name))!.id } });
       // Told only if they really landed on the list (added now, or linked to their name).
