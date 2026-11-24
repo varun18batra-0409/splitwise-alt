@@ -1602,7 +1602,9 @@ if (!hosted) {
   await shots(varu, W, [["home-story-circles", "/", async (p) => {
     await p.locator("[data-stories] [data-story-label]").first().waitFor({ timeout: 15_000 });
   }, false]]);
-  const gshots = async (who: { id: string }, list: { name: string; path: string; prepare?: (p: Page) => Promise<void>; full?: boolean; widths?: readonly number[] }[]) => {
+  // `strict`: the picture is only worth taking if its preparation worked (a screen that never reached the state it should show): a failure is
+  // printed as "✗ ... (STRICT)" and makes the whole run end with a failure, instead of quietly saving the wrong screen.
+  const gshots = async (who: { id: string }, list: { name: string; path: string; prepare?: (p: Page) => Promise<void>; full?: boolean; widths?: readonly number[]; strict?: boolean }[]) => {
     const c = await browser.newContext({ viewport: screen, deviceScaleFactor: desktop ? 1 : 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
     await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: who.id, v: 0 }), url: base }]);
     const p = await c.newPage();
@@ -1618,7 +1620,8 @@ if (!hosted) {
           await fullShot(p, `${out}/${name}.png`, s.full ?? true);
           console.log("✓", name);
         } catch (e) {
-          console.log("✗", name, String(e).split("\n")[0]);
+          console.log("✗", name, s.strict ? "(STRICT: not saved)" : "", String(e).split("\n")[0]);
+          if (s.strict) process.exitCode = 1;
         }
       }
     }
@@ -1767,7 +1770,7 @@ if (!hosted) {
     // The People page with the tag and the "has moved back in" button; then the question asked when the button is tapped (a phone's own
     // confirm box, which a picture can't hold: its words are saved next to the pictures instead).
     await gshots(varu, [
-      { name: "S1-people-settling-only", path: settlePeople, prepare: openRiya },
+      { name: "S1-people-settling-only", path: settlePeople, prepare: openRiya, widths: [390, 320], strict: true },
       {
         name: "S2-moved-back-in-confirm",
         path: settlePeople,
@@ -1785,9 +1788,75 @@ if (!hosted) {
         },
       },
     ]);
-    // "A flatmate covers it" (24 Nov): Varu (owed 60,000 for the rent) moves out while Riya, who owes 30,000 of it, is only settling up. Nupur, who stays,
-    // pays Varu Riya's part now, and Riya then owes Nupur. The line and the "Who covers it" picker are on the move-out page.
-    await gshots(varu, [{ name: "S4-move-out-flatmate-covers", path: `/groups/${settleFlat.id}/people/${settleId("Varu")}/move` }]);
+    // A flat of Varu, Nupur, Dev and Riya, with Riya settling up only (owing her quarter of the rent): used for the move-out pictures below.
+    // `joined`: Nupur and Dev have accounts (can be asked); otherwise they are only names (nobody staying has joined).
+    const settlingFour = async (name: string, joined: boolean) => {
+      const dev = joined ? await acct("Dev") : null;
+      const when = (ms: number) => new Date(Date.now() - ms);
+      const g4 = await db.group.create({
+        data: {
+          name, type: "home", currency: "INR", inviteCode: `shotsfl${tag}${Math.random().toString(36).slice(2, 6)}`,
+          members: {
+            create: [
+              { name: "Varu", accountId: varu.id, claimedAt: new Date(), createdAt: when(5000) },
+              { name: "Nupur", ...(joined ? { accountId: nupur.id, claimedAt: new Date() } : {}), createdAt: when(4000) },
+              { name: "Dev", ...(dev ? { accountId: dev.id, claimedAt: new Date() } : {}), createdAt: when(3500) },
+              { name: "Riya", accountId: riya.id, claimedAt: new Date(), createdAt: when(3000) },
+            ],
+          },
+        },
+        include: { members: true },
+      });
+      const id4 = (n: string) => g4.members.find((m) => m.name === n)!.id;
+      const rent4 = 12000000; // Varu paid; 3,000,000 each. Varu +9,000,000; the others -3,000,000.
+      await db.expense.create({
+        data: {
+          groupId: g4.id, description: "Rent", amount: rent4, splitType: "equal", forMode: "everyone", category: guessCategory("Rent"), paidById: id4("Varu"),
+          originalAmount: rent4, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: rent4, createdById: id4("Varu"),
+          shares: { create: g4.members.map((m) => ({ memberId: m.id, amount: rent4 / 4 })) },
+        },
+      });
+      await moveOutLine(g4.id, id4("Riya"), id4("Varu"));
+      await db.groupEvent.create({
+        data: {
+          groupId: g4.id, actorId: id4("Varu"), kind: "member_rejoined", touches: id4("Riya"), text: `brought Riya back into ${name} until the ₹30,000 is sorted`,
+          undo: JSON.stringify({ type: "member_set", memberId: id4("Riya"), data: { leftAt: lastDay.toISOString() }, settling: true }),
+        },
+      });
+      return { g4, id4 };
+    };
+    // "A flatmate covers it" (24 Nov): Varu (owed 90,000) moves out while Riya, who owes 30,000 of it, is only settling up. Nupur and Dev, who stay, pay Varu
+    // their own 60,000; one of them covers Riya's 30,000 (Nupur by default, Dev can be picked), and Riya then owes them. The line and the "Who covers it"
+    // picker are on the move-out page.
+    const covers = await settlingFour("Flat 402 (covers)", true);
+    await gshots(varu, [
+      {
+        name: "S4-move-out-flatmate-covers",
+        path: `/groups/${covers.g4.id}/people/${covers.id4("Varu")}/move`,
+        widths: [390, 320],
+        strict: true,
+        prepare: async (p) => {
+          await p.locator("[data-cover-pick]").waitFor({ timeout: 10_000 });
+          await p.locator("[data-cover-line]").first().waitFor({ timeout: 10_000 });
+        },
+      },
+    ]);
+    // The same move-out where nobody staying has joined Loopin (Nupur and Dev are only names): no one is chosen, the picker shows with the staying names,
+    // and the payments and the confirm button appear only once one is picked. (The first picture is the state before picking.)
+    const nobody = await settlingFour("Flat 402 (nobody joined)", false);
+    await gshots(varu, [
+      {
+        name: "S8-move-out-pick-who-covers",
+        path: `/groups/${nobody.g4.id}/people/${nobody.id4("Varu")}/move`,
+        widths: [390, 320],
+        strict: true,
+        prepare: async (p) => {
+          await p.locator("[data-cover-needed]").waitFor({ timeout: 10_000 });
+          await p.locator("[data-cover-pick]").waitFor({ timeout: 10_000 });
+          if (await p.getByRole("button", { name: /mark as moved out/i }).count()) throw new Error("the confirm button should not show before someone is picked");
+        },
+      },
+    ]);
     // "Can you cover this?" (24 Nov): Varu moved out of a flat where Riya, still settling up, owed part of what Varu was owed. Nupur, who stays, was set to
     // cover it, but Varu was the one confirming, so Nupur is asked on her Settle screen. Seeded the way the move-out writes it (a payment that asks Nupur, and the
     // move-out line that names it as a covering payment).
@@ -1801,33 +1870,76 @@ if (!hosted) {
         undo: JSON.stringify({ type: "member_set", memberId: coverId("Varu"), data: { leftAt: null }, moveOut: { bills: [], money: { currency: "INR", shares: [], payments: [{ id: coverPay.id, fromId: coverId("Nupur"), toId: coverId("Varu"), amount: 3000000 }], coverIds: [coverPay.id], eventIds: [] } } }),
       },
     });
-    await gshots(nupur, [{ name: "S5-settle-can-you-cover", path: `/groups/${coverFlat.id}/settle`, full: false }]);
-    // Refusal when naming her on a new expense: the Add page is opened while Riya is still a member (a page left open), she is then brought back
-    // to settle, and the person saves an expense paid by Riya.
-    const staleFlat = await flatOf("Flat 402 (page left open)", false);
-    const staleId = (n: string) => staleFlat.members.find((m) => m.name === n)!.id;
-    await gshots(varu, [
+    await gshots(nupur, [
       {
-        name: "S3-add-expense-names-settling",
-        path: `/groups/${staleFlat.id}/add`,
-        full: false,
+        name: "S5-settle-can-you-cover", path: `/groups/${coverFlat.id}/settle`, full: false, widths: [390, 320], strict: true,
         prepare: async (p) => {
-          await p.getByRole("button", { name: "Riya", exact: true }).first().click(); // Riya as the payer
-          await p.getByLabel(/amount/i).first().fill("900");
-          await p.getByPlaceholder(/what/i).first().fill("Dinner").catch(() => undefined);
-          await moveOutLine(staleFlat.id, staleId("Riya"), staleId("Varu"));
-          await db.groupEvent.create({
-            data: {
-              groupId: staleFlat.id, actorId: staleId("Varu"), kind: "member_rejoined", touches: staleId("Riya"),
-              text: "brought Riya back into Flat 402 (page left open) until the ₹900 is sorted",
-              undo: JSON.stringify({ type: "member_set", memberId: staleId("Riya"), data: { leftAt: lastDay.toISOString() }, settling: true }),
-            },
-          });
-          await p.getByRole("button", { name: /^Save expense$/ }).click();
-          await p.locator("[role=alert]").first().waitFor({ timeout: 15_000 });
+          await p.locator("[data-waiting-cover]").first().waitFor({ timeout: 10_000 });
+        },
+      },
+      // Home's "Needs you" shows the same question to Nupur (the one asked), and not to Varu (who is owed).
+      {
+        name: "S7-home-needs-you-cover", path: "/", full: false, widths: [390, 320], strict: true,
+        prepare: async (p) => {
+          await p.getByText(/Can you cover this\?/).first().waitFor({ timeout: 10_000 });
+          await p.getByText(/Can you cover this\?/).first().scrollIntoViewIfNeeded();
         },
       },
     ]);
+    // "Can you take this on?" (24 Nov), the other way round: Varu moved out owing Riya (who is still settling up). Nupur, who stays, takes it on: Varu pays her
+    // now, and she then owes Riya. Seeded as the move-out writes it (a payment that asks Nupur, named in the move-out line as `coverToIds`).
+    const takeFlat = await flatOf("Flat 402 (take on)", false);
+    const takeId = (n: string) => takeFlat.members.find((m) => m.name === n)!.id;
+    const takePay = await db.payment.create({ data: { groupId: takeFlat.id, fromId: takeId("Varu"), toId: takeId("Nupur"), amount: 3000000, createdById: takeId("Varu"), needsOk: true } });
+    await db.member.update({ where: { id: takeId("Varu") }, data: { leftAt: new Date("2026-11-24T12:00:00Z") } });
+    await db.groupEvent.create({
+      data: {
+        groupId: takeFlat.id, actorId: takeId("Varu"), kind: "member_left", touches: takeId("Varu"), text: "moved out (last day 24 Nov 2026)",
+        undo: JSON.stringify({ type: "member_set", memberId: takeId("Varu"), data: { leftAt: null }, moveOut: { bills: [], money: { currency: "INR", shares: [], payments: [{ id: takePay.id, fromId: takeId("Varu"), toId: takeId("Nupur"), amount: 3000000 }], coverToIds: [takePay.id], eventIds: [] } } }),
+      },
+    });
+    await gshots(nupur, [
+      {
+        name: "S6-settle-can-you-take-this-on", path: `/groups/${takeFlat.id}/settle`, full: false, widths: [390, 320], strict: true,
+        prepare: async (p) => {
+          await p.locator("[data-waiting-take-on]").first().waitFor({ timeout: 10_000 });
+        },
+      },
+    ]);
+    // Refusal when naming her on a new expense: the Add page is opened while Riya is still a member (a page left open), she is then brought back
+    // to settle, and the person saves an expense paid by Riya.
+    // (One flat per picture width: once Riya is brought back, the Add page no longer offers her, so each width needs its own page left open.)
+    for (const w of [390, 320] as const) {
+      const staleFlat = await flatOf(`Flat 402 (page left open ${w})`, false);
+      const staleId = (n: string) => staleFlat.members.find((m) => m.name === n)!.id;
+      await gshots(varu, [
+        {
+          name: "S3-add-expense-names-settling",
+          path: `/groups/${staleFlat.id}/add`,
+          full: false,
+          widths: [w],
+          strict: true,
+          prepare: async (p) => {
+            // The real Add expense form: the name box (#expense-name), the "Amount" box, and the payer chips under "Who paid?".
+            await p.locator("#expense-name").fill("Dinner");
+            await p.getByLabel("Amount", { exact: true }).fill("900");
+            await p.locator("[data-payer-row]").getByRole("button", { name: "Riya", exact: true }).click(); // Riya as the payer
+            await p.locator('[data-payer-row] button[aria-pressed="true"]').filter({ hasText: "Riya" }).waitFor({ timeout: 5_000 });
+            // Riya is brought back to settle only after the page was opened (so it is a page left open).
+            await moveOutLine(staleFlat.id, staleId("Riya"), staleId("Varu"));
+            await db.groupEvent.create({
+              data: {
+                groupId: staleFlat.id, actorId: staleId("Varu"), kind: "member_rejoined", touches: staleId("Riya"),
+                text: `brought Riya back into Flat 402 (page left open ${w}) until the ₹900 is sorted`,
+                undo: JSON.stringify({ type: "member_set", memberId: staleId("Riya"), data: { leftAt: lastDay.toISOString() }, settling: true }),
+              },
+            });
+            await p.getByRole("button", { name: /^Save expense$/ }).click();
+            await p.locator("[role=alert]").filter({ hasText: "Riya" }).first().waitFor({ timeout: 15_000 });
+          },
+        },
+      ]);
+    }
   }
 }
 // The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).
