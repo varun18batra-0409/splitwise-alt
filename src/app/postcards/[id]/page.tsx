@@ -1,4 +1,4 @@
-import { opensLine, sealedDay } from "@/lib/postcards/opens";
+import { readerClock, sealedDay } from "@/lib/postcards/opens";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
@@ -66,8 +66,8 @@ export default async function PostcardPage({ params, searchParams }: { params: P
           </div>
           <p className="mt-6 text-center text-sm leading-relaxed text-fg/60">
             {first(from?.name)} sealed this to open on {opens}.<br />
-            {/* The date is said once: a time is added only when the reader's own clock says it opens at a time other than midnight (the reader's own local time). */}
-            {p.opensAt && opensLine(p.opensAt, tz) !== `Opens ${sealedDay(p.opensAt, tz, tz)}` ? `${opensLine(p.opensAt, tz)}. ` : ""}We’ll let you know when it opens.
+            {/* The sender's day is said once; the reader's own clock is added only when it differs (another time, or another day). */}
+            {p.opensAt && readerClock(p.opensAt, tz, opens) ? `${readerClock(p.opensAt, tz, opens)} ` : ""}We’ll let you know when it opens.
           </p>
         </>
       ) : (

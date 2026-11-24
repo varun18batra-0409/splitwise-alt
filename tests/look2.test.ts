@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { oneStampPerCountry, passportCounts, shareStamps, stampPages, type Stamp } from "../src/lib/passport";
+import { readerClock } from "../src/lib/postcards/opens";
 
 // Look set 2 (mockups for the founder, not released). Mostly source checks: the real layout is judged from the screenshots.
 const src = (f: string) => readFileSync(f, "utf8");
@@ -59,7 +60,8 @@ describe("23, 24, 25. postcards", () => {
     const page = src("src/app/postcards/[id]/page.tsx");
     expect(page).toContain("sealed this to open on {opens}");
     expect(page).not.toContain("morning");
-    expect(page).toContain("opensLine(p.opensAt, tz)"); // the reader's own local opening line is kept
+    expect(page).toContain("readerClock(p.opensAt, tz, opens)"); // the reader's own clock is kept, without repeating the day
+    expect(page).not.toContain("opensLine(");
     expect(src("src/components/postcards/Sealed.tsx")).toContain('waxSeal("crimson:crest", "L", "sealed")');
   });
 });
@@ -252,5 +254,19 @@ describe("49. offline page", () => {
     expect(sw).toContain("You’re offline");
     expect(sw).toContain("Loopin needs the internet");
     expect(sw).toContain("#0d0d0f");
+  });
+});
+
+describe("sealed postcard: the reader's clock is said once", () => {
+  // Sealed for 1 January 2027 by someone in India: it opens at midnight India time = 2026-12-31 18:30 UTC.
+  const at = new Date("2026-12-31T18:30:00Z");
+  it("says nothing more when it is midnight on that day for the reader too", () => {
+    expect(readerClock(at, "Asia/Kolkata", "1 January 2027")).toBe("");
+  });
+  it("gives the reader's own day and time when their clock is on another day", () => {
+    expect(readerClock(at, "Europe/London", "1 January 2027")).toBe("For you, that’s 31 December 2026 at 18:30.");
+  });
+  it("gives only the time when it is the same day at another hour", () => {
+    expect(readerClock(at, "Asia/Tokyo", "1 January 2027")).toBe("That’s 03:30 your time.");
   });
 });
