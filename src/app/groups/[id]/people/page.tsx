@@ -110,6 +110,9 @@ export default async function PeoplePage({
   const Person = ({ m }: { m: (typeof group.members)[number] }) => {
     const me = m.id === myId;
     const bal = net[m.id] ?? 0;
+    // The move-out link: anyone in the flat, except someone settling up only, who is offered it only when exactly square and nothing holds them
+    // (an open game, a month still to be billed): the app moves them out when that clears.
+    const offerMoveOut = !settling.has(m.id) || (bal === 0 && !me && !held.has(m.id));
     const hidden = (
       <>
         <input type="hidden" name="groupId" value={group.id} />
@@ -259,9 +262,9 @@ export default async function PeoplePage({
                 </ConfirmButton>
               </form>
             )}
-            {/* Only the person moving out, or the admin, can confirm a move-out, so nobody else is offered the link. */}
+            {/* Only the person moving out, or the admin, can confirm a move-out, so nobody else is offered the link (offerMoveOut only narrows it further). */}
             {/* Someone settling up only is offered the same link only when they are exactly square and nothing still holds them (an open game, a month still to be billed): the app moves them out when it clears. */}
-            {group.type === "home" && !m.leftAt && !leaver && (!settling.has(m.id) || (bal === 0 && !me && !held.has(m.id))) && (me || isAdmin) && (
+            {group.type === "home" && !m.leftAt && !leaver && offerMoveOut && (me || isAdmin) && (
               <Link href={`/groups/${group.id}/people/${m.id}/move`} className={`${small} inline-block`}>
                 {me ? "I’m moving out" : `${m.name} is moving out`}
               </Link>

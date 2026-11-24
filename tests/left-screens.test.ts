@@ -78,7 +78,9 @@ describe("People, seen by someone who left", () => {
     expect(people).toContain("data-removed-note");
   });
   it("the 'is moving out' link is only for the person themself or the admin", () => {
-    expect(people).toContain('group.type === "home" && !m.leftAt && !leaver && (me || isAdmin) && (');
+    // (offerMoveOut only narrows it: a settling person only when exactly square and not held; it is never wider than the person themself or the admin.)
+    expect(people).toContain('group.type === "home" && !m.leftAt && !leaver && offerMoveOut && (me || isAdmin) && (');
+    expect(people).toContain("const offerMoveOut = !settling.has(m.id) || (bal === 0 && !me && !held.has(m.id));");
   });
 });
 
@@ -142,7 +144,10 @@ describe("Move-out page, seen by a flatmate who is not the admin", () => {
   const move = src(`${G}/people/[memberId]/move/page.tsx`);
   it("only the person moving out or the admin gets the form, the day box and the button", () => {
     expect(move).toContain("const canConfirm = leaver.id === myId || admin?.id === myId;");
-    expect(move).toContain("{canConfirm && (\n      <form method=\"get\"");
+    // (the day box is also left out for a settling person who is already square: they are moved out again with their original last day)
+    expect(move).toContain("{canConfirm && !(p.ok && p.settlingSquare) && (\n      <form method=\"get\"");
+    // the "Who covers it" picker is inside that same form, so only the person confirming gets it; the read-only summary shows no payments and no cover line until one is picked
+    expect(move).toContain("{p.cover && !p.needsPick && (");
     const from = move.indexOf("data-move-out-readonly");
     const readonly = move.slice(from, move.indexOf("</div>\n      ) : (", from));
     expect(readonly).toContain("{squaring}");

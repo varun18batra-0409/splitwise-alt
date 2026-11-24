@@ -113,7 +113,7 @@ describe("restyle only: every action, field and hook is still on the pages", () 
     for (const gone of ["claimPaidAction", "confirmClaimAction", "declineClaimAction", "withdrawClaimAction"]) expect(settle).not.toContain(gone); // nothing waits for anyone any more
   });
   it("group Settle up keeps the hooks the tests read", () => {
-    for (const s of ["data-i-paid", "data-mark-paid", "data-remind", "data-waiting", "data-settle-actions", 'data-more-options="settle"', 'aria-label="Did you get these?"', "data-transfer-row"]) expect(settle).toContain(s);
+    for (const s of ["data-i-paid", "data-mark-paid", "data-remind", "data-waiting", "data-settle-actions", 'data-more-options="settle"', ': "Did you get these?"}', "data-transfer-row"]) expect(settle).toContain(s);
     expect(src("src/components/PayScreens.tsx")).toContain("data-settled-pct={pct}");
     expect(src("src/components/SettleRow.tsx")).toContain("data-different-amount");
   });

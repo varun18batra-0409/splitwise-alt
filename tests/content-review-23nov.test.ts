@@ -188,7 +188,7 @@ describe("F14: the year-ago story", () => {
     expect(memory("Ladakh trip", 4).line).toBe("4 of you, 4 days. Remember that? 🏔️");
   });
   it("Home counts only people still in the group", () => {
-    expect(read("src/app/(home)/page.tsx")).toContain("people: g.group.members.filter((m) => !m.leftAt).length,\n            days:");
+    expect(read("src/app/(home)/page.tsx")).toContain("people: g.group.members.filter((m) => !m.leftAt && !g.settling.includes(m.id)).length,\n            days:"); // people who left, and people only settling up, are not counted
   });
 });
 

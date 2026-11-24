@@ -121,8 +121,16 @@ describe("who is settling up only", () => {
   it("lines handed over in any order are read oldest first, and equal times go by id", () => {
     const got = settlingFrom([rejoined(C, 9), bringBack(C, 5), moveOutLine(C, 1)], [A, C]);
     expect(got.size).toBe(0);
-    const same: HistoryLine[] = [moveOutLine(C, 1), { ...bringBack(C, 5), id: "b" }, { ...rejoined(C, 5), id: "a" }];
-    expect(settlingFrom(same, [A, C]).has(C)).toBe(true); // "a" (rejoin) comes first, "b" (bring-back) is the latest
+    // Equal times go by id, whatever order they arrive in. The bring-back only counts as "settling" when the line right before it is the move-out.
+    // move-out "a" then bring-back "b" (handed over backwards): the latest is the bring-back, preceded by the move-out -> settling.
+    const moveOutFirst: HistoryLine[] = [{ ...bringBack(C, 5), id: "b" }, { ...moveOutLine(C, 5), id: "a" }];
+    expect(settlingFrom(moveOutFirst, [A, C]).has(C)).toBe(true);
+    // bring-back "a" then move-out "b": the latest is the move-out -> not settling (they are moved out).
+    const moveOutLast: HistoryLine[] = [{ ...moveOutLine(C, 5), id: "b" }, { ...bringBack(C, 5), id: "a" }];
+    expect(settlingFrom(moveOutLast, [A, C]).has(C)).toBe(false);
+    // A rejoin between the move-out and the bring-back means they were a member again first: a bring-back after that is not "settling up only".
+    const rejoinBetween: HistoryLine[] = [moveOutLine(C, 1), { ...bringBack(C, 5), id: "b" }, { ...rejoined(C, 5), id: "a" }];
+    expect(settlingFrom(rejoinBetween, [A, C]).has(C)).toBe(false);
   });
 
   it("a removed person brought back keeps how they were removed (so moving them out again puts it back the same)", () => {

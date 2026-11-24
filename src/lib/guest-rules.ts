@@ -208,6 +208,7 @@ export const ACTION_RULES: Record<string, RuleEntry> = {
   saveBudgets: { rule: "acct", via: "me" },
   setMoveIn: { rule: "acct", via: "me" },
   moveOutAction: { rule: "acct", via: "me" },
+  movedBackIn: { rule: "acct", via: "me" },
   saveDeposit: { rule: "acct", via: "me" },
   returnDeposit: { rule: "acct", via: "me" },
   saveGoal: { rule: "acct", via: "me" },
