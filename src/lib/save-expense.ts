@@ -553,6 +553,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     if (no) return { ok: false, error: no };
   }
   if (await hasLeft(expense.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };
+  // Someone settling up only can't delete or restore expenses either: it would change what they owe (and checked again in the write, below).
+  if ((await settlingIn(db, expense.groupId)).has(actingMemberId)) return { ok: false, error: SETTLING_SELF };
   if (expense.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   // A game's result is never deleted or restored on its own (it would leave a finished game with no result, or two results).
@@ -565,6 +567,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
    eventId = await db.$transaction(async (tx) => {
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, expense.groupId, { currency: expense.group.currency, actorId: actingMemberId });
+    // Brought back to settle only after the first read: read again here, in the write.
+    if ((await settlingIn(tx, expense.groupId)).has(actingMemberId)) throw new SettlingNamed("");
     await markUndone(tx, opts.mark); // when this is an undo: marked in this very transaction
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
@@ -612,6 +616,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
    });
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof SettlingNamed) return { ok: false, error: settlingRefusal(err) };
     if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
     if (err instanceof BillAddedAgain) return { ok: false, error: `This month’s ${err.message} was already added, so this can’t come back.` };
     if (err instanceof MonthAdded) return { ok: false, error: err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };

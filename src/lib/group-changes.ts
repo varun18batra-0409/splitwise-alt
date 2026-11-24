@@ -8,6 +8,7 @@ import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
 import { keepSquareAtZero, rebaseExpense, squareLimit, rebasePayment, type SquareExpense, type SquarePayment } from "./rebase";
 import { GroupChanged, ledgerInTx, moneySig } from "./money-guard";
+import { requireNotSettling, SettlingStopped, settlingSelfRefusal } from "./settling-db";
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string; needsRate?: true };
 
@@ -41,12 +42,20 @@ export async function updateGroupBasics(
   const name = changes.name?.trim().replace(/\s+/g, " ").slice(0, 60);
   if (changes.name !== undefined && !name) return { ok: false, error: "Give the group a name." };
 
+  // Someone settling up only can't change the card markup (it changes what new expenses cost); checked again in the write.
+  const markupChange = changes.markupBp !== undefined && changes.markupBp !== group.cardMarkupBp;
+  if (markupChange) {
+    const stopped = await settlingSelfRefusal(c, groupId, actorId);
+    if (stopped) return { ok: false, error: stopped };
+  }
+
   const sec = changes.secondaryCurrency;
   if (sec !== undefined && sec !== "" && sec !== "none" && !isSupportedCurrency(sec)) return { ok: false, error: "Pick a currency from the list." };
   if (opts?.dryRun) return { ok: true }; // checked only: the one Save validates everything before writing anything
 
   let lastEventId: string | undefined;
   const write = async (tx: Db) => {
+    if (markupChange) await requireNotSettling(tx, groupId, actorId); // first, before anything is written
     if (sec !== undefined && sec !== group.secondaryCurrency) {
       await tx.group.update({ where: { id: group.id }, data: { secondaryCurrency: sec } });
       const label = (v: string) => (v === "" ? "automatic" : v === "none" ? "off" : v);
@@ -82,8 +91,13 @@ export async function updateGroupBasics(
       });
     }
   };
-  if (opts?.tx) await write(opts.tx);
-  else await db.$transaction(write);
+  try {
+    if (opts?.tx) await write(opts.tx);
+    else await db.$transaction(write);
+  } catch (err) {
+    if (err instanceof SettlingStopped) return { ok: false, error: err.message };
+    throw err;
+  }
   return { ok: true, eventId: lastEventId };
 }
 
@@ -116,6 +130,8 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   if (group.type === "direct" && !opts?.expectEmpty) return { ok: false, error: PAIR_NO_SETTINGS };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
+  const stopped = await settlingSelfRefusal(db, groupId, actorId); // settling up only: no currency change (it rewrites every amount)
+  if (stopped) return { ok: false, error: stopped };
   if (!isSupportedCurrency(newCurrency)) return { ok: false, error: "Pick a currency from the list." };
   if (newCurrency === group.currency) return { ok: true };
   // A card game still being played would come out a cent or two off after
@@ -250,6 +266,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     // (Money saves do the same with guardGroup, so one of the two always loses cleanly.)
     const held = await tx.group.updateMany({ where: { id: groupId, deletedAt: null, currency: oldCurrency }, data: { currency: oldCurrency } });
     if (held.count !== 1) throw new Refused({ ok: false, error: "The group’s currency was changed just now. Check and try again." });
+    await requireNotSettling(tx, groupId, actorId);
     // A game that was started (or is still open) while we were reading: its chips would come out a cent off.
     if (await tx.potGame.count({ where: { groupId, status: "open", deletedAt: null } })) {
       throw new Refused({ ok: false, error: "Finish (or delete) the game that’s still open first, then change the currency." });
@@ -331,6 +348,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   return { ok: true, eventId };
   } catch (e) {
     if (e instanceof Refused) return e.result;
+    if (e instanceof SettlingStopped) return { ok: false, error: e.message };
     if (e instanceof GroupChanged) return { ok: false, error: "The group’s currency was changed just now. Check and try again." };
     throw e;
   }

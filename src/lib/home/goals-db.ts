@@ -2,6 +2,7 @@ import { db } from "../db";
 import { logEvent } from "../events";
 import { formatMoney, parseAmount } from "../money";
 import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
+import { requireNotSettling, SettlingStopped, settlingSelfRefusal } from "../settling-db";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 
 type Result = { ok: true; id: string } | { ok: false; error: string };
@@ -16,6 +17,8 @@ export async function saveGoalFor(groupId: string, actorId: string, input: { goa
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!(await member(groupId, actorId))) return { ok: false, error: "Only people in this group can do this." };
+  const stopped = await settlingSelfRefusal(db, groupId, actorId); // settling up only: no goals either
+  if (stopped) return { ok: false, error: stopped };
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 40);
   if (!name) return { ok: false, error: "Give the goal a name, like “Bali in March”." };
   const target = parseAmount(input.target, group.currency);
@@ -27,10 +30,12 @@ export async function saveGoalFor(groupId: string, actorId: string, input: { goa
     try {
       await db.$transaction(async (tx) => {
         await guardGroup(tx, groupId, { currency: group.currency, actorId, allowClosed: true });
+        await requireNotSettling(tx, groupId, actorId);
         await tx.goal.update({ where: { id: g.id }, data: { name, target, byDate } });
         await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `changed the goal ${name} (${formatMoney(target, group.currency)})` });
       });
     } catch (err) {
+      if (err instanceof SettlingStopped) return { ok: false, error: err.message };
       if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
       throw err;
     }
@@ -41,11 +46,13 @@ export async function saveGoalFor(groupId: string, actorId: string, input: { goa
   g = await db.$transaction(async (tx) => {
     // The target was typed in the group's currency as read: still the same one?
     await guardGroup(tx, groupId, { currency: group.currency, actorId, allowClosed: true });
+    await requireNotSettling(tx, groupId, actorId);
     const created = await tx.goal.create({ data: { groupId, name, target, byDate, createdById: actorId } });
     await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `started a goal: ${name} (${formatMoney(target, group.currency)})` });
     return created;
   });
   } catch (err) {
+    if (err instanceof SettlingStopped) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }
@@ -71,12 +78,15 @@ export async function addGoalEntryFor(groupId: string, actorId: string, goalId: 
   if (!goal) return { ok: false, error: "That goal no longer exists." };
   const me = await member(groupId, actorId);
   if (!me) return { ok: false, error: "Only people in this group can do this." };
+  const stopped = await settlingSelfRefusal(db, groupId, actorId);
+  if (stopped) return { ok: false, error: stopped };
   const amount = parseAmount(amountText, goal.group.currency);
   if (amount === null || amount === 0) return { ok: false, error: "Enter the amount you set aside." };
   try {
     await db.$transaction(async (tx) => {
       // The amount was typed in the group's currency as read: still the same one?
       await guardGroup(tx, groupId, { currency: goal.group.currency, actorId, allowClosed: true });
+      await requireNotSettling(tx, groupId, actorId);
       // No key from the screen: a key worked out from who, which goal, how much and the current 10 seconds, so two taps
       // racing each other can only save once (the second one finds the key already taken).
       await claimKey(tx, requestKey || tapKey(actorId, goal.id, amount), goal.id, requestKey ? fp : "");
@@ -95,6 +105,7 @@ export async function addGoalEntryFor(groupId: string, actorId: string, goalId: 
     });
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true, id: goalId };
+    if (err instanceof SettlingStopped) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }
@@ -103,16 +114,20 @@ export async function addGoalEntryFor(groupId: string, actorId: string, goalId: 
 
 export async function deleteGoalFor(groupId: string, actorId: string, goalId: string): Promise<Result> {
   if (!(await member(groupId, actorId))) return { ok: false, error: "Only people in this group can do this." };
+  const stopped = await settlingSelfRefusal(db, groupId, actorId); // settling up only: no goals either
+  if (stopped) return { ok: false, error: stopped };
   const g = await db.goal.findFirst({ where: { id: goalId, groupId, deletedAt: null } });
   if (!g) return { ok: false, error: "That goal no longer exists." };
   const group = await db.group.findUnique({ where: { id: groupId }, select: { currency: true } });
   try {
     await db.$transaction(async (tx) => {
       await guardGroup(tx, groupId, { currency: group?.currency ?? "INR", actorId, allowClosed: true });
+      await requireNotSettling(tx, groupId, actorId);
       await tx.goal.update({ where: { id: g.id }, data: { deletedAt: new Date() } });
       await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `removed the goal ${g.name}` });
     });
   } catch (err) {
+    if (err instanceof SettlingStopped) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }

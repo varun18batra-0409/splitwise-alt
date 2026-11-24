@@ -7,6 +7,8 @@ import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, potTransf
 import { cleanNames, sameName } from "./names";
 import { pickAdmin } from "./group-admin";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
+import { requireNotSettling, SettlingStopped, settlingIn } from "./settling-db";
+import { SETTLING_SELF } from "./settling";
 import type { Prisma } from "@prisma/client";
 
 // Every move in an open game is written inside ONE transaction that first claims the game as still open (and the group as
@@ -63,6 +65,7 @@ async function move<T extends object>(fn: () => Promise<T>, finished = GAME_FINI
     if (err instanceof GameNotOpen) return { ok: false, error: finished };
     if (err instanceof GameChanged) return { ok: false, error: "Someone just changed this game. Check the amounts and try again." };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof SettlingStopped) return { ok: false, error: err.message };
     throw err;
   }
 }
@@ -87,6 +90,8 @@ async function groupFor(groupId: string, actorId: string) {
   if (!g || g.deletedAt) return { error: "This group isn’t there any more." };
   const me = g.members.find((m) => m.id === actorId && !m.leftAt);
   if (!me) return { error: "Only people in this group can do that." };
+  // Someone settling up only (a flat's moved-out person, see settling.ts) takes no part in a game: not starting, joining, counting or finishing one.
+  if ((await settlingIn(db, groupId)).has(actorId)) return { error: SETTLING_SELF };
   return { error: "", g };
 }
 
@@ -189,7 +194,9 @@ export async function startGame(groupId: string, actorId: string, input: { name:
   if (named.ids.length) r = await groupFor(groupId, actorId);
   if (!r.g) return { ok: false, error: r.error };
   const game = isPotGame(input.game) ? input.game : "cards";
-  const active = new Set(r.g.members.filter((m) => !m.leftAt).map((m) => m.id));
+  // (Someone settling up only is left out of a new game, the same as a new expense.)
+  const settlingNow = await settlingIn(db, groupId);
+  const active = new Set(r.g.members.filter((m) => !m.leftAt && !settlingNow.has(m.id)).map((m) => m.id));
   const players = [...new Set([...input.players, ...named.ids].filter((p) => active.has(p)))];
   if (players.length < 2) return { ok: false, error: "Pick at least two players." };
   // The day where the players are (not the server's clock): a game at 1 am is still that night's date for them.
@@ -305,6 +312,7 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
     // The group must still be as read (same currency, not deleted) before the result is written into its balances.
     // Everyone in the result must still be in the group: a result with someone who has left in it would move their balance off 0.
     await guardGroup(tx, g.id, { currency: g.currency, involvedIds: [...res.winners, ...res.losers].map((x) => x.memberId) });
+    await requireNotSettling(tx, g.id, actorId); // brought back to settle only since the first look: read again here
     // Claim the game first: if two finishes arrive at once, only one adds the result.
     const claimed = await tx.potGame.updateMany({ where: { id: gameId, status: "open", deletedAt: null }, data: { status: "done", finishedAt: now } });
     if (claimed.count !== 1) {
@@ -346,8 +354,10 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
   }, { timeout: 15000 }).catch((err) => {
     if (String(err?.message ?? err).includes("POT_CHANGED")) return "changed" as const;
     if (err instanceof GroupChanged) return err;
+    if (err instanceof SettlingStopped) return "settling" as const;
     throw err;
   });
+  if (done === "settling") return { ok: false, error: SETTLING_SELF };
   if (done instanceof GroupChanged && done.reason === "left") return { ok: false, error: `${done.detail || "Someone"} has left the group, so this game can’t be finished with them in it. Ask them to rejoin first.` };
   if (done instanceof GroupChanged) return { ok: false, error: groupChangedText(done) };
   if (done === "deleted") return { ok: false, error: "This game was deleted." };

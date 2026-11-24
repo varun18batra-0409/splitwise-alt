@@ -247,13 +247,12 @@ export default async function PeoplePage({
                 </div>
               </form>
             )}
-            {/* Settling up only: they share nothing new until someone says they have moved back in (from the day picked, bills are shared again). */}
-            {settling.has(m.id) && !leaver && group.type !== "direct" && (
+            {/* Settling up only: they share nothing new until someone ELSE says they have moved back in (from today, bills are shared again). */}
+            {settling.has(m.id) && !me && !leaver && group.type !== "direct" && (
               <form action={movedBackIn} className="flex flex-wrap items-center gap-2 text-sm" data-moved-back-in>
                 {hidden}
-                <DateField id={`back-${m.id}`} name="day" defaultValue={dayKey(new Date(), tz)} size="sm" inline clearable={false} aria-label={`${m.name} moved back in on`} />
-                <ConfirmButton message={confirmMovedBack(m.name, dayKey(new Date(), tz))} className={small}>
-                  {me ? "I’ve moved back in" : `${m.name} has moved back in`}
+                <ConfirmButton message={confirmMovedBack(m.name)} className={small}>
+                  {m.name} has moved back in
                 </ConfirmButton>
               </form>
             )}

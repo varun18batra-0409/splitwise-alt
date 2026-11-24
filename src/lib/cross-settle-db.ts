@@ -6,7 +6,6 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, retryOnceIfBusy } fr
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment, PaymentTooBig } from "./payments";
-import { moveOutAgainIfSquare } from "./settling-db";
 import { CLEARING_MARK } from "./left-view";
 import { tellAcross, tellParties, type AcrossPart } from "./payment-claims";
 import { paymentText } from "./pay-record";
@@ -124,8 +123,6 @@ export async function settleAcrossCore(
                 : `${paymentText(myId, m.fromId, m.toId, c.names.get(m.fromId) ?? "Someone", c.names.get(m.toId) ?? "Someone", formatMoney(m.amount, c.currency))}${c.direct ? "" : " (Smart Settle across groups)"}`,
               paymentId: m.paymentId,
             });
-            // Someone settling up only in this group who is square now is moved out again, in this same step.
-            await moveOutAgainIfSquare(tx, m.groupId, [m.fromId, m.toId]);
           }
         },
         { timeout: 15000 },

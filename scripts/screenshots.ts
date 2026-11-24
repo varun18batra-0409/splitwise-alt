@@ -1745,6 +1745,12 @@ if (!hosted) {
       },
     });
     const lastDay = new Date("2026-11-10T12:00:00Z");
+    // Settling up only needs a move-out line right before the bring-back (a trip leaver or a removal is just a member again).
+    const moveOutLine = (groupId: string, who: string, by: string) =>
+      db.groupEvent.create({
+        data: { groupId, actorId: by, kind: "member_left", touches: who, text: "marked Riya as moved out (last day 10 Nov 2026)", undo: JSON.stringify({ type: "member_set", memberId: who, data: { leftAt: null }, moveOut: { bills: [] } }) },
+      });
+    await moveOutLine(settleFlat.id, settleId("Riya"), settleId("Varu"));
     await db.groupEvent.create({
       data: {
         groupId: settleFlat.id, actorId: settleId("Varu"), kind: "member_rejoined", touches: settleId("Riya"),
@@ -1792,6 +1798,7 @@ if (!hosted) {
           await p.getByRole("button", { name: "Riya", exact: true }).first().click(); // Riya as the payer
           await p.getByLabel(/amount/i).first().fill("900");
           await p.getByPlaceholder(/what/i).first().fill("Dinner").catch(() => undefined);
+          await moveOutLine(staleFlat.id, staleId("Riya"), staleId("Varu"));
           await db.groupEvent.create({
             data: {
               groupId: staleFlat.id, actorId: staleId("Varu"), kind: "member_rejoined", touches: staleId("Riya"),

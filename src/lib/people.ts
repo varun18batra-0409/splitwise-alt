@@ -9,6 +9,8 @@ import { isGroupAdmin, pickAdmin } from "./group-admin";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 import { localPairKey } from "./direct";
 import { openGameFor } from "./pot-db";
+import { settlingIn } from "./settling-db";
+import { settlingNoManualMoveOut } from "./settling";
 import { newInviteCode } from "./group-setup";
 
 // Renaming people and leaving / rejoining a group. Every change is logged,
@@ -110,6 +112,9 @@ export async function setMember(
       }
       if (!(await isGroupAdmin(groupId, actorId))) return { ok: false, error: "Only the person who looks after this group can bring back someone they removed." };
     }
+    // Someone settling up only is moved out again by the app the moment they are square: marking them out by hand (or their own leave) is
+    // refused, so the bring-back can't be ended by mistake. (Undoing the bring-back itself is a different thing and still works.)
+    if (leaving && !alreadyLeft && !undoing && (await settlingIn(db, groupId)).has(memberId)) return { ok: false, error: settlingNoManualMoveOut(m.name) };
     if (leaving && !alreadyLeft) {
       const net = netBalances(group.members.map((x) => x.id), group.expenses, group.payments)[memberId] ?? 0;
       if (net !== 0) {

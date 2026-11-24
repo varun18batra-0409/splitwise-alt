@@ -7,7 +7,6 @@ import { formatMoney } from "./money";
 import { createPayment, PaymentTooBig, RestoreRefused, restorePayments } from "./payments";
 import { bringBackAfterDelete, NotSquare, paymentsPartyRefusal } from "./payment-change";
 import { partiesToTell, partyMessages, pushAllToReceivers } from "./payment-claims";
-import { moveOutAgainIfSquare } from "./settling-db";
 import type { Transfer } from "./settle";
 import type { Prisma } from "@prisma/client";
 import { PAIR_NO_CLOSE } from "./direct-guard";
@@ -99,8 +98,6 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
       details: transfers.map((t) => `${nameOf(t.from)} paid ${nameOf(t.to)} ${money(t.amount)}`),
       undo: { type: "settle_all", paymentIds: ids, apply: false },
     });
-    // Anyone settling up only is square now: moved out again, in this same step.
-    await moveOutAgainIfSquare(tx, groupId, made.flatMap((m) => [m.fromId, m.toId]));
     return settledId;
    }, { timeout: 15000 });
   } catch (err) {
@@ -257,8 +254,6 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
         details: pick.map((t) => `${nameOf(t.from)} paid ${nameOf(t.to)} ${money(t.amount)}`),
         undo: { type: "payments_set", paymentIds: ids, deleted: true },
       });
-      // Anyone settling up only who is square now is moved out again, in this same step.
-      await moveOutAgainIfSquare(tx, groupId, pick.flatMap((t) => [t.from, t.to]));
       return paidId;
     }, { timeout: 15000 });
     await tellAll(groupId, actorId, made);

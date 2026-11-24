@@ -46,10 +46,11 @@ const B = await import("@/app/bill-actions");
 const { billBadge, countedMissed, dailyTotal, dayRangeLabel, isStopped, nextBillLabel, pausedDays, periodsDue, stopDone, stopLines } = await import("@/lib/home/bills");
 const { addWaitingBill, billExpenseInput, billFormFingerprint, billStatuses, prepaidFor, runBillsForGroup, stopWordsFor } = await import("@/lib/home/bills-db");
 const { billCommand, saveBillFor, toggleMissedDayFor } = await import("@/lib/home/bill-setup");
-const { moveOut } = await import("@/lib/home/moving-db");
+const { moveOut, moveBackInFor } = await import("@/lib/home/moving-db");
 const { dailyPrecharge } = await import("@/lib/home/moving");
 const { setExpenseDeleted } = await import("@/lib/save-expense");
 const { rejectPayment } = await import("@/lib/payment-ok");
+const { recordPaymentCore } = await import("@/lib/pay-record");
 const { undoEvent } = await import("@/lib/undo");
 const { checkBooks } = await import("./helpers/money-invariants");
 
@@ -124,6 +125,13 @@ async function settleUp(f: Flat) {
   const after = await checkBooks(f.groupId);
   expect(Object.values(after).every((x) => x === 0)).toBe(true);
 }
+
+// C pays A what he owes, as the app records it. Someone settling up only who is square after it is moved out again, in that same step.
+async function payAsC(f: Flat, amount: number, k: string) {
+  const r = await recordPaymentCore({ groupId: f.groupId, fromId: f.c, toId: f.a, amount, currency: "INR", myId: f.c, key: `bps-${k}-${stamp}-abcdefgh`, fp: `bps-fp-${k}`, warnOver: false });
+  expect(r.kind).toBe("done");
+}
+const SETTLING_NO_MOVE_OUT = "C is settling up after moving out, and is moved out again as soon as they’re square.";
 
 // ---------- Pure rules, hand-worked ----------
 describe("pure rules", () => {
@@ -513,9 +521,12 @@ describe("moving out and in around a stop", () => {
     expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt).toBeNull();
     expect(await nets(f)).toEqual([20000, 0, -20000]);
 
-    // (a) C moves out again on 23 Nov: no second milk charge, C pays A 20,000; 1 Dec: 94,000 to A and B, 47,000 each.
+    // (a) C is settling up only, so he cannot be moved out by hand any more (the app does it the moment he is square). He pays A 20,000:
+    // no second milk charge, C is square (0) and is moved out again with his old last day (10 Nov); 1 Dec: 94,000 to A and B, 47,000 each.
     const again = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-seven2-${stamp}-abcdefgh` }, at("2026-11-23"));
-    expect(again).toMatchObject({ ok: true });
+    expect(again).toEqual({ ok: false, error: SETTLING_NO_MOVE_OUT });
+    await payAsC(f, 20000, "seven3");
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt?.toISOString()).toBe("2026-11-10T12:00:00.000Z");
     expect((await live(f.groupId)).map((e) => e.amount)).toEqual([20000]);
     expect(await nets(f)).toEqual([0, 0, 0]);
     await runBillsForGroup(f.groupId, at("2026-12-01"));
@@ -1171,19 +1182,22 @@ describe("review fixes: second leaver, percentage split, weights, stale Add it, 
     await settleUp(f);
   });
 
-  it("L7: C is back, his charge was deleted, then he moves out again on 23 Nov (bill stopped 20 Nov): he is charged again, 19 × 2,000 = 38,000, and the month end is 114,000 − 38,000 = 76,000 (38,000 each for A and B); A +38,000, B −38,000, C 0", async () => {
+  it("L7: C is back (settling up only), his charge was deleted, then someone tries to move him out again on 23 Nov (bill stopped 20 Nov): refused, nothing is charged; the month end keeps his days 1–10: 114,000 = A 47,000, B 47,000, C 20,000; A +67,000, B −47,000, C −20,000, then C pays A 20,000 and is moved out again", async () => {
     const f = await backFlat("l7");
     await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
     const charge = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
     expect((await setExpenseDeleted(charge.id, f.a, true)).ok).toBe(true);
+    // (Before this change C could be moved out again by hand and was charged 19 × 2,000 = 38,000. Now the app moves him out when he is square.)
     const again = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-l7b-${stamp}-abcdefgh` }, at("2026-11-23"));
-    expect(errorOf(again)).toBe("");
-    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([38000]);
+    expect(again).toEqual({ ok: false, error: SETTLING_NO_MOVE_OUT });
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([]);
     expect(await nets(f)).toEqual([0, 0, 0]);
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const end = (await milkOf(f))[0];
-    expect([end.amount, shareMap(end)]).toEqual([76000, { [f.a]: 38000, [f.b]: 38000 }]);
-    expect(await nets(f)).toEqual([38000, -38000, 0]);
+    expect([end.amount, shareMap(end)]).toEqual([114000, { [f.a]: 47000, [f.b]: 47000, [f.c]: 20000 }]);
+    expect(await nets(f)).toEqual([67000, -47000, -20000]);
+    await payAsC(f, 20000, "l7c");
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt?.toISOString()).toBe("2026-11-10T12:00:00.000Z");
     await settleUp(f);
   });
 
@@ -1297,7 +1311,7 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     await settleUp(f);
   });
 
-  it("L7 then undo: C moves out again (new 38,000 charge, old deleted-charge entry kept), the second move-out is undone: C is back to the deleted-charge rule, sharing only days 1–10: 114,000 = A 47,000, B 47,000, C 20,000; A +67,000, B −47,000, C −20,000", async () => {
+  it("L7 then a second move-out: refused (C is settling up only, so there is no later move-out to undo), C stays on the deleted-charge rule, sharing only days 1–10: 114,000 = A 47,000, B 47,000, C 20,000; A +67,000, B −47,000, C −20,000", async () => {
     const f = await flat("l7u");
     await moveOut(f.groupId, f.b, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-l7u-${stamp}-abcdefgh` }, at("2026-11-10"));
     const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
@@ -1306,11 +1320,9 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     const charge = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
     expect((await setExpenseDeleted(charge.id, f.a, true)).ok).toBe(true);
     const again = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-l7u2-${stamp}-abcdefgh` }, at("2026-11-23"));
-    expect(again).toMatchObject({ ok: true });
-    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([38000]);
-    expect((await undoEvent((again as { eventId: string }).eventId, f.a)).ok).toBe(true);
-    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt).toBeNull();
-    expect((JSON.parse((await billOf(f)).prepaid) as Record<string, { d?: string }[]>)["2026-11"].map((x) => x.d)).toEqual(["2026-11-10"]); // only the old entry is left
+    expect(again).toEqual({ ok: false, error: SETTLING_NO_MOVE_OUT });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt).toBeNull(); // still settling up only (the row says "in")
+    expect((JSON.parse((await billOf(f)).prepaid) as Record<string, { d?: string }[]>)["2026-11"].map((x) => x.d)).toEqual(["2026-11-10"]); // only the old entry is there
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const end = (await milkOf(f))[0];
     expect([end.amount, shareMap(end)]).toEqual([114000, { [f.a]: 47000, [f.b]: 47000, [f.c]: 20000 }]);
@@ -1328,7 +1340,7 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     expect(await milkOf(f)).toHaveLength(0);
   });
 
-  it("the old deleted charge can't be restored while C's newer move-out charge for the month stands (C would pay days 1–10 twice: 20,000 + 38,000)", async () => {
+  it("the old deleted charge can't be restored while C's newer move-out charge for the month stands (C would pay those days twice)", async () => {
     const f = await flat("rep");
     await moveOut(f.groupId, f.b, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-rep-${stamp}-abcdefgh` }, at("2026-11-10"));
     const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
@@ -1336,12 +1348,15 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
     const old = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
     expect((await setExpenseDeleted(old.id, f.a, true)).ok).toBe(true);
+    // C is settling up only, so he can't be moved out by hand: A first notes he has moved back in (from 21 Nov, a full member), and only then is he moved out again.
+    expect(await moveBackInFor(f.groupId, f.a, f.c, at("2026-11-21"))).toMatchObject({ ok: true });
     expect(await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-rep2-${stamp}-abcdefgh` }, at("2026-11-23"))).toMatchObject({ ok: true });
     // C is brought back again ("Not received" on the new square-up), so nothing else stops the old charge coming back.
     const pay2 = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a, id: { not: pay.id } }, orderBy: { createdAt: "desc" } });
     expect((await rejectPayment(pay2.id, f.a)).ok).toBe(true);
     expect(await setExpenseDeleted(old.id, f.a, false)).toEqual({ ok: false, error: "A newer move-out charge for this month’s Milk stands, so this one can’t come back." });
-    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([38000]);
+    // (The newer charge is C's days from 21 to 23 Nov as the move-out worked them out; only that there is exactly one is checked here.)
+    expect(await live(f.groupId)).toHaveLength(1);
     await checkBooks(f.groupId);
   });
 

@@ -17,6 +17,8 @@ import { isGroupAdmin } from "./group-admin";
 import { MOVE_OUT_GONE_FOR_GOOD, MOVE_OUT_LEAVER_FIXABLE, moveOutUndoBlock, setMoveInFor, undoMoveOut } from "./home/moving-db";
 import { lateMoveText, lateRecreateText, lateRemovalText, putBackOpen } from "./put-back";
 import { DEFAULT_TIME_ZONE } from "./dates";
+import { settlingIn } from "./settling-db";
+import { SETTLING_SELF } from "./settling";
 import { undoRefusal } from "./guest-rules";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks, moneySig, peopleInExpense } from "./money-guard";
 
@@ -585,6 +587,8 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
   const e = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, items: { orderBy: [{ position: "asc" }, { id: "asc" }] }, group: { include: { members: true } } } });
   if (!e) return { ok: false, error: "That expense no longer exists." };
   if (e.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
+  // Someone settling up only can't undo an old edit either (it would change what they owe); checked again inside the write.
+  if ((await settlingIn(db, e.groupId)).has(actorId)) return { ok: false, error: SETTLING_SELF };
   if (e.deletedAt) return { ok: false, error: "This expense is deleted. Restore it first." };
   if (await isGameResult(expenseId)) return { ok: false, error: POT_EDIT_ERROR };
   if (before.baseCurrency !== e.group.currency) return { ok: false, error: "The group currency changed since, so this edit can’t be undone." };
@@ -614,6 +618,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
     // First a write: the group is still in this currency and open; then the expense is claimed as it was read. Any edit
     // since (even one that only changed the item lines) moved editedAt, so this undo would overwrite newer work: refused.
     await guardGroup(tx, e.groupId, { currency, actorId });
+    if ((await settlingIn(tx, e.groupId)).has(actorId)) throw new SettlingStop();
     await markUndone(tx, opts.mark);
     const claim = await tx.expense.updateMany({ where: { id: expenseId, editedAt: e.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (claim.count !== 1) throw new RevertClash();
@@ -659,6 +664,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
    }, { timeout: 15000 });
   } catch (err) {
     if (err instanceof RevertClash) return { ok: false, error: REVERT_CLASH };
+    if (err instanceof SettlingStop) return { ok: false, error: SETTLING_SELF };
     if (err instanceof GroupChanged) {
       if (err.reason === "left") return { ok: false, error: `${err.detail || "Someone"} has left the group, so this can't be undone.` };
       return { ok: false, error: err.reason === "currency" ? "The group currency changed since, so this edit can’t be undone." : groupChangedText(err) };
@@ -670,6 +676,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
 }
 
 class RevertClash extends Error {}
+class SettlingStop extends Error {}
 class ChargeLockedNow extends Error {
   constructor(bill: string, public status?: ChargeLock["status"]) {
     super(bill);

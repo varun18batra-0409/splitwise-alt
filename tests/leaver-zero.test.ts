@@ -26,7 +26,7 @@ const { recordPaymentCore } = await import("@/lib/pay-record");
 const { markAllPaid, setPaymentsDeleted, settleAllAndClose, applySettleAll, planKey } = await import("@/lib/settle-all");
 const { saveExpense, setExpenseDeleted, setPaymentDeleted } = await import("@/lib/save-expense");
 const { setMemberLeft } = await import("@/lib/people");
-const { undoEvent, ownMoveOut, undoViewerFor } = await import("@/lib/undo");
+const { undoEvent } = await import("@/lib/undo");
 const { receiverOnlyText } = await import("@/lib/refused-payment");
 const { leaversOffZero } = await import("@/lib/money-guard");
 const { notReceivedQuestion, notReceivedDone } = await import("@/lib/payment-words");
@@ -188,27 +188,21 @@ describe("1-4. Asha moves herself out of the flat, and Ravi answers", () => {
     const leftBefore = (await w.row(A)).leftAt!;
     await reject(pay.id, R);
     const deletedEv = (await w.events("payment_deleted"))[0];
-    const rejoinEv = (await w.events("member_rejoined"))[0];
     // Meera: Restore and Undo both refused, nothing moves.
     expect(await setPaymentDeleted(pay.id, M, false)).toEqual({ ok: false, error: receiverOnlyText("Ravi") });
     expect(await undoEvent(deletedEv.id, M)).toEqual({ ok: false, error: receiverOnlyText("Ravi") });
     expect(await w.net()).toEqual({ [A]: -40000, [R]: 80000, [M]: -40000 });
     await w.check();
-    // Ravi's Undo: the payment counts again and asks him again; Asha stays in the group at 0.
+    // Ravi's Undo: the payment counts again and asks him again. Asha is square (0) again, so she is moved out again in that same step,
+    // with her ORIGINAL last day (she was only settling up while the payment was off).
     expect((await undoEvent(deletedEv.id, R)).ok).toBe(true);
     expect(await w.net()).toEqual({ [A]: 0, [R]: 40000, [M]: -40000 });
     const back = await db.payment.findUniqueOrThrow({ where: { id: pay.id } });
     expect([back.deletedAt, back.needsOk, back.okAt]).toEqual([null, true, null]);
-    expect((await w.row(A)).leftAt).toBeNull();
-    await w.check();
-    // Asha undoes the "brought back" line: she steps out again, on her original last day.
-    expect((await undoEvent(rejoinEv.id, A)).ok).toBe(true);
     expect((await w.row(A)).leftAt?.toISOString()).toBe(leftBefore.toISOString());
-    expect(await w.net()).toEqual({ [A]: 0, [R]: 40000, [M]: -40000 });
+    const again = await db.groupEvent.findMany({ where: { groupId: w.gid, kind: "member_left", text: { contains: "is square again" } } });
+    expect(again).toHaveLength(1);
     await w.check();
-    // Her original move-out is not offered again (a newer change to her, and its payment, stand in the way).
-    const own = await ownMoveOut(w.gid, await undoViewerFor(w.gid, A), new Date());
-    expect(own === null || own.check.ok === false).toBe(true);
   });
 
   it("4. Ravi taps Confirm received instead: it is confirmed, balances unchanged; a later Not received is refused", async () => {
@@ -460,11 +454,9 @@ describe("12. no double rent cut when someone is brought back and moves out agai
     const deletedEv = (await w.events("payment_deleted"))[0];
     expect((await undoEvent(deletedEv.id, M)).ok).toBe(true); // Meera undoes it
     expect(await w.net()).toEqual({ [A]: 0, [R]: -400000, [M]: 400000 });
-    expect((await w.row(A)).leftAt).toBeNull(); // Asha is still in the flat, at 0
+    // Asha is square again, so she is moved out again by that very undo (with her original last day); nothing is paid or cut a second time.
+    expect((await w.row(A)).leftAt).not.toBeNull();
     await w.check();
-
-    // She moves out again on the same day: nothing to pay, and the Rent share is not cut a second time.
-    expect((await out(w.gid, A, A, NOW16)).ok).toBe(true);
     expect(await shares()).toEqual({ [A]: 100000, [R]: 400000, [M]: 400000 });
     expect(await w.payments()).toHaveLength(1);
     expect(await w.net()).toEqual({ [A]: 0, [R]: -400000, [M]: 400000 });

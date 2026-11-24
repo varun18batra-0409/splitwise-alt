@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { formatMoney, MAX_MINOR } from "./money";
 import { receiverOnlyText } from "./refused-payment";
+import { moveOutAgainIfSquare } from "./settling-db";
 
 // The ONE place a payment row is written. Every route that records a payment
 // (Mark paid, Record a payment, Mark all paid, Settle everything, cross-group
@@ -36,9 +37,13 @@ export async function createPayment(tx: Tx, p: NewPayment) {
     const g = await tx.group.findUnique({ where: { id: p.groupId }, select: { currency: true } });
     throw new PaymentTooBig(paymentTooBigText(g?.currency ?? "INR"));
   }
-  return tx.payment.create({
+  const made = await tx.payment.create({
     data: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount, createdById: p.createdById, needsOk: Boolean(p.asksReceiver), okAt: null },
   });
+  // Someone settling up only who is now exactly square is moved out again, in this same transaction (settling-db.ts). It is done HERE, with
+  // restorePayments below, so no way of recording or putting back a payment can forget it.
+  await moveOutAgainIfSquare(tx, p.groupId, [p.fromId, p.toId]);
+  return made;
 }
 
 // The ONE place a deleted payment is brought back (Undo of a delete, restore a payment, redo of
@@ -80,6 +85,11 @@ export async function restorePayments(tx: Tx, ids: string[], actorId: string, gr
   for (const p of rows) {
     const back = await tx.payment.updateMany({ where: { id: p.id, deletedAt: { not: null } }, data: { deletedAt: null, deletedById: null } });
     if (back.count === 1) restored.push(p.id);
+  }
+  // A payment put back can make a settling person square (Undo of "Not received", Redo of "Mark all paid"): same rule as a new payment.
+  const back = rows.filter((p) => restored.includes(p.id));
+  for (const g of new Set(back.map((p) => p.groupId))) {
+    await moveOutAgainIfSquare(tx, g, back.filter((p) => p.groupId === g).flatMap((p) => [p.fromId, p.toId]));
   }
   return restored;
 }

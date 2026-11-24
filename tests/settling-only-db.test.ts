@@ -47,9 +47,16 @@ const { saveBudgetsFor } = await import("@/lib/home/budgets-db");
 const { monthInsights } = await import("@/lib/home/insights-db");
 const { rejectPayment } = await import("@/lib/payment-ok");
 const { recordPaymentCore } = await import("@/lib/pay-record");
-const { saveExpense, setPaymentDeleted } = await import("@/lib/save-expense");
-const { settlingIn } = await import("@/lib/settling-db");
-const { SETTLING_SELF, settlingNamed } = await import("@/lib/settling");
+const { saveExpense, setExpenseDeleted, setPaymentDeleted } = await import("@/lib/save-expense");
+const { settlingIn, settlingSelfRefusal } = await import("@/lib/settling-db");
+const { SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingNamed, settlingNoManualMoveOut } = await import("@/lib/settling");
+const { moveOutPreview } = await import("@/lib/home/moving-db");
+const { bringBackLeavers } = await import("@/lib/payment-change");
+const { undoEvent } = await import("@/lib/undo");
+const { setMemberLeft } = await import("@/lib/people");
+const { changeGroupCurrency, updateGroupBasics } = await import("@/lib/group-changes");
+const { saveDepositFor } = await import("@/lib/home/moving-db");
+const { saveGoalFor } = await import("@/lib/home/goals-db");
 const { loadMyGroupsLight } = await import("@/lib/group-data");
 const { checkBooks } = await import("./helpers/money-invariants");
 
@@ -232,17 +239,22 @@ describe("settling up only: the story, in numbers", () => {
     expect((await settlingIn(db, f.gid)).get(f.c)?.leftAt.toISOString()).toBe(LAST);
   });
 
-  it("3. “moved back in” on 15 Dec instead: C is a member again from that day. Dec milk 186,000 -> A 76,000, B 76,000, C 34,000 (17 days x 2,000); Dec rent stays without C; January's rent has C", async () => {
+  it("3. A marks that C has moved back in on 15 Dec (today): C is a member again from that day, not C themselves. Dec milk 186,000 -> A 76,000, B 76,000, C 34,000 (17 days x 2,000); Dec rent stays without C; January's rent has C", async () => {
     const f = await flat("backin");
     await toSettling(f);
     await runBillsForGroup(f.gid, at("2026-12-01")); // Nov milk (A 80,000, B 80,000) and Dec rent (A 900,000, B 900,000)
     expect(await f.nets()).toEqual([2_620_000, -2_000_000, -620_000]);
-    const r = await moveBackInFor(f.gid, f.c, f.c, "2026-12-15", at("2026-12-15"));
+    // C can't say it for themselves.
+    expect(await moveBackInFor(f.gid, f.c, f.c, at("2026-12-15"))).toEqual({ ok: false, error: "Someone else in the flat needs to mark that you’ve moved back in." });
+    expect(await moveBackInFor(f.gid, f.c, f.c, at("2026-12-15"))).toEqual({ ok: false, error: SETTLING_SELF_MOVED_BACK });
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+    // A can: the day is today (15 Dec), there is no date to pick.
+    const r = await moveBackInFor(f.gid, f.a, f.c, at("2026-12-15"));
     expect(r.ok).toBe(true);
     expect((await settlingIn(db, f.gid)).size).toBe(0);
     expect((await f.row(f.c)).joinedFrom?.toISOString().slice(0, 10)).toBe("2026-12-15");
-    const line = (await f.rows("member_rejoined")).find((e) => e.text.startsWith("moved back in"))!;
-    expect(line.text).toBe("moved back in on 15 Dec");
+    const line = (await f.rows("member_rejoined")).find((e) => e.text.startsWith("noted"))!;
+    expect(line.text).toBe("noted C moved back in on 15 Dec");
     // Everything shown stays as it was; the Dec rent already added without C is not changed.
     expect(await f.nets()).toEqual([2_620_000, -2_000_000, -620_000]);
     // Dec milk (31 days): days 1-14 A and B (100 each, total 200), days 15-31 three ways (total 300); units over 600: A 14x300 + 17x200 = 7,600, B 7,600, C 17x200 = 3,400
@@ -256,17 +268,18 @@ describe("settling up only: the story, in numbers", () => {
     expect(shareMap(jan)).toEqual({ [f.a]: 600_000, [f.b]: 600_000, [f.c]: 600_000 });
     // A 2,620,000 - 76,000 + 1,200,000 = 3,744,000; B -2,000,000 + 186,000 - 76,000 - 600,000 = -2,490,000; C -620,000 - 34,000 - 600,000 = -1,254,000.
     expect(await f.nets()).toEqual([3_744_000, -2_490_000, -1_254_000]);
-    // Asking again does nothing (they are a member now).
-    expect((await moveBackInFor(f.gid, f.a, f.c, "2026-12-16", at("2026-12-16"))).ok).toBe(false);
   });
 
-  it("4. the date for moving back in must be after the last day (10 Nov) and a real date", async () => {
-    const f = await flat("backdate");
+  it("4. a second tap (or tapping for someone who is not settling) quietly succeeds and writes nothing; there is no back-dating", async () => {
+    const f = await flat("twotaps");
     await toSettling(f);
-    expect(await moveBackInFor(f.gid, f.a, f.c, "2026-11-10", at("2026-11-23"))).toMatchObject({ ok: false });
-    expect(await moveBackInFor(f.gid, f.a, f.c, "2026-02-30", at("2026-11-23"))).toMatchObject({ ok: false });
-    expect(await moveBackInFor(f.gid, f.a, f.b, "2026-11-23", at("2026-11-23"))).toMatchObject({ ok: false }); // B is not settling
-    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+    expect((await moveBackInFor(f.gid, f.a, f.c, at("2026-11-23"))).ok).toBe(true);
+    const lines = (await f.rows("member_rejoined")).length;
+    expect(await moveBackInFor(f.gid, f.b, f.c, at("2026-11-23"))).toEqual({ ok: true }); // the second tap: C is a member now
+    expect(await moveBackInFor(f.gid, f.a, f.b, at("2026-11-23"))).toEqual({ ok: true }); // B was never settling
+    expect((await f.rows("member_rejoined")).length).toBe(lines);
+    // The day is today, never an earlier one: C's moving-in date is 23 Nov, not 10 Nov or 11 Nov.
+    expect((await f.row(f.c)).joinedFrom?.toISOString().slice(0, 10)).toBe("2026-11-23");
   });
 });
 
@@ -348,26 +361,35 @@ describe("settling up only: who can do what", () => {
 });
 
 describe("settling up only: timing", () => {
-  it("10. 'Not received' twice (a double tap) writes one bring-back line", async () => {
+  it("10. 'Not received' twice, and the bring-back itself run twice: one bring-back line, C's row and balance unchanged by the repeat", async () => {
     const f = await flat("twice");
     const pay = await toSettling(f);
-    await Promise.allSettled([rejectPayment(pay.id, f.a), rejectPayment(pay.id, f.a)]); // the same "Not received" again, at the same moment
-    expect((await f.rows("member_rejoined")).filter((e) => e.undo.includes('"settling":true'))).toHaveLength(1);
+    const isFlagged = (e: { undo: string }) => e.undo.includes('"settling":true');
+    expect((await f.rows("member_rejoined")).filter(isFlagged)).toHaveLength(1);
+    // The same "Not received" again: refused (the payment is already off), nothing more is written.
+    expect((await rejectPayment(pay.id, f.a)).ok).toBe(false);
+    // The bring-back code itself, run a second time for someone who is already back (two taps landing at once): it finds C in the flat and writes nothing.
+    const again = await db.$transaction((tx) => bringBackLeavers(tx, { groupId: f.gid, groupName: f.name, amountText: "₹6,200", actorId: f.a, people: [f.c] }));
+    expect(again).toEqual([]);
+    expect((await f.rows("member_rejoined")).filter(isFlagged)).toHaveLength(1);
+    expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
+    expect((await settlingIn(db, f.gid)).get(f.c)?.leftAt.toISOString()).toBe(LAST);
   });
 
-  it("11. a page left open naming C: C is brought back while A is saving, so the save is refused (exact words) and nothing is written", async () => {
-    const f = await flat("leftopen");
-    // C moved out and is back in the gap (the bring-back line is written after the form was checked, before the write).
+  it("11. a page left open naming C: while A is saving, C moves out, pays, and A says Not received (so C is settling up only): the save is refused (exact words) and nothing is written", async () => {
+    const f = await flat("leftopen", { milk: false });
     const before = (await f.live()).length;
     const r = await saveExpense(input(f, f.a, { forMode: "selected", selected: [f.a, f.c] }), f.a, rate1, {
       afterRead: async () => {
-        await db.groupEvent.create({
-          data: { groupId: f.gid, actorId: f.a, kind: "member_rejoined", text: "brought C back into the flat until the ₹100 is sorted", touches: f.c, undo: JSON.stringify({ type: "member_set", memberId: f.c, data: { leftAt: LAST }, settling: true }) },
-        });
+        // C was an ordinary member when the page was checked; all of this lands before the write.
+        const pay = await moveCOutNoMilk(f); // C pays A 600,000: A +1,200,000, B -1,200,000, C 0
+        expect((await rejectPayment(pay.id, f.a)).ok).toBe(true); // A +1,800,000, B -1,200,000, C -600,000, C settling
+        expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
       },
     });
     expect(r).toEqual({ ok: false, error: settlingNamed("C") });
     expect((await f.live()).length).toBe(before);
+    expect(await f.nets()).toEqual([1_800_000, -1_200_000, -600_000]);
   });
 
   it("12. 'Not received' lands in the middle of the December run (after the group is read): the rent is still A 900,000, B 900,000 only", async () => {
@@ -423,16 +445,195 @@ describe("settling up only: timing", () => {
   });
 });
 
+// A trip: the same person brought back is an ordinary member (only a flat has "settling up only").
+async function tripWithLeaver(label: string) {
+  const tag = `${label}-${Math.random().toString(36).slice(2, 7)}`;
+  const accs = await Promise.all(["A", "B", "C"].map((nm) => db.account.create({ data: { email: `so-t-${nm}-${tag}-${stamp}@example.test`, name: nm } })));
+  accountIds.push(...accs.map((x) => x.id));
+  const g = await db.group.create({
+    data: {
+      name: `Trip ${tag}`, type: "trip", currency: "INR", inviteCode: `so-t-${tag}-${stamp}`,
+      members: { create: accs.map((x, i) => ({ name: x.name, accountId: x.id, splitWeight: 100, createdAt: new Date(2026, 0, i + 1), claimedAt: new Date(2026, 0, i + 1) })) },
+    },
+    include: { members: true },
+  });
+  groupIds.push(g.id);
+  const id = (nm: string) => g.members.find((m) => m.name === nm)!.id;
+  const [a, b, c] = [id("A"), id("B"), id("C")];
+  // Dinner 60,000 paid by B, all of it C's: B +60,000, C -60,000.
+  await db.expense.create({
+    data: {
+      groupId: g.id, description: "Dinner", category: "other", amount: 60_000, paidById: b, createdById: b, splitType: "exact", forMode: "selected",
+      originalAmount: 60_000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 60_000, spentAt: new Date("2026-11-05T12:00:00Z"),
+      shares: { create: [{ memberId: c, amount: 60_000 }] },
+    },
+  });
+  return { gid: g.id, a, b, c, nets: async () => { const x = await checkBooks(g.id); return [x[a], x[b], x[c]]; } };
+}
+
+describe("settling up only: the review fixes", () => {
+  it("17. H2: Undo of 'Not received', and restoring a deleted payment, move C out again when C is square again (last day 10 Nov each time)", async () => {
+    const f = await flat("h2a");
+    const pay = await toSettling(f); // C -620,000, settling up only
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+    // A undoes their own "Not received": C's 620,000 counts again, so C is 0 and is moved out again, in that same step.
+    const ev = (await f.rows("payment_deleted"))[0];
+    expect((await undoEvent(ev.id, f.a)).ok).toBe(true);
+    expect(await f.nets()).toEqual([1_180_000, -1_180_000, 0]);
+    expect((await f.row(f.c)).leftAt?.toISOString()).toBe(LAST);
+    expect((await settlingIn(db, f.gid)).size).toBe(0);
+    // A deletes the payment again: C is back, owing 620,000. A restores it: C is square and moved out again.
+    expect((await setPaymentDeleted(pay.id, f.a, true)).ok).toBe(true);
+    expect((await f.row(f.c)).leftAt).toBeNull();
+    expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
+    expect((await setPaymentDeleted(pay.id, f.a, false)).ok).toBe(true);
+    expect(await f.nets()).toEqual([1_180_000, -1_180_000, 0]);
+    expect((await f.row(f.c)).leftAt?.toISOString()).toBe(LAST);
+    expect((await f.rows("member_left")).filter((e) => e.text.includes("is square again"))).toHaveLength(2);
+  });
+
+  it("18. H1: C can't delete or restore an expense, or undo anyone's change to one. C deleting October groceries (1,200,000) would have taken C from -620,000 to -220,000", async () => {
+    const f = await flat("h1");
+    await toSettling(f); // A +1,800,000, B -1,180,000, C -620,000
+    const groceries = (await f.live()).find((e) => e.description === "Groceries")!;
+    expect(await setExpenseDeleted(groceries.id, f.c, true)).toEqual({ ok: false, error: SETTLING_SELF });
+    expect((await f.live()).some((e) => e.id === groceries.id)).toBe(true);
+    expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
+    // A deletes it (their right): each had 400,000 of it and A paid 1,200,000. A 1,800,000 - 800,000 = 1,000,000; B -1,180,000 + 400,000 = -780,000; C -620,000 + 400,000 = -220,000.
+    expect((await setExpenseDeleted(groceries.id, f.a, true)).ok).toBe(true);
+    expect(await f.nets()).toEqual([1_000_000, -780_000, -220_000]);
+    // C can't bring it back, nor undo A's delete.
+    expect(await setExpenseDeleted(groceries.id, f.c, false)).toEqual({ ok: false, error: SETTLING_SELF });
+    const del = (await f.rows("expense_deleted"))[0];
+    expect(await undoEvent(del.id, f.c)).toEqual({ ok: false, error: SETTLING_SELF });
+    expect(await f.nets()).toEqual([1_000_000, -780_000, -220_000]);
+    expect((await setExpenseDeleted(groceries.id, f.a, false)).ok).toBe(true);
+    expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
+    // A renames the groceries (C stays in it, nothing moves); C can't undo that edit.
+    const edit = await saveExpense(input(f, f.a, { expenseId: groceries.id, name: "October groceries", amount: "12000", forMode: "selected", selected: [f.a, f.b, f.c] }), f.a, rate1);
+    expect(edit.ok).toBe(true);
+    const edited = (await f.rows("expense_edited"))[0];
+    expect(await undoEvent(edited.id, f.c)).toEqual({ ok: false, error: SETTLING_SELF });
+    expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
+  });
+
+  it("19. H3: someone else's move-out leaves C out of the square-up. With C settling at -600,000, B moves out and pays A 1,200,000; no payment names C; C stays -600,000", async () => {
+    const f = await flat("h3b", { milk: false });
+    await toSettlingNoMilk(f); // A +1,800,000, B -1,200,000, C -600,000
+    // B's last day is 30 Nov (the whole month: nothing freed). B owes 1,200,000 and A is the only one owed among those still in the flat.
+    const out = await moveOut(f.gid, f.a, { leaverId: f.b, lastDay: "2026-11-30", requestKey: key() }, at("2026-11-30"));
+    expect(out).toMatchObject({ ok: true, payments: [{ from: f.b, to: f.a, amount: 1_200_000 }] });
+    expect(await f.nets()).toEqual([600_000, 0, -600_000]);
+    expect(await db.payment.count({ where: { groupId: f.gid, deletedAt: null, OR: [{ fromId: f.c }, { toId: f.c }] } })).toBe(0);
+    expect((await f.row(f.c)).leftAt).toBeNull();
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+  });
+
+  it("20. H3: A (owed 1,800,000) can't be squared by B alone while C (who owes 600,000) is settling: refused in plain words, nothing recorded, C untouched", async () => {
+    const f = await flat("h3a", { milk: false });
+    await toSettlingNoMilk(f); // A +1,800,000, B -1,200,000, C -600,000
+    const words = "A can’t be squared up yet: C moved out earlier and is still settling up. Once they’re square, try again.";
+    expect(await moveOutPreview(f.gid, f.a, "2026-11-30", at("2026-11-30"), f.b)).toEqual({ ok: false, error: words });
+    expect(await moveOut(f.gid, f.b, { leaverId: f.a, lastDay: "2026-11-30", requestKey: key() }, at("2026-11-30"))).toEqual({ ok: false, error: words });
+    expect(await f.nets()).toEqual([1_800_000, -1_200_000, -600_000]);
+    expect((await f.row(f.a)).leftAt).toBeNull();
+    expect(await db.payment.count({ where: { groupId: f.gid, deletedAt: null, OR: [{ fromId: f.c }, { toId: f.c }] } })).toBe(0);
+  });
+
+  it("21. M1: C can't be moved out by hand (by someone else, by their own leave, or in the preview); the bring-back stays", async () => {
+    const f = await flat("m1");
+    await toSettling(f);
+    const words = "C is settling up after moving out, and is moved out again as soon as they’re square.";
+    expect(words).toBe(settlingNoManualMoveOut("C"));
+    expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-23", requestKey: key() }, at("2026-11-23"))).toEqual({ ok: false, error: words });
+    expect(await moveOutPreview(f.gid, f.c, "2026-11-23", at("2026-11-23"), f.a)).toEqual({ ok: false, error: words });
+    expect(await setMemberLeft(f.gid, f.c, f.c, true)).toEqual({ ok: false, error: words });
+    expect(await setMemberLeft(f.gid, f.a, f.c, true)).toEqual({ ok: false, error: words });
+    expect((await f.row(f.c)).leftAt).toBeNull();
+    expect((await settlingIn(db, f.gid)).get(f.c)?.leftAt.toISOString()).toBe(LAST);
+    expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
+  });
+
+  it("22. M3: C can't change the currency, the card markup, goals or the deposit; A can change the markup", async () => {
+    const f = await flat("m3");
+    await toSettling(f);
+    expect(await changeGroupCurrency(f.gid, f.c, "USD", "0.012")).toEqual({ ok: false, error: SETTLING_SELF });
+    expect((await db.group.findUniqueOrThrow({ where: { id: f.gid } })).currency).toBe("INR");
+    expect(await updateGroupBasics(f.gid, f.c, { markupBp: 150 })).toEqual({ ok: false, error: SETTLING_SELF });
+    expect((await db.group.findUniqueOrThrow({ where: { id: f.gid } })).cardMarkupBp).toBe(0);
+    expect(await saveGoalFor(f.gid, f.c, { name: "Sofa", target: "20000", byDate: "" })).toEqual({ ok: false, error: SETTLING_SELF });
+    expect(await db.goal.count({ where: { groupId: f.gid } })).toBe(0);
+    expect(await saveDepositFor(f.gid, f.c, { heldBy: f.a, amounts: { [f.a]: "1000" } })).toEqual({ ok: false, error: SETTLING_SELF });
+    expect(await db.deposit.count({ where: { groupId: f.gid } })).toBe(0);
+    expect((await updateGroupBasics(f.gid, f.a, { markupBp: 150 })).ok).toBe(true);
+    expect(await settlingSelfRefusal(db, f.gid, f.a)).toBeNull();
+    expect(await settlingSelfRefusal(db, f.gid, f.c)).toBe(SETTLING_SELF);
+  });
+
+  it("23. H4: a trip leaver who is brought back is an ordinary member (not settling up only)", async () => {
+    const t = await tripWithLeaver("trip");
+    expect(await t.nets()).toEqual([0, 60_000, -60_000]);
+    const paid = await recordPaymentCore({ groupId: t.gid, fromId: t.c, toId: t.b, amount: 60_000, currency: "INR", myId: t.c, key: key(), fp: "so-trip-1", warnOver: false });
+    expect(paid.kind).toBe("done");
+    expect((await setMemberLeft(t.gid, t.c, t.c, true)).ok).toBe(true); // C leaves the trip at 0
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: t.gid, fromId: t.c, toId: t.b } });
+    expect((await setPaymentDeleted(pay.id, t.b, true)).ok).toBe(true); // B deletes it: C is brought back, owing 60,000
+    expect(await t.nets()).toEqual([0, 60_000, -60_000]);
+    expect((await db.member.findUniqueOrThrow({ where: { id: t.c } })).leftAt).toBeNull();
+    expect((await settlingIn(db, t.gid)).size).toBe(0);
+    expect(await settlingSelfRefusal(db, t.gid, t.c)).toBeNull();
+  });
+
+  it("24. H4: a flat person brought back 4 months ago by the old wording who has been in expenses since is a full member; with nothing since, still settling", async () => {
+    const f = await flat("old4", { milk: false });
+    await toSettlingNoMilk(f);
+    const [line] = await f.rows("member_rejoined");
+    const old = JSON.parse(line.undo);
+    delete old.settling; // the old line: no hidden flag, found only by its words
+    await db.groupEvent.update({ where: { id: line.id }, data: { undo: JSON.stringify(old), createdAt: new Date("2026-07-15T06:00:00Z") } });
+    const moved = (await f.rows("member_left"))[0];
+    await db.groupEvent.update({ where: { id: moved.id }, data: { createdAt: new Date("2026-07-10T06:00:00Z") } });
+    expect((await settlingIn(db, f.gid)).get(f.c)?.flagged).toBe(false);
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true); // nothing since: still settling
+    // C was in a December expense since (dated after their move-out month): they have been living there.
+    await db.expense.create({
+      data: {
+        groupId: f.gid, description: "Dec dinner", category: "other", amount: 300_000, paidById: f.a, createdById: f.a, splitType: "equal", forMode: "everyone",
+        originalAmount: 300_000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 300_000, spentAt: new Date("2026-12-05T12:00:00Z"),
+        shares: { create: [f.a, f.b, f.c].map((m) => ({ memberId: m, amount: 100_000 })) },
+      },
+    });
+    expect((await settlingIn(db, f.gid)).size).toBe(0);
+  });
+
+  it("25. M4: C pays in full while still in a card game that is open: C is square (0) but is not moved out (they stay settling at 0)", async () => {
+    const f = await flat("m4");
+    await toSettling(f); // C -620,000
+    await db.potGame.create({ data: { groupId: f.gid, name: "Cards", game: "poker", players: JSON.stringify([f.c]), hostId: f.a, moves: { create: [{ memberId: f.c, kind: "take", amount: 1_000, createdById: f.a }] } } });
+    expect(await record(f, f.c, f.a, 620_000)).toMatchObject({ kind: "done" });
+    expect(await f.nets()).toEqual([1_180_000, -1_180_000, 0]);
+    expect((await f.row(f.c)).leftAt).toBeNull();
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+  });
+});
+
 // One step = one transaction: these read the code, because a lost connection can only be shown by the shape of the write.
 describe("settling up only: one step", () => {
   const src = (p: string) => readFileSync(p, "utf8");
-  it("15. the bring-back (flag + row + line) is one write inside the caller's transaction; every payment path moves a squared person out again in the same transaction", () => {
+  it("15. the bring-back (flag + row + line) is one write inside the caller's transaction; the move-out-again is called from the ONE place every payment is made or put back, in the same transaction", () => {
     const change = src("src/lib/payment-change.ts");
     expect(change).toMatch(/settling: true \}/);
     expect(change).toMatch(/bringBackLeavers\(tx: Tx/);
-    for (const file of ["src/lib/pay-record.ts", "src/lib/pay-link.ts", "src/lib/settle-all.ts", "src/lib/cross-settle-db.ts", "src/lib/convert-claims.ts"]) {
-      expect(src(file), file).toMatch(/moveOutAgainIfSquare\(tx,/);
+    const pay = src("src/lib/payments.ts");
+    expect(pay).toMatch(/moveOutAgainIfSquare\(tx, p\.groupId, \[p\.fromId, p\.toId\]\)/); // createPayment
+    expect(pay).toMatch(/moveOutAgainIfSquare\(tx, g,/); // restorePayments
+    // No payment path calls it on its own any more (none can forget it, none can do it twice).
+    for (const file of ["src/lib/pay-record.ts", "src/lib/pay-link.ts", "src/lib/settle-all.ts", "src/lib/cross-settle-db.ts", "src/lib/convert-claims.ts", "src/lib/payment-change.ts"]) {
+      expect(src(file), file).not.toMatch(/moveOutAgainIfSquare\(/);
     }
+    // And they all really use the two shared functions (undo / redo of Settle everything and Mark all paid included).
+    expect(src("src/lib/settle-all.ts")).toMatch(/restorePayments\(tx/);
+    expect(src("src/lib/payment-change.ts")).toMatch(/restorePayments\(tx/);
     // The move-out itself is written with the same transaction client as the payment (never the shared connection).
     expect(src("src/lib/settling-db.ts")).toMatch(/export async function moveOutAgainIfSquare\(tx: Prisma\.TransactionClient/);
   });

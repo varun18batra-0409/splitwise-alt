@@ -171,14 +171,13 @@ export async function setMoveIn(formData: FormData) {
   redirect(`/groups/${groupId}/people`);
 }
 
-// "C has moved back in" (People page): someone settling up only is a member again from the day picked.
+// "C has moved back in" (People page): someone settling up only is a member again from today (someone else marks it, never the person themselves).
 export async function movedBackIn(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const actor = await me(groupId);
   if (await isPairGroup(groupId)) redirect(`/people/${groupId}`);
   const memberId = String(formData.get("memberId") ?? "");
-  const day = String(formData.get("day") ?? "");
-  const r = await moveBackInFor(groupId, actor, memberId, day);
+  const r = await moveBackInFor(groupId, actor, memberId);
   if (!r.ok) redirect(await flashTo(["groups", groupId, "people"], { error: r.error }));
   redirect(`/groups/${groupId}/people`);
 }

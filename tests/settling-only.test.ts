@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confirmMovedBack, isBringBackLine, SETTLING_SELF, settlingFrom, settlingNamed, settlingTag, squareAgainText, withSettlingLeft, type HistoryLine } from "../src/lib/settling";
+import { confirmMovedBack, isBringBackLine, SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingFrom, settlingNoManualMoveOut, settlingNamed, settlingTag, squareAgainText, withSettlingLeft, type HistoryLine } from "../src/lib/settling";
 import { memberMark } from "../src/lib/left-view";
 
 // "Settling up only" (pure rules). Someone who moved out and was brought back so they can settle is not a member again: the latest line in the
@@ -84,6 +84,29 @@ describe("who is settling up only", () => {
     expect(again.get(C)?.leftAt.toISOString()).toBe(LAST);
   });
 
+  // H4: only a MOVE-OUT followed by a bring-back is "settling". Trips and removals are ordinary members again.
+  it("a bring-back after something other than a move-out is not settling: leaving on their own, an admin removal, nothing before it", () => {
+    const leftOwn: HistoryLine = { id: "lo", kind: "member_left", text: "left the group", createdAt: at(1), undo: JSON.stringify({ type: "member_set", memberId: C, data: { leftAt: null } }) };
+    const removed: HistoryLine = { id: "rm", kind: "member_left", text: "removed C from the group", createdAt: at(1), undo: JSON.stringify({ type: "member_set", memberId: C, data: { leftAt: null, removedAt: null, removedById: "" } }) };
+    expect(settlingFrom([leftOwn, bringBack(C, 5)], [A, C]).size).toBe(0);
+    expect(settlingFrom([removed, bringBack(C, 5)], [A, C]).size).toBe(0);
+    expect(settlingFrom([bringBack(C, 5)], [A, C]).size).toBe(0);
+    // ...and the same line right after a real move-out is settling.
+    expect(settlingFrom([moveOutLine(C, 1), bringBack(C, 5)], [A, C]).size).toBe(1);
+  });
+
+  it("the automatic “moved out again” line counts as a move-out, so being brought back after it is settling again", () => {
+    const squareAgain: HistoryLine = { id: "sq", kind: "member_left", text: "is square again, so C is moved out again (last day 10 Nov)", details: JSON.stringify([memberMark(C)]), undo: "", createdAt: at(8) };
+    expect(settlingFrom([squareAgain, bringBack(C, 12)], [A, C]).has(C)).toBe(true);
+  });
+
+  it("each answer says when they were brought back and whether the line carries the hidden flag (the old wording does not)", () => {
+    const a = settlingFrom([moveOutLine(C, 1), bringBack(C, 5)], [A, C]).get(C)!;
+    const b = settlingFrom([moveOutLine(C, 1), bringBackOld(C, 5)], [A, C]).get(C)!;
+    expect([a.flagged, a.since?.getTime()]).toEqual([true, at(5).getTime()]);
+    expect([b.flagged, b.since?.getTime()]).toEqual([false, at(5).getTime()]);
+  });
+
   it("someone removed from the group (not in the group now) is not settling", () => {
     expect(settlingFrom([moveOutLine(C, 1), bringBack(C, 5)], [A]).size).toBe(0);
   });
@@ -96,25 +119,25 @@ describe("who is settling up only", () => {
   it("lines handed over in any order are read oldest first, and equal times go by id", () => {
     const got = settlingFrom([rejoined(C, 9), bringBack(C, 5), moveOutLine(C, 1)], [A, C]);
     expect(got.size).toBe(0);
-    const same: HistoryLine[] = [{ ...bringBack(C, 5), id: "b" }, { ...rejoined(C, 5), id: "a" }];
+    const same: HistoryLine[] = [moveOutLine(C, 1), { ...bringBack(C, 5), id: "b" }, { ...rejoined(C, 5), id: "a" }];
     expect(settlingFrom(same, [A, C]).has(C)).toBe(true); // "a" (rejoin) comes first, "b" (bring-back) is the latest
   });
 
   it("a removed person brought back keeps how they were removed (so moving them out again puts it back the same)", () => {
     const removedAt = "2026-11-12T08:00:00.000Z";
     const line = bringBack(C, 5, { undo: JSON.stringify({ type: "member_set", memberId: C, data: { leftAt: LAST, removedAt, removedById: A }, settling: true }) });
-    const s = settlingFrom([line], [A, C]).get(C)!;
+    const s = settlingFrom([moveOutLine(C, 1), line], [A, C]).get(C)!;
     expect([s.leftAt.toISOString(), s.removedAt?.toISOString(), s.removedById]).toEqual([LAST, removedAt, A]);
   });
 
   it("a bring-back with no readable last day is ignored rather than guessed", () => {
-    expect(settlingFrom([bringBack(C, 5, { undo: JSON.stringify({ type: "member_set", memberId: C, data: {}, settling: true }) })], [C]).size).toBe(0);
+    expect(settlingFrom([moveOutLine(C, 1), bringBack(C, 5, { undo: JSON.stringify({ type: "member_set", memberId: C, data: {}, settling: true }) })], [C]).size).toBe(0);
   });
 });
 
 describe("bills see them as moved out from their original last day", () => {
   const m = (id: string, leftAt: Date | null) => ({ id, name: id, leftAt });
-  const settling = settlingFrom([bringBack(C, 5)], [A, C]);
+  const settling = settlingFrom([moveOutLine(C, 1), bringBack(C, 5)], [A, C]);
 
   it("C gets leftAt 10 Nov back; A is untouched; nothing settling gives back the same list", () => {
     const list = [m(A, null), m(C, null)];
@@ -136,13 +159,28 @@ describe("bills see them as moved out from their original last day", () => {
   });
 });
 
+describe("the month edge uses the group's (India) day, not UTC", () => {
+  // A removed person's time is a real instant: 30 Nov 20:00 UTC is 1 Dec, 1:30 am in India, so their own month is December.
+  const late = { leftAt: new Date("2026-11-30T20:00:00.000Z"), removedAt: new Date("2026-11-30T20:00:00.000Z"), removedById: A };
+  const list = [{ id: C, name: C, leftAt: null as Date | null }];
+  it("their own move-out month is December, so a December daily bill keeps the old rule and a November one does not", () => {
+    expect(withSettlingLeft(list, new Map([[C, late]]), { dailyMonth: "2026-12" })[0].leftAt).toBeNull();
+    expect(withSettlingLeft(list, new Map([[C, late]]), { dailyMonth: "2026-11" })[0].leftAt?.toISOString()).toBe("2026-11-30T20:00:00.000Z");
+  });
+  it("the tag shows the India day: 1 Dec", () => {
+    expect(settlingTag(late)).toBe("Settling up only · moved out 1 Dec");
+  });
+});
+
 describe("the words", () => {
-  const s = settlingFrom([bringBack(C, 5)], [A, C]).get(C)!;
+  const s = settlingFrom([moveOutLine(C, 1), bringBack(C, 5)], [A, C]).get(C)!;
   it("the People tag, the refusals, the square-again line and the confirm", () => {
     expect(settlingTag(s)).toBe("Settling up only · moved out 10 Nov");
     expect(SETTLING_SELF).toBe("You moved out, so you can only settle up here.");
     expect(settlingNamed("C")).toBe("C moved out and is only settling up, so they can’t be in new expenses. If C has moved back in, mark that on People first.");
     expect(squareAgainText("C", s)).toBe("is square again, so C is moved out again (last day 10 Nov)");
-    expect(confirmMovedBack("C", "2026-12-15")).toBe("C has moved back in? From 15 Dec, C shares bills again.");
+    expect(confirmMovedBack("C")).toBe("C has moved back in? From today, C shares bills again.");
+    expect(SETTLING_SELF_MOVED_BACK).toBe("Someone else in the flat needs to mark that you’ve moved back in.");
+    expect(settlingNoManualMoveOut("C")).toBe("C is settling up after moving out, and is moved out again as soon as they’re square.");
   });
 });

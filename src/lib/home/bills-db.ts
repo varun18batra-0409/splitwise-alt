@@ -288,7 +288,9 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
     }, "reminders.bills").catch(() => 0);
     return wait("payer left");
   }
-  const problem = splitProblem(bill.split, active);
+  // A daily bill's split is judged with people as the bill sees them in THIS month: someone settling up only is still in it in their own
+  // move-out month (shareMembers), so a split naming only them is not "nobody left to share it".
+  const problem = splitProblem(bill.split, shareMembers.filter((m) => !m.leftAt).map((m) => m.id));
   if (problem) return wait(problem);
   if (bill.nature === "varies") {
     // Ask whoever pays for this month's amount, in their daytime (at night the month just waits: sendBillAsks asks later).
@@ -542,7 +544,9 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
       const due = bill.nature === "daily" ? dueKey(waiting.period, "last") : dueKey(waiting.period, bill.day >= 31 ? "last" : bill.day);
       // The reason saved when the month was held can be out of date (the split was fixed since): work it out again.
       const payerId = payerFor(bill, waiting.period, active);
-      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId, reason: holdReasonNow(bill, active, closed, payerId, waiting.reason), recordedThisMonth };
+      // (The split is judged as the bill sees people in that month: settling up only is still in a daily bill's own move-out month.)
+      const splitIds = bill.nature === "daily" ? withSettlingLeft(members, settling, { dailyMonth: waiting.period }).filter((m) => !m.leftAt).map((m) => m.id) : active;
+      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId, reason: holdReasonNow(bill, splitIds, closed, payerId, waiting.reason), recordedThisMonth };
     }
     const next = nextDueDay(bill, now);
     if (bill.paused || !next) return { bill: b as BillRow, status: "paused", period: "", due: "", usual, payerId: null, reason: "", recordedThisMonth };
@@ -657,7 +661,7 @@ export async function addWaitingBill(
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
     // A daily month may still name someone settling up only in their own move-out month (the bill's own rule, see runOne); nobody else.
-    const mayShare = bill.nature === "daily" ? [...(await settlingIn(db, input.groupId))].filter(([, s]) => s.leftAt.toISOString().slice(0, 7) === where.period).map(([id]) => id) : [];
+    const mayShare = bill.nature === "daily" ? [...(await settlingIn(db, input.groupId))].filter(([, s]) => dayKey(s.leftAt, DEFAULT_TIME_ZONE).slice(0, 7) === where.period).map(([id]) => id) : [];
     r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach, settlingMayShare: mayShare, alsoInTx: async (tx, id) => noteReplaced(tx, replaced, id) });
   } catch (err) {
     await release().catch(() => undefined);

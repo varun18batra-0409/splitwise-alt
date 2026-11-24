@@ -6,7 +6,6 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment, PaymentTooBig } from "./payments";
 import { tellParties } from "./payment-claims";
-import { moveOutAgainIfSquare } from "./settling-db";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./money-guard";
 
 // Recording one payment (Smart Settle's "Mark paid" and "I've paid", and "Record a payment"), with the checks done INSIDE the write. It counts straight away.
@@ -106,8 +105,6 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
         paymentId: p.id,
         undo: { type: "payment_delete", paymentId: p.id },
       });
-      // Someone settling up only who is now square is moved out again, in this same step (settling-db.ts).
-      await moveOutAgainIfSquare(tx, i.groupId, [i.fromId, i.toId]);
       return eventId;
     }, { timeout: 15000 }));
     // It counts straight away; the other person (or both, when a third person recorded it) is told after it is saved.
