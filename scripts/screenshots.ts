@@ -813,29 +813,6 @@ if (!hosted) {
       console.log("✗ 82-place-photos", String(e).split("\n")[0]);
     }
   }
-  // Candidate photos for Thai islands (Koh Samui, Phuket, Krabi, Phi Phi), for the founder to pick from (look item 38). Free Unsplash
-  // photos straight from the image server, numbered; the "now" row is today's place-thailand set, to show what islands get today.
-  {
-    const now = ["photo-1534008897995-27a23e859048", "photo-1506665531195-3566af2b4dfa", "photo-1563492065599-3520f775eeed", "photo-1519451241324-20b4ea2c4220", "photo-1613672803979-a6edfc5a179b", "photo-1508009603885-50cf7c579365"];
-    const cand = [
-      "photo-1572529593091-6c05c37cacc7", "photo-1537956965359-7573183d1f57", "photo-1588741145164-494800cdeda4", "photo-1775476764290-7b9af9d4cab6",
-      "photo-1530948990335-1eb93cbe6430", "photo-1589211059547-2dc456fd0be0", "photo-1760383211207-e61166e84441", "photo-1762463785933-f475028daba4",
-      "photo-1733470252664-ce515758631d", "photo-1775478944607-12eb760fc067", "photo-1708111419289-c7451a1c1128", "photo-1446822800434-3873731dc998",
-      "photo-1686238349945-82074ce9f02f", "photo-1770198303881-9a4f5f467e35", "photo-1770198304978-3239e4b4563d", "photo-1770198304885-4a2e22587f31",
-      "photo-1770198304879-3b226e70c70e", "photo-1504214208698-ea1916a2195a", "photo-1587691254941-bbd1faa13154", "photo-1586302836983-d1efb5eee221",
-      "photo-1652867769695-f08d770ce88e", "photo-1773378998468-dca683d776e7", "photo-1538475711279-0373b6bc754e", "photo-1585086814044-71b3843c05e8",
-    ];
-    const tile = (id: string, label: string) => `<figure style="margin:0;width:240px"><img src="https://images.unsplash.com/${id}?w=480&q=70&fm=jpg&fit=crop" style="width:240px;height:170px;object-fit:cover;border-radius:8px;background:#333"><figcaption style="font:13px sans-serif;color:#ddd;margin-top:4px">${label}</figcaption></figure>`;
-    const html = `<body style="margin:0;padding:12px;background:#111;width:1020px;font:15px sans-serif;color:#eee"><p>Today (place-thailand and its story photos)</p><div style="display:flex;flex-wrap:wrap;gap:10px">${now.map((id, i) => tile(id, `now ${i + 1}`)).join("")}</div><p>Candidates for Thai islands</p><div style="display:flex;flex-wrap:wrap;gap:10px">${cand.map((id, i) => tile(id, String(i + 1))).join("")}</div></body>`;
-    try {
-      await page.setContent(html, { waitUntil: "load", timeout: 60_000 });
-      await page.waitForTimeout(1500);
-      await fullShot(page, `${out}/82-thai-island-candidates.png`, true);
-      console.log("✓ 82-thai-island-candidates");
-    } catch (e) {
-      console.log("✗ 82-thai-island-candidates", String(e).split("\n")[0]);
-    }
-  }
   // The sliding row again, now that a trip in 12 days exists: its weather card comes first.
   for (const n of [1, 2, 3, 4, 5, 6]) await rowCard(`69w-home-row-${n}`, n);
   await page.setViewportSize({ width: 320, height: 640 });
