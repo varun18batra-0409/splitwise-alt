@@ -242,7 +242,8 @@ export async function organiserAction(
         for (const x of p.link) await tx.collectionEntry.updateMany({ where: { id: x.id }, data: { accountId: p.friends.find((f) => sameName(f.name, x.name))!.id } });
         return { p };
       });
-      if ("error" in done) return { ok: false, error: done.error };
+      // (TypeScript widens the two return shapes into one with optional fields, so check for the plan itself.)
+      if (!done.p) return { ok: false, error: done.error ?? "This collection isn’t there any more." };
       const { rows, link, friends } = done.p;
       // Told only if they really landed on the list (added now, or linked to their name).
       const told = [...new Set([...rows.map((x) => x.accountId), ...link.map((x) => friends.find((f) => sameName(f.name, x.name))!.id)].filter(Boolean))];

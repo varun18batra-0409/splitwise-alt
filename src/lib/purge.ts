@@ -113,7 +113,10 @@ export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Pr
       // The scrambled notes of removed people who deleted their sign-in (removal-marks.ts) go with the group.
       await tx.appSetting.deleteMany({ where: { OR: ids.map((id) => ({ key: { startsWith: `removed:${id}:` } })) } });
       // The month's frozen budget zone notes (budgets-db.ts) go with the group.
-      await tx.notifyLog.deleteMany({ where: { OR: ids.map((id) => ({ key: keyStarting(`budget-zone:${id}:`) })) } });
+      // In small pieces: each group adds two values to the query, and a big erase would pass the database's limit.
+      for (let i = 0; i < ids.length; i += 100) {
+        await tx.notifyLog.deleteMany({ where: { OR: ids.slice(i, i + 100).map((id) => ({ key: keyStarting(`budget-zone:${id}:`) })) } });
+      }
       await tx.group.deleteMany({ where: { id: { in: ids } } });
     },
     { timeout: 30000 },
