@@ -29,8 +29,7 @@ async function signUpOnce(name: string, email: string): Promise<TestUser> {
     }
     const page = await ctx.newPage();
     page.setDefaultTimeout(45_000);
-    // Sign in no longer asks for a name (look set 2, VA2-9): a new account is made on the Create account page, which does.
-    await page.goto(`${baseURL}/signin?mode=signup`);
+    await page.goto(`${baseURL}/signin`);
     await page.locator('input[name="name"]').fill(name);
     await page.locator('input[name="email"]').fill(email);
     const since = new Date(Date.now() - 2_000);

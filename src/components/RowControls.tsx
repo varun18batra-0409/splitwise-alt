@@ -8,13 +8,13 @@ import { wheelMove } from "@/lib/row-wheel";
 // Wrap the row and mark the scrolling element inside it with `data-row-scroller`. Nothing else about the row changes.
 const FINE = "(hover: hover) and (pointer: fine)";
 
-export function RowControls({ children, className = "", as = "div" }: { children: React.ReactNode; className?: string; as?: "div" | "span" }) {
-  const Tag: React.ElementType = as; // "span" where a test or style looks for the first child div of a parent (Settings > Picture): then the scrolling row stays that div
-  const wrap = useRef<HTMLDivElement>(null); // typed as a div for React's ref check; a span works the same at run time
+// The behaviour, shared: the wheel moves the row and arrows appear while the pointer is over the box. `getBox` returns the element that
+// holds the scrolling row (marked `data-row-scroller`) and, for the arrows, is `position: relative` with the `row-controls` class.
+function useRowControls(getBox: () => HTMLElement | null) {
   const [can, setCan] = useState({ left: false, right: false });
 
   useEffect(() => {
-    const box = wrap.current;
+    const box = getBox();
     const row = box?.querySelector<HTMLElement>("[data-row-scroller]");
     if (!box || !row) return;
     const fine = window.matchMedia?.(FINE);
@@ -36,10 +36,11 @@ export function RowControls({ children, className = "", as = "div" }: { children
       row.removeEventListener("wheel", onWheel);
       ro?.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const move = (dir: -1 | 1) => {
-    const row = wrap.current?.querySelector<HTMLElement>("[data-row-scroller]");
+    const row = getBox()?.querySelector<HTMLElement>("[data-row-scroller]");
     if (row) row.scrollBy({ left: dir * Math.max(120, row.clientWidth * 0.8), behavior: "smooth" });
   };
   const arrow = (dir: -1 | 1) => (
@@ -56,12 +57,35 @@ export function RowControls({ children, className = "", as = "div" }: { children
       </svg>
     </button>
   );
+  return (
+    <>
+      {can.left && arrow(-1)}
+      {can.right && arrow(1)}
+    </>
+  );
+}
 
+export function RowControls({ children, className = "", as = "div" }: { children: React.ReactNode; className?: string; as?: "div" | "span" }) {
+  const Tag: React.ElementType = as;
+  const wrap = useRef<HTMLDivElement>(null); // typed as a div for React's ref check; a span works the same at run time
+  const arrows = useRowControls(() => wrap.current);
   return (
     <Tag ref={wrap} className={`row-controls relative ${as === "span" ? "block " : ""}${className}`} data-row-controls>
       {children}
-      {can.left && arrow(-1)}
-      {can.right && arrow(1)}
+      {arrows}
     </Tag>
+  );
+}
+
+// Without a wrapper: for a parent whose first child div must stay the scrolling row (Settings > Picture: a fieldset). Put it inside the parent,
+// next to the row; the parent itself must have the classes `row-controls relative`. It adds a hidden marker, and the arrows when they are needed.
+export function RowControlsInline() {
+  const marker = useRef<HTMLSpanElement>(null);
+  const arrows = useRowControls(() => marker.current?.parentElement ?? null);
+  return (
+    <>
+      <span ref={marker} hidden data-row-marker />
+      {arrows}
+    </>
   );
 }

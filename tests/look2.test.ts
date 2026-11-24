@@ -195,16 +195,6 @@ describe("41. report box", () => {
   });
 });
 
-describe("42. sign in and create account", () => {
-  const s = src("src/app/signin/page.tsx");
-  it("only Create account asks for a name, and it has the short header", () => {
-    expect(s).toContain("{signup && (\n              <label className=\"block\">");
-    expect(s).not.toContain("(if you’re new)");
-    expect(s).toContain('signup ? "h-[96px]" : "h-[420px] tight:h-[96px]"');
-    expect(s).toContain("Already have an account?");
-  });
-});
-
 describe("43. invite screen badge", () => {
   it("says Not signed in with a Sign in link", () => {
     const s = src("src/app/groups/[id]/invite/page.tsx");

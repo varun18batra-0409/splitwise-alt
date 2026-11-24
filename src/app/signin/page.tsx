@@ -42,9 +42,9 @@ export default async function SignIn({
       ) : (
         <>
           {/* Three trips, as polaroids tossed on the table: what Loopin is for, before a word is read. */}
-          <div className={`relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] ${signup ? "h-[96px]" : "h-[420px] tight:h-[96px]"} overflow-hidden pt-[max(1.2rem,env(safe-area-inset-top))]`} aria-hidden data-signin-header>
+          <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[420px] overflow-hidden pt-[max(1.2rem,env(safe-area-inset-top))] tight:h-[96px]" aria-hidden data-signin-header>
             <p className="relative text-center font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
-            {!signup && SNAPS.map((p) => (
+            {SNAPS.map((p) => (
               <span key={p.caption} className={`lp-drop absolute block tight:hidden bg-[#f4f2ec] p-2 pb-9 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.7)] ${p.spot}`} style={{ animationDelay: p.delay }}>
                 <span className="relative block h-full w-full overflow-hidden bg-[#222]">
                   {placePhoto(p.place)?.src && (
@@ -62,22 +62,14 @@ export default async function SignIn({
               <BackIcon size={20} />
             </Link>
           )}
-          {/* Sign in is the welcoming page with the photos; Create account is the short, plain one that asks for a name. */}
-          {!signup && (
-            <>
-              <p className="mt-3 font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-[-0.02em] tight:mt-1 tight:text-[26px]">
-                Split the trip.
-                <br />
-                Keep the story.
-              </p>
-              <p className="mt-3 text-[16px] leading-relaxed text-fg/65 tight:hidden">Split costs for trips, flats and couples, see who owes what, and record payments as you settle. Loopin keeps track; it never moves money.</p>
-            </>
-          )}
+          <p className="mt-3 font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-[-0.02em] tight:mt-1 tight:text-[26px]">
+            Split the trip.
+            <br />
+            Keep the story.
+          </p>
+          <p className="mt-3 text-[16px] leading-relaxed text-fg/65 tight:hidden">Split costs for trips, flats and couples, see who owes what, and record payments as you settle. Loopin keeps track; it never moves money.</p>
           {signup ? (
-            <>
-              <h1 className="mt-6 font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-[-0.02em] tight:mt-3 tight:text-[24px]">Create your account</h1>
-              <p className="mb-5 mt-2 text-[15px] leading-snug text-fg/65 tight:mb-3">Free, and it takes a minute. Your groups follow you to any phone.</p>
-            </>
+            <h1 className="mb-4 mt-7 font-display text-[26px] font-semibold leading-tight tracking-tight tight:mb-2 tight:mt-3 tight:text-[22px]">Create your account</h1>
           ) : (
             <h1 className="mb-3 mt-7 text-[15px] font-semibold text-fg/80 tight:mb-2 tight:mt-3">Continue to Loopin</h1>
           )}
@@ -121,13 +113,12 @@ export default async function SignIn({
                 className={inputClass}
               />
             </label>
-            {/* Only a new account is asked for a name; signing in never is (it can be set later on You). */}
-            {signup && (
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-gray-600">Your name</span>
-                <input name="name" autoComplete="name" defaultValue={name} placeholder="e.g. Maya" maxLength={40} className={inputClass} />
-              </label>
-            )}
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-600">
+                Your name <span className="font-normal text-gray-400">(if you’re new)</span>
+              </span>
+              <input name="name" autoComplete="name" defaultValue={name} placeholder="e.g. Maya" maxLength={40} className={inputClass} />
+            </label>
             <button type="submit" className={googleConfigured() ? secondaryButtonClass : primaryButtonClass}>
               Email me a code
             </button>
@@ -136,14 +127,6 @@ export default async function SignIn({
           <div className="mt-3">
             <PasskeySignIn back={back} groups={guestGroups} className="flex h-12 w-full items-center justify-center rounded-full border border-fg/25 bg-transparent text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
           </div>
-          {signup && (
-            <p className="mt-2 text-center text-sm text-gray-500 tight:mt-0">
-              Already have an account?{" "}
-              <Link href={`/signin?${new URLSearchParams({ back })}`} className="inline-flex min-h-11 items-center font-semibold text-fg underline underline-offset-4">
-                Sign in
-              </Link>
-            </p>
-          )}
           {!signup && (
             <p className="mt-2 text-center text-sm text-gray-500 tight:mt-0">
               New here?{" "}
