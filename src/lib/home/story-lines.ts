@@ -315,7 +315,7 @@ export function namesThePlace(key: string, text: string, country?: string | null
 export function storyLines(o: { month?: number | null; place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; day?: number; step?: number; avoid?: Set<string>; n?: number; home?: string | null; couple?: boolean; placeText?: string | null }): Line[] {
   // The place's own hand-written lines (only when the trip names that exact place: `placeText` is its name and "Where to?"), else lines
   // for its city and country (any country in the world). `home` is the viewer's country, `couple` is true for a couple's group.
-  const key = o.place ? o.place.replace(/^place-/, "").replace(/^kyoto$/, "japan") : "";
+  const key = o.place ? o.place.replace(/^place-/, "").replace(/^kyoto$/, "japan").replace(/^thai-islands$/, "thailand") : "";
   const exact = o.placeText == null || namesThePlace(key, o.placeText, o.country);
   const handWritten = (key && exact && PLACE[key]) || [];
   const own = handWritten.length ? handWritten : worldLines(o.country, o.city, o.countryName, o.flag, o.home);

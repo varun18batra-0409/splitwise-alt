@@ -47,6 +47,7 @@ export const PHOTO_TAGS: Record<string, string[]> = {
   "place-srilanka": ["train", "bridge"], "place-srilanka-2": ["rock"], "place-srilanka-3": ["waterfall"], "place-srilanka-4": ["wildlife"], "place-srilanka-5": ["palms", "sea"],
   "place-switzerland": ["mountains"], "place-switzerland-2": ["castle", "lake"], "place-switzerland-3": ["lake", "mountains"], "place-switzerland-4": ["lake", "mountains"],
   "place-thailand": ["island", "sea", "boat"], "place-thailand-2": ["island", "sunset"], "place-thailand-3": ["temple"], "place-thailand-4": ["boat", "cliffs"], "place-thailand-5": ["temple"], "place-thailand-6": ["night", "street"],
+  "place-thai-islands": ["boat", "island"], "place-thai-islands-2": ["boat", "beach"], "place-thai-islands-3": ["sunset", "boat"], "place-thai-islands-4": ["island", "beach"], "place-thai-islands-5": ["cliffs", "sea"], "place-thai-islands-6": ["beach", "boat"],
   "place-udaipur": ["palace", "lake"], "place-udaipur-2": ["palace", "lake", "boat"],
   "place-varanasi": ["river", "boat"], "place-varanasi-2": ["river", "boat"],
   // Top destinations: only what the pick notes say is in the photo.

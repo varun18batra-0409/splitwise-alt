@@ -41,6 +41,7 @@ const SLOTS = {
   // ids only: Unsplash's "download" links now need a sign-in.
   "place-goa": ["photo-1614082242765-7c98ca0f3df3"],
   "place-thailand": ["photo-1534008897995-27a23e859048"],
+  "place-thai-islands": ["photo-1770198303881-9a4f5f467e35"], // longtail boat by a limestone island
   "place-bali": ["photo-1555400038-63f5ba517a47"],
   "place-dubai": ["photo-1782078292081-8fb6de1c54df"],
   "place-manali": ["photo-1597167231350-d057a45dc868"],
@@ -146,6 +147,8 @@ const SLOTS = {
 const MORE = {
   "place-goa": ["photo-1560179406-1c6c60e0dc76", "photo-1587922546307-776227941871", "photo-1625505826533-5c80aca7d157", "photo-1512343879784-a960bf40e7f2", "photo-1642922835816-e2ac68db5c42"],
   "place-thailand": ["photo-1506665531195-3566af2b4dfa", "photo-1563492065599-3520f775eeed", "photo-1519451241324-20b4ea2c4220", "photo-1613672803979-a6edfc5a179b", "photo-1508009603885-50cf7c579365"],
+  // Thai islands: boats on the beach, longtails at sunset, Koh Nang Yuan, Phi Phi cliffs, a Koh Samui beach.
+  "place-thai-islands": ["photo-1770198304978-3239e4b4563d", "photo-1585086814044-71b3843c05e8", "photo-1588741145164-494800cdeda4", "photo-1587691254941-bbd1faa13154", "photo-1446822800434-3873731dc998"],
   "place-bali": ["photo-1577717903315-1691ae25ab3f", "photo-1544644181-1484b3fdfc62", "photo-1573790387438-4da905039392", "photo-1554931670-4ebfabf6e7a9", "photo-1558005530-a7958896ec60"],
   "place-dubai": ["photo-1512453979798-5ea266f8880c", "photo-1518684079-3c830dcef090", "photo-1784125160488-09f633671243", "photo-1580674684081-7617fbf3d745"],
   "place-manali": ["photo-1712388430474-ace0c16051e2", "photo-1609920658906-8223bd289001", "photo-1711359940524-ed5e0ad9b89b", "photo-1594102552386-793e5a27ad10", "photo-1648131877984-f39ebc1647f1"],

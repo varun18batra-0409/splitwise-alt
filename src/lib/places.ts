@@ -8,7 +8,9 @@ import { tripEmoji } from "./countdown";
 
 const PLACES: [RegExp, string][] = [
   [/\b(goa|baga|calangute|anjuna|palolem)\b/i, "place-goa"],
-  [/\b(thailand|phuket|krabi|bangkok|pattaya|phi ?phi|samui|chiang ?mai|thai)\b/i, "place-thailand"],
+  // Thai islands and beaches get island pictures (longtail boats, limestone cliffs), not Bangkok's temples.
+  [/\b(phuket|krabi|phi ?phi|samui|ao ?nang|railay|ko(?:h)? ?(?:tao|phangan|lanta|lipe|chang|yao|phi ?phi|samui))\b/i, "place-thai-islands"],
+  [/\b(thailand|bangkok|pattaya|chiang ?mai|thai)\b/i, "place-thailand"],
   [/\b(bali|ubud|seminyak|indonesia|nusa)\b/i, "place-bali"],
   [/\b(abu ?dhabi)\b/i, "place-abu-dhabi"],
   [/\b(dubai|abu ?dhabi|uae|emirates)\b/i, "place-dubai"],
