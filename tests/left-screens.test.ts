@@ -149,7 +149,7 @@ describe("Move-out page, seen by a flatmate who is not the admin", () => {
     // the "Who covers it" picker is inside that same form, so only the person confirming gets it; the read-only summary shows no payments and no cover line until one is picked
     expect(move).toContain("{p.cover && !p.needsPick && (");
     const from = move.indexOf("data-move-out-readonly");
-    const readonly = move.slice(from, move.indexOf("</div>\n      ) : (", from));
+    const readonly = move.slice(from, move.indexOf("</div>\n      ) :", from)); // up to the next branch (the "pick who covers it" line, then the form)
     expect(readonly).toContain("{squaring}");
     for (const bad of ["MoveOutButton", "depositTo", "addDaily", "<form", "type=\"radio\"", "moveOutAction"]) expect(readonly).not.toContain(bad);
   });
