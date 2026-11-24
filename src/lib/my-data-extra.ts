@@ -36,6 +36,7 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
   const personIds = [...new Set(cards.flatMap((c) => [c.fromId, c.toId]))];
   const people: { id: string; name: string }[] = [];
   for (let i = 0; i < personIds.length; i += 500) people.push(...(await db.account.findMany({ where: { id: { in: personIds.slice(i, i + 500) } }, select: { id: true, name: true } })));
+  const nameOf = new Map(people.map((p) => [p.id, p.name.trim()]));
   const postcards = cards.map((c) => {
     const sent = c.fromId === account.id;
     return { createdAt: c.createdAt, sent, other: nameOf.get(sent ? c.toId : c.fromId) || "A friend", words: c.words, message: c.message, place: c.place };

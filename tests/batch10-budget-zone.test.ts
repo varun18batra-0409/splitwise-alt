@@ -70,7 +70,10 @@ describe("one budget month for the screen and the alerts", () => {
     expect(screen).toEqual([{ category: "groceries", spent: 150000, amount: 100000, level: "over" }]);
     expect(await checkBudgets(g.id, NOW)).toEqual(["groceries:80", "groceries:100"]);
     const keys = (await db.notifyLog.findMany({ where: { key: { startsWith: `budget:${g.id}:` } }, select: { key: true } })).map((k) => k.key).sort();
-    expect(keys).toEqual([`budget:${g.id}:groceries:2026-11:100`, `budget:${g.id}:groceries:2026-11:80`].sort());
+    // People with a zone get their own record (…:m:<member id>), so there can be several keys: every one is November, at 80 and 100.
+    expect(keys.length).toBeGreaterThan(0);
+    for (const k of keys) expect(k.startsWith(`budget:${g.id}:groceries:2026-11:`)).toBe(true);
+    expect(new Set(keys.map((k) => k.split(":")[4]))).toEqual(new Set(["80", "100"]));
   });
 
   it("everyone in India (or no zones yet): both use December (the same 1,500 is 1 Dec 01:30 there), and the alert key says 2026-12", async () => {
