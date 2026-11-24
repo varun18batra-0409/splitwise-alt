@@ -1936,7 +1936,12 @@ if (!hosted) {
               },
             });
             await p.getByRole("button", { name: /^Save expense$/ }).click();
-            await p.locator("[role=alert]").filter({ hasText: "Riya" }).first().waitFor({ timeout: 15_000 });
+            // The refusal must be on the screen in the picture: wait for it (fail if it never comes), then bring it into view.
+            const refusal = p.locator("[role=alert]").filter({ hasText: "only settling up" }).first();
+            await refusal.waitFor({ timeout: 15_000 });
+            await refusal.scrollIntoViewIfNeeded();
+            if (!(await refusal.isVisible())) throw new Error("the refusal is not visible");
+            await p.waitForTimeout(300);
           },
         },
       ]);

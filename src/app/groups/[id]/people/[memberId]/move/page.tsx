@@ -54,7 +54,10 @@ export default async function MoveOutPage({
   const others = group.members.filter((m) => !m.leftAt && m.id !== leaver.id);
   const memberName = (mid: string) => group.members.find((m) => m.id === mid)?.name ?? "someone";
   const handovers = p.ok ? p.handovers.map((h) => ({ amount: h.amount, sharerName: memberName(h.sharerId), billName: h.billName, toName: memberName(h.to) })) : [];
-  const payList = (list: { from: string; to: string; amount: number }[]) =>
+  // A covering payment says who it is for, so it doesn't read as a repeat of the person's own square-up: "Nupur pays you · covering Riya" (the leaver is
+  // owed), "You pay Nupur · for Riya" (the leaver owes).
+  const settlingNames = p.ok && p.cover ? p.cover.settling.join(" and ") : "";
+  const payList = (list: { from: string; to: string; amount: number; cover?: "from" | "to" }[]) =>
     list.length === 0 ? (
       <p className="text-sm text-gray-500">
         Nothing to pay: {name(leaver.id)} {leaver.id === myId ? "are" : "is"} square.
@@ -62,10 +65,11 @@ export default async function MoveOutPage({
     ) : (
       <ul className="space-y-2">
         {list.map((t) => (
-          <li key={`${t.from}-${t.to}`} className="flex items-center justify-between border border-line px-4 py-3 text-sm rounded-2xl">
+          <li key={`${t.from}-${t.to}${t.cover ? "-cover" : ""}`} className="flex items-center justify-between border border-line px-4 py-3 text-sm rounded-2xl">
             <span>
               <strong className="font-semibold">{Name(t.from)}</strong> <span className="text-gray-500">{t.from === myId ? "pay" : "pays"}</span>{" "}
               <strong className="font-semibold">{name(t.to)}</strong>
+              {t.cover && settlingNames && <span className="text-gray-500" data-cover-for> · {t.cover === "from" ? "covering" : "for"} {settlingNames}</span>}
             </span>
             <span className={`money text-[17px] tabular-nums ${t.to === myId ? "text-owed" : t.from === myId ? "text-owe" : ""}`}>{money(t.amount)}</span>
           </li>
@@ -149,13 +153,13 @@ export default async function MoveOutPage({
 
       {/* Changing the day reloads the numbers below. */}
       {canConfirm && !(p.ok && p.settlingSquare) && (
-      <form method="get" className="mb-7 flex items-end gap-2 border-y border-line py-3.5" data-allow-repeat="1">
-        <label className="flex-1">
+      <form method="get" className="mb-7 flex flex-wrap items-end gap-x-2 gap-y-3 border-y border-line py-3.5" data-allow-repeat="1">
+        <label className="min-w-[9rem] flex-1">
           <span className="block text-sm text-gray-500">Last day in the flat</span>
           <DateField name="day" defaultValue={lastDay} max={today} min={`${addMonths(today.slice(0, 7), -1)}-01`} className="mt-1" clearable={false} />
         </label>
         {p.ok && p.cover && (p.cover.options.length > 1 || p.needsPick) && (
-          <label className="flex-1" data-cover-pick>
+          <label className="min-w-[9rem] flex-1" data-cover-pick>
             <span className="block text-sm text-gray-500">{COVER_PICK_LABEL}</span>
             <SelectField name="cover" defaultValue={p.cover.coverId} className="mt-1">
               {p.needsPick && <option value="">Pick someone</option>}
@@ -167,7 +171,7 @@ export default async function MoveOutPage({
             </SelectField>
           </label>
         )}
-        <button type="submit" className="border border-line px-4 py-2.5 text-sm font-medium active:bg-mist rounded-full">
+        <button type="submit" className="shrink-0 whitespace-nowrap border border-line px-4 py-2.5 text-sm font-medium active:bg-mist rounded-full">
           Update
         </button>
       </form>
