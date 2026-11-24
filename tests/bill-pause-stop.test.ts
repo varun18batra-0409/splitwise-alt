@@ -1,6 +1,9 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 import type { SaveExpenseInput } from "@/lib/save-expense";
 
+// The error text a result carries ("" when it went through), so a failing check shows what the app said.
+const errorOf = (r: unknown) => ((r as { ok?: boolean; error?: string }).ok ? "" : String((r as { error?: string }).error ?? JSON.stringify(r)));
+
 // Pausing or stopping a daily bill adds nothing at that moment. The days used so far (up to the day before) are added with the normal
 // monthly bill on the 1st; a stop is a pause with an end month, and the bill goes once nothing is left to add.
 // Milk is 60 rupees a day = 6,000 paise; flatmates A, B, C share equally and A pays; the bill's time zone is Asia/Kolkata and actions
@@ -1106,8 +1109,17 @@ describe("review fixes: second leaver, percentage split, weights, stale Add it, 
     await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
     const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
     expect((await rejectPayment(pay.id, f.a)).ok).toBe(true);
+    {
+      // (diagnostic) what the job will work from
+      const bill = await billOf(f);
+      const pre = await prepaidFor(bill, "2026-11");
+      const members = await db.member.findMany({ where: { groupId: f.groupId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+      const inp = billExpenseInput(bill, f.groupId, "INR", "2026-11", 94200, f.a, members, { entries: pre.entries, gone: pre.gone });
+      console.log("M3 diag", JSON.stringify({ split: bill.split, nature: bill.nature, pre, ids: { a: f.a, b: f.b, c: f.c }, members: members.map((m) => [m.id, m.splitWeight, m.leftAt, m.joinedFrom]), inp: { splitType: inp.splitType, forMode: inp.forMode, selected: inp.selected, exact: inp.exact, percent: inp.percent } }));
+    }
     await runBillsForGroup(f.groupId, at("2026-12-01"));
     const list = await milkOf(f);
+    console.log("M3 diag after", JSON.stringify({ list: list.map((e) => [e.amount, e.splitType, shareMap(e)]), split: (await billOf(f)).split }));
     expect(list.map((e) => [e.amount, shareMap(e)])).toEqual([[94200, { [f.a]: 47803, [f.b]: 46397 }]]);
     expect(await nets(f)).toEqual([66197, -46397, -19800]);
     await settleUp(f);
@@ -1150,7 +1162,7 @@ describe("review fixes: second leaver, percentage split, weights, stale Add it, 
     const fresh = await formFor();
     expect(fresh.known).toBe(114000);
     expect(fresh.input.exact).toEqual({ [f.a]: "470", [f.b]: "470", [f.c]: "200" });
-    expect((await addWaitingBill(fresh.input, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "l6-new-form-key-aaaa1")).ok).toBe(true);
+    expect(errorOf(await addWaitingBill(fresh.input, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "l6-new-form-key-aaaa1"))).toBe("");
     const end = (await milkOf(f))[0];
     expect([end.amount, shareMap(end)]).toEqual([114000, { [f.a]: 47000, [f.b]: 47000, [f.c]: 20000 }]);
     expect(await nets(f)).toEqual([67000, -47000, -20000]);
@@ -1163,7 +1175,7 @@ describe("review fixes: second leaver, percentage split, weights, stale Add it, 
     const charge = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
     expect((await setExpenseDeleted(charge.id, f.a, true)).ok).toBe(true);
     const again = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-l7-${stamp}-abcdefgh` }, at("2026-11-23"));
-    expect(again).toMatchObject({ ok: true });
+    expect(errorOf(again)).toBe("");
     expect((await live(f.groupId)).map((e) => e.amount)).toEqual([38000]);
     expect(await nets(f)).toEqual([0, 0, 0]);
     await runBillsForGroup(f.groupId, at("2026-12-01"));
@@ -1263,7 +1275,7 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     const open = await page(f);
     const edited = { ...open.input, amount: "920" }; // the typed amounts (470 + 470) no longer add up to it
     const r = await addWaitingBill(edited, f.a, rateOk, { billId: f.billId, period: "2026-11", fp: open.fp }, "fp2-edited-key-aaaaa1");
-    expect(r.ok).toBe(true);
+    expect(errorOf(r)).toBe("");
     const end = (await milkOf(f))[0];
     expect([end.amount, shareMap(end)]).toEqual([92000, { [f.a]: 46000, [f.b]: 46000 }]);
     expect(await nets(f)).toEqual([66000, -46000, -20000]);
@@ -1276,7 +1288,7 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     const odd = await addWaitingBill({ ...open.input, amount: "920" }, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "fp3-odd-key-aaaaaaa1");
     expect(odd).toEqual({ ok: false, error: "Milk changed just now. Check it and try again." });
     expect((await runRow(f)).status).toBe("waiting");
-    expect((await addWaitingBill(open.input, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "fp3-good-key-aaaaaa1")).ok).toBe(true);
+    expect(errorOf(await addWaitingBill(open.input, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "fp3-good-key-aaaaaa1"))).toBe("");
     const end = (await milkOf(f))[0];
     expect([end.amount, shareMap(end)]).toEqual([94000, { [f.a]: 47000, [f.b]: 47000 }]);
     expect(await nets(f)).toEqual([67000, -47000, -20000]);
