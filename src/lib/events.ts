@@ -5,6 +5,7 @@ import { niceDate } from "./format";
 import { moneyLines, parsePayers } from "./payers";
 import { after } from "next/server";
 import { isMark } from "./left-view";
+import { runQueued } from "./settling-queue";
 
 // Phone notifications go out after the response is sent (so after the change
 // is saved). Outside a request — tests, scripts — nothing is sent.
@@ -340,6 +341,7 @@ export async function logEvent(
     },
   });
   schedulePush(created.id);
+  await runQueued(db); // a "moved out again" line waiting on this step goes right after it
   return created.id;
 }
 

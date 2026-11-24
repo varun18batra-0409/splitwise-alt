@@ -213,6 +213,9 @@ describe("settling up only: the story, in numbers", () => {
     expect(again).toHaveLength(1);
     expect(again[0].text).toBe("is square again, so C is moved out again (last day 10 Nov)");
     expect(again[0].actorId).toBe(f.c);
+    // The history reads "paid ..." and then "is square again", in that order (the line is written after the payment's own line).
+    const lastTwo = (await db.groupEvent.findMany({ where: { groupId: f.gid }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] })).slice(-2).map((e) => e.kind);
+    expect(lastTwo).toEqual(["payment_recorded", "member_left"]);
 
     // A double tap / retry of the same payment changes nothing: one payment, one line.
     expect(await record(f, f.c, f.a, 620_000, payKey)).toMatchObject({ kind: "duplicate" });
@@ -512,7 +515,7 @@ describe("settling up only: the review fixes", () => {
     // A renames the groceries (C stays in it, nothing moves); C can't undo that edit.
     const edit = await saveExpense(input(f, f.a, { expenseId: groceries.id, name: "October groceries", amount: "12000", forMode: "selected", selected: [f.a, f.b, f.c] }), f.a, rate1);
     expect(edit.ok).toBe(true);
-    const edited = (await f.rows("expense_edited"))[0];
+    const edited = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.gid, kind: "expense_edited", expenseId: groceries.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
     expect(await undoEvent(edited.id, f.c)).toEqual({ ok: false, error: SETTLING_SELF });
     expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
   });
@@ -529,15 +532,73 @@ describe("settling up only: the review fixes", () => {
     expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
   });
 
-  it("20. H3: A (owed 1,800,000) can't be squared by B alone while C (who owes 600,000) is settling: refused in plain words, nothing recorded, C untouched", async () => {
-    const f = await flat("h3a", { milk: false });
-    await toSettlingNoMilk(f); // A +1,800,000, B -1,200,000, C -600,000
-    const words = "A can’t be squared up yet: C moved out earlier and is still settling up. Once they’re square, try again.";
-    expect(await moveOutPreview(f.gid, f.a, "2026-11-30", at("2026-11-30"), f.b)).toEqual({ ok: false, error: words });
-    expect(await moveOut(f.gid, f.b, { leaverId: f.a, lastDay: "2026-11-30", requestKey: key() }, at("2026-11-30"))).toEqual({ ok: false, error: words });
-    expect(await f.nets()).toEqual([1_800_000, -1_200_000, -600_000]);
+  it("20. N1: A (owed 1,800,000) moves out while C (owes 620,000) is settling: B, who stays, covers C's part. One payment B pays A 1,800,000 (1,180,000 B's own + 620,000 for C); A 0, B +620,000, C -620,000; C then pays B and is moved out again", async () => {
+    const f = await flat("n1");
+    await toSettling(f); // A +1,800,000, B -1,180,000, C -620,000 (C settling)
+    // Shown before confirming: the line, who covers (B, the only one staying), and the one payment.
+    const pre = await moveOutPreview(f.gid, f.a, "2026-11-30", at("2026-11-30"), f.b);
+    if (!pre.ok) throw new Error(pre.error);
+    expect(pre.cover?.text).toBe("C still owes A ₹6,200. B pays it now, and C then owes B.");
+    expect(pre.cover).toMatchObject({ amount: 620_000, coverId: f.b, options: [{ id: f.b, name: "B" }] });
+    expect(pre.payments).toEqual([{ from: f.b, to: f.a, amount: 1_800_000 }]);
+    const out = await moveOut(f.gid, f.b, { leaverId: f.a, lastDay: "2026-11-30", requestKey: key(), expectKey: pre.expectKey, coverId: f.b }, at("2026-11-30"));
+    expect(out).toMatchObject({ ok: true, payments: [{ from: f.b, to: f.a, amount: 1_800_000 }] });
+    // A 0 (left at 0); B -1,180,000 + 1,800,000 = +620,000; C -620,000; 0 + 620,000 - 620,000 = 0.
+    expect(await f.nets()).toEqual([0, 620_000, -620_000]);
+    expect((await f.row(f.a)).leftAt).not.toBeNull();
+    expect((await f.row(f.c)).leftAt).toBeNull(); // C is still settling
+    expect(await db.payment.count({ where: { groupId: f.gid, deletedAt: null, OR: [{ fromId: f.c }, { toId: f.c }] } })).toBe(0); // nothing names C
+    // C now owes B: C pays B 620,000, everyone is 0 and C is moved out again (last day 10 Nov).
+    expect(await record(f, f.c, f.b, 620_000)).toMatchObject({ kind: "done" });
+    expect(await f.nets()).toEqual([0, 0, 0]);
+    expect((await f.row(f.c)).leftAt?.toISOString()).toBe(LAST);
+  });
+
+  it("20b. N1: the covering payment is undone with the move-out (its Undo): A back in, B -1,180,000 again, C -620,000", async () => {
+    const f = await flat("n1undo");
+    await toSettling(f);
+    const out = await moveOut(f.gid, f.b, { leaverId: f.a, lastDay: "2026-11-30", requestKey: key() }, at("2026-11-30"));
+    expect(out).toMatchObject({ ok: true });
+    expect(await f.nets()).toEqual([0, 620_000, -620_000]);
+    expect((await undoEvent((out as { eventId: string }).eventId, f.b)).ok).toBe(true);
+    expect(await f.nets()).toEqual([1_800_000, -1_180_000, -620_000]);
     expect((await f.row(f.a)).leftAt).toBeNull();
-    expect(await db.payment.count({ where: { groupId: f.gid, deletedAt: null, OR: [{ fromId: f.c }, { toId: f.c }] } })).toBe(0);
+    expect(await db.payment.count({ where: { groupId: f.gid, deletedAt: null } })).toBe(0);
+  });
+
+  it("20c. N1: with two staying flatmates the default cover is the one who owes most (B), and the picker can choose the other (D)", async () => {
+    const f = await flat("n1pick", { milk: false });
+    const d = await db.member.create({ data: { groupId: f.gid, name: "D", createdAt: new Date(2026, 0, 9) } });
+    // A 300,000 dinner A paid for A, B, C and D (75,000 each): A +225,000, B, C, D -75,000 more.
+    await db.expense.create({
+      data: {
+        groupId: f.gid, description: "Dinner", category: "other", amount: 300_000, paidById: f.a, createdById: f.a, splitType: "equal", forMode: "everyone",
+        originalAmount: 300_000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 300_000, spentAt: new Date("2026-11-03T12:00:00Z"),
+        shares: { create: [f.a, f.b, f.c, d.id].map((m) => ({ memberId: m, amount: 75_000 })) },
+      },
+    });
+    // Start: A +2,225,000, B -1,075,000, C -1,075,000, D -75,000. C moves out on 10 Nov: the rent share keeps 200,000 of 600,000, the freed 400,000 goes 200,000 each
+    // to A and B (the rent is shared by A, B and C only): A +2,025,000, B -1,275,000, C -675,000, D -75,000. C pays A 675,000, A says "Not received": C settling at -675,000.
+    const out = await moveOut(f.gid, f.b, { leaverId: f.c, lastDay: "2026-11-10", requestKey: key() }, at("2026-11-10"));
+    expect(out).toMatchObject({ ok: true });
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.gid, fromId: f.c, toId: f.a, deletedAt: null } });
+    expect(pay.amount).toBe(675_000);
+    expect((await rejectPayment(pay.id, f.a)).ok).toBe(true);
+    const net = await checkBooks(f.gid);
+    expect([net[f.a], net[f.b], net[f.c], net[d.id]]).toEqual([2_025_000, -1_275_000, -675_000, -75_000]);
+    // A leaves on 30 Nov. B (-1,275,000) and D (-75,000) pay A 1,350,000 between them; the other 675,000 is C's, covered by the default, B (owes most).
+    const pre = await moveOutPreview(f.gid, f.a, "2026-11-30", at("2026-11-30"), f.b);
+    if (!pre.ok) throw new Error(pre.error);
+    expect(pre.cover?.coverId).toBe(f.b);
+    expect(pre.cover?.options.map((o) => o.id)).toEqual([f.b, d.id]);
+    expect(pre.payments).toEqual(expect.arrayContaining([{ from: f.b, to: f.a, amount: 1_950_000 }, { from: d.id, to: f.a, amount: 75_000 }])); // B 1,275,000 + 675,000
+    // Picking D instead: D pays A 75,000 + 675,000 = 750,000, B 1,275,000.
+    const other = await moveOutPreview(f.gid, f.a, "2026-11-30", at("2026-11-30"), f.b, undefined, d.id);
+    if (!other.ok) throw new Error(other.error);
+    expect(other.cover?.coverId).toBe(d.id);
+    expect(other.cover?.text).toBe("C still owes A ₹6,750. D pays it now, and C then owes D.");
+    expect(other.payments).toEqual(expect.arrayContaining([{ from: f.b, to: f.a, amount: 1_275_000 }, { from: d.id, to: f.a, amount: 750_000 }]));
+    expect(other.payments).toHaveLength(2);
   });
 
   it("21. M1: C can't be moved out by hand (by someone else, by their own leave, or in the preview); the bring-back stays", async () => {
@@ -614,6 +675,64 @@ describe("settling up only: the review fixes", () => {
     expect(await f.nets()).toEqual([1_180_000, -1_180_000, 0]);
     expect((await f.row(f.c)).leftAt).toBeNull();
     expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+    // N2(b): by hand, while the game is open: refused (the game's name is said); once it is closed, C (exactly 0) can be moved out, with the ORIGINAL last day.
+    const open = await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-23", requestKey: key() }, at("2026-11-23"));
+    expect(open).toEqual({ ok: false, error: "C is still in a game that’s open (Cards). Finish the game first." });
+    await db.potGame.updateMany({ where: { groupId: f.gid }, data: { status: "done", finishedAt: new Date() } });
+    expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-23", requestKey: key() }, at("2026-11-23"))).toEqual({ ok: true, payments: [] });
+    expect((await f.row(f.c)).leftAt?.toISOString()).toBe(LAST);
+    expect((await settlingIn(db, f.gid)).size).toBe(0);
+    expect(await f.nets()).toEqual([1_180_000, -1_180_000, 0]);
+  });
+
+  it("26. N2: C is stuck at exactly 0 without a payment: expenses A deletes take C from -600,000 to 0 and C is moved out again (original last day), right after A's delete line", async () => {
+    const f = await flat("n2", { milk: false });
+    await toSettlingNoMilk(f); // A +1,800,000, B -1,200,000, C -600,000 (groceries 400,000 + rent share 200,000)
+    const groceries = (await f.live()).find((e) => e.description === "Groceries")!;
+    const rent = (await f.live()).find((e) => e.description === "Rent")!;
+    expect((await setExpenseDeleted(groceries.id, f.a, true)).ok).toBe(true);
+    // A 1,800,000 - 800,000 = 1,000,000; B -1,200,000 + 400,000 = -800,000; C -600,000 + 400,000 = -200,000. C still owes, so is still settling.
+    expect(await f.nets()).toEqual([1_000_000, -800_000, -200_000]);
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+    expect((await setExpenseDeleted(rent.id, f.a, true)).ok).toBe(true);
+    // The rent (A paid 1,800,000; shares A 800,000, B 800,000, C 200,000) comes off: A 1,000,000 - 1,000,000 = 0; B -800,000 + 800,000 = 0; C -200,000 + 200,000 = 0.
+    expect(await f.nets()).toEqual([0, 0, 0]);
+    expect((await f.row(f.c)).leftAt?.toISOString()).toBe(LAST);
+    expect((await settlingIn(db, f.gid)).size).toBe(0);
+    const last = (await db.groupEvent.findMany({ where: { groupId: f.gid }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] })).slice(-2);
+    expect(last.map((e) => e.kind)).toEqual(["expense_deleted", "member_left"]);
+    expect(last[1].text).toBe("is square again, so C is moved out again (last day 10 Nov)");
+  });
+
+  it("27. N2: a deleted milk charge that the month-end bill still charges is NOT a reason to move C out: C is exactly 0 but stays settling (the 20,000 days come at month end)", async () => {
+    const f = await flat("n2milk");
+    await toSettling(f);
+    // Take everything else off C by hand so only the 20,000 milk charge is left: groceries and rent deleted by A. C -620,000 + 400,000 + 200,000 = -20,000.
+    for (const name of ["Groceries", "Rent"]) {
+      const e = (await f.live()).find((x) => x.description === name)!;
+      expect((await setExpenseDeleted(e.id, f.a, true)).ok).toBe(true);
+    }
+    expect((await f.nets())[2]).toBe(-20_000);
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+    // A deletes the charge: C is 0. The milk for 1-10 Nov will be charged to C at month end, and a person who has left can't be charged, so C stays settling.
+    const charge = (await f.live()).find((e) => e.description !== "Milk")!;
+    expect((await setExpenseDeleted(charge.id, f.a, true)).ok).toBe(true);
+    expect((await f.nets())[2]).toBe(0);
+    expect((await f.row(f.c)).leftAt).toBeNull();
+    expect((await settlingIn(db, f.gid)).has(f.c)).toBe(true);
+    // And by hand: refused in plain words (not square for good yet).
+    expect(await moveOut(f.gid, f.a, { leaverId: f.c, lastDay: "2026-11-23", requestKey: key() }, at("2026-11-23"))).toEqual({ ok: false, error: settlingNoManualMoveOut("C") });
+  });
+
+  it("28. N3: C pays in full and is moved out again; then someone taps 'has moved back in': 'C is square and has moved out again.' (not a quiet success); a member who is in gets a quiet success", async () => {
+    const f = await flat("n3");
+    await toSettling(f);
+    expect(await record(f, f.c, f.a, 620_000)).toMatchObject({ kind: "done" });
+    expect((await f.row(f.c)).leftAt?.toISOString()).toBe(LAST);
+    expect(await moveBackInFor(f.gid, f.a, f.c, at("2026-11-24"))).toEqual({ ok: false, error: "C is square and has moved out again." });
+    expect(await moveBackInFor(f.gid, f.a, f.b, at("2026-11-24"))).toEqual({ ok: true }); // B is a member: nothing to do
+    expect((await f.rows("member_rejoined")).filter((e) => e.text.startsWith("noted"))).toHaveLength(0);
+    expect((await f.row(f.c)).leftAt?.toISOString()).toBe(LAST);
   });
 });
 

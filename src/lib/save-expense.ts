@@ -20,7 +20,7 @@ import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText, chargeReplaced, type ChargeLock } from "./home/charge-lock";
 import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain } from "./home/bill-run-link";
 import { expenseEditRefusal } from "./guest-rules";
-import { settlingIn } from "./settling-db";
+import { settlingFresh, settlingRead, squareSettlers, type SettlingRead } from "./settling-db";
 import { SETTLING_SELF, settlingNamed } from "./settling";
 import { CARD_FEE_CHANGED, CURRENCY_CHANGED, PEOPLE_JOINED, PEOPLE_LEFT } from "./offline/words";
 import type { Prisma } from "@prisma/client";
@@ -102,12 +102,14 @@ class SettlingNamed extends Error {
   }
 }
 // Inside the write, as the history is now: the person saving, and everyone the expense names who was not already in it.
-async function settlingGuard(tx: Prisma.TransactionClient, groupId: string, actorId: string, ids: string[], inExisting: (id: string) => boolean, mayShare: ReadonlySet<string>): Promise<void> {
-  const now = await settlingIn(tx, groupId);
-  if (!now.size) return;
+// `read` is the first look (it is reused when nothing about who left or came back has been written since, see settlingFresh); returns who is settling now.
+async function settlingGuard(tx: Prisma.TransactionClient, groupId: string, actorId: string, ids: string[], inExisting: (id: string) => boolean, mayShare: ReadonlySet<string>, read: SettlingRead) {
+  const now = await settlingFresh(tx, groupId, read);
+  if (!now.size) return now;
   if (now.has(actorId)) throw new SettlingNamed("");
   const bad = ids.find((id) => now.has(id) && !inExisting(id) && !mayShare.has(id));
   if (bad) throw new SettlingNamed((await tx.member.findUnique({ where: { id: bad }, select: { name: true } }))?.name ?? "Someone");
+  return now;
 }
 const settlingRefusal = (e: SettlingNamed) => (e.who ? settlingNamed(e.who) : SETTLING_SELF);
 
@@ -257,7 +259,8 @@ async function saveExpenseOnce(
   if (!actingMemberId || !memberIds.includes(actingMemberId)) return { ok: false, error: "Please join this group first." };
   if (group.members.find((m) => m.id === actingMemberId)?.leftAt) return { ok: false, error: "You left this group. Rejoin it to make changes." };
   // Someone who moved out and was brought back to settle (settling.ts) can't add or change expenses; new expenses leave them out.
-  const settling = await settlingIn(db, group.id);
+  const settlingFirst = await settlingRead(db, group.id);
+  const settling = settlingFirst.map;
   if (settling.has(actingMemberId)) return { ok: false, error: SETTLING_SELF };
   if (!isSupportedCurrency(input.currency)) return { ok: false, error: "Pick a currency from the list." };
   if (!["equal", "exact", "percent", "shares"].includes(input.splitType)) return { ok: false, error: "Pick how to split." };
@@ -425,7 +428,7 @@ async function saveExpenseOnce(
      const saved = await db.$transaction(async (tx) => {
       // First: the group must still be as it was read (same currency, open, not deleted) and everyone in it still there.
       await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: peopleInExpense({ paidById: e.paidById, payers: e.payers, shares: e.shares }) });
-      await settlingGuard(tx, group.id, actingMemberId, peopleInExpense({ paidById: e.paidById, payers: e.payers, shares: e.shares }), inExisting, mayShare);
+      await settlingGuard(tx, group.id, actingMemberId, peopleInExpense({ paidById: e.paidById, payers: e.payers, shares: e.shares }), inExisting, mayShare, settlingFirst);
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
       await claimKey(tx, opts.requestKey, created.id);
       if (attach) await writeAttach(tx, group.id, created.id, attach, true);
@@ -475,7 +478,7 @@ async function saveExpenseOnce(
   try {
    eventId = await db.$transaction(async (tx) => {
     await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: newcomers });
-    await settlingGuard(tx, group.id, actingMemberId, newcomers, inExisting, mayShare);
+    const settlingNow = await settlingGuard(tx, group.id, actingMemberId, newcomers, inExisting, mayShare, settlingFirst);
     if (changes.length) {
       const next = { id: existing.id, paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: nowShares };
       const gone = await leaverBalanceBreaks(tx, group.id, moved, (l) => ({ ...l, expenses: [...l.expenses.filter((x) => x.id !== existing.id), next] }));
@@ -498,6 +501,8 @@ async function saveExpenseOnce(
         data: { ...fields, editedAt: new Date(), shares: { create: e.shares } },
       });
     }
+    // An edit can leave someone settling up only at exactly 0 (their share changed): moved out again, right after this step's line.
+    await squareSettlers(tx, group.id, settlingNow);
     if (attach) await writeAttach(tx, group.id, existing.id, attach, false);
     // Only the item lines changed: still a logged, undoable change. Only the bill photo: logged, with no undo (the old file is deleted).
     // The line's words (and the details mark) tell the leaver's view that nothing else about the expense changed (see asOfCut).
@@ -554,7 +559,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   }
   if (await hasLeft(expense.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };
   // Someone settling up only can't delete or restore expenses either: it would change what they owe (and checked again in the write, below).
-  if ((await settlingIn(db, expense.groupId)).has(actingMemberId)) return { ok: false, error: SETTLING_SELF };
+  const settlingFirst = await settlingRead(db, expense.groupId);
+  if (settlingFirst.map.has(actingMemberId)) return { ok: false, error: SETTLING_SELF };
   if (expense.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   // A game's result is never deleted or restored on its own (it would leave a finished game with no result, or two results).
@@ -568,7 +574,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, expense.groupId, { currency: expense.group.currency, actorId: actingMemberId });
     // Brought back to settle only after the first read: read again here, in the write.
-    if ((await settlingIn(tx, expense.groupId)).has(actingMemberId)) throw new SettlingNamed("");
+    const settlingNow = await settlingFresh(tx, expense.groupId, settlingFirst);
+    if (settlingNow.has(actingMemberId)) throw new SettlingNamed("");
     await markUndone(tx, opts.mark); // when this is an undo: marked in this very transaction
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
@@ -605,6 +612,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     // An automatic bill's expense: its month waits to be added again (or is "added" again when this comes back first).
     if (deleted) await monthWaitsAgain(tx, expense.id);
     else await monthIsAddedAgain(tx, expense.id);
+    // Deleting or restoring can leave someone settling up only at exactly 0: moved out again (their line follows this step's line).
+    await squareSettlers(tx, expense.groupId, settlingNow);
     return logEvent(tx, {
       groupId: expense.groupId,
       actorId: actingMemberId,

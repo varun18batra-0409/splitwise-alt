@@ -17,6 +17,8 @@ import { moveOutConfirm } from "@/lib/move-confirm";
 import { DateField } from "@/components/DateField";
 import { readNotes } from "@/lib/flash";
 import { pickAdmin } from "@/lib/group-admin";
+import { SelectField } from "@/components/SelectField";
+import { COVER_PICK_LABEL } from "@/lib/settling";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
@@ -27,7 +29,7 @@ export default async function MoveOutPage({
   searchParams,
 }: {
   params: Promise<{ id: string; memberId: string }>;
-  searchParams: Promise<{ day?: string; error?: string }>;
+  searchParams: Promise<{ day?: string; cover?: string; error?: string }>;
 }) {
   const { id, memberId } = await params;
   await bounceIfDirect(id); // a pair of two people has no group screens: its person page instead
@@ -45,7 +47,7 @@ export default async function MoveOutPage({
   const tz = await getTimeZone();
   const today = dayKey(new Date(), tz);
   const lastDay = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? "") ? sp.day! : today;
-  const p = await moveOutPreview(group.id, leaver.id, lastDay, new Date(), myId, tz);
+  const p = await moveOutPreview(group.id, leaver.id, lastDay, new Date(), myId, tz, String(sp.cover ?? "").slice(0, 60));
   const money = (n: number) => formatMoney(n, group.currency);
   const name = (mid: string) => (mid === myId ? "you" : group.members.find((m) => m.id === mid)?.name ?? "someone");
   const Name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
@@ -116,6 +118,12 @@ export default async function MoveOutPage({
           </div>
         )}
       </dl>
+      {/* A flatmate who stays covers the part that a person still settling up owes (or is owed): a real payment, already in the list below. */}
+      {p.cover && (
+        <p className="mt-3 rounded-2xl bg-mist px-4 py-3 text-sm" data-cover-line>
+          {p.cover.text}
+        </p>
+      )}
       {p.bills.length > 0 && (
         <p className="mt-2 text-xs text-gray-500">Bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>
       )}
@@ -134,6 +142,18 @@ export default async function MoveOutPage({
           <span className="block text-sm text-gray-500">Last day in the flat</span>
           <DateField name="day" defaultValue={lastDay} max={today} min={`${addMonths(today.slice(0, 7), -1)}-01`} className="mt-1" clearable={false} />
         </label>
+        {p.ok && p.cover && p.cover.options.length > 1 && (
+          <label className="flex-1" data-cover-pick>
+            <span className="block text-sm text-gray-500">{COVER_PICK_LABEL}</span>
+            <SelectField name="cover" defaultValue={p.cover.coverId} className="mt-1">
+              {p.cover.options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </SelectField>
+          </label>
+        )}
         <button type="submit" className="border border-line px-4 py-2.5 text-sm font-medium active:bg-mist rounded-full">
           Update
         </button>
@@ -170,6 +190,7 @@ export default async function MoveOutPage({
           <input type="hidden" name="expectKey" value={p.expectKey} />
           <input type="hidden" name="expectKeyDaily" value={p.expectKeyDaily} />
           {/* The deposit this person holds, as shown: the move-out refuses if it is different by then. */}
+          {p.cover && <input type="hidden" name="coverId" value={p.cover.coverId} />}
           <input type="hidden" name="expectDeposit" value={p.deposit ? String(p.deposit.amount) : ""} />
           <FreshKey name="rid" />
 

@@ -7,7 +7,7 @@ import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, potTransf
 import { cleanNames, sameName } from "./names";
 import { pickAdmin } from "./group-admin";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
-import { requireNotSettling, SettlingStopped, settlingIn } from "./settling-db";
+import { requireNotSettling, SettlingStopped, settlingIn, squareSettlers } from "./settling-db";
 import { SETTLING_SELF } from "./settling";
 import type { Prisma } from "@prisma/client";
 
@@ -347,6 +347,7 @@ export async function finishGame(gameId: string, actorId: string, hooks: Hooks =
       });
       resultId = e.id;
     }
+    await squareSettlers(tx, g.id); // the game is closed and its result is in: anyone settling up only who is square is moved out again
     const won = res.winners.map((w) => `${name(w.memberId)} came out ahead by ${formatMoney(w.amount, g.currency)}`).join(", ");
     await logEvent(tx, { groupId: g.id, actorId, kind: "pot_finished", text: `finished ${game.name}: ${won || "everyone broke even"}`, ...(resultId ? { expenseId: resultId } : {}) });
     await tx.potGame.update({ where: { id: gameId }, data: { resultId } });
@@ -397,6 +398,7 @@ export async function reopenGame(gameId: string, actorId: string, hooks: Hooks =
         await tx.expenseShare.deleteMany({ where: { expenseId: game.resultId } });
         await tx.expense.deleteMany({ where: { id: game.resultId } });
       }
+      await squareSettlers(tx, g.id);
       await logEvent(tx, { groupId: g.id, actorId, kind: "pot_reopened", text: `reopened ${game.name} (its result is out of the balances until it’s finished again)` });
       return true;
     });
@@ -425,6 +427,7 @@ export async function deleteGame(gameId: string, actorId: string, hooks: Hooks =
         // balances, and deleting the game now would leave that result with nothing pointing at it.
         const c = await tx.potGame.updateMany({ where: { id: gameId, status: "open", deletedAt: null }, data: { deletedAt: new Date() } });
         if (c.count !== 1) throw new GameNotOpen();
+        await squareSettlers(tx, g.id); // someone settling up only who was held back by this game and is square is moved out again
         await logEvent(tx, { groupId: g.id, actorId, kind: "pot_deleted", text: `deleted the game ${game.name}` });
       });
       return { groupId: g.id };

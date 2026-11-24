@@ -17,7 +17,7 @@ import { isGroupAdmin } from "./group-admin";
 import { MOVE_OUT_GONE_FOR_GOOD, MOVE_OUT_LEAVER_FIXABLE, moveOutUndoBlock, setMoveInFor, undoMoveOut } from "./home/moving-db";
 import { lateMoveText, lateRecreateText, lateRemovalText, putBackOpen } from "./put-back";
 import { DEFAULT_TIME_ZONE } from "./dates";
-import { settlingIn } from "./settling-db";
+import { settlingFresh, settlingRead, squareSettlers } from "./settling-db";
 import { SETTLING_SELF } from "./settling";
 import { undoRefusal } from "./guest-rules";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx, leaverBalanceBreaks, moneySig, peopleInExpense } from "./money-guard";
@@ -588,7 +588,8 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
   if (!e) return { ok: false, error: "That expense no longer exists." };
   if (e.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   // Someone settling up only can't undo an old edit either (it would change what they owe); checked again inside the write.
-  if ((await settlingIn(db, e.groupId)).has(actorId)) return { ok: false, error: SETTLING_SELF };
+  const settlingFirst = await settlingRead(db, e.groupId);
+  if (settlingFirst.map.has(actorId)) return { ok: false, error: SETTLING_SELF };
   if (e.deletedAt) return { ok: false, error: "This expense is deleted. Restore it first." };
   if (await isGameResult(expenseId)) return { ok: false, error: POT_EDIT_ERROR };
   if (before.baseCurrency !== e.group.currency) return { ok: false, error: "The group currency changed since, so this edit can’t be undone." };
@@ -618,7 +619,8 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
     // First a write: the group is still in this currency and open; then the expense is claimed as it was read. Any edit
     // since (even one that only changed the item lines) moved editedAt, so this undo would overwrite newer work: refused.
     await guardGroup(tx, e.groupId, { currency, actorId });
-    if ((await settlingIn(tx, e.groupId)).has(actorId)) throw new SettlingStop();
+    const settlingNow = await settlingFresh(tx, e.groupId, settlingFirst);
+    if (settlingNow.has(actorId)) throw new SettlingStop();
     await markUndone(tx, opts.mark);
     const claim = await tx.expense.updateMany({ where: { id: expenseId, editedAt: e.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (claim.count !== 1) throw new RevertClash();
@@ -651,6 +653,8 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
       await tx.expenseItem.deleteMany({ where: { expenseId } });
       if (itemsAfter.length) await tx.expenseItem.createMany({ data: itemsAfter.map((i, position) => ({ expenseId, position, name: i.name, amount: i.amount, people: JSON.stringify(i.people) })) });
     }
+    // Undoing an edit can leave someone settling up only at exactly 0: moved out again (their line follows this step's line).
+    await squareSettlers(tx, e.groupId, settlingNow);
     return logEvent(tx, {
       groupId: e.groupId,
       actorId,

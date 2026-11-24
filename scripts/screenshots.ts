@@ -1785,6 +1785,9 @@ if (!hosted) {
         },
       },
     ]);
+    // "A flatmate covers it" (24 Nov): Varu (owed 60,000 for the rent) moves out while Riya, who owes 30,000 of it, is only settling up. Nupur, who stays,
+    // pays Varu Riya's part now, and Riya then owes Nupur. The line and the "Who covers it" picker are on the move-out page.
+    await gshots(varu, [{ name: "S4-move-out-flatmate-covers", path: `/groups/${settleFlat.id}/people/${settleId("Varu")}/move` }]);
     // Refusal when naming her on a new expense: the Add page is opened while Riya is still a member (a page left open), she is then brought back
     // to settle, and the person saves an expense paid by Riya.
     const staleFlat = await flatOf("Flat 402 (page left open)", false);

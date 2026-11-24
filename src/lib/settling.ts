@@ -115,3 +115,16 @@ export const squareAgainText = (who: string, s: Settling) => `is square again, s
 export const confirmMovedBack = (who: string) => `${who} has moved back in? From today, ${who} shares bills again.`;
 export const SETTLING_SELF_MOVED_BACK = "Someone else in the flat needs to mark that you’ve moved back in.";
 export const settlingNoManualMoveOut = (who: string) => `${who} is settling up after moving out, and is moved out again as soon as they’re square.`;
+
+// N1 (the move-out screen): the leaver's balance has a part that sits with someone settling up only, so a flatmate who stays covers it now.
+//   leaver is owed:  "C still owes A ₹6,200. B pays it now, and C then owes B."
+//   leaver owes:     "A still owes C ₹6,200. A pays B now, and B then owes C."
+// With several settling people: "C and D still owe A ₹6,200. B pays it now, and they then owe B."
+export function coverLine(o: { settling: string[]; leaver: string; amount: string; cover: string; leaverOwed: boolean }): string {
+  const one = o.settling.length <= 1;
+  const who = one ? o.settling[0] ?? "Someone" : `${o.settling.slice(0, -1).join(", ")} and ${o.settling[o.settling.length - 1]}`;
+  return o.leaverOwed
+    ? `${who} still ${one ? "owes" : "owe"} ${o.leaver} ${o.amount}. ${o.cover} pays it now, and ${one ? who : "they"} then ${one ? "owes" : "owe"} ${o.cover}.`
+    : `${o.leaver} still owes ${who} ${o.amount}. ${o.leaver} pays ${o.cover} now, and ${o.cover} then owes ${one ? who : "them"}.`;
+}
+export const COVER_PICK_LABEL = "Who covers it";

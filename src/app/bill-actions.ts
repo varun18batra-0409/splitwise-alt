@@ -211,6 +211,7 @@ export async function moveOutAction(formData: FormData) {
     addDaily,
     expectKey: String(expectKey),
     expectDeposit: String(expectDeposit),
+    coverId: String(formData.get("coverId") ?? "") || undefined,
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   }, new Date(), { tz: await getTimeZone() });
   if (!r.ok) redirect(await flashTo(["groups", groupId, "people", leaverId, "move"], { error: r.error }, { day: lastDay }));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confirmMovedBack, isBringBackLine, SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingFrom, settlingNoManualMoveOut, settlingNamed, settlingTag, squareAgainText, withSettlingLeft, type HistoryLine } from "../src/lib/settling";
+import { confirmMovedBack, isBringBackLine, coverLine, SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingFrom, settlingNoManualMoveOut, settlingNamed, settlingTag, squareAgainText, withSettlingLeft, type HistoryLine } from "../src/lib/settling";
 import { memberMark } from "../src/lib/left-view";
 
 // "Settling up only" (pure rules). Someone who moved out and was brought back so they can settle is not a member again: the latest line in the
@@ -169,6 +169,16 @@ describe("the month edge uses the group's (India) day, not UTC", () => {
   });
   it("the tag shows the India day: 1 Dec", () => {
     expect(settlingTag(late)).toBe("Settling up only · moved out 1 Dec");
+  });
+});
+
+describe("a flatmate covers it (the move-out line)", () => {
+  it("the leaver is owed: C still owes A, B pays it now; with two settling people it says 'they'", () => {
+    expect(coverLine({ settling: ["C"], leaver: "A", amount: "₹6,200", cover: "B", leaverOwed: true })).toBe("C still owes A ₹6,200. B pays it now, and C then owes B.");
+    expect(coverLine({ settling: ["C", "D"], leaver: "A", amount: "₹6,200", cover: "B", leaverOwed: true })).toBe("C and D still owe A ₹6,200. B pays it now, and they then owe B.");
+  });
+  it("the leaver owes the settling person: A pays B instead, and B then owes C", () => {
+    expect(coverLine({ settling: ["C"], leaver: "A", amount: "₹6,200", cover: "B", leaverOwed: false })).toBe("A still owes C ₹6,200. A pays B now, and B then owes C.");
   });
 });
 

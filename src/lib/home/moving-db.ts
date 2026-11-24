@@ -8,8 +8,8 @@ import { typedZero } from "../zero-amount";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 import { niceDate } from "../format";
 import { createPayment, PaymentTooBig } from "../payments";
-import { requireNotSettling, SettlingStopped, settlingIn, settlingSelfRefusal } from "../settling-db";
-import { SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingNoManualMoveOut, shortDay, withSettlingLeft } from "../settling";
+import { moveOutAgainIfSquare, requireNotSettling, SettlingStopped, settlingIn, settlingSelfRefusal, writeQueuedLines } from "../settling-db";
+import { coverLine, SETTLING_SELF, SETTLING_SELF_MOVED_BACK, settlingNoManualMoveOut, shortDay, withSettlingLeft } from "../settling";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
@@ -196,7 +196,7 @@ async function waitingNotesFor(client: Client, groupId: string, memberId: string
   return client.paymentClaim.findMany({ where: { groupId, status: "waiting", OR: [{ fromId: memberId }, { toId: memberId }] }, select: { id: true, fromId: true, amount: true, currency: true } });
 }
 
-function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[], charges: Charge[] = [], handovers: { expenseId: string; to: string }[] = []) {
+function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[], charges: Charge[] = [], handovers: { expenseId: string; to: string }[] = [], coverId = "") {
   const month = lastDay.slice(0, 7);
   const monthDays = daysInMonth(month);
   const daysStayed = Number(lastDay.slice(8, 10));
@@ -231,11 +231,33 @@ function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[
     flat.payments,
   );
   // The leaver settles with the people still in the flat: someone settling up only is left out (they settle by paying, not by being paid or
-  // asked for money here). If the others can't take all of the leaver's balance, `short` is what's left (the move-out then says so).
-  const payments = leaverPayments(Object.fromEntries(Object.entries(after).filter(([id]) => !flat.settlingIds.has(id))), leaverId);
+  // asked for money here). If the others can't take all of the leaver's balance, `short` is what's left: a flatmate who stays covers it.
+  let payments = leaverPayments(Object.fromEntries(Object.entries(after).filter(([id]) => !flat.settlingIds.has(id))), leaverId);
   const settled = payments.reduce((s, t) => s + t.amount, 0);
-  const short = Math.abs(after[leaverId] ?? 0) - settled;
-  return { resplit, credit, before, after, payments, short, daysStayed, monthDays };
+  const mine = after[leaverId] ?? 0;
+  const short = Math.abs(mine) - settled;
+  // Who can cover it: the people staying (not the leaver, not anyone settling up only, who count as moved out). The default is the one who
+  // owes most (lowest balance after this move-out; the first in the list on a tie): whoever covers then simply owes the settling person.
+  const stayers = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
+  const byBalance = [...stayers].sort((a, b) => (after[a.id] ?? 0) - (after[b.id] ?? 0));
+  const coverer = short > 0 ? stayers.find((m) => m.id === coverId) ?? byBalance[0] ?? null : null;
+  let cover: { amount: number; coverId: string; leaverOwed: boolean; settling: string[]; options: { id: string; name: string }[] } | null = null;
+  if (short > 0 && coverer) {
+    // The covering payment is a real one between the stayer and the leaver, so the leaver ends at exactly 0. When the stayer already pays
+    // (or is paid by) the leaver in this move-out, it is added to that same payment (one payment, not two).
+    const t = mine > 0 ? { from: coverer.id, to: leaverId } : { from: leaverId, to: coverer.id };
+    const same = payments.find((x) => x.from === t.from && x.to === t.to);
+    payments = same ? payments.map((x) => (x === same ? { ...x, amount: x.amount + short } : x)) : [...payments, { ...t, amount: short }];
+    const sign = mine > 0 ? -1 : 1; // the settling people on the other side of the leaver
+    cover = {
+      amount: short,
+      coverId: coverer.id,
+      leaverOwed: mine > 0,
+      settling: flat.members.filter((m) => flat.settlingIds.has(m.id) && (after[m.id] ?? 0) * sign > 0).map((m) => m.name),
+      options: stayers.map((m) => ({ id: m.id, name: m.name })),
+    };
+  }
+  return { resplit, credit, before, after, payments, short: cover ? 0 : short, cover, daysStayed, monthDays };
 }
 
 // The last day: a real date, not in the future, and this month or last. "Today" is the person's own day (their time zone).
@@ -249,7 +271,7 @@ export function checkDay(lastDay: string, now: Date, tz: string = DEFAULT_TIME_Z
 }
 
 // `actorId`: who is confirming it. They take over the leaver's bills if they are staying, exactly as moveOut does.
-export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "", tz: string = DEFAULT_TIME_ZONE) {
+export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "", tz: string = DEFAULT_TIME_ZONE, coverId = "") {
   const flat = await loadFlatForMoveOut(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT } as Fail;
@@ -265,13 +287,13 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   // Charges the person paid for an earlier leaver's daily share: handed to this month's payer (the same in the move-out itself).
   const handovers = await pendingHandovers(flat, leaverId, others.map((m) => m.id), heir);
   if (handovers.adding) return { ok: false, error: handovers.adding } as Fail;
-  const p = plan(flat, leaverId, lastDay, bills, [], handovers);
+  const p = plan(flat, leaverId, lastDay, bills, [], handovers, coverId);
   if (p.short > 0) return { ok: false, error: settlingShort(flat, flat.members.find((m) => m.id === leaverId)?.name ?? "Someone") } as Fail;
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
   // Daily bills this month: their share for the days they were there, charged now if they tick "Add it now".
   const offers = await dailyOffers(flat, leaverId, lastDay);
   const charges = offers.filter((o) => !o.d.unsupported).map((o) => ({ payerId: prechargePayer(o.bill, o.period, leaverId, others.map((m) => m.id), heir), amount: o.d.amount }));
-  const dailyPlan = charges.length ? plan(flat, leaverId, lastDay, bills, charges, handovers) : p;
+  const dailyPlan = charges.length ? plan(flat, leaverId, lastDay, bills, charges, handovers, coverId) : p;
   if (dailyPlan.short > 0) return { ok: false, error: settlingShort(flat, flat.members.find((m) => m.id === leaverId)?.name ?? "Someone") } as Fail;
   const withDaily = dailyPlan.payments;
   // Which of the final payments ask the person paid to confirm (they can answer, and are not the one confirming this).
@@ -289,6 +311,9 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
       after: r.shares.find((x) => x.memberId === leaverId)?.amount ?? 0,
     })),
     payments: p.payments,
+    // Someone who moved out earlier and is still settling up owes part of what the leaver is owed (or is owed part of what the leaver owes):
+    // a flatmate who stays covers that part now, with a real payment (already in `payments`), and can be picked here. null = nothing to cover.
+    cover: p.cover && { ...p.cover, text: coverLine({ settling: p.cover.settling, leaver: flat.members.find((m) => m.id === leaverId)?.name ?? "Someone", amount: formatMoney(p.cover.amount, flat.currency), cover: flat.members.find((m) => m.id === p.cover!.coverId)?.name ?? "Someone", leaverOwed: p.cover.leaverOwed }) },
     // What the person was paid for an earlier leaver's daily share that goes to this month's payer: the confirm question says so.
     handovers: handovers.map((h) => ({ desc: h.desc, amount: h.amount, to: h.to, sharerId: h.sharerId, billName: h.billName })),
     daily: offers.map((o) => ({ billId: o.bill.id, name: o.bill.name, days: o.d.days, missed: o.d.missed, amount: o.d.amount, unsupported: o.d.unsupported })),
@@ -303,17 +328,37 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   };
 }
 
+// The manual move-out of someone settling up only who is exactly 0: the same step the app takes when a payment squares them (original last day).
+async function moveSettlerOut(groupId: string, actorId: string, leaverId: string, flat: Flat): Promise<{ ok: true; payments: Transfer[] } | Fail> {
+  const who = flat.members.find((m) => m.id === leaverId)?.name ?? "Someone";
+  let moved = false;
+  try {
+    await db.$transaction(async (tx) => {
+      await guardGroup(tx, groupId, { currency: flat.currency, actorId });
+      moved = (await moveOutAgainIfSquare(tx, groupId, [leaverId])).length > 0;
+      await writeQueuedLines(tx); // no other line is written by this step, so the "moved out again" line is written here
+    });
+  } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    throw err;
+  }
+  if (moved) return { ok: true, payments: [] };
+  const game = await openGameFor(db, groupId, leaverId);
+  // Not square after all, or days still to charge on a daily bill: they stay settling up (moved out again once that is paid).
+  return { ok: false, error: game ? inOpenGameText(game, actorId === leaverId ? null : who) : settlingNoManualMoveOut(who) };
+}
+
 export async function moveOut(
   groupId: string,
   actorId: string,
   // `expectKey`: the final payments the person saw (transfersKey). When given, a move-out whose payments are different now is refused.
   // The move-out screen always sends it.
   // `expectDeposit`: the leaver's held deposit the page showed in minor units ("" = none). When given, a move-out whose deposit is different now is refused.
-  input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string; expectKey?: string; expectDeposit?: string },
+  input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string; expectKey?: string; expectDeposit?: string; coverId?: string },
   now = new Date(),
   opts: { afterRead?: () => Promise<void>; tz?: string } = {}, // afterRead: tests only, runs after the reads, before the write begins. tz: the person's time zone, for "today"
 ): Promise<{ ok: true; payments: Transfer[]; eventId?: string } | Fail> {
-  const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "", input.addDaily ? "daily" : "");
+  const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "", input.addDaily ? "daily" : "", input.coverId ?? "");
   const ks = await keyState(input.requestKey, fp);
   if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
   if (ks.state === "done") return { ok: true, payments: [] };
@@ -321,6 +366,12 @@ export async function moveOut(
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT };
   if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED };
+  // Someone settling up only who is exactly square (an expense they were in was deleted, a game closed, ...) can be moved out by hand: it is
+  // the same thing the app does by itself, with their ORIGINAL last day. Anyone else settling up only is refused.
+  if (flat.settlingIds.has(input.leaverId) && !flat.settlingIds.has(actorId) && flat.members.some((m) => m.id === actorId && !m.leftAt)) {
+    const net = netBalances(flat.members.map((m) => m.id), flat.expenses, flat.payments)[input.leaverId] ?? 0;
+    if (net === 0) return moveSettlerOut(groupId, actorId, input.leaverId, flat);
+  }
   const stop = settlingStop(flat, input.leaverId, actorId);
   if (stop) return { ok: false, error: stop };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
@@ -349,7 +400,7 @@ export async function moveOut(
   const charges = offers.map((o) => ({ ...o, payerId: prechargePayer(o.bill, o.period, leaver.id, others.map((m) => m.id), heir) }));
   const handovers = await pendingHandovers(flat, leaver.id, others.map((m) => m.id), heir);
   if (handovers.adding) return { ok: false, error: handovers.adding };
-  const p = plan(flat, leaver.id, input.lastDay, bills, charges.map((c) => ({ payerId: c.payerId, amount: c.d.amount })), handovers);
+  const p = plan(flat, leaver.id, input.lastDay, bills, charges.map((c) => ({ payerId: c.payerId, amount: c.d.amount })), handovers, input.coverId ?? "");
   const name = (id: string) => flat.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, flat.currency);
   if (p.short > 0) return { ok: false, error: settlingShort(flat, leaver.name) };
@@ -674,6 +725,7 @@ export async function setMoveInFor(
 // up can't give themselves their place back. In a flat their moving-in date is set to today, the same date the bill code already reads
 // (joinedFrom). The Activity line is what tells settling.ts they are a member again. Everything is checked here and again inside the write.
 // A second tap (they are not settling any more) quietly succeeds: there is nothing left to change.
+export const MOVED_OUT_AGAIN = (who: string) => `${who} is square and has moved out again.`;
 export async function moveBackInFor(
   groupId: string,
   actorId: string,
@@ -690,7 +742,8 @@ export async function moveBackInFor(
   if (!member) return { ok: false, error: "That person isn’t in the group." };
   if (actorId === memberId) return { ok: false, error: SETTLING_SELF_MOVED_BACK };
   const settling = await settlingIn(db, groupId);
-  if (!settling.has(memberId)) return { ok: true }; // already done (a second tap), or nothing to do
+  // Already done (a second tap): quietly fine if they are a member now. If they were square and have been moved out again meanwhile, say so.
+  if (!settling.has(memberId)) return member.leftAt || member.removedAt ? { ok: false, error: MOVED_OUT_AGAIN(member.name) } : { ok: true };
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const parsed = new Date(`${today}T12:00:00Z`);
   await opts.afterRead?.();
@@ -717,7 +770,10 @@ export async function moveBackInFor(
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     const msg = String((err as Error)?.message ?? err);
-    if (msg.includes("NOT_SETTLING")) return { ok: true };
+    if (msg.includes("NOT_SETTLING")) {
+      const nowRow = await db.member.findUnique({ where: { id: memberId }, select: { leftAt: true, removedAt: true } });
+      return nowRow?.leftAt || nowRow?.removedAt ? { ok: false, error: MOVED_OUT_AGAIN(member.name) } : { ok: true };
+    }
     if (msg.includes("MEMBER_CHANGED")) return { ok: false, error: `${member.name} changed just now. Look again and try again.` };
     throw err;
   }

@@ -1340,24 +1340,25 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     expect(await milkOf(f)).toHaveLength(0);
   });
 
-  it("the old deleted charge can't be restored while C's newer move-out charge for the month stands (C would pay those days twice)", async () => {
+  it("the old deleted charge can't be restored while C's newer move-out charge for the month stands (C would pay days 1–10 twice): C moves out 10 Nov (charge 20,000), is brought back, his charge is deleted, A notes he moved back in on 12 Nov, and he moves out again on 20 Nov: 9 days x 2,000 = 18,000", async () => {
     const f = await flat("rep");
     await moveOut(f.groupId, f.b, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-rep-${stamp}-abcdefgh` }, at("2026-11-10"));
     const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
     expect((await rejectPayment(pay.id, f.a)).ok).toBe(true);
-    await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
     const old = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
     expect((await setExpenseDeleted(old.id, f.a, true)).ok).toBe(true);
-    // C is settling up only, so he can't be moved out by hand: A first notes he has moved back in (from 21 Nov, a full member), and only then is he moved out again.
-    expect(await moveBackInFor(f.groupId, f.a, f.c, at("2026-11-21"))).toMatchObject({ ok: true });
-    expect(await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-rep2-${stamp}-abcdefgh` }, at("2026-11-23"))).toMatchObject({ ok: true });
+    // C is settling up only, so he can't be moved out by hand: A notes he moved back in (from 12 Nov, a full member), and only then is he moved out again.
+    expect(await moveBackInFor(f.groupId, f.a, f.c, at("2026-11-12"))).toMatchObject({ ok: true });
+    // Days 12 to 20 Nov, all three of them in the flat, 6,000 a day shared three ways: 9 days x 2,000 = 18,000 (paid by A, who pays the milk).
+    expect(await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-20", addDaily: true, requestKey: `bps-rep2-${stamp}-abcdefgh` }, at("2026-11-20"))).toMatchObject({ ok: true });
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([18000]);
     // C is brought back again ("Not received" on the new square-up), so nothing else stops the old charge coming back.
     const pay2 = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a, id: { not: pay.id } }, orderBy: { createdAt: "desc" } });
+    expect(pay2.amount).toBe(18000);
     expect((await rejectPayment(pay2.id, f.a)).ok).toBe(true);
     expect(await setExpenseDeleted(old.id, f.a, false)).toEqual({ ok: false, error: "A newer move-out charge for this month’s Milk stands, so this one can’t come back." });
-    // (The newer charge is C's days from 21 to 23 Nov as the move-out worked them out; only that there is exactly one is checked here.)
-    expect(await live(f.groupId)).toHaveLength(1);
-    await checkBooks(f.groupId);
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([18000]);
+    expect(await nets(f)).toEqual([18000, 0, -18000]);
   });
 
   it("on the last day the job still looks at November (31 Dec), a month refused because a charge changed mid-save becomes a waiting month a person sees, not released and lost", async () => {
