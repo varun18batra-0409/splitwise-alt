@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyMonthShares } from "@/lib/home/moving";
+import { dailyMonthShares, dailyPrecharge } from "@/lib/home/moving";
 
 // The month-end share of a daily bill, day by day (pure). Milk is 60 rupees a day = 6,000 paise, shared equally; A, B and C are there all month.
 // Every expected number below is worked out by hand: each day is shared by whoever was there, so a person's part is
@@ -88,5 +88,41 @@ describe("dailyMonthShares: hand-worked", () => {
       expect(r.reduce((n, s) => n + s.amount, 0)).toBe(amount);
       expect(r.every((s) => Number.isInteger(s.amount) && s.amount > 0)).toBe(true);
     }
+  });
+});
+
+describe("dailyMonthShares and dailyPrecharge: review fixes (hand-worked)", () => {
+  const live = [{ m: "C", a: 20000, e: "x", d: "2026-11-10" }];
+
+  it("a second leaver's charge counts a brought-back C only to his last day: B leaves 25 Nov, C there 1–10 Nov: 10 × 6,000 ÷ 3 + 15 × 6,000 ÷ 2 = 20,000 + 45,000 = 65,000 (not 50,000); with C's charge deleted it is the same; with no earlier charge nothing changes (25 × 2,000 = 50,000)", () => {
+    const members = [person("A"), person("B"), person("C")];
+    expect(dailyPrecharge(milk, "2026-11", "2026-11-25", members, "B", { live, gone: [] }).amount).toBe(65000);
+    expect(dailyPrecharge(milk, "2026-11", "2026-11-25", members, "B", { live: [], gone: live }).amount).toBe(65000);
+    expect(dailyPrecharge(milk, "2026-11", "2026-11-25", members, "B").amount).toBe(50000);
+    expect(dailyPrecharge(milk, "2026-11", "2026-11-25", members, "B", { live: [], gone: [] }).amount).toBe(50000);
+    // His own earlier (deleted) charge does not shorten his own days: moving out again on 25 Nov he is charged for all 25.
+    expect(dailyPrecharge(milk, "2026-11", "2026-11-25", members, "C", { live: [], gone: live }).amount).toBe(50000);
+  });
+
+  it("both charged: A alone takes the month end, 180,000 − 20,000 − 65,000 = 95,000", () => {
+    const members = [person("A"), person("B", { left: "2026-11-25" }), person("C")];
+    const r = dailyMonthShares({ bill: milk, period: "2026-11", members, live: [...live, { m: "B", a: 65000, e: "y", d: "2026-11-25" }], gone: [], amount: 95000 });
+    expect(asMap(r)).toEqual({ A: 95000 });
+  });
+
+  it("a percentage split A 34%, B 33%, C 33%, C charged 19,800 up to the 10th, stopped 20 Nov (19 days), 94,200 to share: units (of 10,519,000) A 5,338,000, B 5,181,000 → A 47,802.985 → 47,803, B 46,397.015 → 46,397; without a charge the usual way (null)", () => {
+    const bill = { ...milk, split: JSON.stringify({ mode: "percent", pct: { A: 3400, B: 3300, C: 3300 } }), paused: true, pausedAt: new Date("2026-11-20T06:00:00Z") };
+    const members = [person("A"), person("B"), person("C")];
+    expect(asMap(dailyMonthShares({ bill, period: "2026-11", members, live: [{ m: "C", a: 19800, e: "x", d: "2026-11-10" }], gone: [], amount: 94200 }))).toEqual({ A: 47803, B: 46397 });
+    expect(dailyMonthShares({ bill, period: "2026-11", members, live: [], gone: [], amount: 94200 })).toBeNull();
+  });
+
+  it("numbers too big to keep exact (14 people with big, different weights joining on different days) never give up while C has a live charge: still shared to the exact total, C takes none", () => {
+    const people = Array.from({ length: 14 }, (_, i) => ({ ...person(`P${i}`, i === 0 ? {} : { joined: `2026-11-${String(i + 1).padStart(2, "0")}` }), splitWeight: 1000003 + i * 7919 }));
+    const members = [...people, { ...person("C", { left: "2026-11-30" }), splitWeight: 1000033 }];
+    const r = dailyMonthShares({ bill: { ...milk, split: JSON.stringify({ mode: "group" }) }, period: "2026-11", members, live: [{ m: "C", a: 1000, e: "z", d: "2026-11-30" }], gone: [], amount: 1234567 });
+    expect(r).not.toBeNull();
+    expect(r!.reduce((n, s) => n + s.amount, 0)).toBe(1234567);
+    expect(r!.some((s) => s.memberId === "C")).toBe(false);
   });
 });

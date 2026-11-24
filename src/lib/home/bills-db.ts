@@ -4,7 +4,7 @@ import { GroupChanged, isGroupChangedText } from "../money-guard";
 import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense";
 import { sendPushTo } from "../push";
 import { askBill } from "./bill-asks";
-import { toInputAmount, formatMoney } from "../money";
+import { toInputAmount, formatMoney, parseAmount } from "../money";
 import { STUCK_HOLD, dailyTotal, longMonth, missedDays, isStopped, payerFor, periodsDue, nextDueDay, nextDueAfter, ordinalDay, stopDone, stopLines, type StopWords } from "./bills";
 import { daysInMonth, dueKey } from "./month";
 import { noteReplaced } from "./bill-run-link";
@@ -79,15 +79,7 @@ export type DailyContext = { amount: number; entries: Prepaid[]; gone: Prepaid[]
 export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR", daily?: DailyContext & { bill: BillRow }): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> & Partial<Pick<SaveExpenseInput, "percent" | "exact">> {
   const active = members.filter((m) => !m.leftAt);
   const split = parseSplit(splitJson);
-  if (split.mode === "percent") {
-    const ids = Object.keys(split.pct);
-    return { forMode: "selected", selected: ids, splitType: "percent", percent: Object.fromEntries(ids.map((id) => [id, String(split.pct[id] / 100)])), exact: {} };
-  }
-  if (split.mode === "amounts") {
-    const ids = Object.keys(split.amt);
-    return { forMode: "selected", selected: ids, splitType: "exact", exact: Object.fromEntries(ids.map((id) => [id, toInputAmount(split.amt[id], currency)])), percent: {} };
-  }
-  // A daily bill's month where someone moved in, or someone moved out and paid at move-out: shared day by day (the amounts are written out).
+  // A daily bill's month where someone moved in, or someone moved out and paid at move-out: shared day by day (the amounts are written out). First of all, so a percentage split can't charge a brought-back leaver twice.
   if (period && daily) {
     const parts = dailyMonthShares({
       bill: daily.bill,
@@ -100,6 +92,14 @@ export function splitFields(splitJson: string, members: Member[], period?: strin
     if (parts) {
       return { forMode: "selected", selected: parts.map((p) => p.memberId), splitType: "exact", exact: Object.fromEntries(parts.map((p) => [p.memberId, toInputAmount(p.amount, currency)])), percent: {} };
     }
+  }
+  if (split.mode === "percent") {
+    const ids = Object.keys(split.pct);
+    return { forMode: "selected", selected: ids, splitType: "percent", percent: Object.fromEntries(ids.map((id) => [id, String(split.pct[id] / 100)])), exact: {} };
+  }
+  if (split.mode === "amounts") {
+    const ids = Object.keys(split.amt);
+    return { forMode: "selected", selected: ids, splitType: "exact", exact: Object.fromEntries(ids.map((id) => [id, toInputAmount(split.amt[id], currency)])), percent: {} };
   }
   const some = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)).map((m) => m.id) : [];
   // Someone moved in this month: they share only for the days they're there.
@@ -153,6 +153,10 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
 export const BILL_CURRENCY_CHANGED = "The group’s currency changed, so this bill wasn’t added yet. It will be tried again.";
 const sameCurrencyRate = async (from: string, to: string): Promise<RateAnswer> =>
   from === to ? { ok: true, rate: "1", date: new Date().toISOString().slice(0, 10) } : { ok: false, reason: "unavailable", message: BILL_CURRENCY_CHANGED };
+
+// Who is in the flat (and for how long) and which move-out charges stand, as one comparable text.
+const peopleKey = (members: { id: string; leftAt: Date | null; joinedFrom?: Date | null; splitWeight: number }[], chargeIds: string[]) =>
+  JSON.stringify([[...members].sort((a, b) => a.id.localeCompare(b.id)).map((m) => [m.id, m.leftAt?.getTime() ?? 0, m.joinedFrom?.getTime() ?? 0, m.splitWeight]), [...chargeIds].sort()]);
 
 // Thrown inside the expense's transaction when the bill is not as it was when the amount was worked out.
 class BillMoved extends Error {}
@@ -314,6 +318,8 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
     return "failed" as const;
   };
   const worked = billMoney(bill, period);
+  // A daily month also depends on who is in the flat and which move-out charges still stand: read again inside the save, a change refuses it.
+  const peopleWhenRead = bill.nature === "daily" ? peopleKey(group.members, charges.map((x) => x.e)) : "";
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
     r = await saveExpense(input, payer, sameCurrencyRate, {
@@ -325,6 +331,11 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
       alsoInTx: async (tx, expenseId) => {
         const now2 = await tx.bill.findUnique({ where: { id: bill.id } });
         if (!now2 || billMoney(now2, period) !== worked) throw new BillMoved();
+        if (bill.nature === "daily") {
+          const members = await tx.member.findMany({ where: { groupId: group.id }, select: { id: true, leftAt: true, joinedFrom: true, splitWeight: true } });
+          const standing = await tx.expense.findMany({ where: { id: { in: charges.map((x) => x.e) }, deletedAt: null }, select: { id: true } });
+          if (peopleKey(members, standing.map((x) => x.id)) !== peopleWhenRead) throw new BillMoved();
+        }
         await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId, reason: "" } });
         await syncChargePayer(tx, group.id, charges, payer);
       },
@@ -506,6 +517,27 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
   });
 }
 
+// The words used wherever a bill was changed while someone was working on it (the same as the pause, stop and skip buttons use).
+const CHANGED_NOW = (bill: string) => `${bill} changed just now. Check it and try again.`;
+
+// An "Add it" page left open: a daily month with move-out charges is worked out again now. The form is out of date when its total is not what the
+// month comes to now (a charge was added or deleted since), or it still charges someone whose move-out charge is on the bill (they pay only that).
+async function dailyFormOutOfDate(bill: BillRow, input: SaveExpenseInput, period: string): Promise<boolean> {
+  const pre = await prepaidFor(bill, period);
+  if (!pre.entries.length && !pre.gone.length) return false; // no move-out charge this month: nothing here can have changed under the form
+  const posted = parseAmount(input.amount, input.currency);
+  if (posted === null) return false; // (the save says what is wrong with it)
+  if (posted !== Math.max(0, dailyTotal(bill, period).amount - pre.total)) return true;
+  const members = await db.member.findMany({ where: { groupId: input.groupId }, select: { id: true, leftAt: true } });
+  return pre.entries.some((e) => {
+    const m = members.find((x) => x.id === e.m);
+    if (!m) return false;
+    if (input.forMode === "everyone") return !m.leftAt;
+    if (input.forMode !== "selected" || !input.selected.includes(e.m)) return false;
+    return input.splitType !== "exact" || (parseAmount(input.exact?.[e.m] ?? "", input.currency) ?? 0) > 0;
+  });
+}
+
 // Why a month of an ended bill can't be added again by hand.
 const billEnded = (name: string, period: string) => `${name} has ended, so ${longMonth(period)} can’t be added again here. To count it again, tap Restore on the deleted expense in Activity.`;
 
@@ -529,6 +561,7 @@ export async function addWaitingBill(
     return { ok: false, error: ended ? billEnded(ended.name, String(billRun.period)) : "That bill no longer exists." };
   }
   const where = { billId: bill.id, period: String(billRun.period) };
+  if (bill.nature === "daily" && (await dailyFormOutOfDate(bill, input, where.period))) return { ok: false, error: CHANGED_NOW(bill.name) };
   // A month that was deleted and is being added again: the expense it replaces (kept on the month row), written down below in the same step.
   const replaced = (await db.billRun.findFirst({ where: { ...where, status: "waiting", reason: "deleted" }, select: { expenseId: true } }))?.expenseId ?? "";
   // (A month held because it may already have been added is never claimed here: the way out is Skip.)

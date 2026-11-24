@@ -92,8 +92,13 @@ async function dailyOffers(flat: Flat, leaverId: string, lastDay: string): Promi
     // Already added (the existing re-split handles it), skipped or being added: nothing to charge now.
     const run = runs.find((r) => r.billId === bill.id);
     if (run && run.status !== "waiting") continue;
-    if ((parsePrepaid(bill.prepaid)[period] ?? []).some((x) => x.m === leaverId)) continue;
-    const d = dailyPrecharge(bill, period, lastDay, members, leaverId);
+    // The charges already on the bill this month: someone with a live one is not charged twice (a charge whose expense was deleted is
+    // replaced by the new one), and they say up to which day each earlier leaver was there, the same as the month-end bill does.
+    const written = parsePrepaid(bill.prepaid)[period] ?? [];
+    const alive = new Set((await db.expense.findMany({ where: { id: { in: written.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
+    const live = written.filter((x) => alive.has(x.e));
+    if (live.some((x) => x.m === leaverId)) continue;
+    const d = dailyPrecharge(bill, period, lastDay, members, leaverId, { live, gone: written.filter((x) => !alive.has(x.e)) });
     if (d.unsupported || d.amount > 0) out.push({ bill, period, d });
   }
   return out;
@@ -418,7 +423,13 @@ export async function moveOut(
             shares: { create: [{ memberId: leaver.id, amount: c.d.amount }] },
           },
         });
-        await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(fresh.prepaid, c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
+        // An older charge of theirs whose expense was deleted is replaced; one that still stands means this is not needed any more.
+        const older = (parsePrepaid(fresh.prepaid)[c.period] ?? []).filter((x) => x.m === leaver.id);
+        const standing = new Set((await tx.expense.findMany({ where: { id: { in: older.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
+        if (older.some((x) => standing.has(x.e))) throw new Error("BILLS_CHANGED");
+        let written = fresh.prepaid;
+        for (const x of older) written = removePrepaid(written, c.period, x.e);
+        await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(written, c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
         (undoInfo.prepaid ??= []).push({ billId: c.bill.id, period: c.period, expenseId: made.id });
         const chargeEventId = await logEvent(tx, {
           groupId,
