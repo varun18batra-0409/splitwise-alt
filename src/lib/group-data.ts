@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { settlingInGroups } from "./settling-db";
 import { blockedEitherWay } from "./blocks";
 import { coverFor, coverSeenBy } from "./covers";
 import { netBalances } from "./balances";
@@ -211,6 +212,7 @@ export async function loadMyGroups(memberships: Record<string, string>, opts: { 
     orderBy: { createdAt: "desc" },
   });
   const mine = groups.filter((g) => g.members.some((m) => m.id === memberships[g.id]));
+  const settlingBy = await settlingInGroups(db, mine.map((g) => g.id)); // people settling up only are not counted as people in the group (settling.ts)
   return Promise.all(
     mine.map(async (g) => {
       const myId = memberships[g.id];
@@ -242,8 +244,9 @@ export async function loadMyGroups(memberships: Record<string, string>, opts: { 
       const spent = expenses.reduce((s, e) => s + spentAmount(e), 0);
       const shown = cut ? scopeBalances(net, transfers, myId) : { net, transfers };
       // How many people to say are in it: for a leaver, as it was on the day they left.
-      const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
-      return { group: cut ? coverSeenBy(g, cut.leftAt) : g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
+      const settling = [...(settlingBy.get(g.id)?.keys() ?? [])];
+      const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt && !settling.includes(m.id)).length;
+      return { group: cut ? coverSeenBy(g, cut.leftAt) : g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people, settling };
     }),
   );
 }
@@ -299,6 +302,7 @@ export async function loadMyGroupsLean(memberships: Record<string, string>) {
     orderBy: { createdAt: "desc" },
   });
   const mine = groups.filter((g) => g.members.some((m) => m.id === memberships[g.id]));
+  const settlingBy = await settlingInGroups(db, mine.map((g) => g.id)); // people settling up only are not counted as people in the group (settling.ts)
   return Promise.all(
     mine.map(async (g) => {
       const myId = memberships[g.id];
@@ -328,8 +332,9 @@ export async function loadMyGroupsLean(memberships: Record<string, string>) {
         .sort((a, b) => b.getTime() - a.getTime())[0];
       const spent = expenses.reduce((s, e) => s + spentAmount(e), 0);
       const shown = cut ? scopeBalances(net, transfers, myId) : { net, transfers };
-      const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
-      return { group: cut ? coverSeenBy(g, cut.leftAt) : g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
+      const settling = [...(settlingBy.get(g.id)?.keys() ?? [])];
+      const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt && !settling.includes(m.id)).length;
+      return { group: cut ? coverSeenBy(g, cut.leftAt) : g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people, settling };
     }),
   );
 }
@@ -378,6 +383,7 @@ export async function loadMyGroupsLight(memberships: Record<string, string>, opt
   });
   const mine = groups.filter((g) => g.members.some((m) => m.id === memberships[g.id]));
   if (mine.length === 0) return [];
+  const settlingBy = await settlingInGroups(db, mine.map((g) => g.id)); // people settling up only are not counted as people in the group (settling.ts)
   const stayers = mine.filter((g) => !leaverCut(g.members.find((m) => m.id === memberships[g.id])!));
   const leavers = mine.filter((g) => leaverCut(g.members.find((m) => m.id === memberships[g.id])!));
   const [balances, stayerStats, leaverStats] = await Promise.all([
@@ -405,7 +411,8 @@ export async function loadMyGroupsLight(memberships: Record<string, string>, opt
     const st = (cut ? leaverStats.find((l) => l.id === g.id)?.stats : stayerStats.get(g.id)) ?? NO_STATS;
     const lastActivity = [st.lastExpenseAt, st.lastPaymentAnyAt, g.createdAt].filter((d): d is Date => Boolean(d)).sort((a, c) => c.getTime() - a.getTime())[0];
     const shown = cut ? scopeBalances(b.net, b.transfers, myId) : { net: b.net, transfers: b.transfers };
-    const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
+    const settling = [...(settlingBy.get(g.id)?.keys() ?? [])];
+    const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt && !settling.includes(m.id)).length;
     return {
       group: cut ? coverSeenBy(g, cut.leftAt) : g,
       myId,
@@ -416,6 +423,7 @@ export async function loadMyGroupsLight(memberships: Record<string, string>, opt
       spent: st.spent,
       leaver: cut,
       people,
+      settling,
       expenseCount: st.expenseCount,
       paymentCount: st.paymentCount,
       lastPaymentAt: st.lastPaymentAt,

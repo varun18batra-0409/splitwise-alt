@@ -12,6 +12,8 @@ import { monthSummary } from "./summary";
 import { buildExpense } from "../expense";
 import { allocateByWeights } from "../split";
 import { billExpenseInput, splitProblem } from "./bills-db";
+import { settlingIn } from "../settling-db";
+import { withSettlingLeft } from "../settling";
 import { monthsBetween } from "./bills";
 import { categoryJumps, forecast, monthlySummaryText, sameDayDuplicates, utilityJumps } from "./insights";
 
@@ -63,7 +65,9 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
     }).filter((x) => x > 0);
     // A bill the real run will hold (nobody left to share it, or someone in its split has left) isn't added next month, so it
     // is left out of the total as well as out of "your share".
-    const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
+    // Someone settling up only is left out, as the real run will leave them out (settling.ts).
+    const settling = await settlingIn(db, groupId);
+    const members = withSettlingLeft(await db.member.findMany({ where: { groupId }, select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } }), settling);
     const active = members.filter((m) => !m.leftAt);
     // Only a bill that really comes next month: next month is inside its start and end, falls on its own cycle (every 2 months
     // = every other month), and isn't already skipped. A bill that comes then counts in full.
@@ -87,8 +91,9 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
     // with the same code that will split the real expense, in the currency's own minor units. The usual groceries are
     // shared by the group's weights.
     const groceryTotal = forecast({ fixed: [], varies: [], daily: [], groceries });
-    const totalW = Object.values(weights).reduce((s, w) => s + w, 0);
-    const groceryMine = totalW ? allocateByWeights(groceryTotal, Object.entries(weights).map(([memberId, weight]) => ({ memberId, weight }))).find((x) => x.memberId === myId)?.amount ?? 0 : 0;
+    const sharing = Object.entries(weights).filter(([memberId]) => !settling.has(memberId));
+    const totalW = sharing.reduce((s, [, w]) => s + w, 0);
+    const groceryMine = totalW ? allocateByWeights(groceryTotal, sharing.map(([memberId, weight]) => ({ memberId, weight }))).find((x) => x.memberId === myId)?.amount ?? 0 : 0;
     const billMine = (bill: (typeof bills)[number], amount: number): number => {
       if (amount <= 0) return 0;
       // A split that can't be used now (everyone chosen for a "some" bill has left, or someone in a percent / amounts split
@@ -158,7 +163,9 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
         money,
       );
     };
-    const around = data.group.members.filter((x) => !x.leftAt && !isPending(x));
+    // (Someone settling up only shares nothing new, so there is no month to sum up for them.)
+    const settlingHere = await settlingIn(db, id);
+    const around = data.group.members.filter((x) => !x.leftAt && !isPending(x) && !settlingHere.has(x.id));
     if (runLegacy) {
       const mine = new Set(legacy);
       for (const m of around.filter((x) => mine.has(x.id))) {

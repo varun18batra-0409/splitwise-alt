@@ -8,6 +8,8 @@ import { typedZero } from "../zero-amount";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 import { niceDate } from "../format";
 import { createPayment, PaymentTooBig } from "../payments";
+import { settlingIn } from "../settling-db";
+import { shortDay, withSettlingLeft } from "../settling";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
@@ -47,6 +49,17 @@ async function loadFlat(groupId: string) {
   });
 }
 type Flat = NonNullable<Awaited<ReturnType<typeof loadFlat>>>;
+
+// A move-out reads the flat with anyone settling up only put back as moved out from their original last day (settling.ts): they take none of
+// the freed share, can't be the heir or take the deposit, and a daily bill's days count them only up to that last day. Their own balance is untouched.
+// The one being moved out is left as the row says: someone settling up only can be moved out again (that is what squares them away for good).
+async function loadFlatForMoveOut(groupId: string, leaverId: string) {
+  const flat = await loadFlat(groupId);
+  if (!flat) return flat;
+  const settling = new Map(await settlingIn(db, groupId));
+  settling.delete(leaverId);
+  return { ...flat, members: withSettlingLeft(flat.members, settling) };
+}
 
 // Bill expenses (rent, Wi-Fi…) the leaver shares in, from the month of their
 // last day onwards: that month is pro-rata, any later month isn't theirs at all.
@@ -219,7 +232,7 @@ export function checkDay(lastDay: string, now: Date, tz: string = DEFAULT_TIME_Z
 
 // `actorId`: who is confirming it. They take over the leaver's bills if they are staying, exactly as moveOut does.
 export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "", tz: string = DEFAULT_TIME_ZONE) {
-  const flat = await loadFlat(groupId);
+  const flat = await loadFlatForMoveOut(groupId, leaverId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT } as Fail;
   if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED } as Fail;
@@ -281,7 +294,7 @@ export async function moveOut(
   const ks = await keyState(input.requestKey, fp);
   if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
   if (ks.state === "done") return { ok: true, payments: [] };
-  const flat = await loadFlat(groupId);
+  const flat = await loadFlatForMoveOut(groupId, input.leaverId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (flat.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT };
   if (flat.closed) return { ok: false, error: MOVE_OUT_CLOSED };
@@ -626,6 +639,66 @@ export async function setMoveInFor(
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (String((err as Error)?.message ?? err).includes("MEMBER_CHANGED")) return { ok: false, error: `${member.name} changed just now. Look again and try again.` };
+    throw err;
+  }
+}
+
+// "C has moved back in": someone settling up only (settling.ts) becomes a full member again from `day`, who shares bills again from that day.
+// In a flat their moving-in date is set to that day, the same date the bill code already reads (joinedFrom). The Activity line is what
+// tells settling.ts they are a member again. Everything is checked here and again inside the write: the person is still settling up only,
+// the date is real, after their last day, and not later than the end of next month.
+export const NOT_SETTLING = (who: string) => `${who} isn’t settling up only, so there’s nothing to change.`;
+export async function moveBackInFor(
+  groupId: string,
+  actorId: string,
+  memberId: string,
+  day: string,
+  now = new Date(),
+  opts: { afterRead?: () => Promise<void> } = {}, // tests only
+): Promise<{ ok: true; eventId?: string } | Fail> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (group.type === "direct") return { ok: false, error: PAIR_NO_MOVE_OUT };
+  if (group.closed) return { ok: false, error: "This group is closed. Reopen it first." };
+  if (!group.members.some((m) => m.id === actorId && !m.leftAt && !m.removedAt)) return { ok: false, error: "Only people in this group can do this." };
+  const member = group.members.find((m) => m.id === memberId);
+  if (!member) return { ok: false, error: "That person isn’t in the group." };
+  const settling = await settlingIn(db, groupId);
+  const was = settling.get(memberId);
+  if (!was) return { ok: false, error: NOT_SETTLING(member.name) };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, error: "That date isn’t valid." };
+  const parsed = new Date(`${day}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day) return { ok: false, error: "That date isn’t valid." };
+  const lastDay = was.leftAt.toISOString().slice(0, 10);
+  if (day <= lastDay) return { ok: false, error: `Pick a day after ${member.name}’s last day (${niceDate(lastDay)}).` };
+  const nextMonth = addMonths(dayKey(now, DEFAULT_TIME_ZONE).slice(0, 7), 1);
+  if (day > `${nextMonth}-${String(daysInMonth(nextMonth)).padStart(2, "0")}`) return { ok: false, error: "The moving-in date can’t be later than the end of next month." };
+  await opts.afterRead?.();
+  const flat = group.type === "home";
+  try {
+    const eventId = await db.$transaction(async (tx) => {
+      await guardGroup(tx, groupId, { currency: group.currency, actorId });
+      // Only if they are still settling up only as read (two people tapping at once, or a payment that squared them, change it once).
+      if (!(await settlingIn(tx, groupId)).has(memberId)) throw new Error("NOT_SETTLING");
+      if (flat) {
+        const claimed = await tx.member.updateMany({ where: { id: memberId, groupId, leftAt: null, joinedFrom: member.joinedFrom }, data: { joinedFrom: parsed } });
+        if (claimed.count !== 1) throw new Error("MEMBER_CHANGED");
+      }
+      return logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "member_rejoined",
+        text: actorId === memberId ? `moved back in on ${shortDay(parsed)}` : `noted ${member.name} moved back in on ${shortDay(parsed)}`,
+        details: [...(flat ? ["Bills are shared with them again from that day"] : []), memberMark(memberId)], // the mark names who this is about (it has no undo)
+        touches: [memberId],
+      });
+    });
+    return { ok: true, eventId };
+  } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    const msg = String((err as Error)?.message ?? err);
+    if (msg.includes("NOT_SETTLING")) return { ok: false, error: NOT_SETTLING(member.name) };
+    if (msg.includes("MEMBER_CHANGED")) return { ok: false, error: `${member.name} changed just now. Look again and try again.` };
     throw err;
   }
 }

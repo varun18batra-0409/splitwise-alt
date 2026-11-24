@@ -1,6 +1,8 @@
 import { neutralGameText } from "@/lib/game-words";
 import { bounceIfDirect } from "@/lib/direct-db";
-import { setMoveIn } from "@/app/bill-actions";
+import { movedBackIn, setMoveIn } from "@/app/bill-actions";
+import { settlingIn } from "@/lib/settling-db";
+import { confirmMovedBack, settlingTag } from "@/lib/settling";
 import { PassportIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { payerIds } from "@/lib/payers";
 import type { ReactNode } from "react";
@@ -97,6 +99,8 @@ export default async function PeoplePage({
   const ownMove = leaver && !leaver.removed ? await ownMoveOut(group.id, undoViewer, new Date()) : null;
   const leaverChecks = leaver && !leaver.removed ? await leaverUndoChecks(group.id, undoViewer, new Date()) : null;
   const tz = await getTimeZone();
+  // Someone who moved out and was brought back only to settle up (settling.ts): tagged here, and the way back in is "has moved back in".
+  const settling = await settlingIn(db, group.id);
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const small = "rounded-full border border-line px-4 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
 
@@ -168,6 +172,11 @@ export default async function PeoplePage({
               </>
             ) : "settled up"}
           </span>
+          {settling.has(m.id) && !mine && (
+            <span className="mt-1 inline-block rounded-full border border-line px-2 py-0.5 text-[10px] text-gray-500" data-settling-only>
+              {settlingTag(settling.get(m.id)!)}
+            </span>
+          )}
         </span>
       </>
     );
@@ -238,13 +247,23 @@ export default async function PeoplePage({
                 </div>
               </form>
             )}
+            {/* Settling up only: they share nothing new until someone says they have moved back in (from the day picked, bills are shared again). */}
+            {settling.has(m.id) && !leaver && group.type !== "direct" && (
+              <form action={movedBackIn} className="flex flex-wrap items-center gap-2 text-sm" data-moved-back-in>
+                {hidden}
+                <DateField id={`back-${m.id}`} name="day" defaultValue={dayKey(new Date(), tz)} size="sm" inline clearable={false} aria-label={`${m.name} moved back in on`} />
+                <ConfirmButton message={confirmMovedBack(m.name, dayKey(new Date(), tz))} className={small}>
+                  {me ? "I’ve moved back in" : `${m.name} has moved back in`}
+                </ConfirmButton>
+              </form>
+            )}
             {/* Only the person moving out, or the admin, can confirm a move-out, so nobody else is offered the link. */}
-            {group.type === "home" && !m.leftAt && !leaver && (me || isAdmin) && (
+            {group.type === "home" && !m.leftAt && !leaver && !settling.has(m.id) && (me || isAdmin) && (
               <Link href={`/groups/${group.id}/people/${m.id}/move`} className={`${small} inline-block`}>
                 {me ? "I’m moving out" : `${m.name} is moving out`}
               </Link>
             )}
-            {group.type === "home" && !m.leftAt && !leaver && (
+            {group.type === "home" && !m.leftAt && !leaver && !settling.has(m.id) && (
               <form action={setMoveIn} className="flex items-center gap-2 text-sm">
                 {hidden}
                 <label className="text-gray-500" htmlFor={`in-${m.id}`}>

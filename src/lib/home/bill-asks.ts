@@ -4,6 +4,8 @@ import { DEFAULT_TIME_ZONE } from "../dates";
 import { isNudgeHour } from "../local-time";
 import { zonesOf } from "../nudge-zones";
 import { payerFor } from "./bills";
+import { settlingInGroups } from "../settling-db";
+import { withSettlingLeft } from "../settling";
 
 // "Electricity is due. Enter the amount when you have the bill." goes to whoever pays, in their daytime (06:00-22:00 where they are;
 // India's for someone whose phone hasn't told us its zone). At night nothing is sent and the bill's month stays waiting: sendBillAsks
@@ -55,7 +57,9 @@ export async function sendBillAsks(now: Date = new Date(), stop: () => boolean =
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: 500,
   });
-  const payers = runs.map((r) => payerFor(r.bill, r.period, r.bill.group.members.filter((m) => !m.leftAt).map((m) => m.id)));
+  // Someone settling up only is never asked for an amount: they count as moved out from their original last day (settling.ts).
+  const settlingBy = await settlingInGroups(db, [...new Set(runs.map((r) => r.bill.group.id))]);
+  const payers = runs.map((r) => payerFor(r.bill, r.period, withSettlingLeft(r.bill.group.members, settlingBy.get(r.bill.group.id) ?? new Map()).filter((m) => !m.leftAt).map((m) => m.id)));
   const zones = await zonesOf(payers.filter((p): p is string => !!p), now);
   let sent = 0;
   let deferred = false;

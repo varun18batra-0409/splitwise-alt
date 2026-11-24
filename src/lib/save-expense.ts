@@ -20,6 +20,8 @@ import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText, chargeReplaced, type ChargeLock } from "./home/charge-lock";
 import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain } from "./home/bill-run-link";
 import { expenseEditRefusal } from "./guest-rules";
+import { settlingIn } from "./settling-db";
+import { SETTLING_SELF, settlingNamed } from "./settling";
 import { CARD_FEE_CHANGED, CURRENCY_CHANGED, PEOPLE_JOINED, PEOPLE_LEFT } from "./offline/words";
 import type { Prisma } from "@prisma/client";
 
@@ -69,6 +71,9 @@ export type SaveOpts = {
   // Set by the server actions: a person who joined without an account may change only the expenses they added themselves
   // (guest-rules.ts). Off for the tests and scripts that call this directly with a bare member.
   guestRules?: boolean;
+  // Bill months only: people settling up only who may still share THIS expense (never pay it). A daily bill's month in their own move-out month
+  // keeps the rule it had (home/moving.ts), so its split may name them. Everyone else settling up only is left out as usual.
+  settlingMayShare?: string[];
   // Do every check (and the duplicate question) but write nothing. A key already used still answers "already added" with its id.
   // For the offline sheet, which asks the duplicate questions when it opens.
   dryRun?: boolean;
@@ -78,6 +83,33 @@ export type SaveOpts = {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+// Everyone the form names: who paid (or each payer with an amount) and who it is for. "Everyone" names nobody: it is simply whoever is in.
+function namedIn(i: ExpenseDraft): Set<string> {
+  const out = new Set<string>();
+  if (i.multiPay) {
+    for (const [id, v] of Object.entries(i.payers ?? {})) if (v.trim() && !/^0*(\.0*)?$/.test(v.trim())) out.add(id);
+  } else if (i.paidById) out.add(i.paidById);
+  if (i.forMode === "one" && i.onePersonId) out.add(i.onePersonId);
+  if (i.forMode === "selected") for (const id of i.selected) out.add(id);
+  return out;
+}
+
+// Thrown inside the write: someone settling up only is in this expense (they were brought back after the form was checked).
+class SettlingNamed extends Error {
+  constructor(public who: string) {
+    super("settling");
+  }
+}
+// Inside the write, as the history is now: the person saving, and everyone the expense names who was not already in it.
+async function settlingGuard(tx: Prisma.TransactionClient, groupId: string, actorId: string, ids: string[], inExisting: (id: string) => boolean, mayShare: ReadonlySet<string>): Promise<void> {
+  const now = await settlingIn(tx, groupId);
+  if (!now.size) return;
+  if (now.has(actorId)) throw new SettlingNamed("");
+  const bad = ids.find((id) => now.has(id) && !inExisting(id) && !mayShare.has(id));
+  if (bad) throw new SettlingNamed((await tx.member.findUnique({ where: { id: bad }, select: { name: true } }))?.name ?? "Someone");
+}
+const settlingRefusal = (e: SettlingNamed) => (e.who ? settlingNamed(e.who) : SETTLING_SELF);
 
 // Checks and saves one expense — new, or an edit of an existing one. Used by the
 // Add/Edit expense screen (via a server action) and by the tests. Everything is
@@ -224,6 +256,9 @@ async function saveExpenseOnce(
   const attach = cleanAttach(opts.attach, memberIds);
   if (!actingMemberId || !memberIds.includes(actingMemberId)) return { ok: false, error: "Please join this group first." };
   if (group.members.find((m) => m.id === actingMemberId)?.leftAt) return { ok: false, error: "You left this group. Rejoin it to make changes." };
+  // Someone who moved out and was brought back to settle (settling.ts) can't add or change expenses; new expenses leave them out.
+  const settling = await settlingIn(db, group.id);
+  if (settling.has(actingMemberId)) return { ok: false, error: SETTLING_SELF };
   if (!isSupportedCurrency(input.currency)) return { ok: false, error: "Pick a currency from the list." };
   if (!["equal", "exact", "percent", "shares"].includes(input.splitType)) return { ok: false, error: "Pick how to split." };
   if (!["everyone", "selected", "one"].includes(input.forMode)) return { ok: false, error: "Pick who it was for." };
@@ -233,7 +268,7 @@ async function saveExpenseOnce(
   if (opts.expect && !input.expenseId) {
     if (group.currency !== opts.expect.currency) return { ok: false, error: CURRENCY_CHANGED };
     if (group.cardMarkupBp !== opts.expect.cardMarkupBp) return { ok: false, error: CARD_FEE_CHANGED };
-    const now = new Set(group.members.filter((m) => !m.leftAt).map((m) => m.id));
+    const now = new Set(group.members.filter((m) => !m.leftAt && !settling.has(m.id)).map((m) => m.id)); // (the offline form is never used for bills)
     const then = new Set(opts.expect.memberIds);
     if (opts.expect.memberIds.some((id) => !now.has(id))) return { ok: false, error: PEOPLE_LEFT };
     if ([...now].some((id) => !then.has(id))) return { ok: false, error: PEOPLE_JOINED };
@@ -291,7 +326,15 @@ async function saveExpenseOnce(
   // in the group); an edit keeps anyone who was already in that expense.
   const inExisting = (id: string) =>
     Boolean(existing && (existing.paidById === id || existing.shares.some((s) => s.memberId === id) || parsePayers(existing.payers).some((p) => p.memberId === id)));
-  const pool = group.members.filter((m) => !m.leftAt || inExisting(m.id)).map((m) => m.id);
+  // Someone settling up only is left out the same way, and naming them (as payer or for a share) is refused, unless they were already in this
+  // expense. Said before anything is worked out; it is checked again inside the write below (they may have been brought back meanwhile).
+  // (A bill month may name them for a daily bill in their own move-out month, where the bill's own rule decides: opts.settlingMayShare.)
+  const mayShare = new Set(opts.settlingMayShare ?? []);
+  const outOf = (id: string) => settling.has(id) && !mayShare.has(id);
+  const pool = group.members.filter((m) => (!m.leftAt && !outOf(m.id)) || inExisting(m.id)).map((m) => m.id);
+  const named = namedIn(input);
+  const stopped = group.members.find((m) => outOf(m.id) && named.has(m.id) && !inExisting(m.id));
+  if (stopped) return { ok: false, error: settlingNamed(stopped.name) };
   // An edit that doesn't say otherwise keeps money back as money back.
   const draft = existing && existing.kind === "refund" && input.kind === undefined ? { ...input, kind: "refund" as const } : input;
   const built = buildExpense(draft, { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
@@ -382,6 +425,7 @@ async function saveExpenseOnce(
      const saved = await db.$transaction(async (tx) => {
       // First: the group must still be as it was read (same currency, open, not deleted) and everyone in it still there.
       await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: peopleInExpense({ paidById: e.paidById, payers: e.payers, shares: e.shares }) });
+      await settlingGuard(tx, group.id, actingMemberId, peopleInExpense({ paidById: e.paidById, payers: e.payers, shares: e.shares }), inExisting, mayShare);
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
       await claimKey(tx, opts.requestKey, created.id);
       if (attach) await writeAttach(tx, group.id, created.id, attach, true);
@@ -405,6 +449,7 @@ async function saveExpenseOnce(
       // Everything above is undone together: no expense, no lines, no key. The form keeps what was typed.
       if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
       if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+      if (err instanceof SettlingNamed) return { ok: false, error: settlingRefusal(err) };
       throw err;
     }
   }
@@ -430,6 +475,7 @@ async function saveExpenseOnce(
   try {
    eventId = await db.$transaction(async (tx) => {
     await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: newcomers });
+    await settlingGuard(tx, group.id, actingMemberId, newcomers, inExisting, mayShare);
     if (changes.length) {
       const next = { id: existing.id, paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: nowShares };
       const gone = await leaverBalanceBreaks(tx, group.id, moved, (l) => ({ ...l, expenses: [...l.expenses.filter((x) => x.id !== existing.id), next] }));
@@ -476,6 +522,7 @@ async function saveExpenseOnce(
     if (err instanceof LeaverStays) return { ok: false, error: err.message };
     if (err instanceof Clash) return { ok: false, error: "Someone changed this expense a moment ago. Go back and open it again to see the latest version." };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof SettlingNamed) return { ok: false, error: settlingRefusal(err) };
     if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
     throw err;
   }

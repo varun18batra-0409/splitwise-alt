@@ -6,6 +6,7 @@ import { logEvent } from "./events";
 import { formatMoney, MAX_MINOR } from "./money";
 import { guardGroup, ledgerInTx } from "./money-guard";
 import { createPayment, PaymentTooBig } from "./payments";
+import { moveOutAgainIfSquare } from "./settling-db";
 import { changePayment } from "./payment-change";
 
 // Batch C data step: the "I've paid" notes still waiting on the live app. A note is a claim that never counted; from Batch C nothing waits
@@ -125,6 +126,7 @@ async function convertOne(c: ClaimRow, now: Date): Promise<Change> {
         paymentId: pay.id,
         undo: { type: "payment_delete", paymentId: pay.id },
       });
+      await moveOutAgainIfSquare(tx, c.groupId, [c.fromId, c.toId]); // settling up only and now square: moved out again, in this step
       return { claimId: c.id, kind: "converted" as const, paymentId: pay.id, eventId };
     }, { timeout: 15000 });
   } catch (err) {

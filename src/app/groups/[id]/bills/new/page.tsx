@@ -7,6 +7,7 @@ import { BillForm } from "@/components/BillForm";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
 import { leaverOf } from "@/lib/left-view-db";
 import { readNotes } from "@/lib/flash";
+import { settlingIn } from "@/lib/settling-db";
 
 export default async function NewBillPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
@@ -22,6 +23,9 @@ export default async function NewBillPage({ params, searchParams }: { params: Pr
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
   if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
+  // Someone settling up only is not offered as a payer or in a split (settling.ts).
+  const settling = await settlingIn(db, group.id);
+  const people = group.members.filter((m) => !settling.has(m.id));
   return (
     <>
       <PageHeader title="Add a regular bill" back={`/groups/${group.id}?tab=bills`} />
@@ -29,10 +33,10 @@ export default async function NewBillPage({ params, searchParams }: { params: Pr
       <BillForm
         key={group.currency}
         groupId={group.id}
-        members={group.members.map(({ id, name }) => ({ id, name }))}
+        members={people.map(({ id, name }) => ({ id, name }))}
         myId={myId}
         splitName={splitNameFor(group.type)}
-        splitLabel={weightsLabel(group.members.map((m) => m.splitWeight))}
+        splitLabel={weightsLabel(people.map((m) => m.splitWeight))}
         currency={group.currency}
         error={notes.error?.slice(0, 160)}
       />

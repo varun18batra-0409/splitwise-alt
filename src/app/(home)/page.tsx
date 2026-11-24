@@ -229,7 +229,7 @@ export default async function Home({
   });
   // What each story shows: the place's photos, the crew, today's numbers, a game's table.
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
-  const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt && (m.id === g.myId || !(m.accountId && blocked.has(m.accountId)))).map((m) => (m.id === g.myId ? "You" : first(m.name)));
+  const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt && !g.settling.includes(m.id) && (m.id === g.myId || !(m.accountId && blocked.has(m.accountId)))).map((m) => (m.id === g.myId ? "You" : first(m.name)));
   const moodOf = (name: string) => {
     const e = tripEmoji(name);
     return e === "🌴" ? "beach" : e === "🏔️" || e === "❄️" || e === "🏕️" ? "hills" : e === "🌆" ? "city" : "any";
@@ -274,7 +274,7 @@ export default async function Home({
       phase: t.phase,
       photos: placePhotos(t.g.group.name, t.g.group.tripPlace),
       cover: coverFor(t.g.group),
-      people: t.g.group.members.filter((m) => !m.leftAt).length,
+      people: t.g.group.members.filter((m) => !m.leftAt && !t.g.settling.includes(m.id)).length,
       couple: t.g.group.type === "couple",
       crew: crewOf(t.g),
       mood: moodOf(t.g.group.name),
@@ -312,7 +312,7 @@ export default async function Home({
         photos: g.group.type === "trip" ? placePhotos(g.group.name, g.group.tripPlace, 2) : [],
         spent: formatMoney(g.spent, g.group.currency),
         payments: g.paymentCount,
-        people: g.group.members.filter((m) => !m.leftAt).length,
+        people: g.group.members.filter((m) => !m.leftAt && !g.settling.includes(m.id)).length,
       })),
     collections: collections
       .filter((c) => !c.closedAt)
@@ -347,7 +347,7 @@ export default async function Home({
             id: g.group.id,
             name: g.group.name,
             years,
-            people: g.group.members.filter((m) => !m.leftAt).length,
+            people: g.group.members.filter((m) => !m.leftAt && !g.settling.includes(m.id)).length,
             days: g.group.tripEnd ? daysBetween(start, g.group.tripEnd) + 1 : 1,
             photos: placePhotos(g.group.name, g.group.tripPlace, 2),
             cover: coverFor(g.group),

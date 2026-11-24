@@ -177,7 +177,7 @@ describe("1-4. Asha moves herself out of the flat, and Ravi answers", () => {
     expect(rejoined[0].actorId).toBe(R);
     expect(rejoined[0].text).toBe(`brought Asha back into ${w.name} until the ${money(40000)} is sorted`);
     expect(rejoined[0].paymentId).toBeNull(); // so it never blocks the Undo of the Not received
-    expect(JSON.parse(rejoined[0].undo)).toEqual({ type: "member_set", memberId: A, data: { leftAt: leftBefore.toISOString() } });
+    expect(JSON.parse(rejoined[0].undo)).toEqual({ type: "member_set", memberId: A, data: { leftAt: leftBefore.toISOString() }, settling: true });
     await w.check();
   });
 

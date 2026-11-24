@@ -14,6 +14,8 @@ import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
 import { previousResult } from "../once";
 import { logEvent, touchedByExpense } from "../events";
 import { REPEAT_BILL_MARK } from "../membership";
+import { settlingIn } from "../settling-db";
+import { withSettlingLeft, type Settling } from "../settling";
 import type { Prisma } from "@prisma/client";
 
 // Recurring bills, database side. The daily job calls runAllBills(); each
@@ -236,7 +238,7 @@ async function claimRun(billId: string, period: string, now: Date) {
 type RunHooks = { afterRead?: () => Promise<void>; afterSave?: () => Promise<void> };
 
 // Turn one due (bill, month) into an expense, once.
-async function runOne(first: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date, opts: RunHooks = {}) {
+async function runOne(first: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[]; settling: ReadonlyMap<string, Settling> }, period: string, now: Date, opts: RunHooks = {}) {
   // Claim the month first. If someone else already did, there's nothing to do.
   const run = await claimRun(first.id, period, now);
   if (!run) return "already";
@@ -252,7 +254,11 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
   }
   const key = run.requestKey || `bill-${run.id}`;
   // Taking over a crashed run: if its expense was saved after all, just finish.
-  const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
+  // Someone settling up only counts as moved out from their original last day: never a payer, never in the split. (A daily bill's month in their own
+  // move-out month keeps the rule it had: `shareMembers`.)
+  const payMembers = withSettlingLeft(group.members, group.settling);
+  const shareMembers = bill.nature === "daily" ? withSettlingLeft(group.members, group.settling, { dailyMonth: period }) : payMembers;
+  const active = payMembers.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active);
   const saved = await previousResult(key);
   if (saved) {
@@ -316,7 +322,7 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
   }
   if (amount <= 0) return wait("no amount");
 
-  const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members, bill.nature === "daily" ? { entries: charges, gone } : undefined);
+  const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, shareMembers, bill.nature === "daily" ? { entries: charges, gone } : undefined);
   if (note) input.notes = note;
   // The month is refused (and its claim removed, so the next run starts again from fresh numbers) when the group or the bill changed
   // while this was being worked out. Removed only if the claim is still this run's own.
@@ -343,6 +349,7 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
       now,
       requestKey: key,
       eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) ${REPEAT_BILL_MARK}`,
+      settlingMayShare: shareMembers.filter((m) => group.settling.has(m.id) && !m.leftAt).map((m) => m.id),
       afterRead: opts.afterRead,
       // In the same step as the expense: the bill is still exactly as it was when the amount was worked out, and the month is marked added.
       alsoInTx: async (tx, expenseId) => {
@@ -352,7 +359,12 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
           // A daily month depends on who is in the flat and which move-out charges still stand: worked out again here with the people and charges
           // as they are now. Only if that is not the amount and split being saved is the month refused (a weight edit, someone unrelated joining,
           // or "Not received" bringing back a leaver whose charge stands all give the same split, so they don't hold it up).
-          const members = await tx.member.findMany({ where: { groupId: group.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
+          // (Who is settling up only is read again here too: "Not received" may have landed since.)
+          const members = withSettlingLeft(
+            await tx.member.findMany({ where: { groupId: group.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } }),
+            await settlingIn(tx, group.id),
+            { dailyMonth: period },
+          );
           const written = parsePrepaid(now2.prepaid)[period] ?? [];
           const standing = new Map((await tx.expense.findMany({ where: { id: { in: written.map((x) => x.e) }, deletedAt: null }, select: { id: true, amount: true } })).map((e) => [e.id, e.amount]));
           const entries = written.filter((x) => standing.has(x.e)).map((x) => ({ ...x, a: standing.get(x.e)! }));
@@ -392,13 +404,14 @@ export async function runBillsForGroup(groupId: string, now = new Date(), opts: 
   });
   const counts = { added: 0, waiting: 0, skipped: 0, failed: 0 };
   if (!group || group.deletedAt) return counts;
+  const ctx = { id: group.id, currency: group.currency, closed: group.closed, members: group.members, settling: await settlingIn(db, group.id) };
   // (A paused daily bill still has the month it was paused in: periodsDue says which months are due.)
   const bills = await db.bill.findMany({ where: { groupId, deletedAt: null } });
   for (const bill of bills) {
     for (const period of periodsDue(bill, now)) {
       // One bill failing (a dropped connection) mustn't stop the others; its
       // claim goes stale and the next run finishes it.
-      const r = await runOne(bill, group, period, now, opts).catch((err) => {
+      const r = await runOne(bill, ctx, period, now, opts).catch((err) => {
         console.error("bill run failed", bill.id, period, String(err).slice(0, 200));
         return "failed" as const;
       });
@@ -407,7 +420,7 @@ export async function runBillsForGroup(groupId: string, now = new Date(), opts: 
       else if (r === "waiting") counts.waiting++;
       else if (r === "skipped") counts.skipped++;
     }
-    await settleStuckRuns(bill, group, periodsDue(bill, now), now).catch((err) => console.error("bill stuck check failed", bill.id, String(err).slice(0, 200)));
+    await settleStuckRuns(bill, ctx, periodsDue(bill, now), now).catch((err) => console.error("bill stuck check failed", bill.id, String(err).slice(0, 200)));
     await finishStoppedBill(bill.id, now).catch(() => false); // a stopped bill with nothing left to add is finished
   }
   return counts;
@@ -440,10 +453,10 @@ async function findBillExpense(bill: BillRow, groupId: string, period: string, r
 //  - its expense exists (by its saved key, or found in the history by bill and day): the month is marked added (or "Deleted" if that expense was deleted);
 //  - no expense, and the claim is under 29 days old with its key still there: the key would have shown it, so it is waiting for a person (add it);
 //  - otherwise there is no proof either way: it is put on hold ("Fix it"), never "Add it".
-async function settleStuckRuns(bill: BillRow, group: { id: string; members: Member[] }, due: string[], now: Date): Promise<void> {
+async function settleStuckRuns(bill: BillRow, group: { id: string; members: Member[]; settling: ReadonlyMap<string, Settling> }, due: string[], now: Date): Promise<void> {
   const old = new Date(now.getTime() - STALE_MS);
   const stuck = await db.billRun.findMany({ where: { billId: bill.id, status: "adding", period: { notIn: due }, OR: [{ claimedAt: null }, { claimedAt: { lt: old } }] } });
-  const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
+  const active = withSettlingLeft(group.members, group.settling).filter((m) => !m.leftAt).map((m) => m.id);
   for (const run of stuck) {
     const mine = { id: run.id, status: "adding", claimedAt: run.claimedAt };
     const proof = await previousResult(run.requestKey || `bill-${run.id}`);
@@ -500,9 +513,11 @@ export type BillStatus = {
 export async function billStatuses(groupId: string, now = new Date()): Promise<BillStatus[]> {
   const [bills, members, grp] = await Promise.all([
     db.bill.findMany({ where: { groupId, deletedAt: null }, include: { runs: { orderBy: { period: "desc" }, take: 4 } }, orderBy: { createdAt: "asc" } }),
-    db.member.findMany({ where: { groupId, leftAt: null }, select: { id: true } }),
+    db.member.findMany({ where: { groupId, leftAt: null }, select: { id: true, leftAt: true } }),
     db.group.findUnique({ where: { id: groupId }, select: { closed: true } }),
   ]);
+  // Someone settling up only is not a payer or in a split (settling.ts).
+  const settling = await settlingIn(db, groupId);
   // Every month still waiting, however old (the latest few runs alone could hide an older waiting month behind newer added ones).
   const waitingRuns = await db.billRun.findMany({ where: { billId: { in: bills.map((b) => b.id) }, status: "waiting" }, orderBy: { period: "asc" } });
   for (const bill of bills) {
@@ -510,7 +525,7 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
     bill.runs = [...bill.runs, ...mine].sort((x, y) => y.period.localeCompare(x.period));
   }
   const closed = Boolean(grp?.closed);
-  const active = members.map((m) => m.id);
+  const active = withSettlingLeft(members, settling).filter((m) => !m.leftAt).map((m) => m.id);
   const runExpenseIds = bills.flatMap((b) => b.runs.map((r) => r.expenseId)).filter(Boolean);
   const amounts = new Map(
     (await db.expense.findMany({ where: { id: { in: runExpenseIds }, deletedAt: null }, select: { id: true, amount: true } })).map((e) => [e.id, e.amount]),
@@ -564,7 +579,11 @@ async function checkDailyForm(bill: BillRow, input: SaveExpenseInput, period: st
   const monthTotal = dailyTotal(bill, period).amount;
   const worked = Math.max(0, monthTotal - pre.total);
   if (fp === undefined ? posted !== worked : fp !== billFormFingerprint(monthTotal, pre.entries)) return { error: CHANGED_NOW(bill.name) };
-  const members = await db.member.findMany({ where: { groupId: input.groupId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
+  const members = withSettlingLeft(
+    await db.member.findMany({ where: { groupId: input.groupId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } }),
+    await settlingIn(db, input.groupId),
+    { dailyMonth: period },
+  );
   for (const e of pre.entries) {
     const m = members.find((x) => x.id === e.m);
     if (!m) continue;
@@ -637,7 +656,9 @@ export async function addWaitingBill(
   }
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
-    r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach, alsoInTx: async (tx, id) => noteReplaced(tx, replaced, id) });
+    // A daily month may still name someone settling up only in their own move-out month (the bill's own rule, see runOne); nobody else.
+    const mayShare = bill.nature === "daily" ? [...(await settlingIn(db, input.groupId))].filter(([, s]) => s.leftAt.toISOString().slice(0, 7) === where.period).map(([id]) => id) : [];
+    r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach, settlingMayShare: mayShare, alsoInTx: async (tx, id) => noteReplaced(tx, replaced, id) });
   } catch (err) {
     await release().catch(() => undefined);
     throw err;

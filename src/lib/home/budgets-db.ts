@@ -13,6 +13,7 @@ import { JOINED } from "../membership";
 import { monthWindow, onDate } from "./home-data";
 import { FORM_OUT_OF_DATE } from "../form-currency";
 import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
+import { settlingSelfRefusal } from "../settling-db";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -30,6 +31,8 @@ export async function saveBudgetsFor(
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change budgets." };
+  const noSettling = await settlingSelfRefusal(db, groupId, actorId); // someone settling up only can't change budgets (settling.ts)
+  if (noSettling) return { ok: false, error: noSettling };
   const set: { category: string; amount: number; was: number | null }[] = [];
   const clear: { category: string; was: number | null }[] = [];
   for (const [category, raw] of Object.entries(amounts)) {

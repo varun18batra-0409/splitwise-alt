@@ -1,7 +1,7 @@
 // Takes phone-sized screenshots of every screen (used by the GitHub check so
 // the design can be reviewed). Needs the app running on :3000 and .demo.json.
 import "./test-db-guard"; // first on purpose: refuses to run against the live database (OB-10)
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, webkit, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 import { guessCategory } from "../src/lib/categories";
@@ -1731,6 +1731,79 @@ if (!hosted) {
       { name: "L6-closed-flat-list", path: `/groups/${shutFlat.id}?tab=list` },
     ]);
     await gshots(nupur, [{ name: "L7-move-out-not-admin", path: `/groups/${liveFlat.id}/people/${riyaIn}/move` }]);
+    // "Settling up only" (24 Nov): Riya moved out on 10 Nov and was brought back to settle (her payment was marked "Not received"). Her old balance
+    // stays; she is tagged on People, and "Riya has moved back in" is the way back. Seeded the way the app writes it: the row is back in the flat and
+    // the bring-back line carries the hidden `settling` flag and her old last day.
+    const settleFlat = await flatOf("Flat 402 (settling)", false);
+    const settleId = (n: string) => settleFlat.members.find((m) => m.name === n)!.id;
+    const rent = 9000000;
+    await db.expense.create({
+      data: {
+        groupId: settleFlat.id, description: "Rent", amount: rent, splitType: "equal", forMode: "everyone", category: guessCategory("Rent"), paidById: settleId("Varu"),
+        originalAmount: rent, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: rent, createdById: settleId("Varu"),
+        shares: { create: settleFlat.members.map((m) => ({ memberId: m.id, amount: rent / 3 })) },
+      },
+    });
+    const lastDay = new Date("2026-11-10T12:00:00Z");
+    await db.groupEvent.create({
+      data: {
+        groupId: settleFlat.id, actorId: settleId("Varu"), kind: "member_rejoined", touches: settleId("Riya"),
+        text: "brought Riya back into Flat 402 (settling) until the ₹30,000 is sorted",
+        undo: JSON.stringify({ type: "member_set", memberId: settleId("Riya"), data: { leftAt: lastDay.toISOString() }, settling: true }),
+      },
+    });
+    const settlePeople = `/groups/${settleFlat.id}/people`;
+    const openRiya = async (p: Page) => {
+      await p.locator("[data-settling-only]").first().waitFor({ timeout: 10_000 });
+      await p.locator("details", { has: p.locator("[data-settling-only]") }).first().locator("summary").click();
+      await p.locator("[data-moved-back-in]").first().waitFor({ timeout: 10_000 });
+    };
+    // The People page with the tag and the "has moved back in" button; then the question asked when the button is tapped (a phone's own
+    // confirm box, which a picture can't hold: its words are saved next to the pictures instead).
+    await gshots(varu, [
+      { name: "S1-people-settling-only", path: settlePeople, prepare: openRiya },
+      {
+        name: "S2-moved-back-in-confirm",
+        path: settlePeople,
+        prepare: async (p) => {
+          await openRiya(p);
+          let said = "";
+          p.once("dialog", async (d) => {
+            said = d.message();
+            await d.dismiss();
+          });
+          await p.locator("[data-moved-back-in] button").first().click();
+          await p.waitForTimeout(400);
+          writeFileSync(`${out}/S2-moved-back-in-confirm.txt`, `${said}\n`);
+          console.log("  confirm question:", said);
+        },
+      },
+    ]);
+    // Refusal when naming her on a new expense: the Add page is opened while Riya is still a member (a page left open), she is then brought back
+    // to settle, and the person saves an expense paid by Riya.
+    const staleFlat = await flatOf("Flat 402 (page left open)", false);
+    const staleId = (n: string) => staleFlat.members.find((m) => m.name === n)!.id;
+    await gshots(varu, [
+      {
+        name: "S3-add-expense-names-settling",
+        path: `/groups/${staleFlat.id}/add`,
+        full: false,
+        prepare: async (p) => {
+          await p.getByRole("button", { name: "Riya", exact: true }).first().click(); // Riya as the payer
+          await p.getByLabel(/amount/i).first().fill("900");
+          await p.getByPlaceholder(/what/i).first().fill("Dinner").catch(() => undefined);
+          await db.groupEvent.create({
+            data: {
+              groupId: staleFlat.id, actorId: staleId("Varu"), kind: "member_rejoined", touches: staleId("Riya"),
+              text: "brought Riya back into Flat 402 (page left open) until the ₹900 is sorted",
+              undo: JSON.stringify({ type: "member_set", memberId: staleId("Riya"), data: { leftAt: lastDay.toISOString() }, settling: true }),
+            },
+          });
+          await p.getByRole("button", { name: /^Save expense$/ }).click();
+          await p.locator("[role=alert]").first().waitFor({ timeout: 15_000 });
+        },
+      },
+    ]);
   }
 }
 // The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).

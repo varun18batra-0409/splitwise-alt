@@ -20,6 +20,8 @@ import type { Prepaid } from "@/lib/home/moving";
 import type { ExpenseInitial } from "@/lib/expense-initial";
 import { OfflineFix } from "@/components/offline/OfflineFix";
 import { offlineOn } from "@/lib/offline/words";
+import { settlingIn } from "@/lib/settling-db";
+import { withSettlingLeft, type Settling } from "@/lib/settling";
 
 export default async function AddExpensePage({
   params,
@@ -82,7 +84,9 @@ export default async function AddExpensePage({
 
   // Start from another expense: the one just saved ("add another") or an old one ("repeat").
   const tz = await getTimeZone();
-  const weights = Object.fromEntries(group.members.map((m) => [m.id, m.splitWeight]));
+  // Someone who moved out and is only settling up is not offered, and not given a weight: new expenses leave them out (settling.ts).
+  const settling = await settlingIn(db, group.id);
+  const weights = Object.fromEntries(group.members.filter((m) => !settling.has(m.id)).map((m) => [m.id, m.splitWeight]));
   const sourceId = sp.again ?? sp.from;
   const source = sourceId ? await db.expense.findFirst({ where: { id: sourceId, groupId: group.id, deletedAt: null }, include: { shares: true } }) : null;
   // "Enter amount" for a bill that's waiting: everything filled in except the amount.
@@ -91,7 +95,7 @@ export default async function AddExpensePage({
       ? await db.billRun.findFirst({ where: { billId: sp.bill, period: sp.period, status: "waiting", reason: { not: STUCK_HOLD }, bill: { groupId: group.id, deletedAt: null } }, include: { bill: true } })
       : null;
   const billPre = waitingRun ? await prepaidFor(waitingRun.bill, sp.period!) : undefined;
-  const billInitial = waitingRun && billPre ? billToInitial(waitingRun.bill, group, sp.period!, myId, billPre) : undefined;
+  const billInitial = waitingRun && billPre ? billToInitial(waitingRun.bill, group, sp.period!, myId, billPre, settling) : undefined;
   // What a daily month was filled in from, sent back with the form so a page left open before a move-out charge changed is noticed.
   const billFp = waitingRun && billPre && waitingRun.bill.nature === "daily" ? billFormFingerprint(dailyTotal(waitingRun.bill, sp.period!).amount, billPre.entries) : undefined;
   const initial = source
@@ -127,10 +131,10 @@ export default async function AddExpensePage({
           groupId: group.id,
           baseCurrency: group.currency,
           groupMarkupBp: group.cardMarkupBp,
-          members: group.members.filter((m) => !m.leftAt).map(({ id, name }) => ({ id, name })),
+          members: group.members.filter((m) => !m.leftAt && !settling.has(m.id)).map(({ id, name }) => ({ id, name })),
           myId,
           tz,
-          weights: Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight])),
+          weights: Object.fromEntries(group.members.filter((m) => !m.leftAt && !settling.has(m.id)).map((m) => [m.id, m.splitWeight])),
           splitName: splitNameFor(group.type),
           spin: !pair && group.type !== "pot",
           pair,
@@ -158,13 +162,18 @@ function billToInitial(
   period: string,
   myId: string,
   prepaid: { total: number; entries: Prepaid[]; gone: Prepaid[] } = { total: 0, entries: [], gone: [] },
+  settling: ReadonlyMap<string, Settling> = new Map(),
 ): ExpenseInitial {
-  const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
+  // Someone settling up only counts as moved out from their original last day: not a payer, not in the split (a daily bill's month in their own
+  // move-out month keeps the rule it had, as the bill run does).
+  const payMembers = withSettlingLeft(group.members, settling);
+  const shareMembers = bill.nature === "daily" ? withSettlingLeft(group.members, settling, { dailyMonth: period }) : payMembers;
+  const active = payMembers.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active) ?? myId;
   // A fixed bill waiting only because its payer left: fill in the usual amount (daily: the month's total).
   const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? Math.max(0, dailyTotal(bill, period).amount - prepaid.total) : 0; // daily: the month's total (days a pause cut off left out), less what someone who moved out already paid
   // The amount and the move-out charges go in too, so a daily month is pre-filled with the same day-by-day shares the job would have written.
-  const x = billExpenseInput(bill, group.id, group.currency, period, known, payer, group.members, bill.nature === "daily" ? { entries: prepaid.entries, gone: prepaid.gone } : undefined);
+  const x = billExpenseInput(bill, group.id, group.currency, period, known, payer, shareMembers, bill.nature === "daily" ? { entries: prepaid.entries, gone: prepaid.gone } : undefined);
   return {
     name: x.name,
     amount: known > 0 ? toInputAmount(known, group.currency) : "",

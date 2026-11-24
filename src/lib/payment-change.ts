@@ -79,7 +79,8 @@ export async function bringBackLeavers(tx: Tx, o: { groupId: string; groupName: 
       actorId: o.actorId,
       kind: "member_rejoined",
       text: m.id === o.actorId ? `came back into ${o.groupName} until the ${o.amountText} is sorted` : `brought ${m.name} back into ${o.groupName} until the ${o.amountText} is sorted`,
-      undo: { type: "member_set", memberId: m.id, data: undoData },
+      // `settling`: they are back to settle up only, not as a member again (settling.ts reads it, with their old last day from `data`).
+      undo: { type: "member_set", memberId: m.id, data: undoData, settling: true },
       touches: [m.id], // no paymentId: this line never stands in the way of undoing the delete
     });
     back.push({ id: m.id, name: m.name, accountId: m.accountId });

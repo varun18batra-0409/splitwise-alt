@@ -1,3 +1,4 @@
+import { settlingIn } from "@/lib/settling-db";
 import { notFound, redirect } from "next/navigation";
 import { bounceIfDirect } from "@/lib/direct-db";
 import Link from "@/components/Link";
@@ -52,7 +53,9 @@ export default async function BillPage({
   const today = dayKey(new Date(), tz);
   const month = today.slice(0, 7);
   const money = (n: number) => formatMoney(n, group.currency);
-  const active = group.members.filter((m) => !m.leftAt);
+  // Someone settling up only is not a payer or in a split (settling.ts).
+  const settling = await settlingIn(db, group.id);
+  const active = group.members.filter((m) => !m.leftAt && !settling.has(m.id));
   const name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const missed = missedDays(bill.missed, month);
   const counted = countedMissed(bill, month); // (the days a pause cuts off are not counted either)

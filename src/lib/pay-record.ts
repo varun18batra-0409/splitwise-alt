@@ -6,6 +6,7 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment, PaymentTooBig } from "./payments";
 import { tellParties } from "./payment-claims";
+import { moveOutAgainIfSquare } from "./settling-db";
 import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./money-guard";
 
 // Recording one payment (Smart Settle's "Mark paid" and "I've paid", and "Record a payment"), with the checks done INSIDE the write. It counts straight away.
@@ -97,7 +98,7 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
       const p = await createPayment(tx, { groupId: i.groupId, fromId: i.fromId, toId: i.toId, amount: i.amount, createdById: i.myId });
       paymentId = p.id;
       await claimKey(tx, i.key, p.id, i.fp);
-      return logEvent(tx, {
+      const eventId = await logEvent(tx, {
         groupId: i.groupId,
         actorId: i.myId,
         kind: "payment_recorded",
@@ -105,6 +106,9 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
         paymentId: p.id,
         undo: { type: "payment_delete", paymentId: p.id },
       });
+      // Someone settling up only who is now square is moved out again, in this same step (settling-db.ts).
+      await moveOutAgainIfSquare(tx, i.groupId, [i.fromId, i.toId]);
+      return eventId;
     }, { timeout: 15000 }));
     // It counts straight away; the other person (or both, when a third person recorded it) is told after it is saved.
     tellParties({
@@ -117,7 +121,12 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
     if (err instanceof PaymentTooBig) return { kind: "refused", error: err.message };
     if (err instanceof LeftOut) return { kind: "refused", error: `${err.message} has left the group, so a payment with them can't be recorded.` };
     if (err instanceof Over) return { kind: "over", limit: err.limit, side: err.side };
-    if (err instanceof GroupChanged) return { kind: "refused", error: groupChangedText(err) };
+    if (err instanceof GroupChanged) {
+      // The same tap again after it went through: a person who paid in full while settling up only is moved out again by that very payment, so the
+      // retry finds them no longer in the group. The key says it already happened.
+      if (err.reason === "actor_left" && i.key && (await db.requestKey.findUnique({ where: { key: i.key }, select: { key: true } }))) return { kind: "duplicate" };
+      return { kind: "refused", error: groupChangedText(err) };
+    }
     if (isDuplicateKey(err)) return { kind: "duplicate" };
     throw err;
   }

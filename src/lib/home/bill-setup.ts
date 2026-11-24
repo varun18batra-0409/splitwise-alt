@@ -10,6 +10,8 @@ import { parsePrepaid } from "./moving";
 import type { Prisma } from "@prisma/client";
 import { cutAt, finishStoppedBill, parseSplit, stopWordsFor } from "./bills-db";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
+import { settlingIn, settlingSelfRefusal } from "../settling-db";
+import { SETTLING_SELF } from "../settling";
 
 // Setting bills up and changing them (database side, checked here).
 
@@ -70,7 +72,10 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
   if (group.type === "direct") return { ok: false, error: "This is just between two people, so it has none of these extras." };
   const actor = group.members.find((m) => m.id === actorId && !m.leftAt);
   if (!actor) return { ok: false, error: "Only people in this group can set up bills." };
-  const active = group.members.filter((m) => !m.leftAt);
+  // Someone settling up only can't set bills up, and is not offered as a payer or in a split (settling.ts).
+  const settling = await settlingIn(db, groupId);
+  if (settling.has(actorId)) return { ok: false, error: SETTLING_SELF };
+  const active = group.members.filter((m) => !m.leftAt && !settling.has(m.id));
 
   const tpl = BILL_TEMPLATES.find((t) => t.id === input.template) ?? BILL_TEMPLATES[BILL_TEMPLATES.length - 1];
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 40) || tpl.name;
@@ -201,6 +206,8 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
   const bill = await db.bill.findFirst({ where: { id: billId, groupId, deletedAt: null }, include: { group: { include: { members: true } } } });
   if (!bill) return { ok: false, error: "That bill no longer exists." };
   if (!bill.group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change bills." };
+  const noSettling = await settlingSelfRefusal(db, groupId, actorId);
+  if (noSettling) return { ok: false, error: noSettling };
   if (command === "skip") {
     // Skip exactly the month the form named (the oldest waiting month, else the next coming one, as the page showed). Called without a
     // month (older callers), it works out the same month itself.
@@ -340,6 +347,8 @@ export async function toggleMissedDayFor(groupId: string, actorId: string, billI
   const bill = await db.bill.findFirst({ where: { id: billId, groupId, deletedAt: null, nature: "daily" }, include: { group: { include: { members: true } } } });
   if (!bill) return { ok: false, error: "That bill no longer exists." };
   if (!bill.group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change bills." };
+  const noSettling = await settlingSelfRefusal(db, groupId, actorId);
+  if (noSettling) return { ok: false, error: noSettling };
   if (!/^\d{4}-\d{2}$/.test(period) || !Number.isInteger(day)) return { ok: false, error: "That day isn’t valid." };
   // Compare and set: the new list is written only if the bill's list is still the one it was worked out from, and the
   // month still isn't added. If another tap got in first (a second phone, a double tap), read again and apply this
@@ -386,6 +395,8 @@ export async function saveSettleRulesFor(
   const group = await c.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change this." };
+  const noSettling = await settlingSelfRefusal(c, groupId, actorId);
+  if (noSettling) return { ok: false, error: noSettling };
   const day = Number.isInteger(input.settleDay) && ((input.settleDay >= 1 && input.settleDay <= 28) || input.settleDay === 31) ? input.settleDay : 0;
   const min = input.settleMin.trim() ? parseAmount(input.settleMin, group.currency) : 0;
   if (min === null || min < 0) return { ok: false, error: "Enter the smallest amount as a number, like 50." };

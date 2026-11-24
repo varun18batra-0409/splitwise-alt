@@ -6,6 +6,7 @@ import { formatMoney } from "./money";
 import { createPayment, PaymentTooBig } from "./payments";
 import { tellParties } from "./payment-claims";
 import { guardGroup, ledgerInTx } from "./money-guard";
+import { moveOutAgainIfSquare } from "./settling-db";
 import type { Prisma } from "@prisma/client";
 
 // "I've paid" links. When Asha reminds Ravi from Settle up, the WhatsApp
@@ -118,6 +119,7 @@ export async function recordLinkPayment(s: { link: { id: string; groupId: string
         paymentId: p.id,
         undo: { type: "payment_delete", paymentId: p.id },
       });
+      await moveOutAgainIfSquare(tx, s.link.groupId, [s.link.fromId, s.link.toId]); // settling up only and now square: moved out again, in this step
       return { paymentId: p.id, eventId };
     });
   } catch (err) {

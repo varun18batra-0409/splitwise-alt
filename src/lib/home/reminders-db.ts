@@ -6,6 +6,8 @@ import { addDays } from "../local-time";
 import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { billStatuses } from "./bills-db";
 import { payerFor, periodDueOn } from "./bills";
+import { settlingIn } from "../settling-db";
+import { withSettlingLeft } from "../settling";
 import { reminderPlan, type ReminderGroup } from "./reminders";
 
 // A reminder about a bill (its tag starts "bill-") or about settling up.
@@ -46,7 +48,8 @@ export async function sendReminders(now = new Date(), stop: () => boolean = () =
       const ruleBills = zoned.length ? await db.bill.findMany({ where: { groupId: id, deletedAt: null } }) : [];
       const skippedRuns = ruleBills.length ? await db.billRun.findMany({ where: { billId: { in: ruleBills.map((b) => b.id) }, status: "skipped" }, select: { billId: true, period: true } }) : [];
       const skipped = new Set(skippedRuns.map((r) => `${r.billId}:${r.period}`));
-      const active = data.group.members.filter((m) => !m.leftAt).map((m) => m.id);
+      // (Someone settling up only is not a bill payer: settling.ts.)
+      const active = withSettlingLeft(data.group.members, await settlingIn(db, id)).filter((m) => !m.leftAt).map((m) => m.id);
       const dueOn = (day: string) =>
         ruleBills.flatMap((b) => {
           const period = periodDueOn(b, day);

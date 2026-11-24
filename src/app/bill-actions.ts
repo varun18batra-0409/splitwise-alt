@@ -9,7 +9,7 @@ import { addListItem, buyListItems, goingShopping, removeListItem, toggleListIte
 import { cleanKey } from "@/lib/once";
 import { tripFromGoalOnce } from "@/lib/goal-trip";
 import { saveBudgetsFor } from "@/lib/home/budgets-db";
-import { MOVE_OUT_KEY_CHANGED, moveOut, returnDepositFor, saveDepositFor, setMoveInFor } from "@/lib/home/moving-db";
+import { MOVE_OUT_KEY_CHANGED, moveOut, moveBackInFor, returnDepositFor, saveDepositFor, setMoveInFor } from "@/lib/home/moving-db";
 import { isPairGroup } from "@/lib/direct-guard";
 import { db } from "@/lib/db";
 import { addGoalEntryFor, deleteGoalFor, saveGoalFor } from "@/lib/home/goals-db";
@@ -167,6 +167,18 @@ export async function setMoveIn(formData: FormData) {
   const day = String(formData.get("day") ?? "");
   // Everything is checked in setMoveInFor (a flat only, open, a real date, the person still here); a refusal shows on the People page.
   const r = await setMoveInFor(groupId, actor, memberId, day);
+  if (!r.ok) redirect(await flashTo(["groups", groupId, "people"], { error: r.error }));
+  redirect(`/groups/${groupId}/people`);
+}
+
+// "C has moved back in" (People page): someone settling up only is a member again from the day picked.
+export async function movedBackIn(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const actor = await me(groupId);
+  if (await isPairGroup(groupId)) redirect(`/people/${groupId}`);
+  const memberId = String(formData.get("memberId") ?? "");
+  const day = String(formData.get("day") ?? "");
+  const r = await moveBackInFor(groupId, actor, memberId, day);
   if (!r.ok) redirect(await flashTo(["groups", groupId, "people"], { error: r.error }));
   redirect(`/groups/${groupId}/people`);
 }
