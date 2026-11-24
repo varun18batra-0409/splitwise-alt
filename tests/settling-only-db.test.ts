@@ -963,13 +963,28 @@ describe("settling up only: round three (who is asked, which way, what is shown)
     expect((await f.rows("payment_deleted")).map((e) => e.text)).toContain("can’t take on ₹31,550 from B, so it’s off the balances");
   });
 
-  it("37. S4: if nobody staying has joined, there is no default cover and nothing is recorded (the refusal says why)", async () => {
-    const { f } = await owedSettling("s4none");
+  it("37. S4/T1: if nobody staying has joined, there is no default cover: the preview asks for a pick (needsPick), the server refuses without one, and accepts an explicit pick", async () => {
+    const { f, d } = await owedSettling("s4none");
     await db.member.update({ where: { id: f.a }, data: { accountId: null } }); // A has no account either: D and A are both just names
-    const pre = await moveOutPreview(f.gid, f.b, "2026-11-30", at("2026-11-30"), "");
-    expect(pre).toEqual({ ok: false, error: "B can’t be squared up yet: C moved out earlier and is still settling up, and nobody staying has joined Loopin to cover it. Once they’re square, or a flatmate joins, try again." });
-    const out = await moveOut(f.gid, f.a, { leaverId: f.b, lastDay: "2026-11-30", requestKey: key() }, at("2026-11-30"));
-    expect(out).toMatchObject({ ok: true }); // A is confirming and stays, so A is the default cover (as before)
+    // B (the leaver) confirms, so nobody confirming stays: no default. The picker shows the staying names and nothing is chosen.
+    const pre = await moveOutPreview(f.gid, f.b, "2026-11-30", at("2026-11-30"), f.b);
+    if (!pre.ok) throw new Error(pre.error);
+    expect(pre.needsPick).toBe(true);
+    expect(pre.cover).toMatchObject({ coverId: "" });
+    expect(pre.cover?.options.map((o) => o.name).sort()).toEqual(["A", "D"]);
+    // Without a pick the server refuses, saying why.
+    const none = await moveOut(f.gid, f.b, { leaverId: f.b, lastDay: "2026-11-30", requestKey: key() }, at("2026-11-30"));
+    expect(none).toEqual({ ok: false, error: "B can’t be squared up yet: C moved out earlier and is still settling up, and nobody staying has joined Loopin to cover it. Once they’re square, or a flatmate joins, try again." });
+    // Picking D: the picker is gone, and the one payment is B pays D 3,200,000 (45,000 owed to D + 3,155,000 covering C); D has no account so isn't asked.
+    const picked = await moveOutPreview(f.gid, f.b, "2026-11-30", at("2026-11-30"), f.b, undefined, d.id);
+    if (!picked.ok) throw new Error(picked.error);
+    expect(picked.needsPick).toBe(false);
+    expect(picked.payments).toEqual([{ from: f.b, to: d.id, amount: 3_200_000 }]);
+    const out = await moveOut(f.gid, f.b, { leaverId: f.b, lastDay: "2026-11-30", requestKey: key(), coverId: d.id, expectKey: picked.expectKey }, at("2026-11-30"));
+    expect(out).toMatchObject({ ok: true });
+    // A -45,000 (unchanged), B -3,200,000 + 3,200,000 = 0, C +3,200,000, D +45,000 - 3,200,000 = -3,155,000 (D now owes C 3,155,000 of it).
+    expect(await f.nets()).toEqual([-45_000, 0, 3_200_000]);
+    expect((await checkBooks(f.gid))[d.id]).toBe(-3_155_000);
   });
 
   it("38. S5: a settling person at 0 is 'held' while a month still to be billed names them, and not once that month is skipped", async () => {

@@ -119,7 +119,7 @@ export default async function MoveOutPage({
         )}
       </dl>
       {/* A flatmate who stays covers the part that a person still settling up owes (or is owed): a real payment, already in the list below. */}
-      {p.cover && (
+      {p.cover && !p.needsPick && (
         // (Follows the "Add it now" tick like the payments below, so the amount shown is the one recorded.)
         p.coverWithDaily && p.coverWithDaily.text !== p.cover.text ? (
           <>
@@ -154,10 +154,11 @@ export default async function MoveOutPage({
           <span className="block text-sm text-gray-500">Last day in the flat</span>
           <DateField name="day" defaultValue={lastDay} max={today} min={`${addMonths(today.slice(0, 7), -1)}-01`} className="mt-1" clearable={false} />
         </label>
-        {p.ok && p.cover && p.cover.options.length > 1 && (
+        {p.ok && p.cover && (p.cover.options.length > 1 || p.needsPick) && (
           <label className="flex-1" data-cover-pick>
             <span className="block text-sm text-gray-500">{COVER_PICK_LABEL}</span>
             <SelectField name="cover" defaultValue={p.cover.coverId} className="mt-1">
+              {p.needsPick && <option value="">Pick someone</option>}
               {p.cover.options.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}
@@ -193,6 +194,11 @@ export default async function MoveOutPage({
             </span>
           </p>
         </div>
+      ) : p.needsPick ? (
+        // Nobody staying has joined Loopin, so no one is chosen for the person confirming: pick who covers it (above), and the payments appear.
+        <p className="rounded-2xl bg-mist px-4 py-3 text-sm" data-cover-needed>
+          Nobody staying has joined Loopin, so pick who covers it.
+        </p>
       ) : (
         <form action={moveOutAction} className="group/mv space-y-8">
           <input type="hidden" name="groupId" value={group.id} />

@@ -308,13 +308,21 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   // Charges the person paid for an earlier leaver's daily share: handed to this month's payer (the same in the move-out itself).
   const handovers = square ? ([] as Handover[] & { adding?: string }) : await pendingHandovers(flat, leaverId, others.map((m) => m.id), heir);
   if (handovers.adding) return { ok: false, error: handovers.adding } as Fail;
-  const p = plan(flat, leaverId, lastDay, bills, [], handovers, coverId, actorId);
+  // Some people stay but none of them has joined Loopin (and the person confirming isn't staying): there is no default cover, so the page asks for
+  // one to be picked (needsPick). The numbers are worked out with the first stayer only so the picker can show; the page hides them until one is picked.
+  let pickId = coverId;
+  let p = plan(flat, leaverId, lastDay, bills, [], handovers, pickId, actorId);
+  const needsPick = p.short > 0 && p.nobodyJoined;
+  if (needsPick) {
+    pickId = others[0].id; // (nobodyJoined means someone stays)
+    p = plan(flat, leaverId, lastDay, bills, [], handovers, pickId, actorId);
+  }
   if (p.short > 0) return { ok: false, error: settlingShort(flat, flat.members.find((m) => m.id === leaverId)?.name ?? "Someone", p.nobodyJoined) } as Fail;
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
   // Daily bills this month: their share for the days they were there, charged now if they tick "Add it now".
   const offers = square ? [] : await dailyOffers(flat, leaverId, lastDay);
   const charges = offers.filter((o) => !o.d.unsupported).map((o) => ({ payerId: prechargePayer(o.bill, o.period, leaverId, others.map((m) => m.id), heir), amount: o.d.amount }));
-  const dailyPlan = charges.length ? plan(flat, leaverId, lastDay, bills, charges, handovers, coverId, actorId) : p;
+  const dailyPlan = charges.length ? plan(flat, leaverId, lastDay, bills, charges, handovers, pickId, actorId) : p;
   if (dailyPlan.short > 0) return { ok: false, error: settlingShort(flat, flat.members.find((m) => m.id === leaverId)?.name ?? "Someone", dailyPlan.nobodyJoined) } as Fail;
   const withDaily = dailyPlan.payments;
   // Which of the final payments ask the person paid to confirm (they can answer, and are not the one confirming this).
@@ -338,8 +346,9 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
     payments: p.payments,
     // Someone who moved out earlier and is still settling up owes part of what the leaver is owed (or is owed part of what the leaver owes):
     // a flatmate who stays covers that part now, with a real payment (already in `payments`), and can be picked here. null = nothing to cover.
-    cover: coverOf(p),
+    cover: coverOf(p) && (needsPick ? { ...coverOf(p)!, coverId: "" } : coverOf(p)), // (no one picked yet: no default)
     coverWithDaily: coverOf(dailyPlan),
+    needsPick, // nobody staying has joined and no cover is picked: the page shows the picker and nothing else to confirm until one is
     lastDay, // the last day used (their ORIGINAL one when settlingSquare)
     settlingSquare: square, // exactly square and settling up only: the move-out is just "moved out again" (no day, no payments)
     // What the person was paid for an earlier leaver's daily share that goes to this month's payer: the confirm question says so.
