@@ -19,6 +19,11 @@ function useRowControls(getBox: () => HTMLElement | null) {
     if (!box || !row) return;
     const fine = window.matchMedia?.(FINE);
     const measure = () => setCan({ left: row.scrollLeft > 4, right: row.scrollWidth - row.clientWidth - row.scrollLeft > 4 });
+    // A row that snaps to whole cards jumps a card on every scrollBy, and a gentle trackpad swipe sends dozens of tiny steps. So on those
+    // rows small steps add up until they reach about 40 px, and the row moves at most one card every 150 ms.
+    const snaps = (getComputedStyle(row).scrollSnapType || "none") !== "none";
+    let pending = 0;
+    let last = 0;
     const onWheel = (e: WheelEvent) => {
       if (!fine?.matches || e.ctrlKey) return;
       const to = wheelMove({ deltaX: e.deltaX, deltaY: e.deltaY, scrollLeft: row.scrollLeft, max: row.scrollWidth - row.clientWidth });
@@ -26,8 +31,17 @@ function useRowControls(getBox: () => HTMLElement | null) {
       const by = to - row.scrollLeft;
       if (by === 0) return; // it can't move further this way: the page scrolls as usual
       e.preventDefault();
-      // scrollBy (not setting scrollLeft): a row that snaps to its cards then follows the direction of the turn instead of snapping back.
-      row.scrollBy({ left: by, behavior: "instant" as ScrollBehavior });
+      if (!snaps) {
+        row.scrollBy({ left: by, behavior: "instant" as ScrollBehavior });
+        return;
+      }
+      pending = Math.sign(pending) === Math.sign(by) ? pending + by : by;
+      const now = Date.now();
+      if (Math.abs(pending) < 40 || now - last < 150) return;
+      // scrollBy (not setting scrollLeft): the row then snaps on in the direction of the turn instead of snapping back.
+      row.scrollBy({ left: Math.sign(pending) * Math.max(Math.abs(pending), 41), behavior: "smooth" });
+      pending = 0;
+      last = now;
     };
     measure();
     row.addEventListener("scroll", measure, { passive: true });
