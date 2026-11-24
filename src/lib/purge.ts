@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { keyStarting } from "./key-range";
 import { RESTORE_DAYS } from "./group-data";
 import type { Db } from "./events";
 
@@ -111,6 +112,8 @@ export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Pr
       await tx.member.deleteMany({ where: inG() });
       // The scrambled notes of removed people who deleted their sign-in (removal-marks.ts) go with the group.
       await tx.appSetting.deleteMany({ where: { OR: ids.map((id) => ({ key: { startsWith: `removed:${id}:` } })) } });
+      // The month's frozen budget zone notes (budgets-db.ts) go with the group.
+      await tx.notifyLog.deleteMany({ where: { OR: ids.map((id) => ({ key: keyStarting(`budget-zone:${id}:`) })) } });
       await tx.group.deleteMany({ where: { id: { in: ids } } });
     },
     { timeout: 30000 },

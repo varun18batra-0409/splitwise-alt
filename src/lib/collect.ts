@@ -101,9 +101,13 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
   return db.$transaction(async (tx): Promise<Ok<{ entryId: string; paidAt: Date; repeat?: boolean }> | Fail> => {
     if (!(await stillOpen(tx, c.id))) return { ok: false, error: closedText };
     const entries = await tx.collectionEntry.findMany({ where: { collectionId: c.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+    // The same phone sending the same tick again (a double tap, a resend): it is already saved, so say so and don't alert again.
+    // Same amount too (for "any amount" lists a different amount is not a resend: it keeps today's refusal).
+    const resend = (e: (typeof entries)[number]): Ok<{ entryId: string; paidAt: Date; repeat: true }> | null =>
+      payerKey && e.status !== "due" && e.payerKey === payerKey && e.paidAt && e.amount === amount ? { ok: true, entryId: e.id, paidAt: e.paidAt, repeat: true } : null;
     // Ticks one existing due name.
-    const tick = async (e: (typeof entries)[number]): Promise<Ok<{ entryId: string; paidAt: Date }> | Fail> => {
-      if (e.status !== "due") return { ok: false, error: `${mailSafe(e.name)} is already marked as paid.` };
+    const tick = async (e: (typeof entries)[number]): Promise<Ok<{ entryId: string; paidAt: Date; repeat?: boolean }> | Fail> => {
+      if (e.status !== "due") return resend(e) ?? { ok: false, error: `${mailSafe(e.name)} is already marked as paid.` };
       // Ticked by someone signed in to Loopin: they'll hear when it's checked. The entry is linked to their account only when the name
       // they ticked is theirs (the same name as their account's): ticking someone else's name never ties that entry to you.
       const who = !e.accountId && input.viewerAccountId && input.viewerAccountId !== c.accountId && input.viewerName && sameName(input.viewerName, e.name) ? { accountId: input.viewerAccountId } : {};
@@ -120,8 +124,8 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
     const name = typedName!;
     const twin = entries.find((x) => sameName(x.name, name));
     if (twin && twin.status === "due") return tick(twin);
-    // The same phone sending the same tick again (a double tap, a resend): it is already saved, so say so and don't alert again.
-    if (twin && payerKey && twin.status !== "due" && twin.payerKey === payerKey && twin.paidAt) return { ok: true, entryId: twin.id, paidAt: twin.paidAt, repeat: true };
+    const again = twin ? resend(twin) : null;
+    if (again) return again;
     if (twin) return { ok: false, error: `${mailSafe(twin.name)} is already on the list as paid. Add your surname or initial if you’re someone else.` };
     if (entries.length >= MAX_ENTRIES) return { ok: false, error: "This list is full." };
     // A name typed in is linked to the viewer's account only when it is their own name.
@@ -226,9 +230,9 @@ export async function organiserAction(
       if (!first.rows.length && !first.fill.length && !first.link.length) return { ok: false, error: "Type names that aren’t on the list yet." };
       if (c.entries.length + first.rows.length > MAX_ENTRIES) return { ok: false, error: `A collection can have up to ${MAX_ENTRIES} people.` };
       await opts.afterRead?.();
-      // The first statement is a write that only matches while the collection is open (it takes the lock); then the list is read again.
+      // The first statement is a write that only matches while the collection is not deleted (it takes the lock; a closed collection can still be added to); then the list is read again.
       const done = await db.$transaction(async (tx) => {
-        if ((await tx.collection.updateMany({ where: { id: c.id, closedAt: null, deletedAt: null }, data: { closedAt: null } })).count !== 1) return { error: "This collection is closed, or isn’t there any more." };
+        if ((await tx.collection.updateMany({ where: { id: c.id, deletedAt: null }, data: { deletedAt: null } })).count !== 1) return { error: "This collection isn’t there any more." };
         const fresh = await tx.collectionEntry.findMany({ where: { collectionId: c.id } });
         const p = plan(fresh);
         if (!p.rows.length && !p.fill.length && !p.link.length) return { error: "Type names that aren’t on the list yet." };

@@ -13,7 +13,9 @@ vi.mock("@/lib/push", async (orig) => ({
 }));
 
 const { db } = await import("@/lib/db");
-const { checkBudgets, budgetsNow, budgetZoneOf, budgetDaysLeft } = await import("@/lib/home/budgets-db");
+const { checkBudgets, budgetsNow, budgetZoneOf, budgetMonthOf, budgetDaysLeft } = await import("@/lib/home/budgets-db");
+const { cleanOldNotifyLog, NOTIFY_LOG_CLEANABLE_PREFIXES } = await import("@/lib/notify-cleanup");
+const { eraseGroups } = await import("@/lib/purge");
 const { groupZone, canonicalZone } = await import("@/lib/home/group-zone");
 
 const NOW = new Date("2026-12-01T01:00:00Z");
@@ -53,19 +55,25 @@ afterAll(async () => {
 describe("groupZone: the most common known zone, India only when nobody has one or on a tie", () => {
   const LA = "America/Los_Angeles";
   const IN = "Asia/Kolkata";
-  it("picks the majority; a tie or nobody goes to India; people with no known zone do not vote", () => {
+  it("picks the majority; a tie or nobody goes to India; a joined person with no known zone counts as India", () => {
     expect(groupZone([LA, LA, IN])).toBe(LA); // 2 of 3
     expect(groupZone([LA, IN])).toBe(IN); // tie
     expect(groupZone([LA, "Europe/London"])).toBe(IN); // tie between two others
     expect(groupZone([])).toBe(IN);
     expect(groupZone(["", ""])).toBe(IN); // nobody known
-    expect(groupZone(["", "", LA])).toBe(LA); // unknown does not vote: 1 of 1
-    expect(groupZone([LA, LA, "", "Not/AZone"])).toBe(LA);
+    expect(groupZone(["", "", LA])).toBe(IN); // two unknown count as India: 2 of 3
+    expect(groupZone([LA, LA, "", "Not/AZone"])).toBe(IN); // 2 LA, 2 India: a tie
+    expect(groupZone([LA, "", "", ""])).toBe(IN);
     expect(groupZone([LA, LA, LA, ""])).toBe(LA);
   });
 
   it("old names of one place are one vote: Asia/Calcutta + Asia/Kolkata + Los Angeles = India (2 of 3)", () => {
+    // Whatever spelling the runtime's time-zone data prefers, both ends on one spelling.
     expect(canonicalZone("Asia/Calcutta")).toBe("Asia/Kolkata");
+    expect(canonicalZone("Asia/Kolkata")).toBe("Asia/Kolkata");
+    expect(canonicalZone("Europe/Kiev")).toBe("Europe/Kyiv");
+    expect(canonicalZone("Europe/Kyiv")).toBe("Europe/Kyiv");
+    expect(groupZone(["Europe/Kiev", "Europe/Kyiv", IN])).toBe("Europe/Kyiv");
     expect(canonicalZone("US/Pacific")).toBe(LA);
     expect(canonicalZone("US/Eastern")).toBe("America/New_York");
     expect(canonicalZone("Asia/Saigon")).toBe("Asia/Ho_Chi_Minh");
@@ -81,7 +89,7 @@ describe("one budget month for the screen and the alerts", () => {
     const g = await group("la", ["America/Los_Angeles", "America/Los_Angeles", "Asia/Kolkata"]);
     expect(await budgetZoneOf(g.id, NOW)).toBe("America/Los_Angeles");
     const screen = await budgetsNow(g.id, g.expenses, g.you, NOW);
-    expect(screen).toEqual([{ category: "groceries", spent: 150000, amount: 100000, level: "over" }]);
+    expect(screen.rows).toEqual([{ category: "groceries", spent: 150000, amount: 100000, level: "over" }]);
     expect(await checkBudgets(g.id, NOW)).toEqual(["groceries:80", "groceries:100"]);
     const keys = (await db.notifyLog.findMany({ where: { key: { startsWith: `budget:${g.id}:` } }, select: { key: true } })).map((k) => k.key).sort();
     // People with a zone get their own record (…:m:<member id>), so there can be several keys: every one is November, at 80 and 100.
@@ -94,7 +102,7 @@ describe("one budget month for the screen and the alerts", () => {
     const g = await group("in", ["Asia/Kolkata", "", "Asia/Kolkata"]);
     expect(await budgetZoneOf(g.id, NOW)).toBe("Asia/Kolkata");
     const screen = await budgetsNow(g.id, g.expenses, g.you, NOW);
-    expect(screen).toEqual([{ category: "groceries", spent: 150000, amount: 100000, level: "over" }]);
+    expect(screen.rows).toEqual([{ category: "groceries", spent: 150000, amount: 100000, level: "over" }]);
     expect(await checkBudgets(g.id, NOW)).toEqual(["groceries:80", "groceries:100"]);
     const keys = (await db.notifyLog.findMany({ where: { key: { startsWith: `budget:${g.id}:` } }, select: { key: true } })).map((k) => k.key);
     expect(keys.every((k) => k.includes(":2026-12:"))).toBe(true);
@@ -121,7 +129,7 @@ describe("one budget month for the screen and the alerts", () => {
     await db.member.updateMany({ where: { groupId: g.id }, data: { timeZone: "Asia/Kolkata" } }); // everyone is in India now
     expect(await budgetZoneOf(g.id, midNov)).toBe("America/Los_Angeles");
     expect(await budgetZoneOf(g.id, NOW)).toBe("America/Los_Angeles"); // 1 Dec 01:00 UTC is still 30 Nov in Los Angeles: still November's zone
-    expect(await budgetsNow(g.id, g.expenses, g.you, NOW)).toEqual([{ category: "groceries", spent: 150000, amount: 100000, level: "over" }]); // November, the 1,500 counts
+    expect((await budgetsNow(g.id, g.expenses, g.you, NOW)).rows).toEqual([{ category: "groceries", spent: 150000, amount: 100000, level: "over" }]); // November, the 1,500 counts
     // Once December really begins there (08:00 UTC on 1 Dec), the frozen November zone no longer reads November, so December is worked out fresh (India now).
     expect(await budgetZoneOf(g.id, new Date("2026-12-01T08:00:00Z"))).toBe("Asia/Kolkata");
   });
@@ -131,6 +139,55 @@ describe("one budget month for the screen and the alerts", () => {
     expect(await budgetDaysLeft(la.id, NOW)).toBe(0);
     const india = await group("days-in", ["Asia/Kolkata"]);
     expect(await budgetDaysLeft(india.id, NOW)).toBe(30);
+  });
+
+  it("four joined in a flat, three with no zone yet and one in London: India (3 of 4)", async () => {
+    const g = await group("flat4", ["", "", "", "Europe/London"]);
+    expect(await budgetZoneOf(g.id, NOW)).toBe("Asia/Kolkata");
+  });
+
+  it("budgetsNow gives the rows, the zone, the month and the days left from one lookup", async () => {
+    const g = await group("one-look", ["America/Los_Angeles", "America/Los_Angeles"]);
+    const r = await budgetsNow(g.id, g.expenses, g.you, NOW);
+    expect([r.zone, r.month, r.daysLeft]).toEqual(["America/Los_Angeles", "2026-11", 0]);
+    expect(r.rows).toHaveLength(1);
+    // No budgets set: nothing looked up, no zone, no days.
+    const bare = await db.group.create({ data: { name: `Budget zone bare ${stamp}`, type: "couple", currency: "INR", inviteCode: `bz-bare-${stamp}`, members: { create: [{ name: "Solo" }] } }, include: { members: true } });
+    groupIds.push(bare.id);
+    expect(await budgetsNow(bare.id, [], bare.members[0].id, NOW)).toEqual({ rows: [], zone: null, month: null, daysLeft: null });
+  });
+
+  it("a frozen zone that has moved on to the next month (India reads 1 Dec from 18:30 UTC on 30 Nov): no failed write, the zone worked out now is used, the row is left as it was", async () => {
+    const g = await group("lapse", ["Asia/Kolkata", "Asia/Kolkata"]);
+    const mid = new Date("2026-11-15T12:00:00Z");
+    expect(await budgetZoneOf(g.id, mid)).toBe("Asia/Kolkata"); // frozen for 2026-11: India
+    await db.member.updateMany({ where: { groupId: g.id }, data: { timeZone: "America/Los_Angeles" } });
+    const edge = new Date("2026-11-30T18:30:00Z"); // 30 Nov 10:30 in Los Angeles, 1 Dec 00:00 in India
+    expect(await budgetMonthOf(g.id, edge)).toEqual({ zone: "America/Los_Angeles", month: "2026-11" });
+    expect(await budgetMonthOf(g.id, edge)).toEqual({ zone: "America/Los_Angeles", month: "2026-11" }); // and again: same answer, nothing breaks
+    expect(await db.notifyLog.findUniqueOrThrow({ where: { key: `budget-zone:${g.id}:2026-11` } })).toMatchObject({ state: "Asia/Kolkata" });
+    // Just before that moment the frozen India zone still stands.
+    expect(await budgetMonthOf(g.id, new Date("2026-11-30T18:29:00Z"))).toEqual({ zone: "Asia/Kolkata", month: "2026-11" });
+  });
+
+  it("two frozen rows can both be read: the earliest month is looked at first", async () => {
+    const g = await group("order", ["America/Los_Angeles"]);
+    // 1 Dec 03:00 UTC is still 30 Nov in Los Angeles but 1 Dec in India. A November row (Los Angeles) and a December row (India) both fit "now".
+    await db.notifyLog.createMany({ data: [{ key: `budget-zone:${g.id}:2026-12`, state: "Asia/Kolkata" }, { key: `budget-zone:${g.id}:2026-11`, state: "America/Los_Angeles" }] });
+    expect(await budgetMonthOf(g.id, new Date("2026-12-01T03:00:00Z"))).toEqual({ zone: "America/Los_Angeles", month: "2026-11" });
+  });
+
+  it("the frozen notes are cleaned after 60 days like the other monthly notes, and go when the group is erased", async () => {
+    const a = await group("clean", ["Asia/Kolkata"]);
+    const old = new Date(Date.now() - 90 * 86_400_000);
+    await db.notifyLog.create({ data: { key: `budget-zone:${a.id}:2026-01`, state: "Asia/Kolkata", createdAt: old } });
+    await db.notifyLog.create({ data: { key: `budget-zone:${a.id}:2026-12`, state: "Asia/Kolkata" } });
+    expect(NOTIFY_LOG_CLEANABLE_PREFIXES).toContain("budget-zone:");
+    await cleanOldNotifyLog(new Date());
+    const left = (await db.notifyLog.findMany({ where: { key: { startsWith: `budget-zone:${a.id}:` } }, select: { key: true } })).map((r) => r.key);
+    expect(left).toEqual([`budget-zone:${a.id}:2026-12`]);
+    await eraseGroups([a.id]);
+    expect(await db.notifyLog.count({ where: { key: { startsWith: `budget-zone:${a.id}:` } } })).toBe(0);
   });
 
   it("someone who has left does not vote", async () => {

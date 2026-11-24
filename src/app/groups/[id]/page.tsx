@@ -34,7 +34,7 @@ import { ThisMonthTab } from "./_components/ThisMonthTab";
 import { BillsTab } from "./_components/BillsTab";
 import { ListTab } from "./_components/ListTab";
 import { usualItems } from "@/lib/home/list";
-import { budgetDaysLeft, budgetsNow } from "@/lib/home/budgets-db";
+import { budgetsNow } from "@/lib/home/budgets-db";
 import { monthInsights } from "@/lib/home/insights-db";
 import { STUCK_HOLD, billStatuses } from "@/lib/home/bills-db";
 import { nextBillLabel } from "@/lib/home/bills";
@@ -150,7 +150,7 @@ export default async function GroupPage({
   const activeCount = fv ? active.length : v.expenses.length; // (the summary's slim list holds only the ones that count)
   const [bills, budgets, depositShares, heads, goalRows, list, games, shopRows] = await Promise.all([
     home && (tab === "month" || tab === "bills") ? billStatuses(group.id) : Promise.resolve<Awaited<ReturnType<typeof billStatuses>>>([]),
-    monthTab ? budgetsNow(group.id, active, myId) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
+    monthTab ? budgetsNow(group.id, active, myId) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>({ rows: [], zone: null, month: null, daysLeft: null }),
     // The deposit tile (held shares only).
     monthTab ? db.depositShare.findMany({ where: { deposit: { groupId: group.id }, status: "held" } }) : Promise.resolve([] as { amount: number; memberId: string }[]),
     // Heads up and next month's estimate.
@@ -173,7 +173,6 @@ export default async function GroupPage({
     // The overview's shopping card: the first few things still to buy (the same rows the List tab shows as "To buy").
     monthTab ? db.listItem.findMany({ where: { groupId: group.id, expenseId: "", boughtAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, text: true } }) : Promise.resolve([] as { id: string; text: string }[]),
   ]);
-  const budgetLeft = monthTab && budgets.length ? await budgetDaysLeft(group.id) : undefined; // "N days to go" beside the budget bars, in the budget zone
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
   // Reactions on expenses, for the Activity list (someone who left sees only those made by their last day).
   // Only the rows on the page are read; the quick row's "most used first" comes from counts per emoji over the whole group (a person who left keeps the old read of every visible expense).
@@ -330,7 +329,7 @@ export default async function GroupPage({
       {tab === "overview" && fv && <OverviewTab v={fv} facts={facts} strip={strip} />}
       {tab === "month" && fv && (
         <>
-          <ThisMonthTab v={fv} extras={{ upcoming: comingUp, budgets, budgetDaysLeft: budgetLeft, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />
+          <ThisMonthTab v={fv} extras={{ upcoming: comingUp, budgets: budgets.rows, budgetDaysLeft: budgets.daysLeft ?? undefined, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />
           <div className="mt-6">
             <GroupFooter groupId={group.id} type={group.type} settings={false} />
           </div>

@@ -140,11 +140,48 @@ describe("L6: the organiser's add is decided on the list as it is when it is wri
     expect((await loadCollection(c.code))!.entries.filter((e) => e.name === "Zed")).toHaveLength(1);
   });
 
-  it("the collection is closed between the read and the write: nobody is added", async () => {
+  it("a closed collection can still have names added (the form is still shown there)", async () => {
     const c = await collection({ names: "Kabir" });
-    const r = await organiserAction(c.code, c.asha.id, { kind: "add", names: "Zed" }, { afterRead: async () => void (await organiserAction(c.code, c.asha.id, { kind: "close" })) });
-    expect(r.ok).toBe(false);
+    expect((await organiserAction(c.code, c.asha.id, { kind: "close" })).ok).toBe(true);
+    expect((await organiserAction(c.code, c.asha.id, { kind: "add", names: "Zed" })).ok).toBe(true);
+    expect(await db.collectionEntry.count({ where: { collectionId: c.id } })).toBe(2);
+    // ...also when it is closed in the gap between the read and the write.
+    const d = await collection({ names: "Kabir" });
+    const r = await organiserAction(d.code, d.asha.id, { kind: "add", names: "Zed" }, { afterRead: async () => void (await organiserAction(d.code, d.asha.id, { kind: "close" })) });
+    expect(r.ok).toBe(true);
+    expect(await db.collectionEntry.count({ where: { collectionId: d.id } })).toBe(2);
+  });
+
+  it("the collection is deleted between the read and the write: refused, nobody is added", async () => {
+    const c = await collection({ names: "Kabir" });
+    const r = await organiserAction(c.code, c.asha.id, { kind: "add", names: "Zed" }, { afterRead: async () => void (await organiserAction(c.code, c.asha.id, { kind: "delete" })) });
+    expect(r).toEqual({ ok: false, error: "This collection isn’t there any more." });
     expect(await db.collectionEntry.count({ where: { collectionId: c.id } })).toBe(1);
+  });
+});
+
+describe("N6: picking your own name from the list twice from the same phone", () => {
+  it("a double tap is ok and flagged as a repeat (same time, no second alert); another phone is still refused", async () => {
+    const c = await collection();
+    const ravi = c.entry("Ravi");
+    const first = await markPaid(c.code, { entryId: ravi }, "phone-ravi");
+    if (!first.ok) throw new Error(first.error);
+    const again = await markPaid(c.code, { entryId: ravi }, "phone-ravi");
+    expect(again).toMatchObject({ ok: true, entryId: ravi, repeat: true });
+    if (again.ok) expect(again.paidAt.getTime()).toBe(first.paidAt.getTime());
+    const other = await markPaid(c.code, { entryId: ravi }, "phone-other");
+    expect(other).toEqual({ ok: false, error: "Ravi is already marked as paid." });
+    expect((await row(ravi)).amount).toBe(30000); // still the one tick of 30000
+  });
+
+  it("an 'any amount' list: the same amount again is a resend; a different amount is not (today's refusal), and the saved amount stays", async () => {
+    const c = await collection({ amount: "" });
+    const ravi = c.entry("Ravi");
+    const first = await markPaid(c.code, { entryId: ravi, amount: "250" }, "phone-ravi");
+    if (!first.ok) throw new Error(first.error);
+    expect(await markPaid(c.code, { entryId: ravi, amount: "250" }, "phone-ravi")).toMatchObject({ ok: true, repeat: true });
+    expect(await markPaid(c.code, { entryId: ravi, amount: "400" }, "phone-ravi")).toEqual({ ok: false, error: "Ravi is already marked as paid." });
+    expect((await row(ravi)).amount).toBe(25000);
   });
 });
 

@@ -6,7 +6,7 @@ import { db } from "./db";
 // "trip-from-goal:" and "trip-from-goal-made:" (so a trip is made from a goal once), the mail counters and the keys cleaned elsewhere.
 // A list of what may go (not of what may stay), so a new kind of note is never deleted by surprise.
 export const NOTIFY_LOG_KEEP_DAYS = 60;
-export const NOTIFY_LOG_CLEANABLE_PREFIXES = ["countdown:", "countdown-after:", "pulse:", "memory:", "reminders:", "billask:", "budget:", "summary:"] as const;
+export const NOTIFY_LOG_CLEANABLE_PREFIXES = ["countdown:", "countdown-after:", "pulse:", "memory:", "reminders:", "billask:", "budget:", "budget-zone:", "summary:"] as const;
 
 export async function cleanOldNotifyLog(now = new Date()): Promise<number> {
   const before = new Date(now.getTime() - NOTIFY_LOG_KEEP_DAYS * 86_400_000);

@@ -105,24 +105,25 @@ export async function budgetMonthOf(groupId: string, now = new Date()): Promise<
   const prefix = `budget-zone:${groupId}:`;
   const here = monthKey(now, "UTC");
   const months = [addMonths(here, -1), here, addMonths(here, 1)];
-  const frozenFor = async () => {
-    for (const r of await db.notifyLog.findMany({ where: { key: { in: months.map((m) => prefix + m) } }, select: { key: true, state: true } })) {
-      const month = r.key.slice(prefix.length);
-      const zone = canonicalZone(r.state);
-      if (zone && monthKey(now, zone) === month) return { zone, month };
-    }
-    return null;
+  const read = async () => {
+    // Earliest month first (the month in the key sorts in time order), so the answer never depends on the order the database returns.
+    const rows = await db.notifyLog.findMany({ where: { key: { in: months.map((m) => prefix + m) } }, select: { key: true, state: true }, orderBy: { key: "asc" } });
+    const frozen = rows.map((r) => ({ month: r.key.slice(prefix.length), zone: canonicalZone(r.state) })).filter((r): r is { month: string; zone: string } => Boolean(r.zone));
+    return { frozen, match: frozen.find((r) => monthKey(now, r.zone) === r.month) ?? null };
   };
-  const frozen = await frozenFor();
-  if (frozen) return frozen;
+  const first = await read();
+  if (first.match) return first.match;
   const members = await db.member.findMany({ where: { groupId, leftAt: null, removedAt: null, ...JOINED }, select: { timeZone: true } });
   const zone = groupZone(members.map((m) => m.timeZone));
   const month = monthKey(now, zone);
+  // A row for this month that exists but whose zone has already moved on to the next month (e.g. India reads 1 Dec from 18:30 UTC on
+  // 30 Nov): it has lapsed, and nothing more is written for the month (a second write would only fail). The zone just worked out is used.
+  if (first.frozen.some((r) => r.month === month)) return { zone, month };
   try {
     await db.notifyLog.create({ data: { key: prefix + month, state: zone } });
   } catch {
     // Another request froze it at the same moment: theirs is the one both read.
-    const theirs = await frozenFor();
+    const theirs = (await read()).match;
     if (theirs) return theirs;
   }
   return { zone, month };
@@ -135,16 +136,18 @@ export async function budgetDaysLeft(groupId: string, now = new Date()): Promise
   return daysLeft(now, (await budgetMonthOf(groupId, now)).zone);
 }
 
-// This month's budgets for a group, with what's been spent. The month is the group's (budgetZoneOf), not the viewer's.
+// This month's budgets for a group, with what's been spent. The month is the group's (budgetMonthOf), not the viewer's. One lookup and one
+// "now" give the rows, the zone and month they were worked out in, and the days left in that month (for "N days to go"), so the page asks once.
 export async function budgetsNow(groupId: string, expenses: Parameters<typeof monthSummary>[0], myId: string, now = new Date()) {
   const budgets = await db.budget.findMany({ where: { groupId } });
-  if (!budgets.length) return [];
-  const { zone: tz, month } = await budgetMonthOf(groupId, now);
-  const s = monthSummary(expenses, myId, month, tz);
-  return budgetStatus(
+  if (!budgets.length) return { rows: [] as ReturnType<typeof budgetStatus>, zone: null as string | null, month: null as string | null, daysLeft: null as number | null };
+  const { zone, month } = await budgetMonthOf(groupId, now);
+  const s = monthSummary(expenses, myId, month, zone);
+  const rows = budgetStatus(
     BUDGET_CATEGORIES.flatMap((c) => budgets.filter((b) => b.category === c)),
     s.byCategory,
   );
+  return { rows, zone: zone as string | null, month: month as string | null, daysLeft: daysLeft(now, zone) as number | null };
 }
 
 // Tell everyone when a budget reaches 80% and when it goes over — once per month each.
