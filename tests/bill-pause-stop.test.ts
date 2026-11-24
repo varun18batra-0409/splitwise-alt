@@ -1303,4 +1303,56 @@ describe("review round 2: harmless changes during the run, a deliberately edited
     expect(await nets(f)).toEqual([67000, -47000, -20000]);
     await settleUp(f);
   });
+  it("a form for one person, C, whose charge stands, is refused in the same words as an everyone split (C can't pay twice)", async () => {
+    const f = await backFlat("one");
+    const open = await page(f);
+    const onlyC = { ...open.input, forMode: "one" as const, onePersonId: f.c, selected: [f.c], splitType: "equal" as const, exact: {} };
+    expect(await addWaitingBill(onlyC, f.a, rateOk, { billId: f.billId, period: "2026-11", fp: open.fp }, "one-c-key-aaaaaaaaa1")).toEqual({
+      ok: false,
+      error: "C already paid their part of Milk for this month when they moved out, so they can’t be in this split. Take them out and try again.",
+    });
+    expect(await milkOf(f)).toHaveLength(0);
+  });
+
+  it("the old deleted charge can't be restored while C's newer move-out charge for the month stands (C would pay days 1–10 twice: 20,000 + 38,000)", async () => {
+    const f = await flat("rep");
+    await moveOut(f.groupId, f.b, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-rep-${stamp}-abcdefgh` }, at("2026-11-10"));
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
+    expect((await rejectPayment(pay.id, f.a)).ok).toBe(true);
+    await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
+    const old = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
+    expect((await setExpenseDeleted(old.id, f.a, true)).ok).toBe(true);
+    expect(await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-rep2-${stamp}-abcdefgh` }, at("2026-11-23"))).toMatchObject({ ok: true });
+    // C is brought back again ("Not received" on the new square-up), so nothing else stops the old charge coming back.
+    const pay2 = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a, id: { not: pay.id } }, orderBy: { createdAt: "desc" } });
+    expect((await rejectPayment(pay2.id, f.a)).ok).toBe(true);
+    expect(await setExpenseDeleted(old.id, f.a, false)).toEqual({ ok: false, error: "A newer move-out charge for this month’s Milk stands, so this one can’t come back." });
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([38000]);
+    await checkBooks(f.groupId);
+  });
+
+  it("on the last day the job still looks at November (31 Dec), a month refused because a charge changed mid-save becomes a waiting month a person sees, not released and lost", async () => {
+    const f = await flat("last");
+    await moveOut(f.groupId, f.b, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-last-${stamp}-abcdefgh` }, at("2026-11-10"));
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
+    expect((await rejectPayment(pay.id, f.a)).ok).toBe(true);
+    await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
+    const charge = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
+    let fired = false;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await runBillsForGroup(f.groupId, at("2026-12-31"), {
+        afterRead: async () => {
+          if (fired) return;
+          fired = true;
+          await db.expense.update({ where: { id: charge.id }, data: { deletedAt: new Date() } });
+        },
+      });
+    } finally {
+      quiet.mockRestore();
+    }
+    expect(fired).toBe(true);
+    expect(await milkOf(f)).toHaveLength(0);
+    expect((await runRow(f)).status).toBe("waiting");
+  });
 });

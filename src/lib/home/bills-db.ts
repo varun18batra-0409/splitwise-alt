@@ -330,7 +330,9 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
   };
   // When only the people or the move-out charges changed in the gap and the month is still due, the claim is just removed: the next run works it out again.
   const releaseOrRetry = async () => {
-    if (run.expenseId || !periodsDue(bill, now).includes(period)) return retryLater();
+    // Released only if the month is still due at tomorrow's run too; on the last day of the job's window it becomes a waiting month a person
+    // can see and add, or it would be lost without anyone noticing.
+    if (run.expenseId || !periodsDue(bill, now).includes(period) || !periodsDue(bill, new Date(now.getTime() + 86_400_000)).includes(period)) return retryLater();
     await db.billRun.deleteMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt } });
     return "failed" as const;
   };
@@ -566,7 +568,12 @@ async function checkDailyForm(bill: BillRow, input: SaveExpenseInput, period: st
   for (const e of pre.entries) {
     const m = members.find((x) => x.id === e.m);
     if (!m) continue;
-    const included = input.forMode === "everyone" ? !m.leftAt : input.forMode === "selected" && input.selected.includes(e.m) && (input.splitType !== "exact" || (parseAmount(input.exact?.[e.m] ?? "", input.currency) ?? 0) > 0);
+    const included =
+      input.forMode === "everyone"
+        ? !m.leftAt
+        : input.forMode === "one"
+          ? input.onePersonId === e.m
+          : input.forMode === "selected" && input.selected.includes(e.m) && (input.splitType !== "exact" || (parseAmount(input.exact?.[e.m] ?? "", input.currency) ?? 0) > 0);
     if (included) return { error: CHARGED_ALREADY(m.name, bill.name) };
   }
   if (posted !== worked && posted > 0 && input.splitType === "exact") {

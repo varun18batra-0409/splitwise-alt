@@ -17,7 +17,7 @@ import { isGameResult } from "./pot-result";
 import { findLikelyDuplicate } from "./duplicates";
 import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
-import { chargeLock, chargeLockedText, type ChargeLock } from "./home/charge-lock";
+import { chargeLock, chargeLockedText, chargeReplaced, type ChargeLock } from "./home/charge-lock";
 import { billAddedAgain, monthIsAddedAgain, monthWaitsAgain } from "./home/bill-run-link";
 import { expenseEditRefusal } from "./guest-rules";
 import { CARD_FEE_CHANGED, CURRENCY_CHANGED, PEOPLE_JOINED, PEOPLE_LEFT } from "./offline/words";
@@ -111,6 +111,8 @@ class MonthAdded extends Error {
   }
 }
 class BillAddedAgain extends Error {}
+class ChargeReplaced extends Error {}
+export const CHARGE_REPLACED = (bill: string) => `A newer move-out charge for this month’s ${bill} stands, so this one can’t come back.`;
 class ChargeLocked extends Error {
   constructor(bill: string, public status?: ChargeLock["status"]) {
     super(bill);
@@ -539,6 +541,9 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
       // An automatic bill's month that was added again since can't have this one back as well (it would be counted twice).
       const again = await billAddedAgain(tx, expense);
       if (again) throw new BillAddedAgain(again);
+      // An older move-out charge can't come back while a newer one for the same person and month stands (they would pay those days twice).
+      const replaced = await chargeReplaced(tx, expense.groupId, expense.id);
+      if (replaced) throw new ChargeReplaced(replaced);
     }
     // Only if it's still in the state we saw (two taps at once change it once).
     const changed = await tx.expense.updateMany({
@@ -564,6 +569,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     if (err instanceof BillAddedAgain) return { ok: false, error: `This month’s ${err.message} was already added, so this can’t come back.` };
     if (err instanceof MonthAdded) return { ok: false, error: err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };
+    if (err instanceof ChargeReplaced) return { ok: false, error: CHARGE_REPLACED(err.message) };
     throw err;
   }
   return { ok: true, id: expense.id, eventId: eventId || undefined };
