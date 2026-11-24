@@ -8,8 +8,9 @@ import { wheelMove } from "@/lib/row-wheel";
 // Wrap the row and mark the scrolling element inside it with `data-row-scroller`. Nothing else about the row changes.
 const FINE = "(hover: hover) and (pointer: fine)";
 
-export function RowControls({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  const wrap = useRef<HTMLDivElement>(null);
+export function RowControls({ children, className = "", as = "div" }: { children: React.ReactNode; className?: string; as?: "div" | "span" }) {
+  const Tag: React.ElementType = as; // "span" where a test or style looks for the first child div of a parent (Settings > Picture): then the scrolling row stays that div
+  const wrap = useRef<HTMLElement>(null);
   const [can, setCan] = useState({ left: false, right: false });
 
   useEffect(() => {
@@ -57,10 +58,10 @@ export function RowControls({ children, className = "" }: { children: React.Reac
   );
 
   return (
-    <div ref={wrap} className={`row-controls relative ${className}`} data-row-controls>
+    <Tag ref={wrap} className={`row-controls relative ${as === "span" ? "block " : ""}${className}`} data-row-controls>
       {children}
       {can.left && arrow(-1)}
       {can.right && arrow(1)}
-    </div>
+    </Tag>
   );
 }

@@ -48,7 +48,7 @@ export function HomeBanner({ children }: { children: React.ReactNode }) {
     <section aria-roledescription="carousel" aria-label="Highlights" className="relative">
       <div
         ref={track}
-        className="flex snap-x snap-mandatory items-start overflow-x-auto rounded-[24px] border border-line bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory overflow-x-auto items-start rounded-[24px] border border-line bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {slides.map((s, i) => (
           <div key={i} ref={(node) => { slideEls.current[i] = node; }} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${n}`} className="relative flex w-full shrink-0 snap-start snap-always flex-col">

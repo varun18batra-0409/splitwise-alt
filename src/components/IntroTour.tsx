@@ -333,7 +333,7 @@ export function IntroTour({
             ) : (
               <h2 className="text-balance font-display text-[32px] font-semibold leading-[1.1] tracking-tight [@media(max-height:700px)]:text-[26px]">{s.title}</h2>
             )}
-            <div className="flex min-h-0 flex-1 items-center justify-center py-8 [@media(max-height:700px)]:py-1 [@media(max-height:700px)]:[&>*]:origin-center [@media(max-height:700px)]:[&>*]:scale-[0.92]">{s.art}</div>
+            <div className="flex min-h-0 flex-1 items-center justify-center py-8 [@media(max-height:700px)]:py-2 [@media(max-height:700px)]:[&>*]:origin-center [@media(max-height:700px)]:[&>*]:scale-[0.92]">{s.art}</div>
             <p className="min-h-[3.5rem] text-center text-sm text-gray-500 [@media(max-height:700px)]:min-h-0">{s.caption}</p>
           </section>
         ))}

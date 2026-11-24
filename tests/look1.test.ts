@@ -45,7 +45,7 @@ describe("3. A finished card game has one main action (VA4-9, VD-15)", () => {
   it("Settle up is the one main button; Mark paid and Mark all paid sit under 'Paid at the table?'", () => {
     expect(pot).toContain("data-pot-settle");
     expect(pot).toContain("Paid at the table?");
-    expect(pot.indexOf("Paid at the table?")).toBeGreaterThan(pot.indexOf("data-pot-settle"));
+    expect(pot.indexOf("data-pot-mark-paid")).toBeGreaterThan(pot.indexOf("data-pot-settle")); // the fold comes after the main button
     expect(pot).toContain("markGamePaidAction");
     expect(pot).toContain("recordCustomPayment");
     expect(pot).not.toContain("secondaryButtonClass"); // the old second Settle up link is gone

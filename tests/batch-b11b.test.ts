@@ -55,12 +55,12 @@ describe("3. Card fee, People colours, Y", () => {
     expect(cardFeeLabel(350)).toBe("incl. 3.5% card fee");
     expect(cardFeeLabel(0)).toBe("");
   });
-  it("People: amounts coloured, words stay grey; own avatar is Y", () => {
+  it("People: amounts coloured, words stay grey; own avatar is your initial", () => {
     const people = src("src/app/groups/[id]/people/page.tsx");
     expect(people).toContain('<span className="text-owed">{listFmt(bal)}</span>');
     expect(people).toContain('<span className="text-owe">{listFmt(-bal)}</span>');
     expect(people).toContain("<Avatar name={m.name} you={me} />");
-    expect(src("src/components/ui.tsx")).toContain('you ? "Y"');
+    expect(src("src/components/ui.tsx")).not.toContain('you ? "Y"'); // item 8 (look-1): your own avatar shows your initial, no longer "Y"
   });
 });
 
