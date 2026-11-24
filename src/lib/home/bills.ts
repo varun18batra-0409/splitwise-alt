@@ -221,7 +221,7 @@ export type StopWords = {
   lastMonth: { period: string; money: string } | null; // last month, if its bill is still to come
   waiting: { period: string; varies: boolean } | null; // a month still waiting to be added (not a daily one)
 };
-const longMonth = (period: string) => LONG_MONTH_NAMES[Number(period.slice(5, 7)) - 1] ?? period;
+export const longMonth = (period: string) => LONG_MONTH_NAMES[Number(period.slice(5, 7)) - 1] ?? period;
 const firstOfNext = (period: string) => `1 ${SHORT_MONTH_NAMES[Number(addMonths(period, 1).slice(5, 7)) - 1] ?? ""}`;
 
 // What "this adds on the 1st": "1–19 Nov (₹1,140, less ₹200 C already paid when they moved out)" – "" when no day was counted.

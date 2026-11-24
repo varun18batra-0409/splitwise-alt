@@ -16,6 +16,7 @@ import { todayKey } from "@/lib/dates";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { STUCK_HOLD, billExpenseInput, prepaidFor } from "@/lib/home/bills-db";
 import { dailyTotal, payerFor } from "@/lib/home/bills";
+import type { Prepaid } from "@/lib/home/moving";
 import type { ExpenseInitial } from "@/lib/expense-initial";
 import { OfflineFix } from "@/components/offline/OfflineFix";
 import { offlineOn } from "@/lib/offline/words";
@@ -89,7 +90,7 @@ export default async function AddExpensePage({
     sp.bill && sp.period && /^\d{4}-\d{2}$/.test(sp.period)
       ? await db.billRun.findFirst({ where: { billId: sp.bill, period: sp.period, status: "waiting", reason: { not: STUCK_HOLD }, bill: { groupId: group.id, deletedAt: null } }, include: { bill: true } })
       : null;
-  const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId, (await prepaidFor(waitingRun.bill, sp.period!)).total) : undefined;
+  const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId, await prepaidFor(waitingRun.bill, sp.period!)) : undefined;
   const initial = source
     ? initialFromExpense(source, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz, today: todayKey(new Date(), tz) }, sp.again ? "again" : "repeat")
     : billInitial;
@@ -147,19 +148,20 @@ export default async function AddExpensePage({
   );
 }
 
-// A waiting bill as a ready-made Add expense form (blank amount).
+// A waiting bill as a ready-made Add expense form (the amount filled in when it is known).
 function billToInitial(
   bill: Parameters<typeof billExpenseInput>[0],
   group: { id: string; currency: string; members: { id: string; name: string; leftAt: Date | null; splitWeight: number; joinedFrom: Date | null }[] },
   period: string,
   myId: string,
-  prepaid = 0,
+  prepaid: { total: number; entries: Prepaid[]; gone: Prepaid[] } = { total: 0, entries: [], gone: [] },
 ): ExpenseInitial {
   const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active) ?? myId;
-  const x = billExpenseInput(bill, group.id, group.currency, period, 0, payer, group.members);
   // A fixed bill waiting only because its payer left: fill in the usual amount (daily: the month's total).
-  const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? Math.max(0, dailyTotal(bill, period).amount - prepaid) : 0; // daily: the month's total (days a pause cut off left out), less what someone who moved out already paid
+  const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? Math.max(0, dailyTotal(bill, period).amount - prepaid.total) : 0; // daily: the month's total (days a pause cut off left out), less what someone who moved out already paid
+  // The amount and the move-out charges go in too, so a daily month is pre-filled with the same day-by-day shares the job would have written.
+  const x = billExpenseInput(bill, group.id, group.currency, period, known, payer, group.members, bill.nature === "daily" ? { entries: prepaid.entries, gone: prepaid.gone } : undefined);
   return {
     name: x.name,
     amount: known > 0 ? toInputAmount(known, group.currency) : "",

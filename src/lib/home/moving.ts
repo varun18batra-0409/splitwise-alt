@@ -1,4 +1,4 @@
-import { allocateByWeights } from "../split";
+import { allocateByWeights, type Share } from "../split";
 import type { Transfer } from "../settle";
 import { daysInMonth } from "./month";
 import { countedMissed } from "./bills";
@@ -117,6 +117,19 @@ function parseSplitRule(json: string): SplitRule {
 
 const gcd = (a: bigint, b: bigint): bigint => (b === 0n ? a : gcd(b, a % b));
 
+// The helpers a daily bill's days are worked out with (shared by the move-out charge and the month-end split, so they can never disagree).
+const dayOf = (period: string, d: number) => `${period}-${String(d).padStart(2, "0")}`;
+// Was this person in the flat on this day ("2026-11-14")? From the day they moved in to their last day, both included.
+function wasThere(m: { joinedFrom: Date | null; leftAt: Date | null }, day: string): boolean {
+  const from = m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : "";
+  const to = m.leftAt ? m.leftAt.toISOString().slice(0, 10) : "";
+  return (!from || from <= day) && (!to || to >= day);
+}
+// Their weight on the bill: the flat's own split for "group", 100 each for "equal", the listed people for "some", their percentage for "percent".
+function dailyWeight(split: SplitRule, m: { id: string; splitWeight: number }): number {
+  return split.mode === "group" ? m.splitWeight : split.mode === "equal" ? 100 : split.mode === "some" ? (split.ids.includes(m.id) ? 100 : 0) : split.mode === "percent" ? (split.pct[m.id] ?? 0) : 0;
+}
+
 // The leaver's share of a daily bill for the days from the 1st (or when they moved in)
 // to their last day, leaving out the days it didn't come:
 //   Σ over those days of  rate × (their weight ÷ everyone's weight that day)
@@ -130,15 +143,9 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
   const none = { days: 0, missed: [] as number[], amount: 0, unsupported: false };
   if (!leaver || lastDay.slice(0, 7) !== period || bill.amount <= 0) return none;
   const last = Number(lastDay.slice(8, 10));
-  const key = (d: number) => `${period}-${String(d).padStart(2, "0")}`;
-  const present = (m: DailyMember, d: number) => {
-    const from = m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : "";
-    const to = m.leftAt ? m.leftAt.toISOString().slice(0, 10) : "";
-    return (!from || from <= key(d)) && (!to || to >= key(d));
-  };
+  const present = (m: DailyMember, d: number) => wasThere(m, dayOf(period, d));
   const missed = countedMissed(bill, period); // (the days a pause cuts off count as not come)
-  const weightOf = (m: DailyMember) =>
-    split.mode === "group" ? m.splitWeight : split.mode === "equal" ? 100 : split.mode === "some" ? (split.ids.includes(m.id) ? 100 : 0) : split.mode === "percent" ? (split.pct[m.id] ?? 0) : 0;
+  const weightOf = (m: DailyMember) => dailyWeight(split, m);
   let days = 0;
   const stayed: number[] = [];
   const stayedMissed: number[] = [];
@@ -168,6 +175,65 @@ export function dailyPrecharge(bill: DailyBillRule, period: string, lastDay: str
     }
   }
   return { days, missed: stayedMissed, amount: Number(num / den), unsupported: false };
+}
+
+// The month-end share of a daily bill, day by day (for a month where someone moved in, or someone moved out and paid their part at move-out).
+// Each counted day (every day of the month, less the days it didn't come and the days a pause or stop cut off) is shared by the people who were
+// there that day, by weight. A person's part is the sum of their daily fractions, kept exact as whole-number units (weight × L ÷ that day's total,
+// L = the smallest number every day's total divides), then `amount` is shared by those units with the largest-remainder rule.
+//  - Someone whose move-out charge is still on the bill (`live`, even if they were brought back by "Not received") was there only up to the last day
+//    written on it, and takes no part of `amount`: their part is the charge. `amount` is the month's total less those charges.
+//  - Someone who left with no charge isn't counted at all (the days are shared by the others, as always).
+//  - Someone whose charge expense was deleted (`gone`) and who is back in the flat shares the month, but only for the days up to their last day.
+// Returns null when the usual way applies: a percentage or fixed-amount split, nobody moved in or out with a charge this month, nobody with units,
+// or numbers too big to keep exact.
+export function dailyMonthShares(args: { bill: DailyBillRule; period: string; members: DailyMember[]; live: Prepaid[]; gone: Prepaid[]; amount: number }): Share[] | null {
+  const { bill, period, members, live, gone, amount } = args;
+  const split = parseSplitRule(bill.split);
+  if ((split.mode !== "group" && split.mode !== "equal" && split.mode !== "some") || !Number.isSafeInteger(amount) || amount <= 0) return null;
+  const sharing = members.filter((m) => dailyWeight(split, m) > 0);
+  const movedIn = sharing.some((m) => !m.leftAt && m.joinedFrom !== null && m.joinedFrom.toISOString().slice(0, 7) === period);
+  const hasEntry = sharing.some((m) => [...live, ...gone].some((e) => e.m === m.id));
+  if (!movedIn && !hasEntry) return null;
+  const lastDayOf = (list: Prepaid[], id: string) => list.filter((e) => e.m === id).map((e) => e.d ?? "").sort().pop() ?? "";
+  // Who counts in each day's total (`there`: their dates), and who takes a part of the month-end bill (`takes`).
+  const there: { m: DailyMember; weight: number; takes: boolean }[] = [];
+  for (const m of sharing) {
+    const charged = live.some((e) => e.m === m.id);
+    if (charged) {
+      // Their last day is on the charge; with none written, the day they left (or the whole month if they are back and it is missing).
+      const d = lastDayOf(live, m.id) || (m.leftAt ? m.leftAt.toISOString().slice(0, 10) : "");
+      there.push({ m: { ...m, leftAt: d ? new Date(`${d}T12:00:00Z`) : null }, weight: dailyWeight(split, m), takes: false });
+    } else if (m.leftAt) {
+      continue; // left with no charge: not counted
+    } else {
+      const d = lastDayOf(gone, m.id); // charge deleted after they came back: only the days up to their last day
+      there.push({ m: { ...m, leftAt: d ? new Date(`${d}T12:00:00Z`) : null }, weight: dailyWeight(split, m), takes: true });
+    }
+  }
+  const missed = countedMissed(bill, period);
+  const days: bigint[] = [];
+  const perDay: { total: bigint; who: typeof there }[] = [];
+  for (let d = 1; d <= daysInMonth(period); d++) {
+    if (missed.includes(d)) continue;
+    const who = there.filter((x) => wasThere(x.m, dayOf(period, d)));
+    const total = who.reduce((n, x) => n + BigInt(x.weight), 0n);
+    if (total <= 0n) continue;
+    days.push(total);
+    perDay.push({ total, who });
+  }
+  if (!perDay.length) return null;
+  let l = 1n;
+  for (const t of new Set(days)) l = (l / gcd(l, t)) * t;
+  const units = new Map<string, bigint>();
+  for (const day of perDay) {
+    for (const x of day.who) if (x.takes) units.set(x.m.id, (units.get(x.m.id) ?? 0n) + (BigInt(x.weight) * l) / day.total);
+  }
+  const rows = there.filter((x) => x.takes && (units.get(x.m.id) ?? 0n) > 0n).map((x) => ({ memberId: x.m.id, units: units.get(x.m.id)! }));
+  const big = BigInt(Number.MAX_SAFE_INTEGER);
+  if (!rows.length || l > big || rows.reduce((n, r) => n + r.units, 0n) > big) return null;
+  const out = allocateByWeights(amount, rows.map((r) => ({ memberId: r.memberId, weight: Number(r.units) })));
+  return out.length && out.reduce((n, s) => n + s.amount, 0) === amount ? out : null;
 }
 
 // What a daily bill has already had charged for a month at move-out: {"2026-11":[{m,a,e,d}]}
