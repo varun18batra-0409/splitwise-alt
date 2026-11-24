@@ -1764,7 +1764,8 @@ if (!hosted) {
     const settlePeople = `/groups/${settleFlat.id}/people`;
     const openRiya = async (p: Page) => {
       await p.locator("[data-settling-only]").first().waitFor({ timeout: 10_000 });
-      await p.locator("details", { has: p.locator("[data-settling-only]") }).first().locator("summary").click();
+      // The tag sits in the row's own summary (a row can hold a second, inner details), so tap that summary itself.
+      await p.locator("summary", { has: p.locator("[data-settling-only]") }).first().click();
       await p.locator("[data-moved-back-in]").first().waitFor({ timeout: 10_000 });
     };
     // The People page with the tag and the "has moved back in" button; then the question asked when the button is tapped (a phone's own
@@ -1877,9 +1878,9 @@ if (!hosted) {
           await p.locator("[data-waiting-cover]").first().waitFor({ timeout: 10_000 });
         },
       },
-      // Home's "Needs you" shows the same question to Nupur (the one asked), and not to Varu (who is owed).
+      // "Needs you" (the notifications page, from the bell on Home) shows the same question to Nupur (the one asked), and not to Varu (who is owed).
       {
-        name: "S7-home-needs-you-cover", path: "/", full: false, widths: [390, 320], strict: true,
+        name: "S7-home-needs-you-cover", path: "/notifications", full: false, widths: [390, 320], strict: true,
         prepare: async (p) => {
           await p.getByText(/Can you cover this\?/).first().waitFor({ timeout: 10_000 });
           await p.getByText(/Can you cover this\?/).first().scrollIntoViewIfNeeded();
