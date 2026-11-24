@@ -423,13 +423,12 @@ export async function moveOut(
             shares: { create: [{ memberId: leaver.id, amount: c.d.amount }] },
           },
         });
-        // An older charge of theirs whose expense was deleted is replaced; one that still stands means this is not needed any more.
+        // An older charge of theirs whose expense was deleted stays on the bill as it is; one that still stands means this is not needed any more.
         const older = (parsePrepaid(fresh.prepaid)[c.period] ?? []).filter((x) => x.m === leaver.id);
         const standing = new Set((await tx.expense.findMany({ where: { id: { in: older.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
         if (older.some((x) => standing.has(x.e))) throw new Error("BILLS_CHANGED");
-        let written = fresh.prepaid;
-        for (const x of older) written = removePrepaid(written, c.period, x.e);
-        await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(written, c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
+        // (The old entry stays: a charge that stands always comes first, and if this move-out is undone the old entry still says up to which day they were there.)
+        await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(fresh.prepaid, c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
         (undoInfo.prepaid ??= []).push({ billId: c.bill.id, period: c.period, expenseId: made.id });
         const chargeEventId = await logEvent(tx, {
           groupId,

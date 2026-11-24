@@ -31,7 +31,7 @@ const { encodeSession, today } = await import("@/lib/session");
 const A = await import("@/app/actions");
 const B = await import("@/app/bill-actions");
 const { billBadge, countedMissed, dailyTotal, dayRangeLabel, isStopped, nextBillLabel, pausedDays, periodsDue, stopDone, stopLines } = await import("@/lib/home/bills");
-const { addWaitingBill, billExpenseInput, billStatuses, prepaidFor, runBillsForGroup, stopWordsFor } = await import("@/lib/home/bills-db");
+const { addWaitingBill, billExpenseInput, billFormFingerprint, billStatuses, prepaidFor, runBillsForGroup, stopWordsFor } = await import("@/lib/home/bills-db");
 const { billCommand, saveBillFor, toggleMissedDayFor } = await import("@/lib/home/bill-setup");
 const { moveOut } = await import("@/lib/home/moving-db");
 const { dailyPrecharge } = await import("@/lib/home/moving");
@@ -1173,7 +1173,7 @@ describe("review fixes: second leaver, percentage split, weights, stale Add it, 
     await settleUp(f);
   });
 
-  it("L5: C's charge is deleted behind the app's back while the month end is being saved: the save is refused (no expense, the month waits, nothing lost); adding it by hand then gives 114,000 = A 47,000, B 47,000, C 20,000", async () => {
+  it("L5: C's charge is deleted behind the app's back while the month end is being saved: the save is refused (no expense, the claim is given back, nothing lost); the next run adds 114,000 = A 47,000, B 47,000, C 20,000", async () => {
     const f = await backFlat("l5");
     await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
     const charge = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
@@ -1192,14 +1192,115 @@ describe("review fixes: second leaver, percentage split, weights, stale Add it, 
     }
     expect(fired).toBe(true);
     expect(await milkOf(f)).toHaveLength(0);
-    const run = await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } });
-    expect([run.status, run.reason]).toEqual(["waiting", ""]);
+    expect(await db.billRun.findUnique({ where: { billId_period: { billId: f.billId, period: "2026-11" } } })).toBeNull(); // the month is still due: the claim is simply given back
+    await runBillsForGroup(f.groupId, at("2026-12-01"));
+    const end = (await milkOf(f))[0];
+    expect([end.amount, shareMap(end)]).toEqual([114000, { [f.a]: 47000, [f.b]: 47000, [f.c]: 20000 }]);
+  });
+});
+
+// ---------- Review round 2 ----------
+describe("review round 2: harmless changes during the run, a deliberately edited total, moving out again and undoing it", () => {
+  async function backFlat(label: string) {
+    const f = await flat(label);
+    await moveOut(f.groupId, f.b, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-${label}-${stamp}-abcdefgh` }, at("2026-11-10"));
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
+    expect((await rejectPayment(pay.id, f.a)).ok).toBe(true);
+    await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
+    await db.billRun.create({ data: { billId: f.billId, period: "2026-11", status: "waiting", reason: "" } });
+    return f;
+  }
+  const milkOf = async (f: Flat) => (await live(f.groupId)).filter((e) => e.description === "Milk");
+  // The Add it page for November as the page builds it: the pre-filled form and its fingerprint.
+  async function page(f: Flat) {
     const bill = await billOf(f);
     const pre = await prepaidFor(bill, "2026-11");
     const members = await db.member.findMany({ where: { groupId: f.groupId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
     const input = billExpenseInput(bill, f.groupId, "INR", "2026-11", dailyTotal(bill, "2026-11").amount - pre.total, f.a, members, { entries: pre.entries, gone: pre.gone });
-    expect((await addWaitingBill(input, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "l5-by-hand-key-aaaa1")).ok).toBe(true);
+    return { input, fp: billFormFingerprint(dailyTotal(bill, "2026-11").amount, pre.entries) };
+  }
+  const runRow = (f: Flat) => db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } });
+
+  it("a weight edit while the month end is being saved does not hold it up: one Milk expense, 180,000 (60,000 each); A +120,000, B −60,000, C −60,000", async () => {
+    const f = await flat("w1");
+    let fired = false;
+    await runBillsForGroup(f.groupId, at("2026-12-01"), { afterRead: async () => { fired = true; await db.member.update({ where: { id: f.b }, data: { splitWeight: 150 } }); } });
+    expect(fired).toBe(true);
+    const list = await live(f.groupId);
+    expect(list.map((e) => [e.amount, shareMap(e)])).toEqual([[180000, { [f.a]: 60000, [f.b]: 60000, [f.c]: 60000 }]]);
+    expect(await nets(f)).toEqual([120000, -60000, -60000]);
+  });
+
+  it("someone unrelated joining while the month end is being saved does not hold it up either: one Milk expense of 180,000, the month is 'added', the books add up", async () => {
+    const f = await flat("w2");
+    await runBillsForGroup(f.groupId, at("2026-12-01"), { afterRead: async () => void (await db.member.create({ data: { groupId: f.groupId, name: "E" } })) });
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([180000]);
+    expect((await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } })).status).toBe("added");
+    await checkBooks(f.groupId);
+  });
+
+  it("an Add it page left open: a charge deleted since the page was built is refused ('Milk changed just now…') with the month still waiting; a form that would charge C again is refused in its own words", async () => {
+    const f = await backFlat("fp1");
+    const open = await page(f);
+    const key = (n: string) => `fp1-${n}-key-aaaaaaa1`;
+    // A form that charges C (whose charge stands) as well is refused, and the claim is given back.
+    const withC = { ...open.input, forMode: "everyone" as const, selected: [], splitType: "equal" as const, exact: {} };
+    expect(await addWaitingBill(withC, f.a, rateOk, { billId: f.billId, period: "2026-11", fp: open.fp }, key("c"))).toEqual({
+      ok: false,
+      error: "C already paid their part of Milk for this month when they moved out, so they can’t be in this split. Take them out and try again.",
+    });
+    expect((await runRow(f)).status).toBe("waiting");
+    // The charge is deleted after the page was built.
+    const charge = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
+    expect((await setExpenseDeleted(charge.id, f.a, true)).ok).toBe(true);
+    expect(await addWaitingBill(open.input, f.a, rateOk, { billId: f.billId, period: "2026-11", fp: open.fp }, key("old"))).toEqual({ ok: false, error: "Milk changed just now. Check it and try again." });
+    expect(await milkOf(f)).toHaveLength(0);
+    expect((await runRow(f)).status).toBe("waiting");
+  });
+
+  it("a deliberately edited total goes through: the milkman billed 92,000, not 94,000: the page's amounts are shared again day by day, A 46,000, B 46,000, C nothing; A +66,000, B −46,000, C −20,000", async () => {
+    const f = await backFlat("fp2");
+    const open = await page(f);
+    const edited = { ...open.input, amount: "920" }; // the typed amounts (470 + 470) no longer add up to it
+    const r = await addWaitingBill(edited, f.a, rateOk, { billId: f.billId, period: "2026-11", fp: open.fp }, "fp2-edited-key-aaaaa1");
+    expect(r.ok).toBe(true);
+    const end = (await milkOf(f))[0];
+    expect([end.amount, shareMap(end)]).toEqual([92000, { [f.a]: 46000, [f.b]: 46000 }]);
+    expect(await nets(f)).toEqual([66000, -46000, -20000]);
+    await settleUp(f);
+  });
+
+  it("an older page without a fingerprint: accepted when its total is what the month comes to (94,000 = 47,000 + 47,000), refused when it is not (92,000)", async () => {
+    const f = await backFlat("fp3");
+    const open = await page(f);
+    const odd = await addWaitingBill({ ...open.input, amount: "920" }, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "fp3-odd-key-aaaaaaa1");
+    expect(odd).toEqual({ ok: false, error: "Milk changed just now. Check it and try again." });
+    expect((await runRow(f)).status).toBe("waiting");
+    expect((await addWaitingBill(open.input, f.a, rateOk, { billId: f.billId, period: "2026-11" }, "fp3-good-key-aaaaaa1")).ok).toBe(true);
+    const end = (await milkOf(f))[0];
+    expect([end.amount, shareMap(end)]).toEqual([94000, { [f.a]: 47000, [f.b]: 47000 }]);
+    expect(await nets(f)).toEqual([67000, -47000, -20000]);
+    await settleUp(f);
+  });
+
+  it("L7 then undo: C moves out again (new 38,000 charge, old deleted-charge entry kept), the second move-out is undone: C is back to the deleted-charge rule, sharing only days 1–10: 114,000 = A 47,000, B 47,000, C 20,000; A +67,000, B −47,000, C −20,000", async () => {
+    const f = await flat("l7u");
+    await moveOut(f.groupId, f.b, { leaverId: f.c, lastDay: "2026-11-10", addDaily: true, requestKey: `bps-l7u-${stamp}-abcdefgh` }, at("2026-11-10"));
+    const pay = await db.payment.findFirstOrThrow({ where: { groupId: f.groupId, fromId: f.c, toId: f.a } });
+    expect((await rejectPayment(pay.id, f.a)).ok).toBe(true);
+    await billCommand(f.groupId, f.a, f.billId, "stop", at("2026-11-20"));
+    const charge = (await live(f.groupId)).find((e) => e.description !== "Milk")!;
+    expect((await setExpenseDeleted(charge.id, f.a, true)).ok).toBe(true);
+    const again = await moveOut(f.groupId, f.a, { leaverId: f.c, lastDay: "2026-11-23", addDaily: true, requestKey: `bps-l7u2-${stamp}-abcdefgh` }, at("2026-11-23"));
+    expect(again).toMatchObject({ ok: true });
+    expect((await live(f.groupId)).map((e) => e.amount)).toEqual([38000]);
+    expect((await undoEvent((again as { eventId: string }).eventId, f.a)).ok).toBe(true);
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.c } })).leftAt).toBeNull();
+    expect((JSON.parse((await billOf(f)).prepaid) as Record<string, { d?: string }[]>)["2026-11"].map((x) => x.d)).toEqual(["2026-11-10"]); // only the old entry is left
+    await runBillsForGroup(f.groupId, at("2026-12-01"));
     const end = (await milkOf(f))[0];
     expect([end.amount, shareMap(end)]).toEqual([114000, { [f.a]: 47000, [f.b]: 47000, [f.c]: 20000 }]);
+    expect(await nets(f)).toEqual([67000, -47000, -20000]);
+    await settleUp(f);
   });
 });

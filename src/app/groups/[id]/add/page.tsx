@@ -14,7 +14,7 @@ import { splitNameFor } from "@/lib/group-types";
 import { initialFromExpense } from "@/lib/expense-initial";
 import { todayKey } from "@/lib/dates";
 import { formatMoney, toInputAmount } from "@/lib/money";
-import { STUCK_HOLD, billExpenseInput, prepaidFor } from "@/lib/home/bills-db";
+import { STUCK_HOLD, billExpenseInput, billFormFingerprint, prepaidFor } from "@/lib/home/bills-db";
 import { dailyTotal, payerFor } from "@/lib/home/bills";
 import type { Prepaid } from "@/lib/home/moving";
 import type { ExpenseInitial } from "@/lib/expense-initial";
@@ -90,7 +90,10 @@ export default async function AddExpensePage({
     sp.bill && sp.period && /^\d{4}-\d{2}$/.test(sp.period)
       ? await db.billRun.findFirst({ where: { billId: sp.bill, period: sp.period, status: "waiting", reason: { not: STUCK_HOLD }, bill: { groupId: group.id, deletedAt: null } }, include: { bill: true } })
       : null;
-  const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId, await prepaidFor(waitingRun.bill, sp.period!)) : undefined;
+  const billPre = waitingRun ? await prepaidFor(waitingRun.bill, sp.period!) : undefined;
+  const billInitial = waitingRun && billPre ? billToInitial(waitingRun.bill, group, sp.period!, myId, billPre) : undefined;
+  // What a daily month was filled in from, sent back with the form so a page left open before a move-out charge changed is noticed.
+  const billFp = waitingRun && billPre && waitingRun.bill.nature === "daily" ? billFormFingerprint(dailyTotal(waitingRun.bill, sp.period!).amount, billPre.entries) : undefined;
   const initial = source
     ? initialFromExpense(source, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz, today: todayKey(new Date(), tz) }, sp.again ? "again" : "repeat")
     : billInitial;
@@ -139,7 +142,7 @@ export default async function AddExpensePage({
           <AddExpenseForm
             key={sourceId ?? (waitingRun ? `bill-${waitingRun.id}` : "new")}
             initial={initial}
-            billRun={waitingRun ? { billId: waitingRun.billId, period: waitingRun.period } : undefined}
+            billRun={waitingRun ? { billId: waitingRun.billId, period: waitingRun.period, fp: billFp } : undefined}
             {...formProps}
           />
         );

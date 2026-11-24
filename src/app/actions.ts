@@ -351,7 +351,7 @@ export async function makeNewInviteLink(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
+  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string; fp?: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   // The checks both doors share (rate limit, pairs): src/lib/add-expense-checks.ts.
   const checks = await addExpenseChecks({ ip: (await originAndIp()).ip, groupId: input.groupId, currency: input.currency, editing: Boolean(input.expenseId) });

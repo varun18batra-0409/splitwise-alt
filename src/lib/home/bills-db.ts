@@ -154,12 +154,23 @@ export const BILL_CURRENCY_CHANGED = "The group’s currency changed, so this bi
 const sameCurrencyRate = async (from: string, to: string): Promise<RateAnswer> =>
   from === to ? { ok: true, rate: "1", date: new Date().toISOString().slice(0, 10) } : { ok: false, reason: "unavailable", message: BILL_CURRENCY_CHANGED };
 
-// Who is in the flat (and for how long) and which move-out charges stand, as one comparable text.
-const peopleKey = (members: { id: string; leftAt: Date | null; joinedFrom?: Date | null; splitWeight: number }[], chargeIds: string[]) =>
-  JSON.stringify([[...members].sort((a, b) => a.id.localeCompare(b.id)).map((m) => [m.id, m.leftAt?.getTime() ?? 0, m.joinedFrom?.getTime() ?? 0, m.splitWeight]), [...chargeIds].sort()]);
-
 // Thrown inside the expense's transaction when the bill is not as it was when the amount was worked out.
 class BillMoved extends Error {}
+// The same, for a daily month whose people or move-out charges changed so that the split worked out again is not the one being saved.
+// (Not the bill itself: the month is simply worked out again by the next run while it is still due.)
+class PeopleMoved extends BillMoved {}
+
+// A split as one comparable text: the amount and who shares it, how.
+const splitOf = (x: SaveExpenseInput) => JSON.stringify([x.amount, x.forMode, [...x.selected].sort(), x.splitType, x.exact ?? {}, x.percent ?? {}, x.shares ?? null]);
+
+// A short fingerprint of what an "Add it" page was filled in from: the month's total and the move-out charges standing (expense, amount).
+// The page sends it back; if it is not the same now, the page is out of date. (A tiny FNV hash: it only has to notice a change.)
+export function billFormFingerprint(monthTotal: number, entries: Prepaid[]): string {
+  const text = `${monthTotal}|${entries.map((e) => `${e.e}:${e.a}`).sort().join(",")}`;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h.toString(16);
+}
 
 // The fields an automatic month depends on, as one comparable text.
 // Days marked "didn't come" and move-out charges are compared only for the month being run (a tick on next month's calendar changes nothing here).
@@ -317,9 +328,13 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
     else await db.billRun.updateMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt }, data: { status: "waiting", reason: run.expenseId ? "deleted" : "", requestKey: "" } });
     return "failed" as const;
   };
+  // When only the people or the move-out charges changed in the gap and the month is still due, the claim is just removed: the next run works it out again.
+  const releaseOrRetry = async () => {
+    if (run.expenseId || !periodsDue(bill, now).includes(period)) return retryLater();
+    await db.billRun.deleteMany({ where: { id: run.id, status: "adding", claimedAt: run.claimedAt } });
+    return "failed" as const;
+  };
   const worked = billMoney(bill, period);
-  // A daily month also depends on who is in the flat and which move-out charges still stand: read again inside the save, a change refuses it.
-  const peopleWhenRead = bill.nature === "daily" ? peopleKey(group.members, charges.map((x) => x.e)) : "";
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
     r = await saveExpense(input, payer, sameCurrencyRate, {
@@ -332,15 +347,23 @@ async function runOne(first: BillRow, group: { id: string; currency: string; clo
         const now2 = await tx.bill.findUnique({ where: { id: bill.id } });
         if (!now2 || billMoney(now2, period) !== worked) throw new BillMoved();
         if (bill.nature === "daily") {
-          const members = await tx.member.findMany({ where: { groupId: group.id }, select: { id: true, leftAt: true, joinedFrom: true, splitWeight: true } });
-          const standing = await tx.expense.findMany({ where: { id: { in: charges.map((x) => x.e) }, deletedAt: null }, select: { id: true } });
-          if (peopleKey(members, standing.map((x) => x.id)) !== peopleWhenRead) throw new BillMoved();
+          // A daily month depends on who is in the flat and which move-out charges still stand: worked out again here with the people and charges
+          // as they are now. Only if that is not the amount and split being saved is the month refused (a weight edit, someone unrelated joining,
+          // or "Not received" bringing back a leaver whose charge stands all give the same split, so they don't hold it up).
+          const members = await tx.member.findMany({ where: { groupId: group.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
+          const written = parsePrepaid(now2.prepaid)[period] ?? [];
+          const standing = new Map((await tx.expense.findMany({ where: { id: { in: written.map((x) => x.e) }, deletedAt: null }, select: { id: true, amount: true } })).map((e) => [e.id, e.amount]));
+          const entries = written.filter((x) => standing.has(x.e)).map((x) => ({ ...x, a: standing.get(x.e)! }));
+          const total = dailyTotal(now2, period).amount - entries.reduce((n, x) => n + x.a, 0);
+          const again = billExpenseInput(now2, group.id, group.currency, period, total, payer, members, { entries, gone: written.filter((x) => !standing.has(x.e)) });
+          if (splitOf(again) !== splitOf(input)) throw new PeopleMoved();
         }
         await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId, reason: "" } });
         await syncChargePayer(tx, group.id, charges, payer);
       },
     });
   } catch (err) {
+    if (err instanceof PeopleMoved) return releaseOrRetry();
     if (err instanceof BillMoved || err instanceof GroupChanged) return retryLater();
     throw err;
   }
@@ -520,22 +543,40 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
 // The words used wherever a bill was changed while someone was working on it (the same as the pause, stop and skip buttons use).
 const CHANGED_NOW = (bill: string) => `${bill} changed just now. Check it and try again.`;
 
-// An "Add it" page left open: a daily month with move-out charges is worked out again now. The form is out of date when its total is not what the
-// month comes to now (a charge was added or deleted since), or it still charges someone whose move-out charge is on the bill (they pay only that).
-async function dailyFormOutOfDate(bill: BillRow, input: SaveExpenseInput, period: string): Promise<boolean> {
+// What is said when an "Add it" page would charge someone whose move-out charge stands on the bill (new words: no existing sentence says this).
+const CHARGED_ALREADY = (who: string, bill: string) => `${who} already paid their part of ${bill} for this month when they moved out, so they can’t be in this split. Take them out and try again.`;
+
+// An "Add it" page left open: a daily month with move-out charges is looked at again now, after the month is claimed.
+//  - The page sent a fingerprint of what it was filled in from (the month's total and the charges standing): if it is not the same now, a charge was
+//    added, changed or deleted since, and the page is out of date. A page without one (an older page) is out of date only if its total is not what the
+//    month comes to now.
+//  - A form that would charge someone whose move-out charge stands is refused.
+//  - Someone who changed the total on purpose (a different milk bill) is let through, with the new total shared by the same day-by-day units
+//    when the amounts typed no longer add up to it.
+// Returns the words of a refusal, or the form to save.
+async function checkDailyForm(bill: BillRow, input: SaveExpenseInput, period: string, fp: string | undefined): Promise<{ error: string } | { input: SaveExpenseInput }> {
   const pre = await prepaidFor(bill, period);
-  if (!pre.entries.length && !pre.gone.length) return false; // no move-out charge this month: nothing here can have changed under the form
+  if (!pre.entries.length && !pre.gone.length) return { input }; // no move-out charge this month: nothing here can have changed under the form
   const posted = parseAmount(input.amount, input.currency);
-  if (posted === null) return false; // (the save says what is wrong with it)
-  if (posted !== Math.max(0, dailyTotal(bill, period).amount - pre.total)) return true;
-  const members = await db.member.findMany({ where: { groupId: input.groupId }, select: { id: true, leftAt: true } });
-  return pre.entries.some((e) => {
+  if (posted === null) return { input }; // (the save says what is wrong with it)
+  const monthTotal = dailyTotal(bill, period).amount;
+  const worked = Math.max(0, monthTotal - pre.total);
+  if (fp === undefined ? posted !== worked : fp !== billFormFingerprint(monthTotal, pre.entries)) return { error: CHANGED_NOW(bill.name) };
+  const members = await db.member.findMany({ where: { groupId: input.groupId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
+  for (const e of pre.entries) {
     const m = members.find((x) => x.id === e.m);
-    if (!m) return false;
-    if (input.forMode === "everyone") return !m.leftAt;
-    if (input.forMode !== "selected" || !input.selected.includes(e.m)) return false;
-    return input.splitType !== "exact" || (parseAmount(input.exact?.[e.m] ?? "", input.currency) ?? 0) > 0;
-  });
+    if (!m) continue;
+    const included = input.forMode === "everyone" ? !m.leftAt : input.forMode === "selected" && input.selected.includes(e.m) && (input.splitType !== "exact" || (parseAmount(input.exact?.[e.m] ?? "", input.currency) ?? 0) > 0);
+    if (included) return { error: CHARGED_ALREADY(m.name, bill.name) };
+  }
+  if (posted !== worked && posted > 0 && input.splitType === "exact") {
+    const typed = input.selected.reduce((n, id) => n + (parseAmount(input.exact?.[id] ?? "", input.currency) ?? 0), 0);
+    if (typed !== posted) {
+      const again = billExpenseInput(bill, input.groupId, input.currency, period, posted, input.paidById, members, { entries: pre.entries, gone: pre.gone });
+      if (again.splitType === "exact") return { input: { ...input, forMode: again.forMode, selected: again.selected, splitType: again.splitType, exact: again.exact ?? {}, percent: again.percent ?? {} } };
+    }
+  }
+  return { input };
 }
 
 // Why a month of an ended bill can't be added again by hand.
@@ -548,7 +589,7 @@ export async function addWaitingBill(
   input: SaveExpenseInput,
   actorId: string | undefined,
   lookupRate: Parameters<typeof saveExpense>[2],
-  billRun: { billId: string; period: string },
+  billRun: { billId: string; period: string; fp?: string },
   requestKey: string | undefined,
   attach?: Attach,
 ): Promise<Awaited<ReturnType<typeof saveExpense>>> {
@@ -561,7 +602,6 @@ export async function addWaitingBill(
     return { ok: false, error: ended ? billEnded(ended.name, String(billRun.period)) : "That bill no longer exists." };
   }
   const where = { billId: bill.id, period: String(billRun.period) };
-  if (bill.nature === "daily" && (await dailyFormOutOfDate(bill, input, where.period))) return { ok: false, error: CHANGED_NOW(bill.name) };
   // A month that was deleted and is being added again: the expense it replaces (kept on the month row), written down below in the same step.
   const replaced = (await db.billRun.findFirst({ where: { ...where, status: "waiting", reason: "deleted" }, select: { expenseId: true } }))?.expenseId ?? "";
   // (A month held because it may already have been added is never claimed here: the way out is Skip.)
@@ -576,6 +616,18 @@ export async function addWaitingBill(
     return { ok: false, error: `${bill.name} for this month has already been added. You’ll find it in Activity.` };
   }
   const release = () => db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "waiting", requestKey: "" } });
+  // A daily month is checked once it is claimed (a charge can't be deleted or added to this month from now on), and the claim is given back if refused.
+  if (bill.nature === "daily") {
+    const checked = await checkDailyForm(bill, input, where.period, typeof billRun.fp === "string" ? billRun.fp : undefined).catch(async (err) => {
+      await release().catch(() => undefined);
+      throw err;
+    });
+    if ("error" in checked) {
+      await release();
+      return { ok: false, error: checked.error };
+    }
+    input = checked.input;
+  }
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
     r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach, alsoInTx: async (tx, id) => noteReplaced(tx, replaced, id) });

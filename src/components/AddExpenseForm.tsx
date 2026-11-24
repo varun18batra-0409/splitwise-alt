@@ -81,7 +81,7 @@ export function AddExpenseForm({
   weights?: Record<string, number>; // the group's own split (hundredths of a share); all equal = none
   splitName?: string; // "Our split" (couple), "Home split" (home)…
   spin?: boolean; // Spin for it (every group but card nights)
-  billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
+  billRun?: { billId: string; period: string; fp?: string }; // "Enter amount" for a waiting bill (fp: what a daily month was filled in from)
   ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
   existingReceiptId?: string; // editing: the bill photo already kept with this expense
   initialItems?: { name: string; amount: string; people: string[] }[]; // editing an expense split by item
