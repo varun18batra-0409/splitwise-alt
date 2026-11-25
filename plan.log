@@ -1,0 +1,19 @@
+Loaded Prisma config from prisma.config.ts.
+
+┌─────────────────────────────────────────────────────────┐
+│  Update available 7.10.1 -> 8.0.0-rc.35                 │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+(nothing to change)
+plan exit: 0
+MODE=plan
+APPLY_STATUS=none
+PLAN_STATUS=0
+OUTCOME=ok
+REASON=
